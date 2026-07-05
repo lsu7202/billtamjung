@@ -54,6 +54,22 @@
 .floor-row .fin{width:54px; text-align:center; border:1px solid var(--line); border-radius:6px; padding:6px; font-size:13px; outline:none}
 .floor-row .fin:focus{border-color:var(--accent)}
 .floor-row .fl-hint{color:#aab2bc; font-size:12px; margin-left:6px}
+/* 헤더: 좌 주소 / 우 지표 몰아붙임 */
+.detail-top{display:flex; justify-content:space-between; align-items:flex-start; gap:24px}
+.hdr-left h2{margin:0}
+.hdr-left .star{color:#f5a623; font-size:18px; margin-left:4px}
+.hdr-metrics{display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; flex:0 1 auto}
+.hdr-metrics .metric{flex:0 0 auto; background:#f7f9fc; border:1px solid #eef1f6; border-radius:8px; padding:7px 13px; min-width:84px; text-align:right}
+.hdr-metrics .metric .k{font-size:11px; color:#8a929b; margin-bottom:2px}
+.hdr-metrics .metric .v{font-size:15px; font-weight:800; color:#222}
+/* 면적 3종 한 블럭 */
+.metric-area{min-width:260px}
+.metric-area .area-v{display:flex; gap:16px; justify-content:flex-end; margin-top:3px; white-space:nowrap}
+.metric-area .area-v span{font-size:15px; font-weight:800; color:#222}
+.metric-area .area-v i{font-size:11px; font-weight:600; color:#8a929b; font-style:normal; margin-right:4px}
+/* 헤더 스크롤 고정 + 푸터처럼 가로 꽉 채움 */
+.hdr-panel{position:sticky; top:0; z-index:50; background:#fff;
+  margin-left:-16px; margin-right:-16px; border-radius:0; border-left:0; border-right:0}
 </style>
 </head>
 <body>
@@ -65,24 +81,24 @@
   </div>
 
   <!-- 헤더 -->
-  <div class="panel">
+  <div class="panel hdr-panel">
     <div class="detail-top">
-      <div>
-        <h2>서울특별시 중구 충무로5가 20-29</h2>
+      <div class="hdr-left">
+        <h2>서울특별시 중구 충무로5가 20-29 <span class="star">★</span></h2>
         <div class="meta-line">
-          <span>매물번호 <b>11718</b></span><span>접수일 <b>2026-06-06</b></span>
-          <span>층 <b>B3F/6F</b></span>
+          <span>매물번호 <b>11718</b></span><span>접수일 <b>2026-06-06</b></span><span>담당 <b>이승욱</b></span>
         </div>
       </div>
-      <div style="text-align:right"><span class="star">★</span>
-        <div style="font-size:12px;color:#888;margin-top:4px">담당: 이승욱</div></div>
-    </div>
-    <div class="metrics">
-      <div class="metric"><div class="k">매매가</div><div class="v">60억</div></div>
-      <div class="metric"><div class="k">수익률</div><div class="v">2.44%</div></div>
-      <div class="metric"><div class="k">평단가(대지)</div><div class="v">1억 4,087만</div></div>
-      <div class="metric"><div class="k">대지면적</div><div class="v">42.59평</div></div>
-      <div class="metric"><div class="k">연면적</div><div class="v">214평</div></div>
+      <div class="hdr-metrics">
+        <div class="metric"><div class="k">매매가</div><div class="v">60억</div></div>
+        <div class="metric"><div class="k">수익률</div><div class="v">2.44%</div></div>
+        <div class="metric"><div class="k">평단가(대지)</div><div class="v">1억 4,087만</div></div>
+        <div class="metric metric-area">
+          <div class="k">면적 (평)</div>
+          <div class="area-v"><span><i>대지</i>42.59</span><span><i>연면적</i>214</span><span><i>건축</i>25.6</span></div>
+        </div>
+        <div class="metric"><div class="k">층수</div><div class="v">B3F/6F</div></div>
+      </div>
     </div>
   </div>
 
@@ -128,13 +144,13 @@
         <div class="sec-head">금액정보 <div class="right"><button class="btn" onclick="openCalc()">계산기</button></div></div>
         <div class="kv-grid">
           <div class="kv"><span class="k">매매가</span><span class="v">60억</span></div>
-          <div class="kv"><span class="k">총공실</span><span class="v">있음</span></div>
+          <div class="kv"><span class="k">수익률</span><span class="v calc">2.44%</span></div>
+          <div class="kv"><span class="k">대지면적 평단가</span><span class="v calc">1억 4,087만</span></div>
+          <div class="kv"><span class="k">연면적 평단가</span><span class="v calc">2,800만</span></div>
           <div class="kv"><span class="k">총보증금</span><span class="v">5억</span></div>
           <div class="kv"><span class="k">총임대료</span><span class="v">1,800만원</span></div>
           <div class="kv"><span class="k">총관리비</span><span class="v">300만원</span></div>
-          <div class="kv"><span class="k">대지면적 평단가</span><span class="v calc">1억 4,087만</span></div>
-          <div class="kv"><span class="k">연면적 평단가</span><span class="v calc">2,800만</span></div>
-          <div class="kv"><span class="k">수익률</span><span class="v calc">2.44%</span></div>
+          <div class="kv"><span class="k">총공실</span><span class="v">있음</span></div>
           <div class="kv"><span class="k">자기자본 수익률</span><span class="v calc">3.10%</span></div>
         </div>
       </div>
@@ -157,20 +173,17 @@
         <div class="sec-head">건물정보</div>
         <div class="kv-grid">
           <div class="kv"><span class="k">대지면적</span><span class="v">42.59평</span></div>
-          <div class="kv"><span class="k">승강기</span><span class="v">1대</span></div>
           <div class="kv"><span class="k">연면적</span><span class="v">214평</span></div>
-          <div class="kv"><span class="k">주차</span><span class="v">3대</span></div>
           <div class="kv"><span class="k">건축면적</span><span class="v">25.6평</span></div>
-          <div class="kv"><span class="k">사용승인일</span><span class="v">1998/05/12</span></div>
+          <div class="kv"><span class="k">층수</span><span class="v">지상 6 · 지하 3</span></div>
           <div class="kv"><span class="k">용적률 산정용 연면적</span><span class="v">200평</span></div>
+          <div class="kv"><span class="k">주차</span><span class="v">3대</span></div>
+          <div class="kv"><span class="k">엘리베이터</span><span class="v">1대</span></div>
+          <div class="kv"><span class="k">사용승인일</span><span class="v">1998/05/12</span></div>
           <div class="kv"><span class="k">대수선 및 리모델링</span><span class="v">2015/03/01</span></div>
-          <div class="kv"><span class="k">건폐율</span><span class="v">60.1%</span></div>
-          <div class="kv"><span class="k">법정 건폐율</span><span class="v">60%</span></div>
-          <div class="kv"><span class="k">용적률</span><span class="v">470%</span></div>
-          <div class="kv"><span class="k">법정 용적률</span><span class="v">500%</span></div>
-          <div class="kv"><span class="k">건폐율 여유분</span><span class="v calc">-0.1%p</span></div>
-          <div class="kv"><span class="k">용적률 여유분</span><span class="v calc">30%p</span></div>
           <div class="kv"><span class="k">기타용도</span><span class="v">근린생활시설</span></div>
+          <div class="kv"><span class="k">건폐율</span><span class="v">60.1% <small style="color:#8a929b;font-weight:400">/ 법정 60% / 잔여 -0.1%p</small></span></div>
+          <div class="kv"><span class="k">용적률</span><span class="v">470% <small style="color:#8a929b;font-weight:400">/ 법정 500% / 잔여 30%p</small></span></div>
         </div>
       </div>
 
