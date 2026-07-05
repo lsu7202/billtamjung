@@ -1,0 +1,238 @@
+/* 빌탐정 와이어프레임 공통 스타일 — 저충실도(low-fi) 레이아웃 확인용
+   원칙: 흑백 골격 + 분류색(광고=초록/내매물=파랑/일반=보라)만 강조 */
+
+:root{
+  --line:#bdbdbd;
+  --line-strong:#444;
+  --ink:#222;
+  --muted:#888;
+  --bg:#f4f5f7;
+  --panel:#fff;
+  --accent:#2f6fed;
+  --green:#34a853; --green-bg:#e6f4ea;
+  --blue:#1a73e8;  --blue-bg:#e8f0fe;
+  --purple:#7b3fe4;--purple-bg:#f0e9fc;
+  --radius:8px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+  font-size:14px; line-height:1.5;
+}
+.screen{max-width:1280px; margin:0 auto; padding:16px}
+
+/* 화면 제목 주석(목업 안내용) */
+.spec-note{
+  background:#fffbe6; border:1px solid #ffe58f; color:#7a5b00;
+  padding:8px 12px; border-radius:6px; font-size:12px; margin:8px 0 16px;
+}
+
+/* 상단 앱바 */
+.appbar{
+  display:flex; align-items:center; justify-content:space-between;
+  background:var(--panel); border:1px solid var(--line);
+  border-radius:var(--radius); padding:12px 16px; margin-bottom:12px;
+}
+.appbar .brand{font-weight:700; font-size:16px}
+.appbar .brand small{color:var(--muted); font-weight:400; margin-left:8px; font-size:13px}
+.appbar .user{display:flex; align-items:center; gap:8px; color:var(--muted)}
+.avatar{width:28px; height:28px; border-radius:50%; background:#cfd3d8}
+
+/* 패널/카드 */
+.panel{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:12px}
+
+/* 버튼 / 입력 */
+.btn{border:1px solid var(--line); background:#fafafa; border-radius:6px; padding:8px 14px; cursor:pointer; font-size:13px}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+.btn.ghost{background:#eaf1fe; border-color:#cfe0fd; color:var(--accent)}
+.input{border:1px solid var(--line); border-radius:6px; padding:8px 12px; background:#fff; min-width:240px}
+.toolbar{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+
+/* 필터 칩 */
+.chips{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
+.chip{display:inline-flex; align-items:center; gap:6px; background:#eef1f4; border:1px solid var(--line);
+  border-radius:999px; padding:4px 10px; font-size:12px; color:#444}
+.chip .x{color:var(--muted); cursor:pointer}
+
+/* 세그먼트 토글 */
+.segmented{display:inline-flex; border:1px solid var(--line); border-radius:6px; overflow:hidden}
+.segmented button{border:0; background:#fff; padding:6px 16px; cursor:pointer; font-size:13px; color:#555}
+.segmented button.active{background:#333; color:#fff}
+
+/* 결과 3열 */
+.result-cols{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px}
+.col-card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden}
+.col-head{padding:10px 12px; font-weight:700; color:#fff; text-align:center}
+.col-head.ad{background:var(--green)}
+.col-head.mine{background:var(--blue)}
+.col-head.normal{background:var(--purple)}
+.col-head .count{font-weight:400; opacity:.85; font-size:12px; margin-left:6px}
+
+/* 표 */
+table.wf{width:100%; border-collapse:collapse; font-size:13px}
+table.wf th, table.wf td{border-bottom:1px solid #eee; padding:8px 10px; text-align:left}
+table.wf th{color:var(--muted); font-weight:600; background:#fafafa}
+table.wf tr.row{cursor:pointer}
+table.wf tr.row:hover{background:#f7f9ff}
+.num{text-align:right; font-variant-numeric:tabular-nums}
+.empty{color:var(--muted); text-align:center; padding:24px 0; font-size:13px}
+
+/* 컬럼 내부 독립 스크롤 (대량 매물 효율 조회) */
+.col-body{max-height:58vh; overflow-y:auto}
+
+/* div 기반 결과 행 (호버 액션용) — 컬럼: 주소 / 매매가 / 수익률 / 최근조회 */
+.wf-list .wf-head,.wf-list .wf-row{
+  display:grid; grid-template-columns:1fr 58px 48px; gap:6px;
+  padding:9px 12px; align-items:center; font-size:13px;
+}
+.wf-list .wf-head{
+  color:var(--muted); font-weight:600; background:#fafafa; border-bottom:1px solid #eee;
+  position:sticky; top:0; z-index:1;
+}
+.wf-list .wf-row span:first-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.wf-list .wf-row{position:relative; cursor:pointer; border-bottom:1px solid #eee}
+.wf-list .wf-row:hover{background:#f7f9ff}
+.wf-list .wf-row .num{text-align:right}
+/* 호버 시 우측에 떠오르는 액션 버튼 */
+.row-actions{
+  position:absolute; right:10px; top:50%; transform:translateY(-50%);
+  display:none; gap:6px; background:#fff; padding:3px; border-radius:8px;
+  box-shadow:0 0 0 1px #e0e0e0, 0 2px 6px rgba(0,0,0,.08);
+}
+.wf-list .wf-row:hover .row-actions{display:flex}
+.row-actions .btn{padding:4px 9px; font-size:12px}
+
+/* 지도 자리 */
+.map-ph{height:420px; display:flex; align-items:center; justify-content:center;
+  background:repeating-linear-gradient(45deg,#f0f0f0,#f0f0f0 10px,#e9e9e9 10px,#e9e9e9 20px);
+  border:1px dashed var(--line); border-radius:6px; color:var(--muted)}
+.hidden{display:none !important}
+
+/* ===== S01b 필터 컨트롤 ===== */
+.section{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); margin-bottom:12px; overflow:hidden}
+.section > h3{margin:0; padding:10px 14px; font-size:13px; background:#f4f6f8; border-bottom:1px solid #eee;
+  display:flex; align-items:center; gap:8px}
+.section > h3 .tag{font-size:11px; color:#999; font-weight:400}
+.filter-grid{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px 22px; padding:14px}
+.filter-grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.filter-grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.f label{display:block; font-size:12px; color:#555; margin-bottom:5px; font-weight:600}
+.f label small{color:#aaa; font-weight:400}
+.f .range{display:flex; align-items:center; gap:6px}
+.f .range span{color:#bbb}
+.input.sm{min-width:0; width:100%; padding:6px 8px; font-size:13px}
+select.input.sm{padding:6px 6px}
+.tbd{color:#b48a00; background:#fffbe6; border:1px dashed #ffe58f; border-radius:4px; padding:0 5px; font-size:11px}
+/* 상단 액션바 */
+.filterbar{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.filterbar .right{margin-left:auto; display:flex; gap:8px}
+
+/* min~max 통합 입력박스 */
+.rangebox{display:flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:6px; padding:0 8px; background:#fff}
+.rangebox input{border:0; outline:0; width:100%; min-width:0; padding:7px 0; font-size:13px; background:transparent}
+.rangebox .sep{color:#bbb}
+.rangebox .unit{color:#999; font-size:12px; white-space:nowrap}
+/* 프리셋 칩 */
+.presets{display:flex; gap:5px; flex-wrap:wrap; margin-top:6px}
+.presets .p{font-size:11px; border:1px solid var(--line); border-radius:999px; padding:2px 9px; background:#fafafa; cursor:pointer; color:#555}
+.presets .p:hover{background:#eaf1fe; border-color:#cfe0fd; color:var(--accent)}
+/* 대목 카드: 접힘=대표조건만, 펼침=전체조건 */
+.card{background:#fff; border:1px solid var(--line); border-radius:var(--radius); margin-bottom:10px; overflow:visible}
+.card-head{display:flex; align-items:center; gap:8px; padding:12px 14px; background:#f4f6f8;
+  border-radius:var(--radius) var(--radius) 0 0; cursor:pointer; font-weight:700; font-size:13px; user-select:none}
+.card-head .tag{font-size:11px; color:#999; font-weight:400}
+.card-head .caret{color:#888; font-size:11px; transition:transform .15s; display:inline-block}
+.card.open .card-head .caret{transform:rotate(90deg)}
+.card-rep{padding:12px 14px; border-top:1px solid #eee; background:#fcfdff}
+.card-rep .f{min-width:auto}
+.rep-hint{color:#9aa7b5; font-size:11px; margin-bottom:6px}
+.card.open .rep-hint{display:none}
+.card-body{display:none; padding:0 14px 14px; border-top:1px dashed #eee}
+.card.open .card-body{display:block}
+.card-body .filter-grid{padding:14px 0 0}
+
+/* 대목 카드 그리드 (좌→우 타일, 펼치면 전체폭) */
+.card-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(560px,1fr)); gap:12px; align-items:start; margin-bottom:10px}
+.card-grid .card{margin-bottom:0}
+.card-grid .card.open{grid-column:1 / -1}
+.badge{margin-left:auto; background:var(--accent); color:#fff; border-radius:999px; font-size:11px; padding:1px 8px; font-weight:600}
+.badge.zero{background:#e3e3e3; color:#999}
+/* 적용된 조건 칩바 */
+.chipbar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; min-height:26px}
+.chipbar .empty-hint{color:#aaa; font-size:12px}
+
+/* ===== S02 매물상세 ===== */
+.detail-top{display:flex; justify-content:space-between; align-items:flex-start; gap:16px}
+.detail-top h2{margin:0; font-size:18px}
+.meta-line{color:#888; font-size:12px; display:flex; gap:14px; flex-wrap:wrap; margin-top:6px}
+.meta-line b{color:#555; font-weight:600}
+.star{font-size:22px; color:#f5c518; cursor:pointer; user-select:none}
+.metrics{display:flex; margin:12px 0; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#fff}
+.metric{flex:1; padding:12px 16px; border-right:1px solid #eee}
+.metric:last-child{border-right:0}
+.metric .k{font-size:12px; color:#888}
+.metric .v{font-size:18px; font-weight:700; margin-top:3px}
+.tabs{display:flex; gap:4px; margin-bottom:0}
+.tabs button{border:1px solid var(--line); border-bottom:0; background:#f4f6f8; padding:8px 18px;
+  border-radius:8px 8px 0 0; cursor:pointer; font-size:13px; color:#555}
+.tabs button.active{background:#fff; color:#222; font-weight:700}
+.tabpane{display:none} .tabpane.active{display:block}
+/* 데이터 블록 */
+.block{background:#fff; border:1px solid var(--line); border-radius:8px; margin-bottom:12px; overflow:hidden}
+.sec-head{display:flex; align-items:center; gap:10px; padding:11px 14px; border-bottom:2px solid #333; font-weight:700; font-size:14px}
+.sec-head .right{margin-left:auto; display:flex; align-items:center; gap:10px}
+.kv-grid{display:grid; grid-template-columns:1fr 1fr; gap:0 36px; padding:6px 14px 12px}
+.kv{display:flex; justify-content:space-between; gap:12px; padding:9px 2px; border-bottom:1px solid #f1f1f1}
+.kv .k{color:#777} .kv .v{font-weight:600; color:#222}
+.kv .v.calc{color:#1a4fc0} /* 파생값 */
+/* 등락 색상 관례: 상승(+)=빨강, 하락(−)=파랑 */
+.pos{color:#d93025; font-weight:700; font-size:13px}
+.neg{color:#1a4fc0; font-weight:700; font-size:13px}
+/* S02 본문 2단: 좌=콘텐츠, 우=고정 사이드바 */
+.detail-body{display:grid; grid-template-columns:1fr 360px; gap:12px; align-items:start}
+.sidebar{position:sticky; top:12px; align-self:start; max-height:calc(100vh - 24px); overflow:auto}
+@media(max-width:1100px){.detail-body{grid-template-columns:1fr} .sidebar{position:static; max-height:none}}
+/* 위키 댓글창 */
+.comment{border:1px solid #eee; border-radius:8px; padding:10px 12px; margin:0 12px 8px}
+.comment .who{font-size:12px; color:#888; margin-bottom:4px}
+.comment .who b{color:#444}
+.comment .txt{font-size:13px}
+.comment .act{display:flex; gap:14px; margin-top:8px; font-size:12px; color:#888}
+.comment .act span{cursor:pointer}
+.comment.reply{margin-left:24px; background:#fafbfc}
+.comment-input{display:flex; gap:6px; padding:10px 12px; border-top:1px solid #eee}
+.comment-input input{flex:1}
+.memo-area{padding:12px}
+.memo-area textarea{width:100%; min-height:180px; border:1px solid var(--line); border-radius:8px; padding:10px; font:inherit; resize:vertical}
+.svg-chart{display:block; width:100%; height:auto; background:#fcfdff}
+.svg-chart .axis{stroke:#ccc; stroke-width:1}
+.svg-chart .grid{stroke:#eee; stroke-width:1}
+.svg-chart .line{fill:none; stroke-width:2.5}
+.svg-chart .dot{stroke:#fff; stroke-width:1.5}
+.svg-chart text{fill:#888; font-size:13px; font-family:inherit}
+.svg-chart .axtitle{fill:#aaa; font-size:12px}
+.svg-chart .rate{font-size:16px; font-weight:700}
+.svg-chart .val{fill:#555; font-size:12px}
+.svg-chart .dot{cursor:pointer}
+.chart-tip{position:fixed; z-index:60; background:#222; color:#fff; font-size:12px; line-height:1.5;
+  padding:8px 11px; border-radius:6px; pointer-events:none; opacity:0; transition:opacity .1s;
+  white-space:nowrap; transform:translate(-50%,-118%)}
+.chart-tip.show{opacity:1}
+.chart-tip .up{color:#ff7a70; font-weight:700} .chart-tip .down{color:#8ab4ff; font-weight:700}
+.matrix th:first-child,.matrix td:first-child{background:#fafafa; font-weight:600}
+/* 모달 */
+.modal-bg{position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:flex-start; justify-content:center; padding:40px 16px; overflow:auto; z-index:50}
+.modal-bg.open{display:flex}
+.modal{background:#fff; border-radius:10px; width:min(900px,100%); padding:18px}
+.modal h3{margin:0 0 14px; display:flex; align-items:center}
+.modal h3 .right{margin-left:auto; display:flex; gap:8px}
+/* 하단 고정 툴바 */
+.bottombar{position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line);
+  box-shadow:0 -2px 8px rgba(0,0,0,.06); padding:10px 20px; display:flex; align-items:center; gap:8px; z-index:40}
+.bottombar .icon-btn{min-width:40px; height:38px; border:1px solid var(--line); border-radius:8px;
+  background:#fafafa; cursor:pointer; font-size:17px; line-height:1}
+.bottombar .icon-btn:hover{background:#eef2f7}
+.bottombar .sep{width:1px; height:24px; background:#e2e2e2; margin:0 6px}
+.bottombar .right{margin-left:auto; display:flex; gap:10px}
+.bottombar small{color:#aaa; font-size:11px; margin-left:2px}

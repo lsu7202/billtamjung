@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S01b 검색 컨트롤 프로토타입 — 빌탐정</title>
+<link rel="stylesheet" href="wireframe.css">
+<style>
+.proto{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px}
+.ctl{background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px 18px}
+.ctl h4{margin:0 0 4px; font-size:13px}
+.ctl .desc{font-size:11px; color:#999; margin-bottom:16px}
+
+/* 듀얼 슬라이더 */
+.rs{position:relative; height:80px}
+.rs-io{position:absolute; top:0; left:0; right:0; height:26px; display:flex; align-items:center; justify-content:center; gap:8px; cursor:text}
+.rs-io .rs-all{font-size:16px; font-weight:800; color:#bbb}
+.rs-io.full .rs-inputs{display:none}
+.rs-io:not(.full) .rs-all{display:none}
+.rs-io .rs-inputs{display:flex; align-items:baseline; gap:4px}
+.rs-io input{width:52px; text-align:center; border:0; border-bottom:2px solid #cfe0fd; font-size:16px; font-weight:800; color:var(--accent); background:transparent; outline:none; padding:1px 0}
+.rs-io input:focus{border-bottom-color:var(--accent)}
+.rs-io .u{font-size:12px; color:var(--accent); font-weight:600}
+.rs-io .ge,.rs-io .le{font-size:12px; color:#8a97a5; font-weight:700; margin-right:10px}
+.rs-io .le{margin-right:0}
+.rs-io .lo-g,.rs-io .hi-g{display:inline-flex; align-items:baseline; gap:4px}
+.rs-rail{position:absolute; top:40px; left:8px; right:8px; height:5px; background:#e4e4e4; border-radius:3px; cursor:pointer}
+.rs-sel{position:absolute; height:100%; background:var(--accent); border-radius:3px}
+.rs input[type=range]{position:absolute; top:32px; left:0; width:100%; margin:0; -webkit-appearance:none; background:none; pointer-events:none; height:22px}
+.rs input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; pointer-events:auto; width:20px; height:20px; border-radius:50%; background:#fff; border:2.5px solid var(--accent); cursor:grab; box-shadow:0 1px 4px rgba(0,0,0,.28)}
+/* 눈금 */
+.rs-ticks{position:absolute; top:47px; left:8px; right:8px; height:24px}
+.rs-tick{position:absolute; transform:translateX(-50%); cursor:pointer; text-align:center}
+.rs-tick i{display:block; width:1px; height:5px; background:#d3d3d3; margin:0 auto 3px}
+.rs-tick span{font-size:10px; color:#aaa; white-space:nowrap}
+.rs-tick:hover span{color:var(--accent); font-weight:600}
+.rs-tick:hover i{background:var(--accent)}
+
+.seg{display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden}
+.seg button{border:0; background:#fff; padding:6px 12px; cursor:pointer; font-size:12px; color:#555}
+.seg button.on{background:#333; color:#fff}
+.seg.multi button.on{background:var(--accent)}
+.chips2{display:flex; gap:6px; flex-wrap:wrap}
+.chips2 .c{font-size:12px; border:1px solid var(--line); border-radius:999px; padding:4px 11px; background:#fafafa; cursor:pointer; color:#555}
+.chips2 .c.on{background:#eaf1fe; border-color:#cfe0fd; color:var(--accent); font-weight:600}
+.ms{position:relative}
+.ms-box{display:flex; flex-wrap:wrap; gap:6px; align-items:center; border:1px solid var(--line); border-radius:8px; padding:6px 8px; min-height:40px; cursor:text}
+.ms-box .tag{display:inline-flex; align-items:center; gap:5px; background:#eaf1fe; color:var(--accent); border-radius:6px; padding:3px 8px; font-size:12px; font-weight:600}
+.ms-box .tag b{cursor:pointer}
+.ms-box input{border:0; outline:0; flex:1; min-width:80px; font-size:13px; padding:4px}
+.ms-menu{position:absolute; z-index:5; left:0; right:0; top:calc(100% + 4px); background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,.1); max-height:220px; overflow:auto; display:none}
+.ms.open .ms-menu{display:block}
+.ms-opt{display:flex; justify-content:space-between; padding:8px 12px; font-size:13px; cursor:pointer}
+.ms-opt:hover{background:#f5f8ff}
+.ms-opt.sel{color:var(--accent); font-weight:600}
+.ms-opt .cnt{color:#aaa; font-size:12px} .ms-opt .cnt b{color:#888}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="spec-note">
+    <b>S01b 검색 컨트롤 프로토타입 v5</b> — 양쪽 핸들 범위 · <b>트랙 클릭 시 이동 핸들 조건별 지정</b> · 끝=무한 · 눈금·직접입력(무제한) · 기본 전체.
+  </div>
+
+  <div class="proto">
+
+    <div class="ctl"><h4>매매가 <small style="color:#aaa">(억)</small></h4>
+      <div class="desc">양쪽 핸들 범위 · 트랙 클릭=가까운 핸들 이동 · 오른쪽 끝=무한</div>
+      <div class="rs" data-min="0" data-max="200" data-unit="억" data-inf="1" data-ticks="0,50,100,150"></div></div>
+
+    <div class="ctl"><h4>수익률 <small style="color:#aaa">(%)</small></h4>
+      <div class="desc">트랙 클릭 시 <b>왼쪽</b> 핸들 이동 (하한 위주)</div>
+      <div class="rs" data-min="0" data-max="8" data-step="0.1" data-unit="%" data-inf="1" data-handle="left" data-ticks="0,2,4,6"></div></div>
+
+    <div class="ctl"><h4>사용승인일 <small style="color:#aaa">(건물 연식)</small></h4>
+      <div class="desc">달력 대신 연식 · 트랙 클릭 시 <b>오른쪽</b> 핸들 이동</div>
+      <div class="chips2" id="age-chips" style="margin-bottom:14px">
+        <span class="c" data-lo="0" data-hi="5">신축 5년↓</span>
+        <span class="c" data-lo="0" data-hi="10">준신축 10년↓</span>
+        <span class="c" data-lo="0" data-hi="15">15년↓</span>
+        <span class="c" data-lo="20" data-hi="">구옥 20년↑</span></div>
+      <div class="rs" data-min="0" data-max="30" data-unit="년" data-inf="1" data-handle="right" data-ticks="0,10,20"></div></div>
+
+    <div class="ctl"><h4>매각일 <small style="color:#aaa">(거래 연도)</small></h4>
+      <div class="desc">연도 슬라이더 · 트랙 클릭 시 <b>왼쪽</b> 핸들 · 최근 N년 칩</div>
+      <div class="chips2" id="recent-chips" style="margin-bottom:14px">
+        <span class="c" data-n="1">최근 1년</span><span class="c" data-n="3">3년</span>
+        <span class="c" data-n="5">5년</span><span class="c" data-n="10">10년</span></div>
+      <div class="rs" id="sale-slider" data-min="1970" data-max="2026" data-unit="" data-inf="1" data-inflo="1" data-handle="left" data-ge="부터" data-le="까지" data-ticks="1980,1990,2000,2010,2020"></div></div>
+
+    <div class="ctl"><h4>주차장 <small style="color:#aaa">(대)</small></h4>
+      <div class="desc">트랙 클릭 시 <b>왼쪽</b> 핸들 이동</div>
+      <div class="rs" data-min="0" data-max="20" data-unit="대" data-inf="1" data-handle="left" data-ticks="0,5,10,15"></div></div>
+
+    <div class="ctl"><h4>엘리베이터 <small style="color:#aaa">(대)</small></h4>
+      <div class="desc">주차장과 동일 (트랙 클릭 시 왼쪽 핸들)</div>
+      <div class="rs" data-min="0" data-max="6" data-unit="대" data-inf="1" data-handle="left" data-ticks="0,2,4"></div></div>
+
+    <div class="ctl"><h4>용도지역 <small style="color:#aaa">(다중선택)</small></h4>
+      <div class="desc">타이핑 검색 + 다중 선택</div>
+      <div class="ms" id="ms-zone"><div class="ms-box"><input placeholder="용도지역 입력/선택…"></div><div class="ms-menu"></div></div></div>
+
+    <div class="ctl"><h4>등급 <small style="color:#aaa">(다중)</small></h4>
+      <div class="desc">A~D 세그먼트 다중 (기본=전체)</div>
+      <div class="seg multi" id="grade-seg"><button>확인중</button><button>A</button><button>B</button><button>C</button><button>D</button></div></div>
+
+  </div>
+</div>
+
+<script>
+function initSlider(rs){
+  const min=+rs.dataset.min, step=+(rs.dataset.step||1), unit=rs.dataset.unit||'';
+  const max=+rs.dataset.max, inf=rs.dataset.inf==='1', inflo=rs.dataset.inflo==='1';
+  const ge=rs.dataset.ge||'이상', le=rs.dataset.le||'이하';
+  const showVal=v=> step<1? (+v).toFixed(1) : Math.round(v);
+  const ticks=(rs.dataset.ticks||'').split(',').filter(x=>x!=='').map(Number);
+  const _tk=[]; if(inflo) _tk.push({v:min,l:'무한'});
+  ticks.forEach(v=>_tk.push({v,l:showVal(v)+unit}));
+  _tk.push({v:max,l: inf? '무한' : showVal(max)+unit});
+  const tickHtml=_tk.map(t=>`<div class="rs-tick" data-v="${t.v}" style="left:${(t.v-min)/(max-min)*100}%"><i></i><span>${t.l}</span></div>`).join('');
+  rs.innerHTML=`<div class="rs-io">
+      <span class="rs-inputs"><span class="lo-g"><input class="lo" inputmode="decimal"><span class="u">${unit}</span><span class="ge">${ge}</span></span><span class="hi-g"><input class="hi" inputmode="decimal"><span class="u">${unit}</span><span class="le">${le}</span></span></span><span class="rs-all">전체</span></div>
+    <div class="rs-rail"><div class="rs-sel"></div></div>
+    <input type="range" class="rs-a" min="${min}" max="${max}" step="${step}" value="${min}">
+    <input type="range" class="rs-b" min="${min}" max="${max}" step="${step}" value="${max}">
+    <div class="rs-ticks">${tickHtml}</div>`;
+  const mode=rs.dataset.handle||'dual'; rs.classList.add('mode-'+mode);
+  const io=rs.querySelector('.rs-io'), a=rs.querySelector('.rs-a'), b=rs.querySelector('.rs-b'),
+        sel=rs.querySelector('.rs-sel'), loIn=rs.querySelector('.lo'), hiIn=rs.querySelector('.hi'), rail=rs.querySelector('.rs-rail');
+  function bar(){ const lo=Math.min(+a.value,+b.value), hi=Math.max(+a.value,+b.value), p=v=>(v-min)/(max-min)*100;
+    sel.style.left=p(lo)+'%'; sel.style.width=(p(hi)-p(lo))+'%'; }
+  function updFull(){ const foc=document.activeElement===loIn||document.activeElement===hiIn;
+    io.classList.toggle('full', loIn.value===''&&hiIn.value===''&&!foc); }
+  function fromSlider(){ const lo=Math.min(+a.value,+b.value), hi=Math.max(+a.value,+b.value);
+    loIn.value = lo<=min? '' : showVal(lo); hiIn.value = hi>=max? '' : showVal(hi); bar(); updFull(); }
+  function fromInput(){ let lo=loIn.value===''?min:parseFloat(loIn.value), hi=hiIn.value===''?max:parseFloat(hiIn.value);
+    if(isNaN(lo))lo=min; if(isNaN(hi))hi=max;
+    a.value=Math.max(min,Math.min(lo,max)); b.value=Math.max(min,Math.min(hi,max)); bar(); updFull(); }
+  function moveHandle(v){ v=Math.max(min,Math.min(Math.round(v/step)*step,max));
+    if(mode==='left') a.value=v; else if(mode==='right') b.value=v;
+    else { if(Math.abs(v-(+a.value))<=Math.abs(v-(+b.value))) a.value=v; else b.value=v; } fromSlider(); }
+  a.addEventListener('input',fromSlider); b.addEventListener('input',fromSlider);
+  loIn.addEventListener('input',fromInput); hiIn.addEventListener('input',fromInput);
+  [loIn,hiIn].forEach(i=>{ i.addEventListener('focus',()=>io.classList.remove('full')); i.addEventListener('blur',()=>setTimeout(updFull,0)); });
+  io.addEventListener('click',()=>{ if(io.classList.contains('full')){ io.classList.remove('full'); (mode==='right'?hiIn:loIn).focus(); } });
+  // 트랙/눈금 클릭 → 값 설정
+  rs.addEventListener('click',e=>{
+    if(e.target.tagName==='INPUT'||e.target.closest('.rs-io')) return;
+    const t=e.target.closest('.rs-tick'); const rect=rail.getBoundingClientRect();
+    let v; if(t){ v=+t.dataset.v; } else { let r=(e.clientX-rect.left)/rect.width; v=min+Math.max(0,Math.min(1,r))*(max-min); }
+    moveHandle(v);
+  });
+  rs._set=(l,h)=>{ a.value=(l===''?min:l); b.value=(h===''?max:h); fromSlider(); };
+  bar(); updFull();
+}
+const NOW=new Date().getFullYear();
+const sale=document.getElementById('sale-slider'); sale.dataset.max=NOW;
+document.querySelectorAll('.rs').forEach(initSlider);
+const sliders=[...document.querySelectorAll('.rs')];
+
+const ageSlider=sliders[2];
+document.querySelectorAll('#age-chips .c').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('#age-chips .c').forEach(x=>x.classList.remove('on')); c.classList.add('on');
+  ageSlider._set(c.dataset.lo,c.dataset.hi); }));
+document.querySelectorAll('#recent-chips .c').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('#recent-chips .c').forEach(x=>x.classList.remove('on')); c.classList.add('on');
+  sale._set(NOW-(+c.dataset.n), NOW); }));
+
+document.querySelectorAll('#grade-seg button').forEach(b=>b.addEventListener('click',()=>b.classList.toggle('on')));
+
+const ZONE=['중심상업','일반상업','근린상업','유통상업','준주거','제2종일반주거','제3종일반주거','준공업','자연녹지'];
+const ms=document.getElementById('ms-zone'), box=ms.querySelector('.ms-box'), inp=box.querySelector('input'), menu=ms.querySelector('.ms-menu');
+let picked=new Set();
+function renderMenu(){ const q=inp.value.trim();
+  menu.innerHTML=ZONE.filter(n=>n.includes(q)).map(n=>`<div class="ms-opt ${picked.has(n)?'sel':''}" data-n="${n}">${picked.has(n)?'✓ ':''}${n}</div>`).join('')||'<div class="ms-opt" style="color:#aaa">결과 없음</div>'; }
+function renderTags(){ box.querySelectorAll('.tag').forEach(t=>t.remove());
+  [...picked].forEach(n=>{ const t=document.createElement('span'); t.className='tag'; t.innerHTML=`${n} <b>×</b>`;
+    t.querySelector('b').onclick=e=>{e.stopPropagation(); picked.delete(n); renderTags(); renderMenu();}; box.insertBefore(t,inp); });
+  inp.placeholder = picked.size? '' : '전체 (미선택)'; }
+box.addEventListener('click',()=>{ms.classList.add('open'); inp.focus();});
+inp.addEventListener('input',()=>{ms.classList.add('open'); renderMenu();});
+menu.addEventListener('click',e=>{ const o=e.target.closest('.ms-opt'); if(!o||!o.dataset.n)return;
+  const n=o.dataset.n; picked.has(n)?picked.delete(n):picked.add(n); inp.value=''; renderTags(); renderMenu();});
+document.addEventListener('click',e=>{ if(!ms.contains(e.target)) ms.classList.remove('open'); });
+renderTags(); renderMenu();
+</script>
+</body>
+</html>

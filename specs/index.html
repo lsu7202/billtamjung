@@ -1,0 +1,2792 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>빌탐정</title>
+    <script type="text/javascript"
+        src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId={{ client_id }}&submodules=geocoder,panorama,drawing"></script>
+    <script type="text/javascript" src="https://navermaps.github.io/maps.js.ncp/docs/js/MarkerClustering.js"></script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* 기본 레이아웃 및 폰트 설정 */
+        body {
+            font-family: 'Malgun Gothic', 'Dotum', sans-serif;
+            font-size: 12px;
+            color: #333;
+            background-color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 숫자 인풋 화살표 제거 */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        .main-wrapper {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 사이드바 설정 */
+        #filter-sidebar {
+            width: 420px;
+            background: #ffffff;
+            border-right: 1px solid #e2e8f0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            z-index: 30;
+            transition: margin-left 0.3s ease;
+        }
+
+        #filter-sidebar.collapsed {
+            margin-left: -420px;
+        }
+
+        #sidebar-toggle {
+            position: absolute;
+            left: 420px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 9999 !important;
+            background: rgb(81, 100, 206);
+            border: 1px solid #e2e8f0;
+            border-left: none;
+            padding: 10px 4px;
+            border-radius: 0 4px 4px 0;
+            cursor: pointer;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+            transition: left 0.3s ease;
+        }
+
+        #filter-sidebar.collapsed+#sidebar-toggle {
+            left: 0;
+        }
+
+        /* 탭 버튼 스타일 */
+        .view-tabs {
+            display: flex;
+            background: #f1f5f9;
+            padding: 4px;
+            gap: 4px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 8px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: bold;
+            color: #64748b;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background: white;
+            color: #2563eb;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        #content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        body.is-fullscreen #filter-sidebar,
+        body.is-fullscreen #sidebar-toggle,
+        body.is-fullscreen header,
+        /* 헤더 영역 (h-[40px] 클래스 부분) */
+        body.is-fullscreen .bg-white.border-b {
+            display: none !important;
+        }
+
+        /* 2. 메인 컨텐츠 영역 확장 */
+        body.is-fullscreen .main-wrapper {
+            height: 100vh !important;
+        }
+
+        body.is-fullscreen #content-area {
+            width: 100vw !important;
+            height: 100vh !important;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 2000;
+        }
+
+        /* 3. 파노라마 내부 컨트롤 위치 조정 (필요 시) */
+        body.is-fullscreen .view-tabs {
+            display: none;
+            /* 전체화면 시 탭 숨김 */
+        }
+
+        #spreadsheet-view,
+        #map-view {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .view-hidden {
+            display: none !important;
+        }
+
+        #map-section {
+            flex: 1;
+            position: relative;
+        }
+
+        /* 지도 컨트롤 및 도구 */
+        .map-type-control {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            z-index: 100;
+            display: flex;
+            background: white;
+            padding: 2px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+        }
+
+        .map-type-btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #4b5563;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .map-type-btn.active {
+            background: #2563eb;
+            color: white;
+        }
+
+        .map-tools-center {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* 필터 레이아웃 */
+        .filter-row {
+            display: grid;
+            grid-template-columns: 100px 1fr;
+            align-items: center;
+            gap: 12px;
+            padding: 4px 0;
+        }
+
+        .filter-label {
+            font-size: 12px;
+            font-weight: 800;
+            color: #4b5563;
+        }
+
+        .range-input {
+            width: 100%;
+            height: 30px;
+            border: 1px solid #9ca3af !important;
+            border-radius: 4px;
+            padding: 0 8px;
+            font-size: 11px;
+        }
+
+        .common-input {
+            width: 100%;
+            height: 30px;
+            border: 1px solid #9ca3af !important;
+            border-radius: 4px;
+            padding: 0 8px;
+            font-size: 11px;
+        }
+
+        .range-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* 파노라마(로드뷰) 래퍼 최적화 */
+        #pano-wrapper {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 320px;
+            /* 초기 가독성을 위해 크기 소폭 확장 */
+            height: 220px;
+            z-index: 50;
+            background: #000;
+            border: 4px solid white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+            display: none;
+            overflow: hidden;
+
+        }
+
+        #pano-wrapper.expanded {
+            width: 100%;
+            height: 100%;
+            bottom: 0;
+            right: 0;
+            border-radius: 0;
+        }
+
+        /* 네이버 API 내부 요소 박스 모델 복구 */
+        #pano-view {
+            width: 100%;
+            height: 100%;
+        }
+
+        #pano-view * {
+            box-sizing: border-box !important;
+            /* content-box에서 border-box로 수정 */
+            max-width: none !important;
+            max-height: none !important;
+        }
+
+        /* 항공뷰 버튼 및 플라이트 스팟 UI 강제 가시성 확보 */
+        .ns-around-control,
+        .pano_flightspot,
+        .spr_pano_flightspot {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
+        .pano-controls {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            display: flex;
+            gap: 8px;
+            z-index: 1001;
+        }
+
+        .pano-btn {
+            width: 30px;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        /* 파노라마 확장 시 지도를 미니맵으로 전환 */
+        #map-section.mode-panorama-main #map {
+            position: absolute !important;
+            bottom: 30px !important;
+            /* 바닥에서 30px */
+            left: 20px !important;
+            /* 왼쪽에서 20px */
+            width: 320px !important;
+            /* 미니맵 너비 */
+            height: 220px !important;
+            /* 미니맵 높이 */
+            z-index: 1002 !important;
+            /* 파노라마(1001)보다 위에 위치 */
+            border: 4px solid white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        /* 미니맵 전용 '지도 끄기' 버튼 스타일 */
+        #btn-mini-map-close {
+            display: none;
+            /* 평소에는 숨김 */
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            z-index: 1003;
+            background: #ef4444;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 24px;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        /* 모드 활성화 시에만 닫기 버튼 보이기 */
+        #map-section.mode-panorama-main #btn-mini-map-close {
+            display: block;
+        }
+
+        /* 2. 작은 지도 안에 들어갈 '지도 닫기' 버튼 스타일 */
+        #btn-hide-map {
+            display: none;
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            z-index: 1003;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            text-align: center;
+            line-height: 20px;
+            cursor: pointer;
+        }
+
+        /* 3. 모드 활성화 시 닫기 버튼 보이기 */
+        #map-section.mode-panorama-main #btn-hide-map {
+            display: block;
+        }
+
+        .star-btn {
+            display: none;
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+        }
+
+        .handsontable td:hover .star-btn {
+            display: block;
+        }
+
+        .handsontable td {
+            white-space: nowrap !important;
+            overflow: hidden;
+            /* text-overflow: ellipsis;  <- 이 부분을 아래처럼 변경 */
+            text-overflow: clip !important;
+        }
+    </style>
+</head>
+
+<body class="flex flex-col h-screen overflow-hidden">
+
+    <!-- 헤더영역 -->
+    <div class="bg-white border-b px-3 py-1.5 flex justify-between items-center shadow-sm z-20 h-[40px]">
+        <div class="flex items-center gap-2">
+            <i class="fa-solid fa-building text-blue-600"></i>
+            <span class="font-black text-base tracking-tight">빌<span class="text-blue-600">탐정</span></span>
+
+            <div class="flex items-center gap-2">
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                <span id="userInfoText" class="text-xs text-gray-600"></span>
+            </div>
+        </div>
+
+        <div class="flex gap-1.5">
+            <input type="text" id="mainSearchInput"
+                class="border rounded px-2 py-0.5 text-xs w-52 focus:outline-blue-500" placeholder="통합 검색">
+            <button id="btnMainSearch"
+                class="bg-blue-600 text-white px-2.5 py-0.5 rounded text-xs hover:bg-blue-700 transition"><i
+                    class="fa-solid fa-magnifying-glass"></i></button>
+            <button id="btnResetAll"
+                class="bg-white border border-gray-300 text-gray-600 px-2.5 py-0.5 rounded text-xs hover:bg-gray-50 transition"><i
+                    class="fa-solid fa-rotate-right"></i></button>
+            <button id="btnToggleUnit"
+                class="bg-amber-500 text-white px-2.5 py-0.5 rounded text-xs hover:bg-amber-600 transition flex items-center gap-1">
+                <i class="fa-solid fa-ruler-combined"></i> <span id="unitText">평</span>
+            </button>
+            <button id="btnBriefing"
+                class="bg-blue-600 text-white px-2.5 py-0.5 rounded text-xs hover:bg-green-700 transition">브리핑</button>
+        </div>
+
+    </div>
+    <!-- 헤더영역 -->
+
+    <!-- 메인 레퍼 -->
+    <div class="main-wrapper">
+        <div class="main-wrapper relative">
+            <aside id="filter-sidebar">
+                <div class="p-4 border-b bg-gray-50 sticky top-0 z-30 flex justify-between items-center">
+                    <h3 class="font-bold text-sm text-gray-800"><i class="fa-solid fa-filter text-blue-600 mr-1"></i>
+                    </h3>
+                    
+                </div>
+
+
+                <div class="p-4 space-y-6">
+                    <section class="space-y-1">
+                        <div class="filter-row">
+                            <label class="filter-label">정렬 기준</label>
+                            <select id="sortColumn" class="w-full border rounded p-1.5 text-xs bg-white outline-none">
+                                <option value="주소">주소</option>
+                                <option value="대지면적">대지면적</option>
+                                <option value="연면적">연면적</option>
+                                <option value="건축면적">건축면적</option>
+                                <option value="사용승인일">사용승인일</option>
+                                <option value="매각일1">매각일</option>
+                                <option value="매각액1">매각액</option>
+                                <option value="주차장">주차장</option>
+                                <option value="엘리베이터">엘리베이터</option>
+                                <option value="규모">규모</option>
+                            </select>
+                        </div>
+                    </section>
+
+                    <section class="space-y-1">
+                        <div class="filter-row">
+                            <label class="filter-label">페이지당 개수</label>
+                            <select id="pageSizeSelect"
+                                class="w-full border rounded p-1.5 text-xs bg-white outline-none">
+                                <option value="100" selected>100개씩 보기</option>
+                                <option value="200">200개씩 보기</option>
+                                <option value="300">300개씩 보기</option>
+                                <option value="400">400개씩 보기</option>
+                                <option value="500">500개씩 보기</option>
+                            </select>
+                        </div>
+                    </section>
+                    <section>
+                        <div class="text-[10px] font-bold text-blue-500 mb-2 border-b pb-1"></div>
+                        <div class="filter-row">
+                            <label class="filter-label">시군구</label>
+                            <select id="selRegionSigungu" class="w-full border rounded p-1.5 text-xs bg-white"></select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">법정동</label>
+                            <select id="selRegionDong" class="w-full border rounded p-1.5 text-xs bg-gray-50"></select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">지번</label>
+                            <input type="text" id="BUNJISearchInput"
+                                class="w-full border rounded p-1.5 text-xs outline-none">
+                        </div>
+                        <div id="regionTagContainer" class="tag-box"><span class="text-[10px] text-gray-300"></span>
+                        </div>
+                    </section>
+
+                    <section class="space-y-1">
+                        <div class="text-[10px] font-bold text-blue-500 mb-2 border-b pb-1"></div>
+                        <div class="filter-row">
+                            <label class="filter-label">담당자</label>
+                            <select class="common-input" data-col="담당자">
+                                <option value="None"></option>
+                                <option value="나">나</option>
+                                <option value="팀">팀</option>
+                            </select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">소유자종류</label>
+                            <select class="common-input" data-col="소유자종류">
+                                <option value="None"></option>
+                                <option value="개인">개인</option>
+                                <option value="법인">법인</option>
+                            </select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">소유자명</label>
+                            <input type="text" class="common-input border rounded p-1 text-xs w-full" data-col="소유자명">
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">전화번호</label>
+                            <input type="text" class="common-input border rounded p-1 text-xs w-full" data-col="전화번호">
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">관계</label>
+                            <select class="common-input" data-col="관계">
+                                <option value="None"></option>
+                                <option value="건물주/법인대표">건물주/법인대표</option>
+                                <option value="관리자">관리자</option>
+                                <option value="친인척">친인척</option>
+                                <option value="부동산">부동산</option>
+                                <option value="기타">기타</option>
+                            </select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">성향</label>
+                            <select class="common-input" data-col="성향">
+                                <option value="None"></option>
+                                <option value="협조적">협조적</option>
+                                <option value="비협조적">비협조적</option>
+                                <option value="친절">친절</option>
+                                <option value="불친절">불친절</option>
+                            </select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">접수일</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="접수일"
+                                    oninput="formatDate(this)"><span>~</span><input type="text" class="range-input"
+                                    data-col="접수일" oninput="formatDate(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">매수의향서</label>
+                            <select class="common-input" data-col="매수의향서">
+                                <option value="None"></option>
+                                <option value="원함">원함</option>
+                                <option value="원치않음">원치않음</option>
+                            </select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">영상번호분초</label>
+                            <input type="text" class="common-input border rounded p-1 text-xs w-full" data-col="영상번호분초">
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">소유자현황</label>
+                            <input type="text" class="common-input border rounded p-1 text-xs w-full" data-col="소유자현황">
+                        </div>
+                    </section>
+
+                    <section class="space-y-1">
+                        <div class="text-[10px] font-bold text-blue-500 mb-2 border-b pb-1"></div>
+                        <div class="filter-row">
+                            <label class="filter-label">매물번호</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="common-input border rounded p-1 text-xs w-full"
+                                    data-col="매물번호">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">매매가</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="매매가" data-unit="eok" onblur="syncSidebarFilter(this)"><span>~</span><input
+                                    type="text" class="range-input" data-col="매매가" data-unit="eok" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">수익률</label>
+                            <div class="range-wrapper">
+                                <input type="number" class="range-input" data-col="수익률"><span>~</span><input
+                                    type="number" class="range-input" data-col="수익률">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">공실유무총괄</label>
+                            <select class="common-input" data-col="공실유무총괄">
+                                <option value=""></option>
+                                <option value="모름">모름</option>
+                                <option value="유">유</option>
+                                <option value="유">무</option>
+                            </select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">공실제외수익률</label>
+                            <div class="range-wrapper">
+                                <input type="number" class="range-input" data-col="공실제외수익률"><span>~</span><input
+                                    type="number" class="range-input" data-col="공실제외수익률">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">자기자본수익률</label>
+                            <div class="range-wrapper">
+                                <input type="number" class="range-input" data-col="자기자본수익률"><span>~</span><input
+                                    type="number" class="range-input" data-col="자기자본수익률">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">총보증금</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="총보증금" data-unit="man" onblur="syncSidebarFilter(this)"><span>~</span><input
+                                    type="text" class="range-input" data-col="총보증금" data-unit="man" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">총임대료</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="총임대료" data-unit="man" onblur="syncSidebarFilter(this)"><span>~</span><input
+                                    type="text" class="range-input" data-col="총임대료" data-unit="man" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">총관리비</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="총관리비" data-unit="man" onblur="syncSidebarFilter(this)"><span>~</span><input
+                                    type="text" class="range-input" data-col="총관리비" data-unit="man" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">연면적당임대료</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="연면적당임대료" data-unit="man" onblur="syncSidebarFilter(this)"><span>~</span><input
+                                    type="text" class="range-input" data-col="연면적당임대료" data-unit="man" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">총공시지가와매매가비율</label>
+                            <div class="range-wrapper">
+                                <input type="number" class="range-input" data-col="총공시지가와매매가비율"><span>~</span><input
+                                    type="number" class="range-input" data-col="총공시지가와매매가비율">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">평단가(대지면적)</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="대지면적평단가" data-unit="man" onblur="syncSidebarFilter(this)"><span>~</span><input
+                                    type="text" class="range-input" data-col="대지면적평단가" data-unit="man" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">평단가(연면적)</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="연면적평단가" data-unit="man" onblur="syncSidebarFilter(this)"><span>~</span><input
+                                    type="text" class="range-input" data-col="연면적평단가" data-unit="man" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">진행상태</label>
+                            <select class="common-input" data-col="진행상태">
+                                <option value="None"></option>
+                                <option value="준비">준비</option>
+                                <option value="진행중">진행중</option>
+                                <option value="철회">철회</option>
+                                <option value="가격제시">가격제시</option>
+                                <option value="매각">매각</option>
+                            </select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">긴급도</label>
+                            <select class="common-input" data-col="긴급도">
+                                <option value="None"></option>
+                                <option value="A 매우급함">A 매우급함</option>
+                                <option value="B 급함">B 급함</option>
+                                <option value="C 적당히">C 적당히</option>
+                                <option value="D 안급함">D 안급함</option>
+                                <option value="Z 안팔아도됨">Z 안팔아도됨</option>
+                            </select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">입지</label>
+                            <select class="common-input" data-col="입지">
+                                <option value="None"></option>
+                                <option value="A 아주좋음">A 아주좋음</option>
+                                <option value="B 적당히좋음">B</option>
+                                <option value="C 별로임">C</option>
+                                <option value="D 아주별로임">D</option>
+                            </select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">등급</label>
+                            <select class="common-input" data-col="등급">
+                                <option value="None"></option>
+                                <option value="A 아주좋음">A 아주좋음</option>
+                                <option value="B 적당히좋음">B</option>
+                                <option value="C 별로임">C</option>
+                                <option value="D 아주별로임">D</option>
+                            </select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">건물용도</label>
+                            <select class="common-input" data-col="건물용도">
+                                <option value="None"></option>
+                                <option value="수익률">수익률</option>
+                                <option value="신축용">신축용</option>
+                                <option value="사옥용">사옥용</option>
+                                <option value="리모델링용">리모델링용</option>
+                            </select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">명도</label>
+                            <select class="common-input" data-col="명도">
+                                <option value="None"></option>
+                                <option value="확인중">확인중</option>
+                                <option value="완료">완료</option>
+                                <option value="가능">가능</option>
+                                <option value="불가">불가</option>
+                                <option value="일부">일부</option>
+                                <option value="조건부">조건부</option>
+                            </select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">용도변경</label>
+                            <select class="common-input" data-col="용도변경">
+                                <option value="None"></option>
+                                <option value="확인중">확인중</option>
+                                <option value="나대지(주차장)">나대지(주차장)</option>
+                                <option value="근생">근생</option>
+                                <option value="상가주택">상가주택</option>
+                                <option value="다가구주택">다가구주택</option>
+                                <option value="다세대주택">다세대주택</option>
+                                <option value="가능">가능</option>
+                                <option value="불가">불가</option>
+                                <option value="협의가">협의가</option>
+                                <option value="조건부">조건부</option>
+                            </select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">멸실</label>
+                            <select class="common-input" data-col="멸실">
+                                <option value="None"></option>
+                                <option value="확인중">확인중</option>
+                                <option value="불가">불가</option>
+                                <option value="협조가능">협조가능</option>
+                                <option value="잔금전멸실">잔금전멸실</option>
+                                <option value="나대지(주차장)">나대지(주차장)</option>
+                                <option value="협의가능">협의가능</option>
+                                <option value="조건부">조건부</option>
+                            </select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">사진</label>
+                            <select class="common-input" data-col="사진">
+                                <option value="None"></option>
+                                <option value="무">사진(무)</option>
+                                <option value="유">사진(유)</option>
+                            </select>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">브리핑자료</label>
+                            <select class="common-input" data-col="브리핑자료">
+                                <option value="None"></option>
+                                <option value="무">자료(무)</option>
+                                <option value="유">자료(유)</option>
+                            </select>
+                        </div>
+                    </section>
+
+                    <section class="space-y-1">
+                        <div class="text-[10px] font-bold text-blue-500 mb-2 border-b pb-1"></div>
+                        <div class="filter-row">
+                            <label class="filter-label">대지면적</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="대지면적" data-unit="area" onblur="syncSidebarFilter(this)"><span>~</span><input
+                                    type="text" class="range-input" data-col="대지면적" data-unit="area" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">연면적</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="연면적" data-unit="area" onblur="syncSidebarFilter(this)"><span>~</span><input
+                                    type="text" class="range-input" data-col="연면적" data-unit="area" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">건축면적</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="건축면적" data-unit="area" onblur="syncSidebarFilter(this)"><span>~</span><input
+                                    type="text" class="range-input" data-col="건축면적" data-unit="area" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">용적률산정용연면적</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="용적률산정연면적" data-unit="area" onblur="syncSidebarFilter(this)"><span>~</span><input
+                                    type="text" class="range-input" data-col="용적률산정연면적" data-unit="area" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="space-y-1">
+                        <div class="text-[10px] font-bold text-blue-500 mb-2 border-b pb-1"></div>
+                        <div class="filter-row">
+                            <label class="filter-label">사용승인일</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="사용승인일"
+                                    oninput="formatDate(this)"><span>~</span><input type="text" class="range-input"
+                                    data-col="사용승인일" oninput="formatDate(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">대수선 및 리모델링</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="대수선 및 리모델링"
+                                    oninput="formatDate(this)"><span>~</span><input type="text" class="range-input"
+                                    data-col="대수선 및 리모델링" oninput="formatDate(this)">
+                            </div>
+                        </div>
+
+                        <div class="filter-row">
+                            <label class="filter-label">엘리베이터</label>
+                            <div class="range-wrapper">
+                                <input type="number" class="range-input" data-col="엘리베이터"><span>~</span>
+                                <input type="number" class="range-input" data-col="엘리베이터">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">주차장</label>
+                            <div class="range-wrapper">
+                                <input type="number" class="range-input" data-col="주차장"><span>~</span>
+                                <input type="number" class="range-input" data-col="주차장">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">지상 규모</label>
+                            <div class="range-wrapper">
+                                <input type="number" class="range-input" data-col="규모지상"><span>~</span>
+                                <input type="number" class="range-input" data-col="규모지상">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">지하 규모</label>
+                            <div class="range-wrapper">
+                                <input type="number" class="range-input" data-col="규모지하"><span>~</span>
+                                <input type="number" class="range-input" data-col="규모지하">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">건폐율</label>
+                            <div class="range-wrapper">
+                                <input type="number" class="range-input" data-col="건폐율"><span>~</span>
+                                <input type="number" class="range-input" data-col="건폐율">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">용적률</label>
+                            <div class="range-wrapper">
+                                <input type="number" class="range-input" data-col="용적률"><span>~</span>
+                                <input type="number" class="range-input" data-col="용적률">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">법정건폐율</label>
+                            <div class="range-wrapper">
+                                <input type="number" class="range-input" data-col="법정건폐율"><span>~</span>
+                                <input type="number" class="range-input" data-col="법정건폐율">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">법정용적률</label>
+                            <div class="range-wrapper">
+                                <input type="number" class="range-input" data-col="법정용적률"><span>~</span>
+                                <input type="number" class="range-input" data-col="법정용적률">
+                            </div>
+                        </div>
+
+                        <div class="filter-row">
+                            <label class="filter-label">건폐율 - 법정건폐율</label>
+                            <div class="range-wrapper">
+                                <input type="number" class="range-input" data-col="건폐율법정건폐율"><span>~</span>
+                                <input type="number" class="range-input" data-col="건폐율법정건폐율">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">용적률 - 법정용적률</label>
+                            <div class="range-wrapper">
+                                <input type="number" class="range-input" data-col="용적률법정용적률"><span>~</span>
+                                <input type="number" class="range-input" data-col="용적률법정용적률">
+                            </div>
+                        </div>
+                    </section>
+
+                    <section>
+                        <div class="text-[10px] font-bold text-blue-500 mb-2 border-b pb-1"></div>
+                        <div id="detailSelectGrid" class="space-y-1"></div>
+                        <div id="detailTagContainer" class="tag-box"><span class="text-[10px] text-gray-300"></span>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">토지면적</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="토지면적" data-unit="area" onblur="syncSidebarFilter(this)"><span>~</span>
+                                <input type="text" class="range-input" data-col="토지면적" data-unit="area" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">공시지가</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="공시지가" data-unit="won" onblur="syncSidebarFilter(this)"><span>~</span>
+                                <input type="text" class="range-input" data-col="공시지가" data-unit="won" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">공시지가5년전</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="공시지가5년전" data-unit="won" onblur="syncSidebarFilter(this)"><span>~</span>
+                                <input type="text" class="range-input" data-col="공시지가5년전" data-unit="won" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">공시지가10년전</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="공시지가10년전" data-unit="won" onblur="syncSidebarFilter(this)"><span>~</span>
+                                <input type="text" class="range-input" data-col="공시지가10년전" data-unit="won" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">공시지가상승률5년전</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="공시지가상승률5년전" data-unit="won" onblur="syncSidebarFilter(this)"><span>~</span>
+                                <input type="text" class="range-input" data-col="공시지가상승률5년전" data-unit="won" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">공시지가상승률10년전</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="공시지가상승률10년전" data-unit="won" onblur="syncSidebarFilter(this)"><span>~</span>
+                                <input type="text" class="range-input" data-col="공시지가상승률10년전" data-unit="won" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">공시지가합계</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="공시지가합계" data-unit="won" onblur="syncSidebarFilter(this)"><span>~</span>
+                                <input type="text" class="range-input" data-col="공시지가합계" data-unit="won" onblur="syncSidebarFilter(this)">
+                            </div>
+                        </div>
+                    </section>
+
+
+                    <section class="space-y-1 pb-10">
+                        <div class="text-[10px] font-bold text-blue-500 mb-2 border-b pb-1"></div>
+                        <div class="filter-row">
+                            <label class="filter-label">매각일</label>
+                            <div class="range-wrapper">
+                                <input type="text" class="range-input" data-col="매각일"
+                                    oninput="formatDate(this)"><span>~</span><input type="text" class="range-input"
+                                    data-col="매각일" oninput="formatDate(this)">
+                            </div>
+                        </div>
+                        <div class="filter-row">
+                            <label class="filter-label">매각회수</label>
+                            <select id="salesCountSelect"
+                                class="w-full border rounded p-1.5 text-xs bg-white outline-none">
+                                <option value="all">전체</option>
+                                <option value="1">1회</option>
+                                <option value="2">2회</option>
+                                <option value="3">3회</option>
+                            </select>
+                        </div>
+                        <label class="filter-label">매각손익률</label>
+                        <div class="range-wrapper">
+                            <input type="number" class="range-input" data-col="매각손익"><span>~</span>
+                            <input type="number" class="range-input" data-col="매각손익">
+                        </div>
+                    </section>
+                    <section class="space-y-1 pb-10">
+                        <div class="text-[10px] font-bold text-blue-500 mb-2 border-b pb-1"></div>
+                        <label class="filter-label">네이버광고</label>
+                        <div class="range-wrapper">
+                            <input type="text" class="range-input" data-col="네이버광고" data-unit="eok" onblur="syncSidebarFilter(this)"><span>~</span>
+                            <input type="text" class="range-input" data-col="네이버광고" data-unit="eok" onblur="syncSidebarFilter(this)">
+                        </div>
+                        <label class="filter-label">네이버광고과거</label>
+                        <div class="range-wrapper">
+                            <input type="text" class="range-input" data-col="네이버광고과거" data-unit="eok" onblur="syncSidebarFilter(this)"><span>~</span>
+                            <input type="text" class="range-input" data-col="네이버광고과거" data-unit="eok" onblur="syncSidebarFilter(this)">
+                        </div>
+                        <label class="filter-label">네이버광고상승률</label>
+                        <div class="range-wrapper">
+                            <input type="number" class="range-input" data-col="네이버광고상승률"><span>~</span>
+                            <input type="number" class="range-input" data-col="네이버광고상승률">
+                        </div>
+                        <label class="filter-label">빌탐정광고등록</label>
+                        <select class="common-input" data-col="빌탐정광고등록">
+                            <option value="None"></option>
+                            <option value="무">무</option>
+                            <option value="유">유</option>
+                        </select>
+                    </section>
+                </div>
+            </aside>
+            <button id="sidebar-toggle"
+                class="bg-white border border-gray-300 shadow-md rounded-r-md px-1 py-4 hover:bg-gray-50 transition-all"
+                onclick="toggleSidebar()">
+                <i id="toggle-icon" class="fa-solid fa-chevron-left text-gray-400 text-[10px]"></i>
+            </button>
+
+            <main id="content-area">
+                <div class="view-tabs">
+                    <div id="tab-table" class="tab-btn active" onclick="switchView('table')">
+                        테이블
+                    </div>
+                    <div id="tab-property" class="tab-btn" onclick="switchView('property')">
+                        내 매물
+                    </div>
+                    <div id="tab-map" class="tab-btn" onclick="switchView('map')">
+                        지도
+                    </div>
+                </div>
+
+                <div id="spreadsheet-view">
+                    <div id="loadingSpinner"
+                        class="hidden absolute inset-0 bg-white/80 z-50 flex items-center justify-center">
+                        <div class="flex flex-col items-center">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                            <span class="text-xs font-bold text-blue-600">데이터 로딩 중...</span>
+                        </div>
+                    </div>
+                    <div id="spreadsheet-container" class="flex-1"></div>
+                    <div id="paginationContainer"
+                        class="hidden flex justify-center items-center gap-2 py-2 bg-gray-50 border-t">
+                        <button id="btnPrevPage" class="px-2 py-1 bg-white border rounded text-xs"><i
+                                class="fa-solid fa-chevron-left"></i></button>
+                        <span id="pageInfo" class="text-xs font-bold">1 / 1</span>
+                        <button id="btnNextPage" class="px-2 py-1 bg-white border rounded text-xs"><i
+                                class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </div>
+
+                <div id="map-view" class="view-hidden">
+                    <div id="map-section">
+                        <div id="map" class="w-full h-full"></div>
+                        <div id="external-around-view-container"
+                            style="position: absolute; top: 16px; right: 80px; z-index: 1000;">
+                        </div>
+
+                        <div class="map-type-control">
+                            <div id="btn-normal-map" class="map-type-btn active" onclick="setMapType('normal')">일반</div>
+                            <div id="btn-satellite-map" class="map-type-btn" onclick="setMapType('satellite')">위성</div>
+                        </div>
+
+                        <div class="map-tools-center">
+                            <button onclick="triggerPanoAtMarker()"
+                                class="bg-white p-3 rounded-full shadow-lg border border-gray-200 hover:bg-blue-50 text-blue-600 transition-all group"
+                                title="거리뷰">
+                                <i class="fa-solid fa-street-view text-xl"></i>
+                            </button>
+                            <button id="ruler-btn" onclick="toggleRuler()"
+                                class="bg-white p-3 rounded-full shadow-lg border border-gray-200 hover:bg-red-50 text-gray-700 transition-all group"
+                                title="거리재기">
+                                <i class="fa-solid fa-ruler-combined text-xl"></i>
+                            </button>
+                            <button onclick="toggleWebFullScreen()"
+                                class="bg-white p-3 rounded-full shadow-lg border border-gray-200 hover:bg-indigo-50 text-gray-700 transition-all group"
+                                title="웹 전체화면 토글">
+                                <i id="full-screen-icon" class="fa-solid fa-expand text-xl"></i>
+                            </button>
+                        </div>
+
+                        <div id="pano-wrapper" style="display: none;">
+                            <div class="pano-controls">
+                                <div onclick="togglePanoSize()" class="pano-btn"><i id="expand-icon"
+                                        class="fa-solid fa-expand"></i></div>
+                                <div onclick="closePano()" class="pano-btn"><i class="fa-solid fa-xmark"></i></div>
+                            </div>
+                            <div id="pano-view" class="w-full h-full"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="property-view" class="view-hidden p-6 bg-white overflow-y-auto h-full">
+                    <div class="max-w-6xl mx-auto space-y-6 pb-20">
+
+                        <section class="bg-blue-50 p-5 rounded-xl border border-blue-100 shadow-sm">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-base font-black text-blue-800"><i
+                                        class="fa-solid fa-file-pen mr-2"></i>내 매물 관리</h3>
+                                <div class="flex gap-2">
+                                    <button onclick="resetRegistration()"
+                                        class="px-3 py-1.5 border border-gray-300 rounded text-xs font-bold text-gray-600 bg-white hover:bg-gray-50">초기화</button>
+                                    <button id="btn-submit-property" onclick="registerProperty()" disabled
+                                        class="px-6 py-1.5 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 disabled:bg-gray-300 shadow-md">최종
+                                        저장하기</button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-4 gap-3 items-end">
+                                <div><label class="block text-[11px] font-bold text-gray-500 mb-1">시군구</label>
+                                    <select id="reg-sigungu"
+                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs bg-white"></select>
+                                </div>
+                                <div><label class="block text-[11px] font-bold text-gray-500 mb-1">법정동</label>
+                                    <select id="reg-dong"
+                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs bg-white"></select>
+                                </div>
+                                <div><label class="block text-[11px] font-bold text-gray-500 mb-1">지번</label>
+                                    <input type="text" id="reg-address-input" placeholder="지번 입력"
+                                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs">
+                                </div>
+                                <button onclick="fillPropertyDataHandler()"
+                                    class="bg-gray-800 text-white px-4 py-2 rounded text-xs font-bold hover:bg-black transition-colors">정보
+                                    불러오기</button>
+                            </div>
+                        </section>
+
+                        <section class="bg-green-50 p-5 rounded-xl border border-green-100 shadow-sm space-y-4">
+                            <h4 class="text-sm font-bold text-gray-700 border-b pb-2"><i
+                                    class="fa-solid fa-circle-person text-blue-500 mr-2"></i>세부 정보</h4>
+                            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                                <div><label class="block text-[11px] font-bold text-gray-400 mb-1">담당자</label>
+                                    <input type="text" id="reg-manager" data-unit="text" onblur="Val.sync(this)"
+                                        readonly class="w-full border rounded p-1.5 text-xs bg-white">
+                                </div>
+                                <div><label class="block text-[11px] font-bold text-gray-400 mb-1">소유자 종류</label>
+                                    <select id="reg-owner-type" data-unit="text" onchange="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs bg-white">
+                                        <option value="개인">개인</option>
+                                        <option value="법인">법인</option>
+                                    </select>
+                                </div>
+                                <div><label class="block text-[11px] font-bold text-gray-400 mb-1">소유자 명</label>
+                                    <input type="text" id="reg-owner-name" data-unit="text" onblur="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs bg-white">
+                                </div>
+                                <div><label class="block text-[11px] font-bold text-gray-400 mb-1">전화번호</label>
+                                    <input type="text" id="reg-contact" data-unit="text" onblur="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs bg-white">
+                                </div>
+                                <div><label class="block text-[11px] font-bold text-gray-400 mb-1">관계</label>
+                                    <select id="reg-relationship" data-unit="text" onchange="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs bg-white">
+                                        <option value="건물주/법인대표">건물주/법인대표</option>
+                                        <option value="관리자">관리자</option>
+                                        <option value="친인척">친인척</option>
+                                        <option value="부동산">부동산</option>
+                                        <option value="기타">기타</option>
+                                    </select>
+                                </div>
+                                <div><label class="block text-[11px] font-bold text-gray-400 mb-1">성향</label>
+                                    <select id="reg-inclination" data-unit="text" onchange="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs bg-white">
+                                        <option value="협조적">협조적</option>
+                                        <option value="비협조적">비협조적</option>
+                                        <option value="친절">친절</option>
+                                        <option value="불친절">불친절</option>
+                                    </select>
+                                </div>
+                                <div><label class="block text-[11px] font-bold text-gray-400 mb-1">접수일</label>
+                                    <input type="text" id="reg-proped-date" data-unit="text" oninput="formatDate(this)"
+                                        onblur="Val.sync(this)" class="w-full border rounded p-1.5 text-xs bg-white"
+                                        placeholder="YYYY-MM-DD">
+                                </div>
+                                <div><label class="block text-[11px] font-bold text-gray-400 mb-1">매수의향서</label>
+                                    <select id="reg-intent-to-buy" data-unit="text" onchange="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs bg-white">
+                                        <option value="원함">원함</option>
+                                        <option value="원치않음">원치않음</option>
+                                    </select>
+                                </div>
+                                <div><label class="block text-[11px] font-bold text-gray-400 mb-1">영상번호분초</label>
+                                    <input type="text" id="reg-video-timestamp" data-unit="text" onblur="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs bg-white">
+                                </div>
+                                <div class="col-span-1 md:col-span-3"><label
+                                        class="block text-[11px] font-bold text-gray-400 mb-1">소유자 내용</label>
+                                    <input type="text" id="reg-owner-details" data-unit="text" onblur="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs bg-white">
+                                </div>
+                            </div>
+                            <div class="border-t pt-4">
+                                <label class="block text-[11px] font-bold text-gray-400 mb-2">메모 히스토리 (클릭 시 수정)</label>
+                                <div class="flex flex-col lg:flex-row gap-4">
+                                    <div class="w-full lg:w-1/3 space-y-2">
+                                        <input type="hidden" id="edit-memo-id" data-unit="text" value="">
+                                        <textarea id="reg-memo" data-unit="text" rows="4"
+                                            class="w-full border rounded p-2 text-xs bg-white focus:outline-blue-500"
+                                            placeholder="내용을 입력하세요..." onblur="Val.sync(this)"
+                                            onkeydown="if(event.keyCode==13 && event.ctrlKey) saveMemo()"></textarea>
+                                        <div class="flex gap-2">
+                                            <select id="reg-importance" data-unit="text" onchange="Val.sync(this)"
+                                                class="flex-1 border rounded px-2 py-1.5 text-xs bg-white">
+                                                <option value="일반">일반 (회색)</option>
+                                                <option value="중요">중요 (노란색)</option>
+                                                <option value="매우중요">매우중요 (보라색)</option>
+                                            </select>
+                                            <button id="btn-save-memo" onclick="saveMemo()"
+                                                class="px-4 py-1.5 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 shadow-sm">입력
+                                                (Ctrl+Enter)</button>
+                                        </div>
+                                    </div>
+                                    <div id="memo-list-container"
+                                        class="w-full lg:flex-1 h-[200px] overflow-y-auto p-3 bg-white border rounded-lg shadow-inner space-y-2">
+                                        <p class="text-center text-gray-400 text-xs mt-10">등록된 메모가 없습니다.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <section class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                                <h4 class="text-sm font-bold text-gray-700 border-b pb-2"><i
+                                        class="fa-solid fa-circle-info text-blue-500 mr-2"></i>메인 정보</h4>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div><label class="block text-[11px] font-bold text-gray-400">매매가(억)</label>
+                                        <input type="text" id="reg-sale-price" data-unit="eok"
+                                            class="w-full border rounded p-1.5 text-xs bg-amber-50"
+                                            onblur="Val.sync(this); calculatePropertyStats();">
+                                    </div>
+                                    <div><label class="block text-[11px] font-bold text-gray-400">수익률(%)</label>
+                                        <input type="text" id="reg-yield" data-unit="rate"
+                                            class="w-full border rounded p-1.5 text-xs bg-gray-50 font-bold" readonly
+                                            onblur="Val.sync(this); calculatePropertyStats();">
+                                    </div>
+                                    <div class="col-span-2 grid grid-cols-3 gap-2">
+                                        <div><label class="text-[10px] text-gray-400">총보증금(만)</label>
+                                            <input type="text" id="reg-total-security" data-unit="man"
+                                                class="w-full border rounded p-1 text-xs"
+                                                onblur="Val.sync(this); calculatePropertyStats();">
+                                        </div>
+                                        <div><label class="text-[10px] text-gray-400">총임대료(만)</label>
+                                            <input type="text" id="reg-total-rent" data-unit="man" readonly
+                                                class="w-full border rounded p-1 text-xs"
+                                                onblur="Val.sync(this); calculatePropertyStats();">
+                                        </div>
+                                        <div><label class="text-[10px] text-gray-400">총관리비(만)</label>
+                                            <input type="text" id="reg-total-manage" data-unit="man" readonly
+                                                class="w-full border rounded p-1 text-xs"
+                                                onblur="Val.sync(this); calculatePropertyStats();">
+                                        </div>
+                                        <div><label class="text-[10px] text-gray-400">연면적당임대료</label>
+                                            <input type="text" id="reg-land-rent" data-unit="man" readonly
+                                                class="w-full border rounded p-1 text-xs"
+                                                onblur="Val.sync(this); calculatePropertyStats();">
+                                        </div>
+                                        <div><label class="text-[10px] text-gray-400">공실유무총괄</label>
+                                            <input type="text" id="reg-isEmpty-total" readonly
+                                                class="w-full border rounded p-1 text-xs" data-unit="text"
+                                                onblur="Val.sync(this); calculatePropertyStats();">
+                                        </div>
+                                    </div>
+                                    <div><label class="block text-[11px] font-bold text-gray-400">평단가(대지)</label>
+                                        <input type="text" id="reg-price-land" data-unit="man"
+                                            class="w-full border rounded p-1.5 text-xs bg-gray-50" readonly>
+                                    </div>
+                                    <div><label class="block text-[11px] font-bold text-gray-400">평단가(연면적)</label>
+                                        <input type="text" id="reg-price-total" data-unit="man"
+                                            class="w-full border rounded p-1.5 text-xs bg-gray-50" readonly>
+                                    </div>
+                                    <div><label class="block text-[11px] font-bold text-gray-400">공시가/매매가 비율</label>
+                                        <input type="text" id="reg-gongsi-ratio" data-unit="rate"
+                                            class="w-full border rounded p-1.5 text-xs bg-gray-50" readonly>
+                                    </div>
+                                    <div><label class="block text-[11px] font-bold text-gray-400">매물번호</label>
+                                        <input type="text" id="reg-prop-id" data-unit="text" onblur="Val.sync(this)"
+                                            class="w-full border rounded p-1.5 text-xs">
+                                    </div>
+                                    <div class="col-span-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                                        <div class="flex justify-between items-center mb-2">
+                                            <label class="text-[11px] font-bold text-blue-800">자기자본 수익률 (<span
+                                                    id="loan-amount-display">대출 0억</span>)</label>
+                                            <div id="reg-self-yield-display" data-unit="rate" readonly
+                                                class="font-black text-blue-700 text-sm"></div>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <input type="text" id="reg-invest-cash" data-unit="eok"
+                                                onblur="Val.sync(this); calculatePropertyStats();"
+                                                class="w-1/2 border rounded p-1.5 text-xs">
+                                            <input type="text" id="reg-loan-rate" data-unit="rate" placeholder="이자(%)"
+                                                onblur="Val.sync(this); calculatePropertyStats();"
+                                                class="w-1/2 border rounded p-1.5 text-xs">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-3 gap-2 pt-2">
+                                    <div><label class="block text-[10px] text-gray-400">진행상태</label>
+                                        <select id="reg-status" data-unit="text" onchange="Val.sync(this)"
+                                            class="w-full border rounded p-1 text-[11px]">
+                                            <option value="준비">준비</option>
+                                            <option value="진행중">진행중</option>
+                                            <option value="철회">철회</option>
+                                            <option value="가격제시">가격제시</option>
+                                            <option value="매각">매각</option>
+                                        </select>
+                                    </div>
+                                    <div><label class="block text-[10px] text-gray-400">긴급도</label>
+                                        <select id="reg-urgency" data-unit="text" onchange="Val.sync(this)"
+                                            class="w-full border rounded p-1 text-[11px]">
+                                            <option value="없음">없음</option>
+                                            <option value="A 매우급함">A 매우급함</option>
+                                            <option value="B 급함">B 급함</option>
+                                            <option value="C 적당히">C 적당히</option>
+                                            <option value="D 안급함">D 안급함</option>
+                                            <option value="Z 안팔아도됨">Z 안팔아도됨</option>
+                                        </select>
+                                    </div>
+                                    <div><label class="block text-[10px] text-gray-400">입지</label>
+                                        <select id="reg-location" data-unit="text" onchange="Val.sync(this)"
+                                            class="w-full border rounded p-1 text-[11px]">
+                                            <option value=""></option>
+                                            <option value="A 아주좋음">A 아주좋음</option>
+                                            <option value="B 적당히좋음">B</option>
+                                            <option value="C 별로임">C</option>
+                                            <option value="D 아주별로임">D</option>
+                                        </select>
+                                    </div>
+                                    <div><label class="block text-[10px] text-gray-400">등급</label>
+                                        <select id="reg-grade" data-unit="text" onchange="Val.sync(this)"
+                                            class="w-full border rounded p-1 text-[11px]">
+                                            <option value=""></option>
+                                            <option value="A 아주좋음">A 아주좋음</option>
+                                            <option value="B 적당히좋음">B</option>
+                                            <option value="C 별로임">C</option>
+                                            <option value="D 아주별로임">D</option>
+                                        </select>
+                                    </div>
+                                    <div><label class="block text-[10px] text-gray-400">건물용도</label>
+                                        <select id="reg-b-usage" data-unit="text" onchange="Val.sync(this)"
+                                            class="w-full border rounded p-1 text-[11px]">
+                                            <option value=""></option>
+                                            <option value="수익률">수익률</option>
+                                            <option value="신축용">신축용</option>
+                                            <option value="사옥용">사옥용</option>
+                                            <option value="리모델링용">리모델링용</option>
+                                        </select>
+                                    </div>
+                                    <div><label class="block text-[10px] text-gray-400">사진/브리핑</label>
+                                        <div class="flex gap-1">
+                                            <select id="reg-has-photo" data-unit="text" onchange="Val.sync(this)"
+                                                class="w-1/2 border rounded p-1 text-[11px]">
+                                                <option value="무">사진(무)</option>
+                                                <option value="유">사진(유)</option>
+                                            </select>
+                                            <select id="reg-has-brief" data-unit="text" onchange="Val.sync(this)"
+                                                class="w-1/2 border rounded p-1 text-[11px]">
+                                                <option value="무">자료(무)</option>
+                                                <option value="유">자료(유)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div><label class="block text-[10px] text-gray-400">명도</label>
+                                        <select id="reg-eviction" data-unit="text" onchange="Val.sync(this)"
+                                            class="w-full border rounded p-1 text-[11px]">
+                                            <option value="확인중">확인중</option>
+                                            <option value="완료">완료</option>
+                                            <option value="가능">가능</option>
+                                            <option value="불가">불가</option>
+                                            <option value="일부">일부</option>
+                                            <option value="조건부">조건부</option>
+                                        </select>
+                                    </div>
+                                    <div><label class="block text-[10px] text-gray-400">용도변경</label>
+                                        <select id="reg-usage-change" data-unit="text" onchange="Val.sync(this)"
+                                            class="w-full border rounded p-1 text-[11px]">
+                                            <option value="확인중">확인중</option>
+                                            <option value="나대지(주차장)">나대지(주차장)</option>
+                                            <option value="근생">근생</option>
+                                            <option value="상가주택">상가주택</option>
+                                            <option value="다가구주택">다가구주택</option>
+                                            <option value="다세대주택">다세대주택</option>
+                                            <option value="가능">가능</option>
+                                            <option value="불가">불가</option>
+                                            <option value="협의가">협의가</option>
+                                            <option value="조건부">조건부</option>
+                                        </select>
+                                    </div>
+                                    <div><label class="block text-[10px] text-gray-400">멸실</label>
+                                        <select id="reg-demolition" data-unit="text" onchange="Val.sync(this)"
+                                            class="w-full border rounded p-1 text-[11px]">
+                                            <option value="확인중">확인중</option>
+                                            <option value="불가">불가</option>
+                                            <option value="협조가능">협조가능</option>
+                                            <option value="잔금전멸실">잔금전멸실</option>
+                                            <option value="나대지(주차장)">나대지(주차장)</option>
+                                            <option value="협의가능">협의가능</option>
+                                            <option value="조건부">조건부</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                                <h4 class="text-sm font-bold text-gray-700 border-b pb-2"><i
+                                        class="fa-solid fa-building-user text-blue-500 mr-2"></i>건물 정보</h4>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="flex gap-2">
+                                        <div class="w-1/2"><label class="text-[11px] font-bold text-gray-400">지상</label>
+                                            <input type="text" id="reg-floor-above" data-unit="text"
+                                                onblur="Val.sync(this)" class="w-full border rounded p-1.5 text-xs">
+                                        </div>
+                                        <div class="w-1/2"><label class="text-[11px] font-bold text-gray-400">지하</label>
+                                            <input type="text" id="reg-floor-below" data-unit="text"
+                                                onblur="Val.sync(this)" class="w-full border rounded p-1.5 text-xs">
+                                        </div>
+                                    </div>
+                                    <div><label class="text-[11px] font-bold text-gray-400">대지면적</label>
+                                        <input type="text" id="reg-land-area" data-unit="area"
+                                            onblur="Val.sync(this); calculatePropertyStats();"
+                                            class="w-full border rounded p-1.5 text-xs area-input">
+                                    </div>
+                                    <div><label class="text-[11px] font-bold text-gray-400">건축면적</label>
+                                        <input type="text" id="reg-build-area" data-unit="area"
+                                            onblur="Val.sync(this); calculatePropertyStats();"
+                                            class="w-full border rounded p-1.5 text-xs area-input">
+                                    </div>
+                                    <div><label class="text-[11px] font-bold text-gray-400">연면적</label>
+                                        <input type="text" id="reg-total-area-val" data-unit="area"
+                                            onblur="Val.sync(this); calculatePropertyStats();"
+                                            class="w-full border rounded p-1.5 text-xs area-input">
+                                    </div>
+                                    <div><label class="text-[11px] font-bold text-gray-400">용적률산정용</label>
+                                        <input type="text" id="reg-far-area" data-unit="area"
+                                            onblur="Val.sync(this); calculatePropertyStats();"
+                                            class="w-full border rounded p-1.5 text-xs area-input">
+                                    </div>
+                                    <div><label class="text-[11px] font-bold text-gray-400">엘리베이터/주차</label>
+                                        <div class="flex gap-1">
+                                            <input type="text" id="reg-elevator" data-unit="text" placeholder="EL"
+                                                onblur="Val.sync(this)" class="w-1/2 border rounded p-1.5 text-xs">
+                                            <input type="text" id="reg-parking" data-unit="text" placeholder="주차"
+                                                onblur="Val.sync(this)" class="w-1/2 border rounded p-1.5 text-xs">
+                                        </div>
+                                    </div>
+                                    <div><label class="text-[11px] font-bold text-gray-400">사용승인일</label>
+                                        <input type="text" id="reg-approval-date" data-unit="text"
+                                            oninput="formatDate(this)" onblur="Val.sync(this)"
+                                            class="w-full border rounded p-1.5 text-xs">
+                                    </div>
+                                    <div class="col-span-2"><label class="text-[11px] font-bold text-gray-400">대수선 및
+                                            리모델링</label>
+                                        <input type="text" id="reg-remodel-date" data-unit="text"
+                                            oninput="formatDate(this)" onblur="Val.sync(this)"
+                                            class="w-full border rounded p-1.5 text-xs">
+                                    </div>
+                                    <div class="col-span-2 grid grid-cols-3 gap-2 border-t pt-3">
+                                        <div><label class="text-[10px] text-gray-400">건폐율(%)</label>
+                                            <input type="text" id="reg-bc-ratio" data-unit="percent"
+                                                class="w-full border rounded p-1 text-[11px] bg-gray-50 font-bold"
+                                                readonly>
+                                        </div>
+                                        <div><label class="text-[10px] text-gray-400">법정건폐율</label>
+                                            <input type="text" id="reg-legal-bc" data-unit="percent"
+                                                onblur="Val.sync(this); calculatePropertyStats();"
+                                                class="w-full border rounded p-1 text-[11px]">
+                                        </div>
+                                        <div><label class="text-[10px] text-gray-400">건폐율 - 법정건폐율</label>
+                                            <input type="text" id="reg-bc-diff" data-unit="rate"
+                                                class="w-full border rounded p-1 text-[11px] bg-gray-50" readonly>
+                                        </div>
+                                        <div><label class="text-[10px] text-gray-400">용적률(%)</label>
+                                            <input type="text" id="reg-far-ratio" data-unit="percent"
+                                                class="w-full border rounded p-1 text-[11px] bg-gray-50 font-bold"
+                                                readonly>
+                                        </div>
+                                        <div><label class="text-[10px] text-gray-400">법정용적률</label>
+                                            <input type="text" id="reg-legal-far" data-unit="percent"
+                                                onblur="Val.sync(this); calculatePropertyStats();"
+                                                class="w-full border rounded p-1 text-[11px]">
+                                        </div>
+                                        <div><label class="text-[10px] text-gray-400">용적률 - 법정용적률</label>
+                                            <input type="text" id="reg-far-diff" data-unit="rate"
+                                                class="w-full border rounded p-1 text-[11px] bg-gray-50" readonly>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+
+                        <section id="floor-input-section"
+                            class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                            <div class="flex justify-between items-center border-b pb-3">
+                                <h4 class="text-sm font-bold text-gray-700"><i
+                                        class="fa-solid fa-layer-group text-blue-500 mr-2"></i>건물층정보 (상세 임대 내역)</h4>
+                                <button onclick="addFloorRow()"
+                                    class="bg-gray-800 text-white px-3 py-1.5 rounded text-[11px] font-bold hover:bg-black"><i
+                                        class="fa-solid fa-plus mr-1"></i>층 추가</button>
+                            </div>
+                            <div
+                                class="grid grid-cols-12 gap-2 px-2 py-1.5 bg-gray-100 rounded text-[10px] font-bold text-gray-500 text-center uppercase">
+                                <div class="col-span-1">층</div>
+                                <div class="col-span-2">형태</div>
+                                <div class="col-span-1">평수</div>
+                                <div class="col-span-2">보증금</div>
+                                <div class="col-span-2">임대료</div>
+                                <div class="col-span-1">관리비</div>
+                                <div class="col-span-1">기간</div>
+                                <div class="col-span-1">공실</div>
+                                <div class="col-span-1">삭제</div>
+                            </div>
+                            <div id="floor-rows-container" class="space-y-2"></div>
+
+                            <div class="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 grid grid-cols-2 gap-4">
+                                <div class="space-y-1">
+                                    <p class="text-[11px] font-bold text-red-600">[공실제외 현재 합계]</p>
+                                    <p class="text-xs">수익률: <span id="sum-yield-current" data-unit="percent"
+                                            class="font-bold">-</span> | 보증금: <span id="sum-sec-current"
+                                            data-unit="man">-</span> | 임대료: <span id="sum-rent-current"
+                                            data-unit="man">-</span> | 관리비: <span id="sum-man-current"
+                                            data-unit="man">-</span> | 평당임대료: <span id="rent-current-land"
+                                            data-unit="man">-</span></p>
+                                </div>
+                                <div class="space-y-1 border-l pl-4">
+                                    <p class="text-[11px] font-bold text-blue-600">[만실시 예상 합계]</p>
+                                    <p class="text-xs">수익률: <span id="sum-yield-full" data-unit="percent"
+                                            class="font-bold">-</span> | 보증금: <span id="sum-sec-full"
+                                            data-unit="man">-</span> | 임대료: <span id="sum-rent-full"
+                                            data-unit="man">-</span> | 관리비: <span id="sum-man-full"
+                                            data-unit="man">-</span> | 평당임대료: <span id="rent-full-land"
+                                            data-unit="man">-</span></p>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                            <h4 class="text-sm font-bold text-gray-700 border-b pb-2"><i
+                                    class="fa-solid fa-map text-blue-500 mr-2"></i>토지 정보</h4>
+                            <div class="grid grid-cols-5 gap-4">
+                                <div class="bg-amber-50 p-1 rounded">
+                                    <label class="block text-[11px] font-black text-amber-800">토지면적(<span
+                                            class="unit-label"></span>)</label>
+                                    <input type="text" id="reg-total-land-area" data-unit="area"
+                                        onblur="Val.sync(this); calculatePropertyStats();"
+                                        class="w-full border-amber-200 rounded p-1.5 text-xs area-input">
+                                </div>
+                                <div><label class="text-[11px] font-bold text-gray-400">지목명</label>
+                                    <input type="text" id="reg-jimok" data-unit="text" onblur="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs">
+                                </div>
+                                <div><label class="text-[11px] font-bold text-gray-400">용도지역</label>
+                                    <input type="text" id="reg-zoning" data-unit="text" onblur="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs">
+                                </div>
+                                <div><label class="text-[11px] font-bold text-gray-400">토지이용상황</label>
+                                    <input type="text" id="reg-land-status" data-unit="text" onblur="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs">
+                                </div>
+                                <div><label class="text-[11px] font-bold text-gray-400">주용도코드명</label>
+                                    <input type="text" id="reg-main-code" data-unit="text" onblur="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs">
+                                </div>
+                                <div><label class="text-[11px] font-bold text-gray-400">지형/형상</label>
+                                    <input type="text" id="reg-shape" data-unit="text" onblur="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs">
+                                </div>
+                                <div><label class="text-[11px] font-bold text-gray-400">도로접면</label>
+                                    <input type="text" id="reg-road" data-unit="text" onblur="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs">
+                                </div>
+                                <div><label class="text-[11px] font-bold text-gray-400">기타용도내용</label>
+                                    <input type="text" id="reg-other-usage" data-unit="text" onblur="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs">
+                                </div>
+                                <div><label class="text-[11px] font-bold text-gray-400">공시지가(현재)</label>
+                                    <input type="text" id="reg-gongsi-cur" data-unit="gongsi"
+                                        onblur="Val.sync(this); calculatePropertyStats();"
+                                        class="w-full border rounded p-1.5 text-xs">
+                                </div>
+                                <div><label class="text-[11px] font-bold text-gray-400">공시지가 합계</label>
+                                    <input type="text" id="reg-gongsi-total" data-unit="won"
+                                        class="w-full border rounded p-1.5 text-xs bg-gray-50" readonly>
+                                </div>
+                                <div><label class="text-[11px] font-bold text-gray-400">공시지가(5년전)</label>
+                                    <input type="text" id="reg-gongsi-5y" data-unit="gongsi" onblur="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs">
+                                </div>
+                                <div><label class="text-[11px] font-bold text-gray-400">공시지가(10년전)</label>
+                                    <input type="text" id="reg-gongsi-10y" data-unit="gongsi" onblur="Val.sync(this)"
+                                        class="w-full border rounded p-1.5 text-xs">
+                                </div>
+                            </div>
+                        </section>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <section class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                                <h4 class="text-sm font-bold text-gray-700 border-b pb-2">매각 유무</h4>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input type="text" id="reg-sale-date1" data-unit="text" oninput="formatDate(this)"
+                                        onblur="Val.sync(this)" placeholder="매각일1" class="border rounded p-1.5 text-xs">
+                                    <input type="text" id="reg-sale-amt1" data-unit="eok"
+                                        onblur="Val.sync(this); calculatePropertyStats();"
+                                        class="border rounded p-1.5 text-xs">
+                                    <input type="text" id="reg-sale-date2" data-unit="text" oninput="formatDate(this)"
+                                        onblur="Val.sync(this)" placeholder="매각일2" class="border rounded p-1.5 text-xs">
+                                    <input type="text" id="reg-sale-amt2" data-unit="eok"
+                                        onblur="Val.sync(this); calculatePropertyStats();"
+                                        class="border rounded p-1.5 text-xs">
+                                    <input type="text" id="reg-sale-date3" data-unit="text" oninput="formatDate(this)"
+                                        onblur="Val.sync(this)" placeholder="매각일3" class="border rounded p-1.5 text-xs">
+                                    <input type="text" id="reg-sale-amt3" data-unit="eok"
+                                        onblur="Val.sync(this); calculatePropertyStats();"
+                                        class="border rounded p-1.5 text-xs">
+                                    <div class="col-span-2"><label
+                                            class="text-[11px] font-bold text-gray-400">매각손익률(%)</label>
+                                        <input type="text" id="reg-sale-profit" data-unit="rate"
+                                            class="w-full border rounded p-1.5 text-xs bg-gray-50" readonly>
+                                    </div>
+                                </div>
+                            </section>
+                            <section class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                                <h4 class="text-sm font-bold text-gray-700 border-b pb-2">네이버 광고</h4>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div><label class="text-[11px] font-bold text-gray-400">현재 광고가(억)</label>
+                                        <input type="text" id="reg-naver-cur" data-unit="eok"
+                                            onblur="Val.sync(this); calculatePropertyStats();"
+                                            class="w-full border rounded p-1.5 text-xs">
+                                    </div>
+                                    <div><label class="text-[11px] font-bold text-gray-400">과거 광고가(억)</label>
+                                        <input type="text" id="reg-naver-past" data-unit="eok"
+                                            onblur="Val.sync(this); calculatePropertyStats();"
+                                            class="w-full border rounded p-1.5 text-xs">
+                                    </div>
+                                    <div class="col-span-2"><label class="text-[11px] font-bold text-gray-400">광고
+                                            상승률(%)</label>
+                                        <input type="text" id="reg-naver-rate" data-unit="rate"
+                                            class="w-full border rounded p-1.5 text-xs bg-gray-50" readonly>
+                                    </div>
+                                    <div class="col-span-2"><label class="text-[10px] text-gray-400">빌탐정 광고 유무</label>
+                                        <select id="reg-builtamjung-ad" data-unit="text" onchange="Val.sync(this)"
+                                            class="w-full border rounded p-1 text-[11px]">
+                                            <option value="유">유</option>
+                                            <option value="무">무</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </div>
+
+
+        </div>
+        </main>
+
+    </div>
+
+
+
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="{{ url_for('static', filename='myProp.js') }}"></script>
+    <script type="module">
+        import { convertAddressToPNU } from "{{ url_for('static', filename='bjdcode.js') }}";
+        window.convertAddressToPNU = convertAddressToPNU;
+    </script>
+    <script>
+
+        // --- 데이터 상수 ---
+        const DIVISIONS = {
+            "강남구": ["개포동", "논현동", "대치동", "도곡동", "삼성동", "세곡동", "수서동", "신사동", "압구정동", "역삼동", "율현동", "일원동", "자곡동", "청담동"],
+            "강동구": ["강일동", "고덕동", "길동", "둔촌동", "명일동", "상일동", "성내동", "암사동", "천호동"],
+            "강북구": ["미아동", "번동", "수유동", "우이동"],
+            "강서구": ["가양동", "개화동", "공항동", "과해동", "내발산동", "등촌동", "마곡동", "방화동", "염창동", "오곡동", "오쇠동", "외발산동", "화곡동"],
+            "관악구": ["남현동", "봉천동", "신림동"],
+            "광진구": ["광장동", "구의동", "군자동", "능동", "자양동", "중곡동", "화양동"],
+            "구로구": ["가리봉동", "개봉동", "고척동", "구로동", "궁동", "신도림동", "오류동", "온수동", "천왕동", "항동"],
+            "금천구": ["가산동", "독산동", "시흥동"], "노원구": ["공릉동", "상계동", "월계동", "중계동", "하계동"],
+            "도봉구": ["도봉동", "방학동", "쌍문동", "창동"],
+            "동대문구": ["답십리동", "신설동", "용두동", "이문동", "장안동", "전농동", "제기동", "청량리동", "회기동", "휘경동"],
+            "동작구": ["노량진동", "대방동", "동작동", "본동", "사당동", "상도1동", "상도동", "신대방동", "흑석동"],
+            "마포구": ["공덕동", "구수동", "노고산동", "당인동", "대흥동", "도화동", "동교동", "마포동", "망원동", "상수동", "상암동", "서교동", "성산동", "신공덕동", "신수동", "신정동", "아현동", "연남동", "염리동", "용강동", "중동", "창전동", "토정동", "하중동", "합정동", "현석동"],
+            "서대문구": ["남가좌동", "냉천동", "대신동", "대현동", "미근동", "봉원동", "북가좌동", "북아현동", "신촌동", "연희동", "영천동", "옥천동", "창천동", "천연동", "충정로2가", "충정로3가", "합동", "현저동", "홍은동", "홍제동"],
+            "서초구": ["내곡동", "반포동", "방배동", "서초동", "신원동", "양재동", "염곡동", "우면동", "원지동", "잠원동"],
+            "성동구": ["금호동1가", "금호동2가", "금호동3가", "금호동4가", "도선동", "마장동", "사근동", "상왕십리동", "성수동1가", "성수동2가", "송정동", "옥수동", "용답동", "응봉동", "하왕십리동", "행당동", "홍익동"],
+            "성북구": ["길음동", "돈암동", "동선동1가", "동선동2가", "동선동3가", "동선동4가", "동선동5가", "동소문동1가", "동소문동2가", "동소문동3가", "동소문동4가", "동소문동5가", "동소문동6가", "동소문동7가", "보문동1가", "보문동2가", "보문동3가", "보문동4가", "보문동5가", "보문동6가", "보문동7가", "삼선동1가", "삼선동2가", "삼선동3가", "삼선동4가", "삼선동5가", "상월곡동", "석관동", "성북동", "성북동1가", "안암동1가", "안암동2가", "안암동3가", "안암동4가", "안암동5가", "장위동", "정릉동", "종암동", "하월곡동"],
+            "송파구": ["가락동", "거여동", "마천동", "문정동", "방이동", "삼전동", "석촌동", "송파동", "신천동", "오금동", "잠실동", "장지동", "풍납동"],
+            "양천구": ["목동", "신월동", "신정동"],
+            "영등포구": ["당산동", "당산동1가", "당산동2가", "당산동3가", "당산동4가", "당산동5가", "당산동6가", "대림동", "도림동", "문래동1가", "문래동2가", "문래동3가", "문래동4가", "문래동5가", "문래동6가", "신길동", "양평동", "양평동1가", "양평동2가", "양평동3가", "양평동4가", "양평동5가", "양평동6가", "양화동", "여의도동", "영등포동", "영등포동1가", "영등포동2가", "영등포동3가", "영등포동4가", "영등포동5가", "영등포동6가", "영등포동7가", "영등포동8가"],
+            "용산구": ["갈월동", "남영동", "도원동", "동빙고동", "동자동", "문배동", "보광동", "산천동", "서계동", "서빙고동", "신계동", "신창동", "용문동", "용산동1가", "용산동2가", "용산동3가", "용산동4가", "용산동5가", "용산동6가", "원효로1가", "원효로2가", "원효로3가", "원효로4가", "이촌동", "이태원동", "주성동", "청암동", "청파동1가", "청파동2가", "청파동3가", "한강로1가", "한강로2가", "한강로3가", "한남동", "효창동", "후암동"],
+            "은평구": ["갈현동", "구산동", "녹번동", "대조동", "불광동", "수색동", "신사동", "역촌동", "응암동", "증산동", "진관동"],
+            "종로구": ["가회동", "견지동", "경운동", "계동", "공평동", "관수동", "관철동", "관훈동", "교남동", "교북동", "구기동", "궁정동", "권농동", "낙원동", "내수동", "내자동", "누상동", "누하동", "당주동", "도렴동", "돈의동", "동숭동", "명륜1가", "명륜2가", "명륜3가", "명륜4가", "묘동", "무악동", "봉익동", "부암동", "사간동", "사직동", "삼청동", "서린동", "세종로", "소격동", "송월동", "송현동", "수송동", "숭인동", "신교동", "신문로1가", "신문로2가", "신영동", "안국동", "연건동", "연지동", "예지동", "옥인동", "와룡동", "운니동", "원남동", "원서동", "이화동", "익선동", "인사동", "인의동", "장사동", "재동", "적선동", "종로1가", "종로2가", "종로3가", "종로4가", "종로5가", "종로6가", "중학동", "창성동", "창신동", "청운동", "청진동", "체부동", "충신동", "통의동", "통인동", "팔판동", "평동", "평창동", "필운동", "행촌동", "혜화동", "홍지동", "홍파동", "화동", "효자동", "효제동", "훈정동"],
+            "중구": ["광희동1가", "광희동2가", "남대문로1가", "남대문로2가", "남대문로3가", "남대문로4가", "남대문로5가", "남산동1가", "남산동2가", "남산동3가", "남창동", "남학동", "다동", "만리동1가", "만리동2가", "명동1가", "명동2가", "무교동", "무학동", "묵정동", "방산동", "봉래동1가", "봉래동2가", "북창동", "산림동", "삼각동", "서소문동", "소공동", "수표동", "수하동", "순화동", "신당동", "쌍림동", "예관동", "예장동", "오장동", "을지로1가", "을지로2가", "을지로3가", "을지로4가", "을지로5가", "을지로6가", "을지로7가", "의주로1가", "의주로2가", "인현동1가", "인현동2가", "입정동", "장교동", "장충동1가", "장충동2가", "저동1가", "저동2가", "정동", "주교동", "주자동", "중림동", "초동", "충무로1가", "충무로2가", "충무로3가", "충무로4가", "충무로5가", "충정로1가", "태평로1가", "태평로2가", "필동1가", "필동2가", "필동3가", "황학동", "회현동1가", "회현동2가", "회현동3가", "흥인동"],
+            "중랑구": ["망우동", "면목동", "묵동", "상봉동", "신내동", "중화동"]
+        }
+
+        const PREDEFINED_DATA = {
+            "주용도코드명": ["공동주택", "공장", "교육연구및복지시설", "교육연구시설", "근린생활시설", "노유자시설", "다가구주택", "단독주택", "문화및집회시설", "방송통신시설", "수련시설", "숙박시설", "업무시설", "운동시설", "운수시설", "위락시설", "위험물저장및처리시설", "의료시설", "자동차관련시설", "제1종근린생활시설", "제2종근린생활시설", "종교시설", "창고시설", "판매및영업시설", "판매시설"],
+            "기타용도": ["가족호텔", "강당", "개인스튜디오", "게스트하우스", "게임제공업소", "경로당", "고시원", "공동체주택", "공동주택", "공연장", "공장", "과학관", "관광호텔", "교회", "교육연구시설", "구내식당", "금융업소", "기숙사", "기원", "노래연습장", "노유자시설", "노인복지시설", "단란주점", "단독주택", "단지형다세대", "다각구용", "다가구주택", "다동물사", "다방", "다세대주택", "다중생활시설", "다중주택", "대피소", "데이터센터", "독서실", "동물병원", "마을회관", "매매장", "모텔", "목욕장", "목욕탕", "무도장", "문화및집회시설", "미술관", "미용실", "미용원", "박물관", "발전기실", "백화점", "병원", "보건소", "보육시설", "부동산중개업소", "사무소", "사무실", "사우나", "사찰", "사진관", "산후조리원", "상가", "서점", "성당", "세탁소", "세차장", "소매점", "소형주택", "수녀원", "수도원", "수련시설", "숙박시설", "실버케어센터", "식당", "시장", "안마시술소", "어린이집", "에어로빅실", "여관", "여객자동차터미널", "여인숙", "연립주택", "연구소", "영화관", "예식장", "오피스텔", "운수시설", "원룸형주택", "위락시설", "위험물저장및처리시설", "의원", "이용원", "인터넷컴퓨터게임시설", "일반음식점", "자원순환관련시설", "장례시설", "장례식장", "저장고", "전시장", "전통찻집", "점포", "정비공장", "제과점", "제조업소", "제조장", "종교시설", "종합병원", "주유소", "주차장", "주차타워", "지식산업센터", "창고", "창고시설", "체력단련장", "체육도장", "치과의원", "카페", "커피숍", "테니스장", "통신실", "판매시설", "편의점", "표구점", "하숙", "하역장", "학교", "학원", "한의원", "화장실", "회의장", "휴게음식점", "휘트니스", "MDF실"],
+            "지목명": ["공장용지", "대", "잡종지", "주차장"],
+            "용도지역": ["근린상업지역", "도시지역기타", "생산녹지지역", "유통상업지역", "일반상업지역", "일반주거지역", "자연녹지지역", "전용주거지역", "제1종일반주거지역", "제1종전용주거지역", "제2종일반주거지역", "제2종전용주거지역", "제3종일반주거지역", "준공업지역", "준주거지역", "중심상업지역"],
+            "토지이용상황": ["공업기타", "공업나지", "기타", "다세대", "단독", "물류터미널", "상업기타", "상업나지", "상업용", "업무용", "연립", "주거기타", "주거나지", "주상기타", "주상나지", "주상용", "주차장등", "콘도미니엄",],
+            "도로접면": ["광대로한면", "광대세각", "광대소각", "세로각지(가)", "세로각지(불)", "세로한면(가)", "세로한면(불)", "소로각지", "소로한면", "중로각지", "중로한면", "지정되지않음"],
+            "형상": ["가로장방", "부정형", "사다리형", "세로장방", "자루형", "정방형", "지정되지않음"]
+        };
+
+        const COLUMN_MAP = {
+            '시/도': '시도', '시/군/구': '시군구', '주소': '주소',
+            '지목명': '지목', '지형형상': '형상', '도로접면': '도로',
+            '토지면적': '토지면적',
+            '대지면적': '대지면적', '연면적': '연면적', '건축면적': '건축면적',
+            '토지이용상황': '토지이용상황',
+            '용도지역': '용도지역', '주용도코드명': '주용도', '기타용도내용': '기타용도',
+            '건폐율': '건폐율', '법정건폐율': '법정건폐율', '건폐율 - 법정건폐율': '건폐율법정건폐율',
+            '용적률': '용적률', '법정용적률': '법정용적률', '용적률 - 법정용적률': '용적률법정용적률',
+            '용적률산정용연면적': '용적률산정연면적',
+            '규모지상': '규모지상', '규모지하': '규모지하', '엘리베이터': '엘리베이터',
+            '주차장': '주차장', // parking_count 대신 DB컬럼명 통일 가정
+            '사용승인일': '사용승인일', '대수선 및 리모델링': '대수선및리모델링',
+            '공시지가(현재)': '공시지가',
+            '공시지가(5년전)': '공시지가5년전',
+            '공시지가(10년전)': '공시지가10년전',
+            '공시지가 상승률(5년)': '공시지가상승률5년전',
+            '공시지가 상승률(10년)': '공시지가상승률10년전',
+            '공시지가 기준': '공시지가기준',
+            '매매가(억)': '매매가', '총공시지가와 매매가 비율': '총공시지가와매매가비율',
+            '평단가(대지면적)': '대지면적평단가', '평단가(연면적)': '연면적평단가',
+
+            '매물번호': '매물번호', '담당자': '담당자', '진행상태': '진행상태', '접수일': '접수일',
+            '긴급도': '긴급도', '등급': '등급', '입지': '입지',
+            '매수의향서': '매수의향서', '성향': '성향', '관계': '관계', '사진': '사진', '브리핑': '브리핑',
+            '빌탐정광고등록유무': '빌탐정광고등록유무', '건물용도': '건물용도',
+            '명도': '명도', '용도변경': '용도변경', '멸실': '멸실', '영상번호/분/초': '영상번호분초',
+
+            'AI추정가': 'AI추정가', 'AI추정가와 매매가 비율': 'AI추정가매매가비율', '총보증금': '총보증금', '총월세(부가세 별도)': '총월세부가세별도', '총관리비': '총관리비', '수익률': '수익률', '연면적당임대료': '연면적당임대료', '공실유무총괄': '공실유무총괄',
+            '공실제외수익률': '공실제외수익률', '자기자본수익률': '자기자본수익률', '소유자타입': '소유자타입', '소유자명': '소유자명', '전화번호': '전화번호',
+            '네이버광고': '네이버광고', '네이버광고과거': '네이버광고과거', '네이버광고상승률': '네이버광고상승률',
+            '매각일1': '매각일1', '매각일2': '매각일2', '매각일3': '매각일3', '매각손익': '매각손익률',
+            '매각액1': '매각액1', '매각액2': '매각액2', '매각액3': '매각액3', '소유자현재': '소유자현재', '소유자과거': '소유자과거'
+        };
+
+        // 역매핑 (DB컬럼명 -> 표기명): 데이터 로드 시 매칭용 (필요시 사용)
+        const DB_TO_DISPLAY = Object.fromEntries(Object.entries(COLUMN_MAP).map(([k, v]) => [v, k]));
+
+        const TARGET_COLUMNS = Object.keys(COLUMN_MAP);
+
+        let hot = null;
+        let wishlistMap = {};
+        let savedColumnOrder = [];
+        let existingGroups = new Set();
+        let currentPage = 1;
+        const ITEMS_PER_PAGE = 100;
+        let currentFilters = {};
+        let totalRows = 0;
+
+        // 선택된 태그 상태 관리
+        let selectedRegionSet = new Set();
+        let selectedDetailSet = new Set();
+
+        let isPyungMode = false; // false: m2, true: 평
+        const PYUNG_FACTOR = 0.3025; // m2 -> 평 변환 계수
+
+        const els = {
+            searchInput: document.getElementById('mainSearchInput'),
+            searchBtn: document.getElementById('btnMainSearch'),
+            resetBtn: document.getElementById('btnResetAll'),
+            colorPicker: document.getElementById('markColorPicker'),
+            groupNameInput: document.getElementById('markGroupName'),
+            groupDropdown: document.getElementById('groupDropdown'),
+            spinner: document.getElementById('loadingSpinner'),
+            bunjiInput: document.getElementById('BUNJISearchInput'),
+            paginationContainer: document.getElementById('paginationContainer'),
+            btnPrev: document.getElementById('btnPrevPage'),
+            btnNext: document.getElementById('btnNextPage'),
+            pageInfo: document.getElementById('pageInfo'),
+
+            // 지역 UI
+            selSigungu: document.getElementById('selRegionSigungu'),
+            selDong: document.getElementById('selRegionDong'),
+            regionTagContainer: document.getElementById('regionTagContainer'),
+
+            // 상세 조건 UI
+            detailSelectGrid: document.getElementById('detailSelectGrid'),
+            detailTagContainer: document.getElementById('detailTagContainer')
+        };
+
+        window.onload = async () => {
+
+            initMap();
+
+            initRegionSelectors();
+            initDetailSelectors();
+            await Promise.all([loadColumnSettings()]);
+            // setupGroupDropdown();
+            setupPaginationEvents();
+            setupEnterKeySearch();
+            loadSessionInfo();
+
+            document.getElementById('btnToggleUnit').addEventListener('click', function () {
+                isPyungMode = !isPyungMode;
+
+                // 버튼 텍스트 변경
+                const unitText = document.getElementById('unitText');
+                unitText.innerText = isPyungMode ? "평" : "㎡";
+
+                // 사이드바의 면적 관련 필터들 포맷팅 갱신
+                document.querySelectorAll('.range-input[data-unit="area"]').forEach(inp => {
+                    if (inp.dataset.raw) {
+                        setSidebarDisplay(inp);
+                    }
+                });
+
+                // 테이블 다시 그리기 (렌더러가 호출됨)
+                if (hot) {
+                    hot.render();
+                }
+            });
+        };
+
+        // // script.js에 정의된 지도 기능을 방해하지 않도록 초기화 유지
+        // window.onload = async () => {
+        //     if (typeof initMap === 'function') initMap();
+        //     initRegionSelectors();
+        //     initDetailSelectors();
+        //     await Promise.all([loadWishlist(), loadColumnSettings()]);
+        //     setupPaginationEvents();
+        //     setupEnterKeySearch();
+        // };
+
+        // =========================================================
+        // 1. 지역 선택 로직 (New Style 4)
+        // =========================================================
+        function initRegionSelectors() {
+            els.selSigungu.innerHTML = '<option value="" selected>선택</option>';
+            // 시군구 채우기
+            Object.keys(DIVISIONS).forEach(si => {
+                const opt = document.createElement('option');
+                opt.value = si;
+                opt.innerText = si;
+                els.selSigungu.appendChild(opt);
+            });
+
+            // 시군구 변경 시
+            els.selSigungu.addEventListener('change', () => {
+                const si = els.selSigungu.value;
+                els.selDong.innerHTML = '<option value="" disabled selected>선택</option>';
+
+                if (si && DIVISIONS[si]) {
+                    els.selDong.disabled = false;
+                    els.selDong.classList.replace('bg-gray-50', 'bg-white');
+
+                    // 전체 옵션
+                    const allOpt = document.createElement('option');
+                    allOpt.value = "전체";
+                    allOpt.innerText = `${si} 전체`;
+                    allOpt.className = "font-bold text-blue-600";
+                    els.selDong.appendChild(allOpt);
+
+                    // 동 옵션
+                    DIVISIONS[si].forEach(dong => {
+                        const opt = document.createElement('option');
+                        opt.value = dong;
+                        opt.innerText = dong;
+                        els.selDong.appendChild(opt);
+                    });
+                } else {
+                    els.selDong.disabled = true;
+                    els.selDong.classList.replace('bg-white', 'bg-gray-50');
+                }
+            });
+
+            // 읍면동 선택 (자동 추가)
+            els.selDong.addEventListener('change', () => {
+                const si = els.selSigungu.value;
+                const dong = els.selDong.value;
+                if (!si || !dong) return;
+
+                const val = (dong === "전체") ? `${si} 전체` : `${si} ${dong}`;
+                if (selectedRegionSet.has(val)) {
+                    alert("이미 추가된 지역입니다.");
+                } else {
+                    addTag(selectedRegionSet, els.regionTagContainer, val);
+                }
+                els.selDong.value = ""; // 초기화
+            });
+        }
+
+        // =========================================================
+        // 2. 상세 조건 로직 (스타일 최적화 적용)
+        // =========================================================
+        function initDetailSelectors() {
+            els.detailSelectGrid.innerHTML = '';
+
+            Object.entries(PREDEFINED_DATA).forEach(([key, values]) => {
+                // Wrapper - 공간 절약을 위해 block이 아닌 컴팩트한 flex 아이템으로 변경
+                const wrapper = document.createElement('div');
+                wrapper.className = "flex items-center"; // Layout change
+
+                // Select - w-full 제거, 글자 크기 축소, 패딩 축소
+                const select = document.createElement('select');
+                select.className = "range-input";
+                // 플레이스홀더처럼 보이게 처리
+                select.innerHTML = `<option value="" disabled selected>${key}</option>`;
+
+                values.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v;
+                    opt.innerText = v;
+                    select.appendChild(opt);
+                });
+
+                // Event Listener (로직 유지)
+                select.addEventListener('change', () => {
+                    const val = select.value;
+                    if (!val) return;
+
+                    const tagKey = `${key}:${val}`; // 구분용 Key
+                    const display = `${key} - ${val}`;
+
+                    if (selectedDetailSet.has(tagKey)) {
+                        alert("이미 선택된 조건입니다.");
+                    } else {
+                        addTag(selectedDetailSet, els.detailTagContainer, display, tagKey);
+                    }
+                    select.value = ""; // 초기화
+                });
+
+                wrapper.appendChild(select);
+                els.detailSelectGrid.appendChild(wrapper);
+            });
+        }
+
+        // =========================================================
+        // 3. 공통 태그 관리 함수
+        // =========================================================
+        function addTag(setObj, container, displayText, actualKey = null) {
+            const key = actualKey || displayText;
+
+            // UI 초기화 (placeholder 제거)
+            if (setObj.size === 0) container.innerHTML = '';
+
+            setObj.add(key);
+
+            const tag = document.createElement('span');
+            // 태그 스타일도 조금 더 작게 수정
+            tag.className = "tag-item bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 rounded text-[11px] font-bold flex items-center gap-1 shadow-sm";
+            tag.innerHTML = `
+                ${displayText}
+                <i class="fa-solid fa-xmark cursor-pointer text-blue-400 hover:text-red-500 transition text-[10px]"></i>
+            `;
+
+            // 삭제 이벤트
+            tag.querySelector('i').onclick = () => {
+                setObj.delete(key);
+                tag.remove();
+                if (setObj.size === 0) {
+                    container.innerHTML = `<span class="text-xs text-gray-300 py-0.5">미선택</span>`;
+                }
+            };
+
+            container.appendChild(tag);
+        }
+
+        // =========================================================
+        // 4. 검색 & 필터 수집 로직 (기존 유지)
+        // =========================================================
+        els.resetBtn.addEventListener('click', () => {
+            // 1. 선택된 태그 및 세트 초기화
+            selectedRegionSet.clear();
+            selectedDetailSet.clear();
+            els.regionTagContainer.innerHTML = '<span class="text-xs text-gray-300 py-0.5">지역 미선택</span>';
+            els.detailTagContainer.innerHTML = '<span class="text-xs text-gray-300 py-0.5">상세조건 미선택</span>';
+
+            // 2. 지역 선택 셀렉트 박스 초기화
+            els.selSigungu.value = "";
+            els.selDong.innerHTML = '<option value="">선택</option>';
+            els.selDong.disabled = true;
+            els.selDong.classList.replace('bg-white', 'bg-gray-50');
+
+            // 3. 상세조건 셀렉트 박스 초기화
+            document.querySelectorAll('#detailSelectGrid select').forEach(s => s.value = "");
+
+            // 4. [수정됨] 입력 필드 초기화 
+            // .toggle-input (새로 추가된 엘리베이터, 날짜 등) 클래스 추가
+            document.querySelectorAll('.range-input, .toggle-input, .common-input, #BUNJISearchInput, #mainSearchInput').forEach(inp => inp.value = '');
+
+            // 5. [추가됨] 화살표 버튼 상태 초기화 (모두 UP/빨강 상태로 복귀)
+            document.querySelectorAll('.arrow-btn').forEach(btn => {
+                const icon = btn.querySelector('i');
+
+                // 버튼 클래스 초기화
+                btn.classList.remove('down');
+                btn.classList.add('up');
+
+                // 아이콘 클래스 초기화
+                if (icon) {
+                    icon.classList.remove('fa-arrow-down');
+                    icon.classList.add('fa-arrow-up');
+                }
+            });
+
+            localStorage.removeItem('mapFilters');
+            lastFilters = ""; // script.js의 변수 초기화
+            if (typeof clearMarkers === 'function') {
+                clearMarkers();
+            }
+
+            // 필요하다면 지도 데이터를 빈 상태로 만들기 위해 refreshMapData 호출
+            // currentFilters를 빈 객체로 만들고 호출
+            currentFilters = {};
+        });
+
+        // 화살표 토글 함수 (▲ <-> ▼)
+        function toggleArrow(btn) {
+            const icon = btn.querySelector('i');
+
+            if (icon.classList.contains('fa-arrow-up')) {
+                // Up -> Down (이하/이전)
+                icon.classList.remove('fa-arrow-up');
+                icon.classList.add('fa-arrow-down');
+                btn.classList.remove('up');
+                btn.classList.add('down');
+            } else {
+                // Down -> Up (이상/이후)
+                icon.classList.remove('fa-arrow-down');
+                icon.classList.add('fa-arrow-up');
+                btn.classList.remove('down');
+                btn.classList.add('up');
+            }
+        }
+
+        // 날짜 자동 포맷팅 (YYYY-MM-DD)
+        function formatDate(input) {
+            let value = input.value.replace(/[^0-9]/g, '');
+            if (value.length > 4 && value.length <= 6) {
+                value = value.slice(0, 4) + '-' + value.slice(4);
+            } else if (value.length > 6) {
+                value = value.slice(0, 4) + '-' + value.slice(4, 6) + '-' + value.slice(6);
+            }
+            if (value.length > 10) value = value.slice(0, 10);
+            input.value = value;
+        }
+
+        // 숫자만 입력
+        function onlyNumbers(input) {
+            input.value = input.value.replace(/[^0-9]/g, '');
+        }
+
+        // index.html의 collectFilters 함수를 아래 내용으로 완전히 교체하세요.
+
+        function collectFilters() {
+            console.log("--- [검색 데이터 1차 가공 시작] ---");
+            console.trace("호출 경로 확인");
+
+            // 1. 통합 검색창 (키워드) 처리
+            const keyword = els.searchInput.value.trim();
+            let keywordGoyuNo = [];
+            if (keyword) {
+                keywordGoyuNo = convertAddressToPNU(keyword);
+            }
+            console.log("1. 통합검색 입력값:", keyword);
+            console.log("   -> 변환된 고유번호:", keywordGoyuNo);
+
+            // 2. 상세 필터 (시군구/법정동 + 지번) 처리
+            const sidebarGoyuNo = [];
+            const bunji = els.bunjiInput.value.trim();
+
+            // 선택된 지역 태그들을 순회하며 지번과 결합
+            if (selectedRegionSet.size > 0) {
+                selectedRegionSet.forEach(regionTag => {
+                    // regionTag 예: "강남구 역삼동" 또는 "강남구 전체"
+                    let searchStr = regionTag.replace(" 전체", ""); // "전체" 키워드 제거
+                    if (bunji) {
+                        searchStr += " " + bunji; // 지번 결합
+                    }
+
+                    const converted = convertAddressToPNU(searchStr);
+                    converted.forEach(pnu => sidebarGoyuNo.push(pnu));
+                });
+            } else if (bunji) {
+                // 지역 선택 없이 지번만 있는 경우 (필요 시 처리)
+                console.warn("지역 선택 없이 지번만 입력되었습니다.");
+            }
+
+            const finalSidebarGoyuNo = [...new Set(sidebarGoyuNo)]; // 중복 제거
+            console.log("2. 상세필터(지역+지번) 조합 결과:", finalSidebarGoyuNo);
+
+            // 3. 기타 상세 조건 (기존 로직 유지)
+            const multiFilters = {};
+            selectedDetailSet.forEach(val => {
+                const [displayKey, value] = val.split(":");
+                const dbKey = COLUMN_MAP[displayKey] || displayKey;
+                if (!multiFilters[dbKey]) multiFilters[dbKey] = [];
+                multiFilters[dbKey].push(value);
+            });
+
+            const ranges = {};
+            const areaCols = ['토지면적', '대지면적', '연면적', '건축면적', '용적률산정용연면적'];
+
+            // range-input 클래스를 가진 모든 입력 필드 순회
+            document.querySelectorAll('.range-input').forEach(inp => {
+                const col = inp.dataset.col; // HTML의 data-col 값 (예: '매각일', '매매가' 등)
+                const val = inp.dataset.raw || inp.value.trim();
+
+                if (val) {
+                    if (!ranges[col]) ranges[col] = {};
+                    // .range-wrapper 안에서 첫 번째면 min, 두 번째면 max
+                    const wrapper = inp.closest('.range-wrapper');
+                    const inputs = Array.from(wrapper.querySelectorAll('.range-input'));
+                    if (inp === inputs[0]) {
+                        ranges[col]['min'] = val;
+                    } else {
+                        ranges[col]['max'] = val;
+                    }
+                }
+            });
+
+            // [중요] 담당자, 진행상태 등 드롭다운/입력값 수집 (추가)
+            document.querySelectorAll('.common-input').forEach(inp => {
+                const col = inp.dataset.col;
+                const val = inp.value.trim();
+                // 'None'이나 빈값은 전송하지 않음
+                if (val && val !== 'None' && val !== '') {
+                    const dbKey = COLUMN_MAP[col] || col;
+                    if (!multiFilters[dbKey]) multiFilters[dbKey] = [];
+                    if (!multiFilters[dbKey].includes(val)) {
+                        multiFilters[dbKey].push(val);
+                    }
+                }
+            });
+
+
+            const salesCount = document.getElementById('salesCountSelect').value;
+            const sortCol = document.getElementById('sortColumn').value;
+
+            // 최종 결과물 구성
+            const finalData = {
+                // 고유번호가 생성되었다면 keyword는 비워둠 (백엔드 혼선 방지)
+                keyword: keywordGoyuNo.length > 0 ? "" : keyword,
+                고유번호: [...new Set([...keywordGoyuNo, ...finalSidebarGoyuNo])], // 모든 경로의 PNU 통합
+                sigungu: [], // PNU로 변환되었으므로 기존 리스트는 비워 보냄
+                bjd: [],
+                bunji: bunji,
+                multi_filters: multiFilters,
+                ranges: ranges,
+                sales_count: salesCount,
+                sort_column: sortCol,
+                sort_order: (sortCol === '주소') ? 'ASC' : 'DESC'
+            };
+
+            console.log("3. 백엔드 전송 최종 객체:", finalData);
+            console.log("--- [1차 가공 완료] ---");
+
+            return finalData;
+        }
+
+        // =========================================================
+        // 5. 서버 통신 및 테이블 렌더링 (★수정됨★)
+        // =========================================================
+        async function fetchData(page) {
+            els.spinner.classList.remove('hidden');
+
+            const currentLimit = parseInt(document.getElementById('pageSizeSelect').value) || 100;
+            try {
+                const res = await fetch('/api/get_data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...currentFilters, page, limit: currentLimit })
+                });
+                const responseData = await res.json();
+                const data = responseData.data || [];
+                totalRows = responseData.total || 0;
+                currentPage = responseData.page || 1;
+
+                if (data.length > 0) {
+                    const first = data[0];
+                    // script.js에서 가져온 지도 이동 함수 직접 호출
+                    moveToLocation(first.y, first.x);
+                }
+
+                renderTable(data);
+                updatePaginationUI();
+            } catch (e) { console.error(e); } finally { els.spinner.classList.add('hidden'); }
+        }
+
+        // [추가] 공통 검색 실행 함수 (중복 호출 방지를 위해 분리)
+        function performSearch() {
+            console.log("검색 로직 실행됨"); // 테스트용 콘솔
+            currentFilters = collectFilters();
+            localStorage.setItem('mapFilters', JSON.stringify(currentFilters));
+            currentPage = 1;
+            fetchData(1);
+
+            // 지도 마커 즉시 갱신
+            if (typeof clearMarkers === 'function') clearMarkers();
+            if (typeof refreshMapData === 'function') refreshMapData();
+        }
+
+        // 검색 버튼 클릭 시 실행
+        document.getElementById('btnMainSearch').addEventListener('click', performSearch);
+
+        // 데이터를 받자마자 숫자로만 모든 파생 필드를 계산하는 함수
+        function processCalculatedFields(row) {
+            // 값이 실제로 존재하는지 확인하는 헬퍼
+            const has = (val) => val !== null && val !== undefined && val !== "";
+
+            // [수정] COLUMN_MAP의 밸류값(매핑키)을 사용하여 데이터 추출
+            const current = row['공시지가'];
+            const area = row['대지면적'];
+            const old5 = row['공시지가5년전'];
+            const old10 = row['공시지가10년전'];
+            const price = row['매매가']; // '매매가억'에서 '매매가'로 수정
+            const bc = row['건폐율'];
+            const bcLegal = row['법정건폐율'];
+            const far = row['용적률'];
+            const farLegal = row['법정용적률'];
+            const naverAd = row['네이버광고'];
+            const naverAdOld = row['네이버광고과거'];
+            const divestPrice = row['매각액1'];
+            const divestPrice_old = row['매각액2'];
+
+            // 0. 공시지가 기준
+            if (has(current) && has(area)) {
+                row['공시지가기준'] = Number((current * area * 1.9).toFixed(0));
+            }
+            const base = row['공시지가기준'];
+
+            // 1. 공시지가 상승률
+            row['공시지가상승률5년전'] = (has(current) && has(old5) && old5 != 0) ? Number(((current - old5) / old5 * 100).toFixed(2)) : null;
+            row['공시지가상승률10년전'] = (has(current) && has(old10) && old10 != 0) ? Number(((current - old10) / old10 * 100).toFixed(2)) : null;
+
+            // 2. 총공시지가와 매매가 비율
+            row['총공시지가와매매가비율'] = (has(price) && has(base) && base > 0) ? Number(((base - price) / price * 100).toFixed(2)) : null;
+
+            // 3. 건폐율 및 용적률 차이
+            row['건폐율법정건폐율'] = (has(bc) && has(bcLegal)) ? Number((bc - bcLegal).toFixed(2)) : null;
+            row['용적률법정용적률'] = (has(far) && has(farLegal)) ? Number((far - farLegal).toFixed(2)) : null;
+
+            // 4. 네이버광고 상승률
+            row['네이버광고상승률'] = (has(naverAd) && has(naverAdOld) && naverAdOld != 0) ? Number(((naverAd - naverAdOld) / naverAdOld * 100).toFixed(2)) : null;
+
+            // 5. 매각손익률
+            row['매각손익률'] = (has(divestPrice) && has(divestPrice_old) && divestPrice_old != 0) ? Number(((divestPrice - divestPrice_old) / divestPrice_old * 100).toFixed(2)) : null;
+
+            return row;
+        }
+
+
+        // renderTable 함수 내부 수정
+        /**
+ * Handsontable 렌더링 및 데이터 관리 함수
+ * 서버 저장(PNU 기반)과 실시간 계산 로직이 통합되었습니다.
+ */
+        /**
+ * Handsontable 렌더링 및 실시간 저장/계산 로직 통합 함수
+ */
+        function renderTable(data) {
+            const container = document.getElementById('spreadsheet-container');
+            if (hot) hot.destroy();
+
+            // 1. 초기 로드 시 파생 필드 계산
+            const processedData = data.map(row => processCalculatedFields(row));
+            const displayHeaderOrder = savedColumnOrder.length > 0 ? savedColumnOrder : Object.keys(COLUMN_MAP);
+            const columnsConfig = displayHeaderOrder.map(headerName => getColumnConfig(headerName));
+
+            hot = new Handsontable(container, {
+                data: processedData,
+                colHeaders: displayHeaderOrder,
+                columns: columnsConfig,
+                rowHeaders: true,
+                height: '100%',
+                width: '100%',
+                licenseKey: 'non-commercial-and-evaluation',
+                manualColumnMove: true,
+                autoColumnSize: true,
+
+                afterColumnMove: (movedColumns, finalIndex, dropIndex, movePossible, orderChanged) => {
+                    if (orderChanged) {
+                        console.log("컬럼 순서 변경 감지 -> 저장 시작");
+                        saveColumnOrder(); // <--- 바로 여기서 실행됩니다!
+                    }
+                },
+
+                afterChange: async function (changes, source) {
+                    if (source === 'loadData' || source === 'auto_calc' || !changes) return;
+
+                    const updatePayload = [];
+
+                    changes.forEach(([rowIdx, prop, oldValue, newValue]) => {
+                        if (oldValue === newValue) return;
+
+                        // [수정] 정렬된 상태에서도 정확한 원본 데이터를 가져오기 위해 Physical Row 인덱스 사용
+                        const physicalRow = this.toPhysicalRow(rowIdx);
+                        const rowData = this.getSourceDataAtRow(physicalRow);
+
+                        // [수정] API에서 넘어온 별칭 pnu_key를 최우선으로 사용하여 null 방지
+                        const pnu = rowData['pnu_key'] || rowData['고유번호'];
+
+                        if (pnu) {
+                            // 서버로 보낼 때는 항상 "고유번호"라는 키로 통일하여 전송
+                            updatePayload.push({ "고유번호": pnu, [prop]: newValue });
+
+                            // --- 실시간 재계산 및 화면 반영 ---
+                            const triggerCols = ['매매가', '공시지가', '대지면적', '공시지가5년전', '공시지가10년전', '건폐율', '법정건폐율', '용적률', '법정용적률', '네이버광고', '네이버광고과거', '매각액1', '매각액2', 'AI추정가'];
+
+                            if (triggerCols.includes(prop)) {
+                                const updatedRow = processCalculatedFields(rowData);
+                                // [수정] processCalculatedFields에서 사용하는 키값과 100% 일치시킴
+                                const calcMap = {
+                                    '공시지가기준': '공시지가기준',
+                                    '공시지가상승률5년전': '공시지가상승률5년전',
+                                    '공시지가상승률10년전': '공시지가상승률10년전',
+                                    '총공시지가와매매가비율': '총공시지가와매매가비율',
+                                    '건폐율법정건폐율': '건폐율법정건폐율',
+                                    '용적률법정용적률': '용적률법정용적률',
+                                    '네이버광고상승률': '네이버광고상승률',
+                                    'AI추정가매매가비율': 'AI추정가매매가비율',
+                                    '매각손익률': '매각손익률'
+                                };
+                                Object.entries(calcMap).forEach(([targetProp, sourceProp]) => {
+                                    this.setDataAtRowProp(rowIdx, targetProp, updatedRow[sourceProp], 'auto_calc');
+                                });
+                            }
+                        }
+                    });
+
+                    if (updatePayload.length > 0) {
+                        console.log("서버 업데이트 전송:", updatePayload);
+                        try {
+                            const response = await fetch('/api/update_data', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(updatePayload)
+                            });
+                            if (!response.ok) throw new Error("저장 실패");
+                        } catch (e) {
+                            console.error("Update Error:", e);
+                        }
+                    }
+                }
+            });
+        }
+        function getColumnConfig(displayHeader) {
+            const dbKey = COLUMN_MAP[displayHeader] || displayHeader;
+
+            const config = {
+                data: dbKey,
+            };
+
+            if (dbKey === 'ctid' || displayHeader === '주소' || displayHeader.includes('승인일')) config.readOnly = true;
+
+            if (displayHeader === '주소') {
+                config.width = 150; // 주소 칸을 400px로 크게 시작
+            }
+
+            // 매각손익은 계산된 결과이므로 읽기 전용으로 설정하는 것이 안전합니다.
+            if (displayHeader === '매각손익') config.readOnly = true;
+
+            if (displayHeader === '주소') config.renderer = addressRenderer;
+            const dateCols = ['사용승인일', '대수선 및 리모델링'];
+
+            const dateCols_v2 = ['매각일1', '매각일2', '매각일3']
+
+            if (dateCols.includes(displayHeader)) config.renderer = dateRenderer;
+            if (dateCols_v2.includes(displayHeader)) config.renderer = dateRenderer2;
+
+            // 포맷팅 그룹
+            const moneyCols = [];
+            const moneyCols_man = ['총관리비', '총월세(부가세 별도)', '총보증금', '연면적당임대료', '평단가(연면적)', '평단가(대지면적)'];
+            const moneyCols_million = ['매매가(억)', 'AI추정가', '네이버광고', '네이버광고과거', '매각액1', '매각액2', '매각액3', '공시지가 기준']
+            const decimalCols = ['토지면적', '대지면적', '연면적', '건축면적', '용적률산정용연면적'];
+            const gongsiCols = ['공시지가(현재)', '공시지가(5년전)', '공시지가(10년전)'];
+
+            // 백분율 그룹
+            const percentCols =
+                (!displayHeader.includes('건폐율 - 법정건폐율')) &&
+                (!displayHeader.includes('용적률 - 법정용적률')) &&
+                (!displayHeader.includes('용적률산정용연면적')) &&
+                (displayHeader.includes('용적률') || displayHeader.includes('건폐율')); // 괄호로 묶음
+
+            const rateCols = (displayHeader.includes('상승률')) || (displayHeader.includes('건폐율 - 법정건폐율')) || (displayHeader.includes('용적률 - 법정용적률')) || (displayHeader.includes('총공시지가와 매매가 비율')) || displayHeader.includes('AI추정가와 매매가 비율') || (displayHeader.includes('수익률')) || displayHeader.includes('매각손익');
+
+            if (displayHeader === '용도지역') {
+                config.width = 350; // [요청 반영] 칸의 너비를 350px로 넉넉하게 설정
+                config.renderer = function (instance, td, row, col, prop, value, cellProperties) {
+                    Handsontable.renderers.TextRenderer.apply(this, arguments);
+
+                    if (value && isPyungMode) {
+                        // 정규표현식 설명:
+                        // ([\d.]+) : 숫자와 소수점을 캡처
+                        // (?=㎡|m2) : 뒤에 ㎡ 또는 m2가 붙어있는 경우만 찾음
+                        let convertedValue = value.replace(/([\d.]+)(?=㎡|m2)/g, function (match) {
+                            const pyungVal = (parseFloat(match) * PYUNG_FACTOR).toFixed(1);
+                            return pyungVal;
+                        });
+
+                        // 단위 기호도 '평'으로 변경
+                        td.innerText = convertedValue.replace(/㎡|m2/g, '평');
+                    }
+
+                    // 스타일 설정: 개행 방지 및 수직 중앙 정렬
+                    td.style.whiteSpace = 'nowrap';
+                    td.style.overflow = 'hidden';
+                    td.style.textOverflow = 'clip'; // 말줄임표(...) 대신 내용을 다 보여줌 (칸이 넓으므로)
+                };
+                return config;
+            }
+
+            if (moneyCols.includes(displayHeader)) {
+                config.renderer = function (instance, td, row, col, prop, value, cellProperties) {
+                    Handsontable.renderers.NumericRenderer.apply(this, arguments);
+                    if (value !== null && value !== undefined && value !== "") {
+                        const numValue = parseFloat(value);
+                        if (!isNaN(numValue)) {
+                            // 세 자릿수 콤마 + " 원"
+                            td.innerText = numValue.toLocaleString() + " 원";
+                        }
+                    }
+                    td.style.textAlign = 'right';
+                };
+            } else if (moneyCols_million.includes(displayHeader)) {
+                config.renderer = function (instance, td, row, col, prop, value, cellProperties) {
+                    // 기본 숫자 렌더러 스타일 적용
+                    Handsontable.renderers.NumericRenderer.apply(this, arguments);
+
+                    if (value !== null && value !== undefined && value !== "") {
+                        const numValue = parseFloat(value);
+                        if (!isNaN(numValue)) {
+                            // 100,000,000으로 나누어 '억' 단위 계산 후 소수점 2자리 고정
+                            const eokValue = (numValue / 100000000).toFixed(2);
+                            td.innerText = eokValue + " 억";
+                        }
+                    }
+                    // 우측 정렬 유지
+                    td.style.textAlign = 'right';
+                };
+            } else if (moneyCols_man.includes(displayHeader)) {
+                config.renderer = function (instance, td, row, col, prop, value, cellProperties) {
+                    // 기본 숫자 렌더러 스타일 적용
+                    Handsontable.renderers.NumericRenderer.apply(this, arguments);
+
+                    if (value !== null && value !== undefined && value !== "") {
+                        const numValue = parseFloat(value);
+                        if (!isNaN(numValue)) {
+                            // 100,000,000으로 나누어 '억' 단위 계산 후 소수점 2자리 고정
+                            const eokValue = (numValue / 10000).toFixed(2);
+                            td.innerText = eokValue.toLocaleString() + " 만원";
+                        }
+                    }
+                    // 우측 정렬 유지
+                    td.style.textAlign = 'right';
+                };
+            }
+
+
+            else if (decimalCols.includes(displayHeader)) {
+                // ... (기존 평/m2 변환 렌더러 코드 유지) ...
+                config.renderer = function (instance, td, row, col, prop, value, cellProperties) {
+                    Handsontable.renderers.TextRenderer.apply(this, arguments);
+                    if (value !== null && value !== undefined && value !== "") {
+                        const numValue = parseFloat(value);
+                        if (!isNaN(numValue)) {
+                            if (isPyungMode) {
+                                const pyungVal = (numValue * PYUNG_FACTOR).toFixed(2);
+                                td.innerText = pyungVal + " 평";
+                            } else {
+                                td.innerText = numValue.toLocaleString() + " ㎡";
+                            }
+                        }
+                    }
+                    td.style.textAlign = 'right';
+                };
+            } else if (percentCols) {
+                config.type = 'numeric';
+                config.numericFormat = { pattern: '00.00' };
+                config.renderer = function (instance, td, row, col, prop, value, cellProperties) {
+                    Handsontable.renderers.NumericRenderer.apply(this, arguments);
+                    if (value !== null && value !== "" && !isNaN(value)) {
+                        const numValue = parseFloat(value);
+                        td.innerText += '%';
+                    }
+
+                };
+            } else if (rateCols) {
+                config.type = 'numeric';
+                config.numericFormat = { pattern: '00.00' };
+                config.renderer = function (instance, td, row, col, prop, value, cellProperties) {
+                    Handsontable.renderers.NumericRenderer.apply(this, arguments);
+
+                    if (value !== null && value !== "" && !isNaN(value)) {
+                        const numValue = parseFloat(value);
+
+                        // 수익이면 파란색 계열, 손실이면 주황색 계열
+                        if (numValue < 0) td.style.backgroundColor = "#ffe7d9"; // 연한 주황 (가독성을 위해 파스텔톤 조정)
+                        else if (numValue > 0) td.style.backgroundColor = "#e3f2fd"; // 연한 파랑
+
+                        // 텍스트 색상 강조
+                        if (numValue < 0) td.style.color = "#ef4444";
+                        else if (numValue > 0) td.style.color = "#3b82f6";
+
+                        td.innerText += '%';
+                    }
+                    else {
+                        td.style.backgroundColor = '';
+                        td.style.color = '';
+                    }
+                    td.style.textAlign = 'right';
+                }
+            } else if (gongsiCols.includes(displayHeader)) {
+                config.renderer = function (instance, td, row, col, prop, value, cellProperties) {
+                    Handsontable.renderers.NumericRenderer.apply(this, arguments);
+                    if (value !== null && value !== undefined && value !== "") {
+                        let numValue = parseFloat(value);
+                        if (!isNaN(numValue)) {
+                            // 평 모드일 경우: (m2당가 / 0.3025) 를 수행하여 평당가로 변환
+                            if (isPyungMode) {
+                                numValue = numValue / PYUNG_FACTOR;
+                            }
+                            // 소수점은 가독성을 위해 반올림 처리
+                            td.innerText = Math.round(numValue).toLocaleString() + " 원";
+                        }
+                    }
+                    td.style.textAlign = 'right';
+                };
+                return config; // 설정을 반환하고 함수 종료
+            }
+            return config;
+        }
+
+
+        function addressRenderer(instance, td, row, col, prop, value, cellProperties) {
+            Handsontable.renderers.TextRenderer.apply(this, arguments);
+            if (!value) return;
+            const markInfo = wishlistMap[value];
+            if (markInfo) {
+                td.style.backgroundColor = markInfo.color;
+                td.style.fontWeight = 'bold';
+            }
+            const iconClass = markInfo ? 'fa-solid fa-star text-yellow-500' : 'fa-regular fa-star text-gray-300';
+            const star = document.createElement('i');
+            star.className = `${iconClass} star-btn absolute right-2 top-1/2 -translate-y-1/2`;
+            star.onclick = (e) => { e.stopPropagation(); toggleMark(value); };
+            td.appendChild(star);
+        }
+
+        function dateRenderer(instance, td, row, col, prop, value) {
+            Handsontable.renderers.TextRenderer.apply(this, arguments);
+            // YYYYMMDD -> YYYY-MM-DD
+            if (value && String(value).length === 8) {
+                const s = String(value);
+                td.innerText = `${s.substring(0, 4)}-${s.substring(4, 6)}-${s.substring(6, 8)}`;
+            } else if (value) {
+                td.innerText = value;
+            }
+        }
+
+        function dateRenderer2(instance, td, row, col, prop, value) {
+            Handsontable.renderers.TextRenderer.apply(this, arguments);
+            if (value && String(value).length === 8) {
+                const s = String(value);
+                td.innerText = `${s.substring(0, 4)}-${s.substring(4, 6)}`;
+            } else if (value) {
+                td.innerText = value;
+            }
+        }
+
+
+        // --- 기타 기능 (페이지네이션, 마킹 등) ---
+        function updatePaginationUI(limit) {
+            const displayLimit = limit || parseInt(document.getElementById('pageSizeSelect').value) || 100;
+            const maxPage = Math.ceil(totalRows / displayLimit) || 1;
+
+            els.pageInfo.innerText = `${currentPage} / ${maxPage}`;
+            els.btnPrev.disabled = (currentPage <= 1);
+            els.btnNext.disabled = (currentPage >= maxPage);
+            els.paginationContainer.classList.remove('hidden');
+        }
+
+        function setupPaginationEvents() {
+            els.btnPrev.addEventListener('click', () => { if (currentPage > 1) fetchData(--currentPage); });
+            els.btnNext.addEventListener('click', () => {
+                const maxPage = Math.ceil(totalRows / ITEMS_PER_PAGE);
+                if (currentPage < maxPage) fetchData(++currentPage);
+            });
+        }
+
+
+        // window.toggleMark = async (address) => {
+        //     const isMarked = !!wishlistMap[address];
+        //     const color = els.colorPicker.value;
+        //     const group = els.groupNameInput.value;
+        //     try {
+        //         if (isMarked) {
+        //             await fetch('/api/wishlist', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address }) });
+        //             delete wishlistMap[address];
+        //         } else {
+        //             await fetch('/api/wishlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address, color, group_name: group }) });
+        //             wishlistMap[address] = { color, group_name: group };
+        //             existingGroups.add(group);
+        //         }
+        //         hot.render();
+        //     } catch { alert("저장 실패"); }
+        // };
+
+        /**
+ * 현재 테이블에 보이는 컬럼 헤더 순서를 서버에 저장합니다.
+ * Handsontable의 afterColumnMove 훅에 의해 자동 실행됩니다.
+ */
+        async function saveColumnOrder() {
+            if (!hot) return;
+
+            const count = hot.countCols();
+            const newOrder = [];
+
+            // 시각적 순서(Visual Index)대로 헤더 텍스트 수집
+            for (let i = 0; i < count; i++) {
+                const headerText = hot.getColHeader(i);
+                if (headerText) newOrder.push(headerText);
+            }
+
+            try {
+                const res = await fetch('/api/settings/columns', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ columns: newOrder })
+                });
+                const result = await res.json();
+                if (result.status === 'success') {
+                    console.log("컬럼 순서가 유저 계정에 저장되었습니다.");
+                    savedColumnOrder = newOrder; // 로컬 변수 업데이트
+                }
+            } catch (e) {
+                console.error("컬럼 순서 저장 실패:", e);
+            }
+        }
+
+        /**
+         * 서버에서 현재 유저의 맞춤형 컬럼 순서를 불러옵니다.
+         * 페이지 로드 시 window.onload 단계에서 호출됩니다.
+         */
+        async function loadColumnSettings() {
+            try {
+                const res = await fetch('/api/settings/columns');
+                const data = await res.json();
+                if (Array.isArray(data) && data.length > 0) {
+                    savedColumnOrder = data; // 전역 변수에 할당
+                    console.log("유저 맞춤형 설정을 로드했습니다.");
+                }
+            } catch (e) {
+                console.error("설정 로드 실패:", e);
+                savedColumnOrder = [];
+            }
+        }
+
+        
+
+        function setupGroupDropdown() {
+            const input = els.groupNameInput;
+            const dropdown = els.groupDropdown;
+            input.addEventListener('focus', () => {
+                dropdown.innerHTML = '';
+                if (existingGroups.size === 0) dropdown.innerHTML = '<div class="p-2 text-gray-400 text-xs">그룹 없음</div>';
+                else existingGroups.forEach(g => {
+                    const div = document.createElement('div');
+                    div.className = 'dropdown-item'; div.innerText = g;
+                    div.onclick = () => { input.value = g; dropdown.style.display = 'none'; };
+                    dropdown.appendChild(div);
+                });
+                dropdown.style.display = 'block';
+            });
+            document.addEventListener('click', (e) => { if (!e.target.closest('.group-selector-wrapper')) dropdown.style.display = 'none'; });
+        }
+
+        // --- [추가] 엔터키 입력 시 검색 실행 함수 ---
+        // --- [수정됨] 엔터키 입력 감지 (이벤트 위임 방식) ---
+        function setupEnterKeySearch() {
+            document.addEventListener('keydown', function (e) {
+                // 1. 엔터키가 아니면 무시
+                if (e.key !== 'Enter') return;
+
+                // 2. ★ 핵심: 한글 조합 중(IME) 발생하는 엔터는 무시
+                if (e.isComposing) return;
+
+                const target = e.target;
+
+                // 3. 검색 관련 입력창인지 확인
+                const isSearchInput =
+                    target.id === 'mainSearchInput' ||
+                    target.id === 'BUNJISearchInput' ||
+                    target.closest('#filter-sidebar') !== null || // 사이드바 내부 모든 요소 포함
+                    target.classList.contains('range-input') ||
+                    target.classList.contains('toggle-input');
+
+                if (isSearchInput) {
+                    e.preventDefault(); // 기본 동작 방지
+                    performSearch();    // 검색 함수 실행
+                }
+            });
+        }
+
+        function switchView(viewName) {
+            // 1. 모든 뷰(컨텐츠) 요소 가져오기
+            const tableView = document.getElementById('spreadsheet-view');
+            const mapView = document.getElementById('map-view');
+            const propertyView = document.getElementById('property-view');
+
+            // 2. 모든 탭 버튼 요소 가져오기
+            const tabTable = document.getElementById('tab-table');
+            const tabMap = document.getElementById('tab-map');
+            const tabProperty = document.getElementById('tab-property');
+
+            // 3. 일단 모든 뷰를 숨기고 모든 탭의 active 클래스 제거
+            [tableView, mapView, propertyView].forEach(view => view.classList.add('view-hidden'));
+            [tabTable, tabMap, tabProperty].forEach(tab => tab.classList.remove('active'));
+
+            // 4. 선택된 뷰만 보여주고 해당 탭 활성화
+            if (viewName === 'table') {
+                tableView.classList.remove('view-hidden');
+                tabTable.classList.add('active');
+                if (hot) hot.render(); // 테이블 렌더링 갱신
+            }
+            else if (viewName === 'map') {
+                mapView.classList.remove('view-hidden');
+                tabMap.classList.add('active');
+                // 지도가 숨겨져 있다가 나타날 때 크기가 깨지는 것 방지
+                setTimeout(() => {
+                    window.dispatchEvent(new Event('resize'));
+                }, 100);
+            }
+            else if (viewName === 'property') {
+                propertyView.classList.remove('view-hidden');
+                tabProperty.classList.add('active');
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('filter-sidebar');
+            const icon = document.getElementById('toggle-icon');
+            sidebar.classList.toggle('collapsed');
+            icon.classList.toggle('fa-chevron-left');
+            icon.classList.toggle('fa-chevron-right');
+            setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+                if (hot) hot.render();
+            }, 300);
+        }
+
+        /**
+         * 4. 초기화 함수
+         */
+        function resetRegistration() {
+            // 사용자가 명시적으로 지정한 ID 리스트만 사용합니다.
+            const toBlank = ['reg-owner-name', 'reg-contact', 'reg-video-timestamp', 'reg-sale-price', 'reg-invest-cash', 'reg-loan-rate'];
+            const toInit = ['reg-owner-type', 'reg-intent-to-buy', 'reg-relationship', 'reg-inclination', 'reg-status', 'reg-urgency', 'reg-location', 'reg-grade', 'reg-b-usage', 'reg-has-photo', 'reg-has-brief', 'reg-eviction', 'reg-usage-change', 'reg-demolition'];
+
+            // 1. Val 객체 초기화 (명시된 ID만)
+            toBlank.forEach(id => {
+                Val.set(id, '');
+            });
+
+            toInit.forEach(id => {
+                const el = document.getElementById(id);
+                if (el && el.options.length > 0) {
+                    // 셀렉트 박스의 첫 번째 옵션값으로 Val 객체 설정
+                    Val.set(id, el.options[0].value);
+                }
+            });
+
+            // 2. UI 반영 (명시된 ID만)
+            [...toBlank, ...toInit].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.value = Val.get(id);
+                }
+            });
+
+            // 3. 공통 UI 정리 (필수 로직)
+            document.getElementById('floor-rows-container').innerHTML = '';
+            document.getElementById('floor-input-section').classList.add('hidden');
+            document.getElementById('btn-submit-property').disabled = true;
+
+            // 4. 리스트에 포함된 값들에 대한 통계 갱신
+            if (typeof calculatePropertyStats === 'function') {
+                calculatePropertyStats();
+            }
+        }
+
+        document.getElementById('btnBriefing').addEventListener('click', function () {
+            // '/image' 경로를 새 탭('_blank')으로 엽니다.
+            window.open('/image', '_blank');
+        });
+
+
+
+
+    </script>
+
+
+</body>
+
+</html>

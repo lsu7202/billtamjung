@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S01b · 상세검색(필터 모달) — 빌탐정</title>
+<link rel="stylesheet" href="wireframe.css">
+<style>
+body{margin:0}
+/* ── 뒤에 비치는 S01 결과 ── */
+.s01-behind{position:fixed; inset:0; padding:16px; display:grid; grid-template-columns:repeat(3,1fr); gap:14px; filter:blur(2px); opacity:.5; pointer-events:none}
+.s01-behind .col{background:#fff; border:1px solid #e6e6e6; border-radius:10px; padding:10px}
+.s01-behind .col h4{margin:0 0 8px; font-size:13px; color:#888}
+.s01-behind .row{height:54px; background:#f4f5f7; border-radius:7px; margin-bottom:8px}
+/* ── 모달 ── */
+.overlay{position:fixed; inset:0; background:rgba(20,26,34,.42); display:flex; align-items:flex-start; justify-content:center; padding:26px 16px; overflow:auto}
+.modal{width:100%; max-width:940px; background:#fff; border-radius:14px; box-shadow:0 24px 70px rgba(0,0,0,.35); display:flex; flex-direction:column; max-height:calc(100vh - 52px)}
+.modal-head{display:flex; align-items:center; gap:12px; padding:16px 20px; border-bottom:1px solid var(--line)}
+.modal-head h2{margin:0; font-size:17px; font-weight:800}
+.modal-head .sub{font-size:12px; color:#98a2ad}
+.modal-head .est{font-size:12.5px; color:#6b7580; background:#f1f5fb; border-radius:999px; padding:4px 11px}
+.modal-head .est b{color:var(--accent); font-weight:800}
+.modal-head .sp{flex:1}
+.modal-head .unit{display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden}
+.modal-head .unit button{border:0; background:#fff; padding:5px 11px; font-size:12px; cursor:pointer; color:#666}
+.modal-head .unit button.on{background:#333; color:#fff}
+.modal-head .lnk{border:0; background:none; font-size:12px; color:var(--accent); cursor:pointer; font-weight:600}
+.modal-head .close{border:0; background:#f1f3f5; width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:16px; color:#666}
+.modal-body{padding:16px 20px; overflow:auto; flex:1}
+/* ── 지역 앵커 ── */
+.region{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; padding:12px 14px; background:#f7f9fc; border:1px solid #eef1f6; border-radius:10px}
+.region .f label{display:block; font-size:11px; color:#7b8593; font-weight:700; margin-bottom:6px}
+.region .f label small{color:#b6bdc6; font-weight:600; margin-left:3px}
+.region select{width:100%; border:1px solid var(--line); border-radius:7px; padding:8px 10px; font-size:13px; outline:none; background:#fff}
+.region select:disabled{background:#eef0f3; color:#aab2bc; cursor:not-allowed}
+/* ── 전체 적용조건 칩바 ── */
+.applied-bar{display:flex; align-items:center; gap:8px; margin-top:14px; padding:10px 12px; border:1px dashed #dfe4ea; border-radius:10px; min-height:44px; flex-wrap:wrap}
+.applied-bar .albl{font-size:11px; font-weight:800; color:#9aa4b0; flex:0 0 auto}
+.applied-bar .empty{font-size:12px; color:#b6bdc6}
+.achip{display:inline-flex; align-items:center; gap:6px; background:#eef4ff; border:1px solid #d6e4ff; color:var(--accent); border-radius:999px; padding:4px 10px; font-size:12px; font-weight:600}
+.achip .k{color:#6b8cc4; font-weight:700}
+.achip .x{cursor:pointer; color:#9db4e6; font-weight:800}
+/* ── 인덱스 + 패널 ── */
+.acc-title{margin:18px 2px 8px; font-size:12px; font-weight:800; color:#9aa4b0}
+.sb{display:flex; border:1px solid var(--line); border-radius:12px; overflow:hidden}
+.idx{flex:0 0 156px; border-right:1px solid var(--line); background:#fafbfc; padding:7px; display:flex; flex-direction:column; gap:2px}
+.idx-item{display:flex; align-items:center; gap:8px; width:100%; padding:10px 11px; border:0; background:none; cursor:pointer; border-radius:8px; font-size:13px; color:#4a5560; text-align:left}
+.idx-item:hover{background:#f0f3f7}
+.idx-item.on{background:#eef4ff; color:var(--accent); font-weight:700}
+.idx-item .il{flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.idx-item .badge{min-width:18px; height:18px; padding:0 6px; border-radius:999px; background:var(--accent); color:#fff; font-size:11px; font-weight:700; display:inline-flex; align-items:center; justify-content:center}
+.idx-item .badge.zero{background:#e3e7ec; color:#aeb6bf}
+.pane{flex:1; min-width:0; padding:16px 18px; max-height:52vh; overflow:auto}
+.panel{display:none}
+.panel.on{display:block}
+.p-head{display:flex; align-items:center; font-size:15px; font-weight:800; margin:0 0 12px}
+.p-head .sec-reset{margin-left:auto; border:0; background:none; font-size:11.5px; color:#b6bdc6; cursor:pointer; font-weight:700}
+.p-head .sec-reset:hover{color:#7b8593}
+.p-hint{font-size:12px; color:#9aa4b0; margin-bottom:12px}
+.fav-wrap{display:flex; flex-wrap:wrap; gap:9px}
+.fav-wrap .vchip{padding:8px 14px; font-size:13px}
+/* 값칩 */
+.vchip{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); background:#fff; border-radius:999px; padding:4px 11px; cursor:pointer; font-size:12px; line-height:1.4}
+.vchip:hover{border-color:#cfe0fd; background:#f7faff}
+.vchip .vc-l{color:#57616e; font-weight:600}
+.vchip .vc-v{color:#b8c0c9}
+.vchip.active{border-color:var(--accent); background:#eef4ff}
+.vchip.active .vc-l{color:var(--accent)}
+.vchip.active .vc-v{color:var(--accent); font-weight:700}
+.vchip.active .clr{color:#9db4e6; font-weight:800}
+.pane .filter-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 22px}
+.pane .bodylbl{font-size:11px; color:#aab2bc; font-weight:700; margin:2px 0 10px}
+.pane .rep-grid{margin-bottom:18px}
+/* ── 하단 ── */
+.modal-foot{display:flex; align-items:center; gap:12px; padding:14px 20px; border-top:1px solid var(--line); background:#fafbfc; border-radius:0 0 14px 14px}
+.modal-foot .reset{border:0; background:none; color:#7b8593; font-size:13px; cursor:pointer; font-weight:600}
+.modal-foot .applied{font-size:12.5px; color:#6b7580}
+.modal-foot .applied b{color:var(--accent)}
+.modal-foot .sp{flex:1}
+.modal-foot .cancel{border:1px solid var(--line); background:#fff; border-radius:9px; padding:10px 16px; font-size:13px; cursor:pointer}
+.modal-foot .apply{border:0; background:var(--accent); color:#fff; border-radius:9px; padding:10px 20px; font-size:13.5px; font-weight:700; cursor:pointer}
+/* ── 팝오버 ── */
+.popover{position:fixed; z-index:200; width:340px; max-width:calc(100vw - 24px); background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 16px 48px rgba(0,0,0,.24); padding:14px 16px 16px; display:none}
+.popover.show{display:block}
+.popover .pop-head{display:flex; align-items:center; margin-bottom:8px}
+.popover .pop-head .pt{font-size:13px; font-weight:800}
+.popover .pop-head .pclr{margin-left:auto; border:0; background:none; font-size:11.5px; color:#98a2ad; cursor:pointer; font-weight:600}
+.pop-slot .f > label{display:none}
+#ctl-store{display:none}
+/* ── 저장/불러오기 미니 모달 ── */
+.mini-overlay{position:fixed; inset:0; background:rgba(20,26,34,.5); display:none; align-items:center; justify-content:center; z-index:500; padding:20px}
+.mini-overlay.show{display:flex}
+.mini{width:100%; max-width:440px; background:#fff; border-radius:14px; box-shadow:0 24px 70px rgba(0,0,0,.4); padding:22px}
+.mini h3{margin:0 0 4px; font-size:16px; font-weight:800}
+.mini-sub{margin:0 0 14px; font-size:12.5px; color:#7b8593}
+.mini-sub b{color:var(--accent)}
+.mini-input{width:100%; border:1px solid var(--line); border-radius:9px; padding:11px 13px; font-size:14px; outline:none; box-sizing:border-box}
+.mini-input:focus{border-color:var(--accent)}
+.mini-warn{font-size:12px; color:#e0574f; margin-top:8px; min-height:15px}
+.mini-foot{display:flex; justify-content:flex-end; gap:9px; margin-top:16px}
+.mini-cancel{border:1px solid var(--line); background:#fff; border-radius:9px; padding:9px 15px; font-size:13px; cursor:pointer}
+.mini-ok{border:0; background:var(--accent); color:#fff; border-radius:9px; padding:9px 18px; font-size:13px; font-weight:700; cursor:pointer}
+.preset-list{display:flex; flex-direction:column; gap:8px; max-height:340px; overflow:auto; margin:6px 0 2px}
+.preset-empty{font-size:13px; color:#aab2bc; text-align:center; padding:28px 0}
+.preset{display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:10px; padding:11px 13px}
+.preset .pn{font-weight:700; font-size:13.5px}
+.preset .pc{font-size:11.5px; color:#9aa4b0; margin-top:2px}
+.preset .sp{flex:1}
+.preset .pload{border:0; background:#eef4ff; color:var(--accent); border-radius:7px; padding:7px 13px; font-size:12.5px; font-weight:700; cursor:pointer}
+.preset .pdel{border:0; background:none; color:#b6bdc6; font-size:12px; cursor:pointer; font-weight:600}
+.preset .pdel:hover{color:#e0574f}
+/* ===== 컨트롤 ===== */
+.rs{position:relative; height:80px; margin-top:2px}
+.rs-io{position:absolute; top:0; left:0; right:0; height:24px; display:flex; align-items:center; justify-content:center; gap:6px; cursor:text}
+.rs-io .rs-all{font-size:15px; font-weight:800; color:#bbb}
+.rs-io.full .rs-inputs{display:none}
+.rs-io:not(.full) .rs-all{display:none}
+.rs-io .rs-inputs{display:flex; align-items:baseline; gap:4px}
+.rs-io .lo-g,.rs-io .hi-g{display:inline-flex; align-items:baseline; gap:3px}
+.rs-io input{width:52px; text-align:center; border:0; border-bottom:2px solid #cfe0fd; font-size:15px; font-weight:800; color:var(--accent); background:transparent; outline:none; padding:1px 0}
+.rs-io input:focus{border-bottom-color:var(--accent)}
+.rs-io .u{font-size:11px; color:var(--accent); font-weight:600}
+.rs-io .ge,.rs-io .le{font-size:11px; color:#8a97a5; font-weight:700; margin-right:8px}
+.rs-io .le{margin-right:0}
+.rs-rail{position:absolute; top:40px; left:8px; right:8px; height:5px; background:#e4e4e4; border-radius:3px; cursor:pointer}
+.rs-sel{position:absolute; height:100%; background:var(--accent); border-radius:3px}
+.rs input[type=range]{position:absolute; top:32px; left:0; width:100%; margin:0; -webkit-appearance:none; background:none; pointer-events:none; height:22px}
+.rs input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; pointer-events:auto; width:18px; height:18px; border-radius:50%; background:#fff; border:2.5px solid var(--accent); cursor:grab; box-shadow:0 1px 4px rgba(0,0,0,.28)}
+.rs-ticks{position:absolute; top:47px; left:8px; right:8px; height:22px}
+.rs-tick{position:absolute; transform:translateX(-50%); cursor:pointer; text-align:center}
+.rs-tick i{display:block; width:1px; height:5px; background:#d3d3d3; margin:0 auto 3px}
+.rs-tick span{font-size:10px; color:#aaa; white-space:nowrap}
+.rs-tick:hover span{color:var(--accent); font-weight:600} .rs-tick:hover i{background:var(--accent)}
+.rchips{display:flex; gap:5px; flex-wrap:wrap; margin-top:6px}
+.rchips .c{font-size:11px; border:1px solid var(--line); border-radius:999px; padding:2px 9px; background:#fafafa; cursor:pointer; color:#555}
+.rchips .c:hover{background:#eaf1fe; border-color:#cfe0fd; color:var(--accent)}
+.tchips{display:flex; gap:5px; flex-wrap:wrap; margin-top:8px}
+.tchips .tc{font-size:11px; border:1px solid var(--line); border-radius:999px; padding:3px 10px; background:#fafafa; cursor:pointer; color:#555}
+.tchips .tc:hover{background:#eaf1fe; border-color:#cfe0fd; color:var(--accent)}
+.ms{position:relative}
+.ms-box{display:flex; flex-wrap:wrap; gap:5px; align-items:center; border:1px solid var(--line); border-radius:7px; padding:5px 7px; min-height:36px; cursor:text}
+.ms-box .tag{display:inline-flex; align-items:center; gap:4px; background:#eaf1fe; color:var(--accent); border-radius:5px; padding:2px 7px; font-size:12px; font-weight:600}
+.ms-box .tag b{cursor:pointer}
+.ms-box input{border:0; outline:0; flex:1; min-width:60px; font-size:12px; padding:3px}
+.ms-menu{position:fixed; z-index:9999; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.16); max-height:240px; overflow:auto; display:none}
+.ms.open .ms-menu{display:block}
+.ms-opt{padding:7px 11px; font-size:13px; cursor:pointer}
+.ms-opt:hover{background:#f5f8ff} .ms-opt.sel{color:var(--accent); font-weight:600}
+.seg{display:inline-flex; border:1px solid var(--line); border-radius:6px; overflow:hidden; flex-wrap:wrap}
+.seg button{border:0; background:#fff; padding:6px 11px; cursor:pointer; font-size:12px; color:#555; border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg.toggle button.on{background:#333; color:#fff}
+/* 버튼 다중선택 = 개별 알약(pill) → 줄바꿈 깔끔 */
+.seg.multi{display:flex; flex-wrap:wrap; gap:6px; border:0; border-radius:0; overflow:visible}
+.seg.multi button{border:1px solid var(--line); border-radius:999px; padding:6px 12px}
+.seg.multi button.on{background:var(--accent); color:#fff; border-color:var(--accent)}
+/* 옵션 많은 것 = 한 줄 가로 스크롤 알약 (드롭다운 대체) */
+.seg.multi.hscroll{flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; padding-bottom:6px; scrollbar-width:thin}
+.seg.multi.hscroll button{flex:0 0 auto}
+.seg.multi.hscroll::-webkit-scrollbar{height:7px}
+.seg.multi.hscroll::-webkit-scrollbar-thumb{background:#d3d9e0; border-radius:4px}
+.seg.multi.hscroll::-webkit-scrollbar-track{background:#f2f4f7; border-radius:4px}
+/* 섹터 그룹 다중선택 */
+.sector-ms{display:flex; flex-direction:column; max-height:300px; overflow:auto}
+.sec{border-bottom:1px solid #f0f2f5}
+.sec:last-child{border-bottom:0}
+.sec-head{display:flex; align-items:center}
+.sec-chk{flex:1; display:flex; align-items:center; gap:9px; border:0; background:none; padding:9px 4px; font-size:13px; color:#444; cursor:pointer; text-align:left}
+.sec-chk .box{width:17px; height:17px; border:1.5px solid #c3cad3; border-radius:5px; flex:0 0 auto; position:relative}
+.sec-chk.all .box{background:var(--accent); border-color:var(--accent)}
+.sec-chk.all .box:after{content:'✓'; color:#fff; font-size:12px; font-weight:700; position:absolute; left:2.5px; top:-1px}
+.sec-chk.part .box{background:#e5eefc; border-color:var(--accent)}
+.sec-chk.part .box:after{content:''; position:absolute; left:3px; right:3px; top:7px; height:2px; background:var(--accent); border-radius:2px}
+.sec-chk.all,.sec-chk.part{color:var(--accent); font-weight:600}
+.sec-exp{border:0; background:none; color:#b6bdc6; cursor:pointer; font-size:11px; padding:9px 9px; display:inline-block; transition:transform .12s}
+.sec.open .sec-exp{transform:rotate(90deg)}
+.sec-items{display:none; flex-wrap:wrap; gap:6px; padding:2px 6px 11px 30px}
+.sec.open .sec-items{display:flex}
+.sec-items .opt{border:1px solid var(--line); background:#fff; border-radius:999px; padding:4px 11px; font-size:12px; cursor:pointer; color:#555}
+.sec-items .opt.on{background:var(--accent); color:#fff; border-color:var(--accent)}
+.f > label{display:block; font-size:12px; color:#555; margin-bottom:6px; font-weight:600}
+.f .txt{width:100%; border:1px solid var(--line); border-radius:7px; padding:8px 10px; font-size:13px; outline:none}
+</style>
+</head>
+<body>
+
+<div class="s01-behind">
+  <div class="col"><h4>광고 매물</h4><div class="row"></div><div class="row"></div><div class="row"></div></div>
+  <div class="col"><h4>내 매물</h4><div class="row"></div><div class="row"></div><div class="row"></div></div>
+  <div class="col"><h4>일반 매물</h4><div class="row"></div><div class="row"></div><div class="row"></div></div>
+</div>
+
+<div class="overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>상세검색</h2><span class="sub">S01 필터</span>
+      <span class="est">예상 <b id="ecount-top">1,284</b>건</span>
+      <span class="sp"></span>
+      <span class="unit"><button class="on">평</button><button>㎡</button></span>
+      <button class="lnk" id="btn-load">불러오기</button><button class="lnk" id="btn-save">조건저장</button>
+      <button class="close">×</button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- 지역 앵커 -->
+      <div class="region">
+        <div class="f"><label>시/도</label><select id="rg-sido"></select></div>
+        <div class="f"><label>시/군/구</label><select id="rg-sgg"></select></div>
+        <div class="f"><label>법정동 <small>선택 시 조건 추가 · 여러 개 가능</small></label><select id="rg-bjd"></select></div>
+      </div>
+
+      <!-- 전체 적용조건 칩바 -->
+      <div class="applied-bar" id="applied-bar"></div>
+
+      <!-- 인덱스 + 패널 -->
+      <div class="acc-title">검색 조건 · 카테고리</div>
+      <div class="sb">
+        <div class="idx" id="idx"></div>
+        <div class="pane" id="pane"></div>
+      </div>
+
+    </div>
+
+    <div class="modal-foot">
+      <button class="reset" onclick="resetAll()">전체 초기화</button>
+      <span class="applied">적용 조건 <b id="acount">0</b>개</span>
+      <span class="sp"></span>
+      <button class="cancel">취소</button>
+      <button class="apply">적용 · 예상 <b id="ecount">1,284</b>건</button>
+    </div>
+  </div>
+</div>
+
+<div id="ctl-store"></div>
+<div class="popover" id="popover">
+  <div class="pop-head"><span class="pt" id="pop-title"></span><button class="pclr" id="pop-clr">이 조건 지우기</button></div>
+  <div class="pop-slot" id="pop-slot"></div>
+</div>
+
+<!-- 조건 저장 모달 -->
+<div class="mini-overlay" id="save-modal">
+  <div class="mini">
+    <h3>조건 저장</h3>
+    <p class="mini-sub">현재 설정한 조건 <b id="save-cnt">0</b>개를 이름을 붙여 저장합니다.</p>
+    <input id="save-name" class="mini-input" placeholder="예: 강남 수익형 5%↑" maxlength="30">
+    <div class="mini-warn" id="save-warn"></div>
+    <div class="mini-foot"><button class="mini-cancel" data-close="save-modal">취소</button><button class="mini-ok" id="save-ok">저장</button></div>
+  </div>
+</div>
+
+<!-- 조건 불러오기 모달 -->
+<div class="mini-overlay" id="load-modal">
+  <div class="mini">
+    <h3>저장된 조건 불러오기</h3>
+    <div class="preset-list" id="preset-list"></div>
+    <div class="mini-foot"><button class="mini-cancel" data-close="load-modal">닫기</button></div>
+  </div>
+</div>
+
+<script>
+const S=(label,o={})=>({label,ctl:'slider',...o});
+const M=(label,opts)=>({label,ctl:'ms',opts});            /* 버튼 다중선택(옵션 적음) */
+const MD=(label,opts)=>({label,ctl:'ms',opts,dd:true});   /* 검색 드롭다운(옵션 많음) */
+const GRP=(label,sectors)=>({label,ctl:'sector',sectors}); /* 섹터 그룹 다중선택(섹터=전체선택 / 개별 펼침) */
+const SM=(label,opts)=>({label,ctl:'segmulti',opts});
+const T=(label,opts)=>({label,ctl:'segmulti',opts});   /* 유무형도 버튼 다중선택, 미선택=전체 */
+const X=(label,ph,chips)=>({label,ctl:'text',ph,chips});   /* chips=자주 쓰는 검색어 프리셋 */
+
+const 용도지역=['제1종전용주거','제2종전용주거','제1종일반주거','제2종일반주거','제3종일반주거','준주거','일반주거','중심상업','일반상업','근린상업','유통상업','전용공업','일반공업','준공업','보전녹지','생산녹지','자연녹지','개발제한구역','용도미지정','관리지역','보전관리','생산관리','계획관리','농림','자연환경보전'];
+const 지목=['전','답','과수원','목장용지','임야','광천지','염전','대','공장용지','학교용지','주차장','주유소용지','창고용지','도로','철도용지','제방','하천','구거','유지','양어장','수도용지','공원','체육용지','유원지','종교용지','사적지','묘지','잡종지'];
+const 이용상황섹터=[
+ {name:'상업·업무', items:['상업용','업무용','상업기타']},
+ {name:'상가주택', items:['주상용','주상기타']},
+ {name:'주거', items:['단독','연립','다세대','주거기타']},
+ {name:'공업·산업', items:['공업용','공업기타']},
+ {name:'나지·개발부지', items:['주거나지','상업나지','주상나지','공업나지','전','답','임야','주차장']},
+ {name:'특수·기타시설', items:['아파트','태양광발전소부지','목장용지','광천지','염전','양어장','유원지','골프장','스키장','경마장','공원묘지','도로','하천','공원','운동장','위험시설','유해·혐오시설']},
+ {name:'미분류', items:['지정되지않음','기타']},
+];
+const 형상=['정방형','가로장방','세로장방','사다리형','부정형','자루형'];
+const 도로접면=['광대로한면','광대소각','광대세각','중로한면','중로각지','소로한면','소로각지','세로한면(가)','세로각지(가)','세로한면(불)','세로각지(불)','맹지'];
+const 주용도=['단독주택','공동주택','제1종근린생활시설','제2종근린생활시설','문화및집회시설','종교시설','판매시설','운수시설','의료시설','교육연구시설','노유자시설','수련시설','운동시설','업무시설','숙박시설','위락시설','공장','창고시설','위험물저장및처리시설','자동차관련시설','동물및식물관련시설','자원순환관련시설','교정및군사시설','방송통신시설','발전시설','묘지관련시설','관광휴게시설','장례시설','야영장시설'];
+
+const GROUPS=[
+ {t:'입지정보',
+   reps:[ S('역과의거리',{min:0,max:1000,unit:'m',inf:1,handle:'right',ticks:'0,500',le:'이내',
+            chips:[['도보5분↓',0,350],['도보10분↓',0,700]]}) ],
+   body:[ M('유동인구',['확인중','매우높음','높음','보통','낮음','매우낮음']) ]},
+
+ {t:'건물정보',
+   reps:[
+    S('대지면적',{min:0,max:300,unit:'평',inf:1,ticks:'0,100,200'}),
+    S('연면적',{min:0,max:500,unit:'평',inf:1,ticks:'0,150,300'}),
+    S('건축면적',{min:0,max:200,unit:'평',inf:1,ticks:'0,50,100'}),
+    S('엘리베이터',{min:0,max:6,unit:'대',inf:1,handle:'left',ticks:'0,2,4'}),
+    S('주차장',{min:0,max:20,unit:'대',inf:1,handle:'left',ticks:'0,5,10'}),
+    S('사용승인일',{min:0,max:30,unit:'년',inf:1,handle:'right',ticks:'0,10,20',le:'이하',
+       chips:[['신축 5년↓',0,5],['준신축 10년↓',0,10],['구옥 20년↑',20,'']]}),
+   ],
+   body:[
+    S('용적률산정용연면적',{min:0,max:500,unit:'평',inf:1,ticks:'0,150,300'}),
+    S('건폐율',{min:0,max:100,unit:'%',inf:1,ticks:'0,50,60,80'}),
+    S('법정건폐율',{min:0,max:100,unit:'%',inf:1,ticks:'0,50,60,80'}),
+    S('용적률',{min:0,max:1000,unit:'%',inf:1,ticks:'0,300,600'}),
+    S('법정용적률',{min:0,max:1000,unit:'%',inf:1,ticks:'0,300,600'}),
+    S('규모 지상',{min:0,max:30,unit:'층',inf:1,handle:'left',ticks:'0,10,20'}),
+    S('규모 지하',{min:0,max:10,unit:'층',inf:1,handle:'left',ticks:'0,3,6'}),
+    S('대수선·리모델링',{min:1970,max:2026,unit:'',inf:1,inflo:1,handle:'left',ge:'부터',le:'까지',ticks:'1990,2010'}),
+    X('기타용도','건축물대장 기타용도 · 부분일치',['근린생활시설','사무소','업무시설','단독주택','다가구주택','소매점','판매시설','상가']),
+   ]},
+
+ {t:'토지정보',
+   reps:[ MD('용도지역',용도지역) ],
+   body:[
+    S('토지면적',{min:0,max:300,unit:'평',inf:1,ticks:'0,100,200'}),
+    MD('지목',지목), GRP('토지이용상황',이용상황섹터), M('지형형상',형상), MD('도로접면',도로접면), MD('주용도',주용도),
+    S('경사도',{min:0,max:45,unit:'°',inf:1,handle:'right',ticks:'0,5,15,25',le:'이하'}),
+    M('경사등급',['평지','완경사','중경사','급경사']) ]},
+
+ {t:'금액정보',
+   reps:[
+    S('매매가',{min:0,max:200,unit:'억',inf:1,ticks:'0,50,100,150',
+       chips:[['~50억',0,50],['50~100',50,100],['100억~',100,'']]}),
+    S('수익률',{min:0,max:8,step:0.1,unit:'%',inf:1,handle:'left',ticks:'0,2,4,6',
+       chips:[['3%↑',3,''],['4%↑',4,''],['5%↑',5,'']]}),
+   ],
+   body:[
+    S('평단가(대지)',{min:0,max:30000,unit:'만원',inf:1,ticks:'0,5000,10000,20000'}),
+    S('평단가(연면적)',{min:0,max:15000,unit:'만원',inf:1,ticks:'0,3000,6000,10000'}),
+    S('총보증금',{min:0,max:100000,unit:'만원',inf:1,ticks:'0,10000,30000,50000'}),
+    S('총임대료',{min:0,max:10000,unit:'만원',inf:1,ticks:'0,2000,5000'}),
+    S('총관리비',{min:0,max:5000,unit:'만원',inf:1,ticks:'0,1000,3000'}),
+    S('연면적당임대료',{min:0,max:50,unit:'만원',inf:1,ticks:'0,10,20,30'}),
+    S('공실제외수익률',{min:0,max:8,step:0.1,unit:'%',inf:1,handle:'left',ticks:'0,3,6'}),
+    S('자기자본수익률',{min:0,max:15,step:0.1,unit:'%',inf:1,handle:'left',ticks:'0,5,10'}),
+    T('총공실',['있음','없음','확인중']),
+   ]},
+
+ {t:'상세정보',
+   reps:[ M('건물용도',['확인중','수익률','신축용','사옥용','리모델링용']) ],
+   body:[ SM('등급',['확인중','매우좋음','좋음','나쁨','매우나쁨']), SM('입지',['확인중','매우좋음','좋음','나쁨','매우나쁨']),
+    M('명도',['확인중','완료','가능','불가','일부','조건부']),
+    M('용도변경',['확인중','근생','상가주택','다가구주택','가능','불가','협의가능']),
+    M('멸실',['확인중','불가','협조가능','잔금전멸실','협의가능','조건부']) ]},
+
+ {t:'공시지가·매각·광고',
+   reps:[
+    S('광고가',{min:0,max:200,unit:'억',inf:1,ticks:'0,50,100'}),
+    S('매각일',{min:1970,max:2026,unit:'',inf:1,inflo:1,handle:'left',ge:'부터',le:'까지',ticks:'1990,2010'}),
+   ],
+   body:[
+    S('최신 공시지가',{min:0,max:5000,unit:'만원',inf:1,ticks:'0,1000,3000'}),
+    S('공시지가 상승률 5년',{min:0,max:100,unit:'%',inf:1,handle:'left',ticks:'0,30,60'}),
+    S('공시지가 상승률 10년',{min:0,max:200,unit:'%',inf:1,handle:'left',ticks:'0,50,100'}),
+    S('총공시지가/매매가',{min:0,max:200,unit:'%',inf:1,ticks:'0,50,100'}),
+    S('공시지가 기준',{min:0,max:10000,unit:'만원',inf:1,ticks:'0,3000,6000'}),
+    S('광고 상승률',{min:-50,max:100,unit:'%',inf:1,inflo:1,ticks:'-50,0,50'}),
+    T('광고등록',['있음','없음']),
+    S('매각액',{min:0,max:200,unit:'억',inf:1,ticks:'0,50,100'}),
+    S('매각손익',{min:-50,max:200,unit:'%',inf:1,inflo:1,ticks:'-50,0,50,100'}),
+    S('매각횟수',{min:0,max:10,unit:'건',inf:1,handle:'left',ticks:'0,3,6'}),
+   ]},
+
+ {t:'업무',
+   reps:[ M('진행상태',['준비중','진행중','철회','가격제시','매각']),
+    M('소유자타입',['확인중','개인','법인']) ],
+   body:[ X('담당자','담당자명'),
+    M('긴급도',['확인중','매우급함','급함','보통','여유','안팔아도됨']),
+    M('관계',['확인중','건물주/법인대표','관리자','친인척','부동산','기타']),
+    M('협조도',['확인중','협조적','보통','비협조적']), M('친절도',['확인중','친절','보통','불친절']),
+    X('소유자명','소유자명'), X('매물번호','매물번호'),
+    S('접수일',{min:1970,max:2026,unit:'',inf:1,inflo:1,handle:'left',ge:'부터',le:'까지',ticks:'2000,2015'}),
+    T('매수의향서',['확인중','원함','원치않음']), T('전화번호',['있음','없음']),
+    T('사진',['있음','없음']), T('브리핑',['있음','없음']) ]},
+];
+
+/* ── 필드 HTML ── */
+function fieldHTML(f){
+  const L=`<label>${f.label}</label>`;
+  if(f.ctl==='slider'){
+    const d=`data-min="${f.min}" data-max="${f.max}" data-step="${f.step||1}" data-unit="${f.unit}" data-inf="${f.inf?1:''}" data-inflo="${f.inflo?1:''}" data-handle="${f.handle||'dual'}" data-ge="${f.ge||'이상'}" data-le="${f.le||'이하'}" data-ticks="${f.ticks||''}"`;
+    const chips=f.chips? `<div class="rchips">${f.chips.map(c=>`<span class="c" data-lo="${c[1]}" data-hi="${c[2]}">${c[0]}</span>`).join('')}</div>`:'';
+    return `<div class="f" data-label="${f.label}">${L}<div class="rs" ${d}></div>${chips}</div>`;
+  }
+  if(f.ctl==='ms'){
+    const pills=f.opts.map(o=>`<button>${o}</button>`).join('');
+    return `<div class="f" data-label="${f.label}">${L}<div class="seg multi${f.dd?' hscroll':''}">${pills}</div></div>`;
+  }
+  if(f.ctl==='sector'){
+    const secs=f.sectors.map(sec=>`<div class="sec" data-name="${sec.name}"><div class="sec-head"><button class="sec-chk"><span class="box"></span>${sec.name}</button><button class="sec-exp">▸</button></div><div class="sec-items">${sec.items.map(i=>`<button class="opt">${i}</button>`).join('')}</div></div>`).join('');
+    return `<div class="f" data-label="${f.label}">${L}<div class="sector-ms">${secs}</div></div>`;
+  }
+  if(f.ctl==='segmulti') return `<div class="f" data-label="${f.label}">${L}<div class="seg multi">${f.opts.map(o=>`<button>${o}</button>`).join('')}</div></div>`;
+  if(f.ctl==='toggle') return `<div class="f" data-label="${f.label}">${L}<div class="seg toggle">${f.opts.map((o,i)=>`<button class="${i===0?'on':''}">${o}</button>`).join('')}</div></div>`;
+  if(f.ctl==='text'){
+    const tc=f.chips? `<div class="tchips">${f.chips.map(c=>`<span class="tc">${c}</span>`).join('')}</div>`:'';
+    return `<div class="f" data-label="${f.label}">${L}<input class="txt" type="text" placeholder="${f.ph||''}">${tc}</div>`;
+  }
+}
+
+/* ── 좌측 인덱스 렌더 ── */
+document.getElementById('idx').innerHTML =
+  `<button class="idx-item on" data-tab="all"><span class="il">⭐ 자주 찾는 조건</span><span class="badge zero">0</span></button>`+
+  GROUPS.map((g,i)=>`<button class="idx-item" data-tab="${i}"><span class="il">${g.t}</span><span class="badge zero">0</span></button>`).join('');
+
+/* ── 우측 패널 렌더 (전체=대표 값칩 요약 / 각 카테고리=대표+세부) ── */
+const chipsHTML = fields => fields.map(f=>`<button class="vchip" data-field="${f.label}"><span class="vc-l">${f.label}</span><span class="vc-v">전체</span></button>`).join('');
+document.getElementById('pane').innerHTML =
+  `<div class="panel on" data-tab="all"><div class="p-hint">자주 쓰는 조건 — 칩을 눌러 바로 편집하세요. 세부조건은 왼쪽 카테고리에서 설정합니다.</div><div class="fav-wrap">${chipsHTML(GROUPS.flatMap(g=>g.reps))}</div></div>`+
+  GROUPS.map((g,i)=>`<div class="panel" data-tab="${i}">
+     <div class="p-head">${g.t}<button class="sec-reset" data-gi="${i}">초기화</button></div>
+     <div class="bodylbl">대표조건</div><div class="fav-wrap">${chipsHTML(g.reps)}</div>
+     <div class="bodylbl" style="margin-top:16px">세부조건 ${g.body.length}개</div><div class="fav-wrap">${chipsHTML(g.body)}</div>
+   </div>`).join('');
+
+/* 모든 필드 컨트롤을 보관소에 실체로(칩 클릭 시 팝오버로 이동) */
+document.getElementById('ctl-store').innerHTML = GROUPS.flatMap(g=>[...g.reps,...g.body]).map(fieldHTML).join('');
+
+/* ── 슬라이더 ── */
+function initSlider(rs){
+  const min=+rs.dataset.min, step=+(rs.dataset.step||1), unit=rs.dataset.unit||'';
+  const max=+rs.dataset.max, inf=rs.dataset.inf==='1', inflo=rs.dataset.inflo==='1';
+  const ge=rs.dataset.ge||'이상', le=rs.dataset.le||'이하', mode=rs.dataset.handle||'dual';
+  rs.classList.add('mode-'+mode);
+  const sv=v=> step<1? (+v).toFixed(1):Math.round(v);
+  const ticks=(rs.dataset.ticks||'').split(',').filter(x=>x!=='').map(Number);
+  const tk=[]; if(inflo) tk.push({v:min,l:'무한'});
+  ticks.forEach(v=>{ if(inflo&&v===min) return; if(v===max) return; tk.push({v,l:sv(v)+unit}); });  /* 끝(무한)과 겹치는 눈금 제거 */
+  tk.push({v:max,l:inf?'무한':sv(max)+unit});
+  rs.innerHTML=`<div class="rs-io"><span class="rs-inputs"><span class="lo-g"><input class="lo"><span class="u">${unit}</span><span class="ge">${ge}</span></span><span class="hi-g"><input class="hi"><span class="u">${unit}</span><span class="le">${le}</span></span></span><span class="rs-all">전체</span></div>
+    <div class="rs-rail"><div class="rs-sel"></div></div>
+    <input type="range" class="rs-a" min="${min}" max="${max}" step="${step}" value="${min}">
+    <input type="range" class="rs-b" min="${min}" max="${max}" step="${step}" value="${max}">
+    <div class="rs-ticks">${tk.map(t=>`<div class="rs-tick" data-v="${t.v}" style="left:${(t.v-min)/(max-min)*100}%"><i></i><span>${t.l}</span></div>`).join('')}</div>`;
+  const io=rs.querySelector('.rs-io'),a=rs.querySelector('.rs-a'),b=rs.querySelector('.rs-b'),sel=rs.querySelector('.rs-sel'),loIn=rs.querySelector('.lo'),hiIn=rs.querySelector('.hi'),rail=rs.querySelector('.rs-rail');
+  function bar(){const lo=Math.min(+a.value,+b.value),hi=Math.max(+a.value,+b.value),p=v=>(v-min)/(max-min)*100; sel.style.left=p(lo)+'%'; sel.style.width=(p(hi)-p(lo))+'%';}
+  function updFull(){const f=document.activeElement===loIn||document.activeElement===hiIn; io.classList.toggle('full',loIn.value===''&&hiIn.value===''&&!f);}
+  function fromSlider(){const lo=Math.min(+a.value,+b.value),hi=Math.max(+a.value,+b.value); loIn.value=lo<=min?'':sv(lo); hiIn.value=hi>=max?'':sv(hi); bar(); updFull(); refresh();}
+  function fromInput(){let lo=loIn.value===''?min:parseFloat(loIn.value),hi=hiIn.value===''?max:parseFloat(hiIn.value); if(isNaN(lo))lo=min; if(isNaN(hi))hi=max; a.value=Math.max(min,Math.min(lo,max)); b.value=Math.max(min,Math.min(hi,max)); bar(); updFull(); refresh();}
+  function moveHandle(v){v=Math.max(min,Math.min(Math.round(v/step)*step,max)); if(mode==='left')a.value=v; else if(mode==='right')b.value=v; else{if(Math.abs(v-(+a.value))<=Math.abs(v-(+b.value)))a.value=v; else b.value=v;} fromSlider();}
+  a.oninput=fromSlider; b.oninput=fromSlider; loIn.oninput=fromInput; hiIn.oninput=fromInput;
+  [loIn,hiIn].forEach(i=>{i.onfocus=()=>io.classList.remove('full'); i.onblur=()=>setTimeout(updFull,0);});
+  io.onclick=()=>{if(io.classList.contains('full')){io.classList.remove('full'); (mode==='right'?hiIn:loIn).focus();}};
+  rs.onclick=e=>{if(e.target.tagName==='INPUT'||e.target.closest('.rs-io'))return; const t=e.target.closest('.rs-tick'),r=rail.getBoundingClientRect(); let v; if(t)v=+t.dataset.v; else v=min+Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*(max-min); moveHandle(v);};
+  rs._set=(l,h)=>{a.value=(l===''?min:l); b.value=(h===''?max:h); fromSlider();};
+  rs._get=()=>({lo:loIn.value,hi:hiIn.value});
+  rs._clear=()=>{loIn.value='';hiIn.value='';a.value=min;b.value=max;bar();updFull();};
+  rs._val=()=>{const lo=loIn.value,hi=hiIn.value; if(!lo&&!hi)return null; if(lo&&hi)return `${lo}${unit} ${ge} ${hi}${unit} ${le}`; return lo?`${lo}${unit} ${ge}`:`${hi}${unit} ${le}`;};
+  bar(); updFull();
+}
+document.querySelectorAll('.rs').forEach(rs=>{
+  initSlider(rs);
+  const chips=rs.closest('.f').querySelector('.rchips');
+  if(chips) chips.querySelectorAll('.c').forEach(c=>c.onclick=()=>rs._set(c.dataset.lo,c.dataset.hi));
+});
+
+/* ── 멀티셀렉트 ── */
+function initMulti(ms){
+  let OPTS=(ms.dataset.opts||'').split('|').filter(Boolean);
+  const box=ms.querySelector('.ms-box'), inp=box.querySelector('input'), menu=ms.querySelector('.ms-menu'), hint=ms.dataset.hint||'';
+  let picked=new Set();
+  function changed(){ refresh(); if(ms._onChange) ms._onChange(); }
+  function menuR(){const q=inp.value.trim();
+    if(!OPTS.length){menu.innerHTML=`<div class="ms-opt" style="color:#b6bdc6">${hint||'옵션 없음'}</div>`; return;}
+    menu.innerHTML=OPTS.filter(n=>n.includes(q)).map(n=>`<div class="ms-opt ${picked.has(n)?'sel':''}" data-n="${n}">${picked.has(n)?'✓ ':''}${n}</div>`).join('')||'<div class="ms-opt" style="color:#aaa">결과 없음</div>';}
+  function tagR(){box.querySelectorAll('.tag').forEach(t=>t.remove()); [...picked].forEach(n=>{const t=document.createElement('span'); t.className='tag'; t.innerHTML=`${n} <b>×</b>`; t.querySelector('b').onclick=e=>{e.stopPropagation();picked.delete(n);tagR();menuR();changed();}; box.insertBefore(t,inp);}); inp.placeholder=picked.size?'':'전체';}
+  function place(){const r=box.getBoundingClientRect(); menu.style.left=r.left+'px'; menu.style.top=(r.bottom+4)+'px'; menu.style.width=r.width+'px';}
+  ms._place=place;
+  box.onclick=()=>{ms.classList.add('open');place();inp.focus();};
+  inp.oninput=()=>{ms.classList.add('open');place();menuR();};
+  menu.onclick=e=>{const o=e.target.closest('.ms-opt'); if(!o||!o.dataset.n)return; const n=o.dataset.n; picked.has(n)?picked.delete(n):picked.add(n); inp.value=''; tagR();menuR();changed();place();};
+  ms._clear=()=>{picked.clear();tagR();menuR();};
+  ms._get=()=>[...picked];
+  ms._setPicked=(arr)=>{picked=new Set(arr);tagR();menuR();};
+  ms._setOpts=(arr)=>{OPTS=arr;[...picked].forEach(p=>{if(!arr.includes(p))picked.delete(p);});tagR();menuR();refresh();};
+  ms._val=()=>picked.size?[...picked].join(', '):null;
+  tagR(); menuR();
+}
+document.querySelectorAll('.ms').forEach(initMulti);
+document.addEventListener('click',e=>document.querySelectorAll('.ms.open').forEach(ms=>{if(!ms.contains(e.target))ms.classList.remove('open');}));
+
+/* ── 지역: 기본 select 계층(시/도→시/군/구→법정동), 선택 시 조건 누적 추가 ── */
+const REGIONS={
+ '서울':{'강남구':['역삼동','삼성동','대치동','논현동','청담동','개포동','도곡동','일원동'],'서초구':['서초동','방배동','잠원동','반포동','양재동'],'송파구':['잠실동','문정동','가락동','방이동'],'마포구':['공덕동','서교동','합정동','망원동'],'용산구':['이태원동','한남동','청파동']},
+ '경기':{'성남시 분당구':['정자동','서현동','수내동','이매동'],'수원시 영통구':['영통동','매탄동','원천동'],'고양시 일산동구':['장항동','마두동','백석동']},
+ '인천':{'연수구':['송도동','연수동','청학동'],'남동구':['구월동','논현동','간석동']},
+};
+const rgSido=document.getElementById('rg-sido'), rgSgg=document.getElementById('rg-sgg'), rgBjd=document.getElementById('rg-bjd');
+let regions=[];
+const opt=(v,l)=>`<option value="${v}">${l??v}</option>`;
+function fillSido(){ rgSido.innerHTML=opt('','선택')+Object.keys(REGIONS).map(s=>opt(s)).join(''); }
+function fillSgg(){ const s=rgSido.value; rgSgg.innerHTML=opt('','선택')+(s?Object.keys(REGIONS[s]).map(g=>opt(g)).join(''):''); rgSgg.disabled=!s; fillBjd(); }
+function fillBjd(){ const s=rgSido.value,g=rgSgg.value; rgBjd.innerHTML=opt('','선택')+((s&&g)?opt('전체',`${g} 전체`)+REGIONS[s][g].map(d=>opt(d)).join(''):''); rgBjd.disabled=!g; }
+rgSido.onchange=fillSgg; rgSgg.onchange=fillBjd;
+rgBjd.onchange=()=>{ const s=rgSido.value,g=rgSgg.value,b=rgBjd.value; if(!b)return; if(!regions.some(r=>r.sgg===g&&r.bjd===b))regions.push({sido:s,sgg:g,bjd:b}); rgBjd.value=''; refresh(); };
+const regionLabel=r=>`${r.sgg} ${r.bjd==='전체'?'전체':r.bjd}`;
+fillSido(); fillSgg();
+
+/* ── 섹터 그룹 다중선택 ── */
+function initSector(sm){
+  const secs=[...sm.querySelectorAll('.sec')];
+  function upd(sec){const items=[...sec.querySelectorAll('.opt')], on=items.filter(b=>b.classList.contains('on')).length, chk=sec.querySelector('.sec-chk');
+    chk.classList.toggle('all',on===items.length&&on>0); chk.classList.toggle('part',on>0&&on<items.length);}
+  secs.forEach(sec=>{
+    const items=[...sec.querySelectorAll('.opt')];
+    sec.querySelector('.sec-chk').onclick=()=>{const all=items.every(b=>b.classList.contains('on')); items.forEach(b=>b.classList.toggle('on',!all)); upd(sec); refresh();};
+    sec.querySelector('.sec-exp').onclick=()=>sec.classList.toggle('open');
+    items.forEach(b=>b.onclick=()=>{b.classList.toggle('on'); upd(sec); refresh();});
+    upd(sec);
+  });
+  sm._get=()=>[...sm.querySelectorAll('.opt.on')].map(b=>b.textContent);
+  sm._setPicked=(arr)=>{sm.querySelectorAll('.opt').forEach(b=>b.classList.toggle('on',arr.includes(b.textContent))); secs.forEach(upd);};
+  sm._clear=()=>{sm.querySelectorAll('.opt').forEach(b=>b.classList.remove('on')); secs.forEach(upd);};
+  sm._val=()=>{const parts=[];
+    secs.forEach(sec=>{const items=[...sec.querySelectorAll('.opt')], on=items.filter(b=>b.classList.contains('on'));
+      if(!on.length)return; if(on.length===items.length)parts.push(sec.dataset.name+' 전체'); else on.forEach(b=>parts.push(b.textContent));});
+    if(!parts.length)return null; return parts.length<=2?parts.join(', '):parts[0]+' 외 '+(parts.length-1);};
+}
+document.querySelectorAll('.sector-ms').forEach(initSector);
+/* 텍스트 자주 쓰는 검색어 칩 */
+document.querySelectorAll('.tchips .tc').forEach(c=>c.onclick=()=>{const inp=c.closest('.f').querySelector('input.txt'); inp.value=c.textContent; inp.focus(); refresh();});
+
+document.querySelectorAll('.seg.multi button').forEach(b=>b.onclick=()=>{b.classList.toggle('on');refresh();});
+document.querySelectorAll('.seg.toggle').forEach(seg=>seg.querySelectorAll('button').forEach(b=>b.onclick=()=>{seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');refresh();}));
+
+/* ── 값/초기화 ── */
+function fval(f){
+  const rs=f.querySelector('.rs'); if(rs&&rs._val)return rs._val();
+  const sc=f.querySelector('.sector-ms'); if(sc&&sc._val)return sc._val();
+  const ms=f.querySelector('.ms'); if(ms&&ms._val)return ms._val();
+  const sm=f.querySelector('.seg.multi'); if(sm){const on=[...sm.querySelectorAll('button.on')].map(b=>b.textContent); return on.length?on.join(', '):null;}
+  const tg=f.querySelector('.seg.toggle'); if(tg){const o=tg.querySelector('button.on'); return o&&o.textContent.trim()!=='전체'?o.textContent.trim():null;}
+  const tx=f.querySelector('input.txt'); if(tx)return tx.value.trim()||null;
+  return null;
+}
+function clearField(f){
+  const rs=f.querySelector('.rs'); if(rs&&rs._clear)rs._clear();
+  const sc=f.querySelector('.sector-ms'); if(sc&&sc._clear)sc._clear();
+  const ms=f.querySelector('.ms'); if(ms&&ms._clear)ms._clear();
+  const sm=f.querySelector('.seg.multi'); if(sm)sm.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  const tg=f.querySelector('.seg.toggle'); if(tg)tg.querySelectorAll('button').forEach((b,i)=>b.classList.toggle('on',i===0));
+  const tx=f.querySelector('input.txt'); if(tx)tx.value='';
+}
+const store=document.getElementById('ctl-store');
+/* 컨트롤은 store 또는 팝오버(#pop-slot)에만 존재 */
+function ctrlField(label){return document.querySelector(`#ctl-store .f[data-label="${label}"], #pop-slot .f[data-label="${label}"]`);}
+function resetGroup(gi){ [...GROUPS[gi].reps,...GROUPS[gi].body].forEach(f=>clearField(ctrlField(f.label))); refresh(); }
+function switchTab(tab){
+  closePop();
+  document.querySelectorAll('.idx-item').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.dataset.tab===tab));
+  document.getElementById('pane').scrollTop=0;
+}
+function resetAll(){ document.querySelectorAll('.f').forEach(clearField); regions=[]; rgSido.value=''; fillSgg(); refresh(); }
+
+/* ── 팝오버 ── */
+const pop=document.getElementById('popover'), slot=document.getElementById('pop-slot');
+let openField=null;
+function openPop(chip){
+  const f=ctrlField(chip.dataset.field);
+  if(openField&&openField!==f) closePop();
+  document.getElementById('pop-title').textContent=chip.dataset.field;
+  slot.appendChild(f); openField=f;
+  const r=chip.getBoundingClientRect(); pop.classList.add('show');
+  const pw=pop.offsetWidth, ph=pop.offsetHeight;
+  let left=Math.min(r.left, window.innerWidth-pw-12);
+  let top=r.bottom+8; if(top+ph>window.innerHeight-12) top=Math.max(12,r.top-ph-8);
+  pop.style.left=Math.max(12,left)+'px'; pop.style.top=top+'px';
+}
+function closePop(){ if(openField){ store.appendChild(openField); openField=null; } pop.classList.remove('show'); }
+document.getElementById('pop-clr').onclick=()=>{if(openField){clearField(openField);refresh();}};
+document.addEventListener('mousedown',e=>{if(pop.classList.contains('show')&&!pop.contains(e.target)&&!e.target.closest('.vchip'))closePop();});
+window.addEventListener('scroll',e=>{
+  if(e.target&&e.target.closest&&(e.target.closest('.popover')||e.target.closest('.ms-menu')))return;   /* 팝오버·메뉴 내부 스크롤은 무시 */
+  if(pop.classList.contains('show'))closePop();
+  document.querySelectorAll('.ms.open').forEach(m=>m.classList.remove('open'));
+},true);
+
+/* ── 인덱스 클릭 = 탭 전환 ── */
+document.getElementById('idx').addEventListener('click',e=>{const b=e.target.closest('.idx-item'); if(b)switchTab(b.dataset.tab);});
+/* ── 패널 클릭 위임(값칩 팝오버 / 카테고리 초기화) ── */
+document.getElementById('pane').addEventListener('click',e=>{
+  const rst=e.target.closest('.sec-reset'); if(rst){ resetGroup(+rst.dataset.gi); return; }
+  const chip=e.target.closest('.vchip');
+  if(chip){ if(e.target.classList.contains('clr')){clearField(ctrlField(chip.dataset.field));refresh();return;}
+    if(openField===ctrlField(chip.dataset.field)){closePop();return;} openPop(chip); }
+});
+
+/* ── 집계 ── */
+function refresh(){
+  const bar=document.getElementById('applied-bar'); let items=[];
+  // 헤더 대표칩 갱신
+  document.querySelectorAll('.vchip').forEach(chip=>{
+    const v=fval(ctrlField(chip.dataset.field));
+    chip.classList.toggle('active',!!v);
+    chip.querySelector('.vc-v').textContent=v||'전체';
+    chip.querySelector('.clr')?.remove();
+    if(v){const x=document.createElement('span'); x.className='clr'; x.textContent='×'; chip.appendChild(x);}
+  });
+  // 카테고리 뱃지(인덱스) + 전체 적용조건 수집
+  GROUPS.forEach((g,i)=>{
+    let n=0;
+    [...g.reps,...g.body].forEach(f=>{const fe=ctrlField(f.label),v=fval(fe); if(v){n++; items.push([f.label,v,()=>{clearField(fe);refresh();}]);}});
+    const bd=document.querySelector(`.idx-item[data-tab="${i}"] .badge`); bd.textContent=n; bd.classList.toggle('zero',!n);
+  });
+  // 지역 (누적 선택)
+  regions.forEach((r,i)=>{ items.push(['지역', regionLabel(r), ()=>{regions.splice(i,1);refresh();}]); });
+  // 적용조건 칩바
+  bar.innerHTML=`<span class="albl">적용된 조건</span>`;
+  if(!items.length){ bar.insertAdjacentHTML('beforeend','<span class="empty">아직 없음 — 카테고리에서 조건을 지정하세요</span>'); }
+  else items.forEach(([k,v,clr])=>{ const c=document.createElement('span'); c.className='achip'; c.innerHTML=`<span class="k">${k}</span> ${v} <span class="x">×</span>`; c.querySelector('.x').onclick=clr; bar.appendChild(c); });
+  // 카운트
+  const total=items.length;
+  const allBd=document.querySelector('.idx-item[data-tab="all"] .badge'); allBd.textContent=total; allBd.classList.toggle('zero',!total);
+  document.getElementById('acount').textContent=total;
+  const est=Math.max(3,1284-total*137).toLocaleString();
+  document.getElementById('ecount').textContent=est; document.getElementById('ecount-top').textContent=est;
+}
+document.addEventListener('input',refresh); document.addEventListener('change',refresh);
+document.querySelector('.close').onclick=()=>{};
+
+/* ===================== 조건 저장 / 불러오기 ===================== */
+function allFieldEls(){return [...document.querySelectorAll('#ctl-store .f'), ...document.querySelectorAll('#pop-slot .f')];}
+function getState(){
+  const st={fields:{}, regions:[]};
+  allFieldEls().forEach(f=>{
+    const label=f.dataset.label;
+    const rs=f.querySelector('.rs'); if(rs&&rs._get){st.fields[label]={t:'s',...rs._get()}; return;}
+    const sc=f.querySelector('.sector-ms'); if(sc&&sc._get){st.fields[label]={t:'sec',on:sc._get()}; return;}
+    const ms=f.querySelector('.ms'); if(ms&&ms._get){st.fields[label]={t:'m',picked:ms._get()}; return;}
+    const sm=f.querySelector('.seg.multi'); if(sm){st.fields[label]={t:'b',on:[...sm.querySelectorAll('button.on')].map(b=>b.textContent)}; return;}
+    const tx=f.querySelector('input.txt'); if(tx){st.fields[label]={t:'x',v:tx.value}; return;}
+  });
+  st.regions=regions.map(r=>({...r}));
+  return st;
+}
+function applyState(st){
+  resetAll();
+  allFieldEls().forEach(f=>{
+    const d=st.fields[f.dataset.label]; if(!d) return;
+    if(d.t==='s'){const rs=f.querySelector('.rs'); rs&&rs._set(d.lo,d.hi);}
+    else if(d.t==='sec'){const sc=f.querySelector('.sector-ms'); sc&&sc._setPicked(d.on);}
+    else if(d.t==='m'){const ms=f.querySelector('.ms'); ms&&ms._setPicked(d.picked);}
+    else if(d.t==='b'){const sm=f.querySelector('.seg.multi'); if(sm)sm.querySelectorAll('button').forEach(b=>b.classList.toggle('on',d.on.includes(b.textContent)));}
+    else if(d.t==='x'){const tx=f.querySelector('input.txt'); if(tx)tx.value=d.v;}
+  });
+  regions=(st.regions||[]).map(r=>({...r}));
+  rgSido.value=''; fillSgg();
+  refresh();
+}
+/* 예시 프리셋(초기 데모용) */
+const presets=[
+ {name:'강남 수익형 5%↑', count:4, state:{fields:{'수익률':{t:'s',lo:'5',hi:''},'매매가':{t:'s',lo:'',hi:'100'},'용도지역':{t:'b',on:['중심상업','일반상업']}}, regions:[{sido:'서울',sgg:'강남구',bjd:'전체'}]}},
+ {name:'신축 사옥용 매물', count:2, state:{fields:{'사용승인일':{t:'s',lo:'',hi:'10'},'건물용도':{t:'b',on:['사옥용']}}, regions:[]}},
+];
+function openMini(id){document.getElementById(id).classList.add('show');}
+function closeMini(id){document.getElementById(id).classList.remove('show');}
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>closeMini(b.dataset.close));
+document.querySelectorAll('.mini-overlay').forEach(o=>o.onclick=e=>{if(e.target===o)o.classList.remove('show');});
+
+document.getElementById('btn-save').onclick=()=>{
+  document.getElementById('save-cnt').textContent=document.getElementById('acount').textContent;
+  document.getElementById('save-name').value=''; document.getElementById('save-warn').textContent='';
+  openMini('save-modal'); setTimeout(()=>document.getElementById('save-name').focus(),0);
+};
+function doSave(){
+  const name=document.getElementById('save-name').value.trim();
+  const cnt=+document.getElementById('acount').textContent;
+  if(!name){document.getElementById('save-warn').textContent='이름을 입력하세요.'; return;}
+  if(!cnt){document.getElementById('save-warn').textContent='설정된 조건이 없습니다.'; return;}
+  const preset={name, state:getState(), count:cnt}, i=presets.findIndex(p=>p.name===name);
+  if(i>=0)presets[i]=preset; else presets.push(preset);
+  closeMini('save-modal');
+}
+document.getElementById('save-ok').onclick=doSave;
+document.getElementById('save-name').onkeydown=e=>{if(e.key==='Enter')doSave();};
+
+document.getElementById('btn-load').onclick=()=>{renderPresets(); openMini('load-modal');};
+function renderPresets(){
+  const list=document.getElementById('preset-list');
+  if(!presets.length){list.innerHTML='<div class="preset-empty">저장된 조건이 없습니다.</div>'; return;}
+  list.innerHTML='';
+  presets.forEach((p,i)=>{
+    const el=document.createElement('div'); el.className='preset';
+    el.innerHTML=`<div><div class="pn">${p.name}</div><div class="pc">조건 ${p.count}개</div></div><span class="sp"></span><button class="pload">불러오기</button><button class="pdel">삭제</button>`;
+    el.querySelector('.pload').onclick=()=>{applyState(p.state); closeMini('load-modal');};
+    el.querySelector('.pdel').onclick=()=>{presets.splice(i,1); renderPresets();};
+    list.appendChild(el);
+  });
+}
+
+refresh();
+</script>
+</body>
+</html>

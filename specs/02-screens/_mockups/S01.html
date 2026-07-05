@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S01 · 매물 통합검색 — 빌탐정 와이어프레임</title>
+<link rel="stylesheet" href="wireframe.css">
+</head>
+<body>
+<div class="screen">
+
+  <div class="spec-note">
+    <b>S01 · 매물 통합검색</b> — 저충실도 레이아웃 목업. 실제 디자인 아님(골격 확인용).
+    행 클릭 → S02 매물상세 이동(예정). [필터] → S01b 상세검색(별도).
+  </div>
+
+  <!-- 상단 앱바 -->
+  <div class="appbar">
+    <div class="brand">빌탐정 <small>매물 통합검색</small></div>
+    <div class="user"><span>이승욱 회원님</span><span class="avatar"></span></div>
+  </div>
+
+  <!-- 검색바 + 필터 -->
+  <div class="panel">
+    <div class="toolbar">
+      <input class="input" placeholder="주소 입력 (예: 강남구 역삼동 123-4)">
+      <button class="btn">필터</button>
+      <button class="btn primary">검색</button>
+      <span style="flex:1"></span>
+      <div class="segmented">
+        <button class="active" onclick="setView('list',this)">매물</button>
+        <button onclick="setView('map',this)">지도</button>
+      </div>
+    </div>
+    <!-- 적용된 필터 칩 -->
+    <div class="chips">
+      <span class="chip">대지면적 300㎡~500㎡ <span class="x">×</span></span>
+      <span class="chip">지하 3층 이상 <span class="x">×</span></span>
+      <span class="chip">지상 3층 이하 <span class="x">×</span></span>
+    </div>
+  </div>
+
+  <!-- 결과 영역 상단 바: 건수 + 정렬 -->
+  <div id="results-bar" class="toolbar" style="margin:4px 2px 10px">
+    <span style="color:#666;font-size:13px">전체 <b>257</b>건</span>
+    <span style="flex:1"></span>
+    <label style="color:#666;font-size:13px">정렬
+      <select class="input" style="min-width:auto;padding:7px 10px" onchange="sortAll(this.value)">
+        <option value="price">매매가순</option>
+        <option value="roi">수익률순</option>
+      </select>
+    </label>
+  </div>
+
+  <!-- 매물(리스트) 뷰 : 광고 / 내 매물 / 일반 3열. 행 호버 시 액션 버튼 노출 -->
+  <div id="view-list" class="result-cols wf-list">
+
+    <div class="col-card">
+      <div class="col-head ad">광고 <span class="count">12</span></div>
+      <div class="col-body">
+        <div class="wf-head"><span>주소</span><span class="num">매매가</span><span class="num">수익률</span></div>
+        <div class="wf-row" data-price="60" data-roi="2.4" data-viewed="2026-06-28"><span>강남구 역삼동 123-4</span><span class="num">60억</span><span class="num">2.4%</span>
+          <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+        <div class="wf-row" data-price="88" data-roi="3.1" data-viewed="2026-06-15"><span>강남구 논현동 55-1</span><span class="num">88억</span><span class="num">3.1%</span>
+          <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+        <div class="wf-row" data-price="120" data-roi="2.0" data-viewed="2026-06-20"><span>강남구 삼성동 7-2</span><span class="num">120억</span><span class="num">2.0%</span>
+          <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+      </div>
+    </div>
+
+    <div class="col-card">
+      <div class="col-head mine">내 매물 <span class="count">5</span></div>
+      <div class="col-body">
+        <div class="wf-head"><span>주소</span><span class="num">매매가</span><span class="num">수익률</span></div>
+        <div class="wf-row" data-price="60" data-roi="2.44" data-viewed="2026-06-29"><span>중구 충무로5가 20-29</span><span class="num">60억</span><span class="num">2.44%</span>
+          <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+        <div class="wf-row" data-price="75" data-roi="2.8" data-viewed="2026-06-10"><span>강남구 대치동 900-1</span><span class="num">75억</span><span class="num">2.8%</span>
+          <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+      </div>
+    </div>
+
+    <div class="col-card">
+      <div class="col-head normal">일반 <span class="count">240</span></div>
+      <div class="col-body">
+        <div class="wf-head"><span>주소</span><span class="num">매매가</span><span class="num">수익률</span></div>
+        <div class="wf-row" data-price="42" data-roi="3.5" data-viewed="2026-06-27"><span>광진구 자양동 33-7</span><span class="num">42억</span><span class="num">3.5%</span>
+          <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+        <div class="wf-row" data-price="95" data-roi="2.9" data-viewed="2026-06-25"><span>성동구 성수동 12-3</span><span class="num">95억</span><span class="num">2.9%</span>
+          <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+        <div class="wf-row" data-price="51" data-roi="3.2" data-viewed="2026-06-22"><span>마포구 합정동 8-8</span><span class="num">51억</span><span class="num">3.2%</span>
+          <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+        <div class="wf-row" data-price="38" data-roi="4.1" data-viewed="2026-06-18"><span>동작구 노량진동 1-2</span><span class="num">38억</span><span class="num">4.1%</span>
+          <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+        <div class="wf-row" data-price="110" data-roi="2.3" data-viewed="2026-06-12"><span>용산구 한강로3가 40-1</span><span class="num">110억</span><span class="num">2.3%</span>
+          <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+        <div class="wf-row" data-price="64" data-roi="3.0" data-viewed="2026-06-08"><span>서초구 서초동 1330-5</span><span class="num">64억</span><span class="num">3.0%</span>
+          <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+        <div class="wf-row" data-price="47" data-roi="3.6" data-viewed="2026-06-05"><span>은평구 응암동 88-3</span><span class="num">47억</span><span class="num">3.6%</span>
+          <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+        <div class="wf-row" data-price="72" data-roi="2.7" data-viewed="2026-06-02"><span>강서구 화곡동 22-9</span><span class="num">72억</span><span class="num">2.7%</span>
+          <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 지도 뷰 -->
+  <div id="view-map" class="panel hidden">
+    <div class="map-ph">지도 영역 (매물 핀 표시)</div>
+  </div>
+
+</div>
+
+<script>
+function setView(v, btn){
+  document.querySelectorAll('.segmented button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('view-list').classList.toggle('hidden', v!=='list');
+  document.getElementById('view-map').classList.toggle('hidden', v!=='map');
+  document.getElementById('results-bar').classList.toggle('hidden', v!=='list');
+}
+// 각 컬럼 내부에서 정렬 (최근조회/매매가/수익률 모두 내림차순)
+function sortAll(key){
+  document.querySelectorAll('.col-body').forEach(body=>{
+    const rows=[...body.querySelectorAll('.wf-row')];
+    rows.sort((a,b)=>{
+      if(key==='viewed') return b.dataset.viewed.localeCompare(a.dataset.viewed);
+      return parseFloat(b.dataset[key])-parseFloat(a.dataset[key]);
+    });
+    rows.forEach(r=>body.appendChild(r));
+  });
+}
+</script>
+</body>
+</html>
