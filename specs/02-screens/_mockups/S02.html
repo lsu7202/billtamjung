@@ -70,6 +70,8 @@
 /* 헤더 스크롤 고정 + 푸터처럼 가로 꽉 채움 */
 .hdr-panel{position:sticky; top:0; z-index:50; background:#fff;
   margin-left:-16px; margin-right:-16px; border-radius:0; border-left:0; border-right:0}
+/* 사이드바가 스티키 헤더 밑에 붙도록 top을 헤더 높이만큼 내림 (겹침 방지) */
+.sidebar{top:100px; max-height:calc(100vh - 112px); z-index:40}
 /* ── M01 계산기: 편집 셀 + 결과 히어로 ── */
 table.wf input.cell{width:100%; border:1px solid transparent; background:transparent; border-radius:5px; padding:5px 6px; font-size:13px; text-align:right; font-variant-numeric:tabular-nums}
 table.wf input.cell:hover{border-color:var(--line)}
@@ -93,6 +95,52 @@ table.wf tr.outlier td{background:#fdf3f3}
 .badge-out{background:#e74c3c; color:#fff; font-size:10px; font-weight:700; border-radius:4px; padding:1px 6px; margin-left:6px; white-space:nowrap}
 table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15px; cursor:pointer}
 .avg-n{color:#8a929b; font-size:11px; font-weight:600}
+/* ── 위키: 집단지성 특이사항 ── */
+.we-cat{font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; white-space:nowrap}
+.cat-r{background:#fdecea; color:#c0392b}   /* 권리·명도 */
+.cat-t{background:#eaf1fe; color:#2f6fed}   /* 임차인 */
+.cat-d{background:#f0eafd; color:#7b3fe4}   /* 개발·도로 */
+.cat-b{background:#e7f7ee; color:#1f8a4c}   /* 건물상태 */
+.cat-o{background:#fff2e2; color:#c8781a}   /* 소유자 */
+.cat-x{background:#eef0f3; color:#6b7280}   /* 기타 */
+/* 사이드바 미리보기 */
+.wiki-mini{padding:4px 12px}
+.wm-item{padding:9px 0; border-bottom:1px solid #f0f2f5}
+.wm-item:last-child{border-bottom:0}
+.wm-txt{display:block; font-size:13px; color:#222; margin-top:5px; line-height:1.45}
+.wm-meta{font-size:11px; color:#8a929b; margin-top:4px}
+/* 모달: 정렬/필터 */
+.wiki-toolbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:2px 2px 14px}
+.wiki-filter{display:flex; gap:6px; flex-wrap:wrap}
+.wiki-filter .fchip{border:1px solid var(--line); background:#fff; border-radius:999px; padding:5px 12px; font-size:12px; cursor:pointer; color:#555}
+.wiki-filter .fchip.on{background:#333; border-color:#333; color:#fff; font-weight:700}
+.sort-toggle{margin-left:auto; display:flex; gap:4px}
+.sort-toggle button{border:1px solid var(--line); background:#fafafa; padding:5px 12px; font-size:12px; cursor:pointer; border-radius:6px}
+.sort-toggle button.on{background:#333; color:#fff; border-color:#333}
+/* 모달: 특이사항 엔트리 */
+.wiki-entry{border:1px solid var(--line); border-radius:10px; padding:13px 15px; margin-bottom:11px}
+.we-top{display:flex; align-items:center; gap:8px; margin-bottom:8px}
+.we-when{margin-left:auto; font-size:12px; color:#aab2bc}
+.we-body{font-size:14px; line-height:1.55; color:#1f2937}
+.we-src{margin-top:7px; font-size:12px; color:#8a929b}
+.we-src b{color:#6b7280; font-weight:600}
+.we-meta{display:flex; align-items:center; gap:16px; margin-top:11px; font-size:12px; color:#8a929b}
+.we-agree{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); background:#fff; border-radius:999px; padding:4px 12px; cursor:pointer; font-weight:600; color:#555}
+.we-agree.on{background:#eaf1fe; border-color:#cfe0fd; color:var(--accent)}
+.we-meta .who b{color:#444}
+.we-meta .link{cursor:pointer}
+.we-meta .link:hover{color:#555}
+.we-reply{margin:8px 0 0 20px; padding:9px 12px; background:#fafbfc; border:1px solid #f0f2f5; border-radius:8px; font-size:13px}
+.we-reply .who{font-size:11px; color:#8a929b; margin-bottom:3px}
+.we-reply .who b{color:#555}
+/* 작성 폼 */
+.wiki-write{border:1px dashed #cfd6de; border-radius:10px; padding:13px 15px; margin-bottom:16px; background:#fbfcfd}
+.wiki-write .ww-row{display:flex; gap:10px; margin-bottom:9px; flex-wrap:wrap}
+.wiki-write select.input.sm{max-width:150px}
+.wiki-write textarea{width:100%; min-height:64px; border:1px solid var(--line); border-radius:8px; padding:10px; font-size:13px; resize:vertical; font-family:inherit}
+.wiki-write textarea:focus{outline:none; border-color:var(--accent)}
+.wiki-write .ww-foot{display:flex; align-items:center; gap:10px; margin-top:9px}
+.wiki-write .ww-foot .hint{font-size:11px; color:#aab2bc; margin-left:auto}
 </style>
 </head>
 <body>
@@ -330,26 +378,28 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
           </div>
         </div>
 
-        <!-- 위키 = 커뮤니티 댓글창 -->
+        <!-- 위키 = 집단지성 특이사항 (미리보기 → 전체보기 모달) -->
         <div id="tab-wiki" class="tabpane">
-          <div style="padding:12px 12px 4px;font-size:12px;color:#888">위키 · 집단지성 커뮤니티</div>
-          <div class="comment">
-            <div class="who"><b>김중개</b> · 2026-06-20</div>
-            <div class="txt">엘리베이터 2024년 교체 완료. 관리 상태 양호.</div>
-            <div class="act"><span>👍 3</span><span>답글</span></div>
-          </div>
-          <div class="comment reply">
-            <div class="who"><b>박실장</b> · 2026-06-21</div>
-            <div class="txt">1층 임차인 명도 협의 진행 중입니다.</div>
-            <div class="act"><span>👍 1</span><span>답글</span></div>
-          </div>
-          <div class="comment">
-            <div class="who"><b>이승욱</b> · 2026-06-25</div>
-            <div class="txt">도로 확장 계획 있음 — 확인 필요.</div>
-            <div class="act"><span>👍 5</span><span>답글</span></div>
+          <div style="padding:12px 12px 4px;font-size:12px;color:#888;display:flex;align-items:center">위키 · 집단지성 특이사항 <button class="btn" style="margin-left:auto;padding:4px 10px;font-size:12px" onclick="openWiki()">전체보기 8</button></div>
+          <div class="wiki-mini">
+            <div class="wm-item">
+              <span class="we-cat cat-d">개발·도로</span>
+              <span class="wm-txt">도로 확장 계획 있음 — 도시계획 확인 필요.</span>
+              <div class="wm-meta">이승욱 · 👍 5</div>
+            </div>
+            <div class="wm-item">
+              <span class="we-cat cat-r">권리·명도</span>
+              <span class="wm-txt">1층 임차인 명도 협의 진행 중.</span>
+              <div class="wm-meta">박실장 · 👍 3</div>
+            </div>
+            <div class="wm-item">
+              <span class="we-cat cat-b">건물상태</span>
+              <span class="wm-txt">엘리베이터 2024년 교체 완료. 관리 양호.</span>
+              <div class="wm-meta">김중개 · 👍 3</div>
+            </div>
           </div>
           <div class="comment-input">
-            <input class="input" placeholder="특이사항을 남겨보세요"><button class="btn primary">등록</button>
+            <input class="input" placeholder="특이사항 남기기" onfocus="openWiki()"><button class="btn primary" onclick="openWiki()">작성</button>
           </div>
         </div>
 
@@ -495,6 +545,97 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
   </div>
 </div>
 
+<!-- 위키 전체보기 (집단지성 특이사항) -->
+<div class="modal-bg" id="wiki">
+  <div class="modal" style="width:min(760px,100%)">
+    <h3>위키 · 집단지성 특이사항 <span style="font-size:12px;color:#888;font-weight:400;margin-left:8px">서울특별시 중구 충무로5가 20-29 · 8건</span>
+      <div class="right"><button class="btn" onclick="closeModal('wiki')">닫기</button></div></h3>
+
+    <div class="wiki-toolbar">
+      <div class="wiki-filter">
+        <span class="fchip on">전체</span>
+        <span class="fchip">권리·명도</span>
+        <span class="fchip">임차인</span>
+        <span class="fchip">개발·도로</span>
+        <span class="fchip">건물상태</span>
+        <span class="fchip">소유자</span>
+        <span class="fchip">기타</span>
+      </div>
+      <div class="sort-toggle">
+        <button class="on">신뢰도순</button><button>최신순</button>
+      </div>
+    </div>
+
+    <!-- 작성 폼 -->
+    <div class="wiki-write">
+      <div class="ww-row">
+        <select class="input sm"><option>카테고리 선택</option><option>권리·명도</option><option>임차인</option><option>개발·도로</option><option>건물상태</option><option>소유자</option><option>기타</option></select>
+        <input class="input sm" style="flex:1;min-width:160px" placeholder="출처 (선택) — 예: 구청 문의, 현장 확인">
+      </div>
+      <textarea placeholder="이 매물의 특이사항을 남겨보세요."></textarea>
+      <div class="ww-foot"><button class="btn primary">등록</button><span class="hint">부정확하면 신고로 정정 · 동의(👍) 많은 순으로 정렬</span></div>
+    </div>
+
+    <!-- 엔트리 -->
+    <div class="wiki-entry">
+      <div class="we-top"><span class="we-cat cat-d">개발·도로</span><span class="we-when">2026-06-25</span></div>
+      <div class="we-body">도로 확장 계획 있음 — 도시계획 확인 필요. 인접 필지 수용 가능성 있어 개발 시 유의.</div>
+      <div class="we-src"><b>출처</b> 중구청 도시계획과 유선 확인</div>
+      <div class="we-meta">
+        <span class="we-agree on">👍 동의 5</span>
+        <span class="who"><b>이승욱</b></span>
+        <span class="link">💬 댓글 2</span>
+        <span class="link">신고</span>
+      </div>
+      <div class="we-reply"><div class="who"><b>박실장</b> · 2026-06-26</div>구청 고시문 첨부 확인했습니다. 2027년 착공 예정.</div>
+    </div>
+
+    <div class="wiki-entry">
+      <div class="we-top"><span class="we-cat cat-b">건물상태</span><span class="we-when">2026-06-20</span></div>
+      <div class="we-body">엘리베이터 2024년 교체 완료. 관리 상태 양호. 옥상 방수 2023년 시공.</div>
+      <div class="we-meta">
+        <span class="we-agree on">👍 동의 3</span>
+        <span class="who"><b>김중개</b></span>
+        <span class="link">💬 댓글 0</span>
+        <span class="link">신고</span>
+      </div>
+    </div>
+
+    <div class="wiki-entry">
+      <div class="we-top"><span class="we-cat cat-r">권리·명도</span><span class="we-when">2026-06-21</span></div>
+      <div class="we-body">1층 임차인 명도 협의 진행 중. 계약 만료 2026-09, 권리금 협의 필요.</div>
+      <div class="we-meta">
+        <span class="we-agree">👍 동의 3</span>
+        <span class="who"><b>박실장</b></span>
+        <span class="link">💬 댓글 1</span>
+        <span class="link">신고</span>
+      </div>
+    </div>
+
+    <div class="wiki-entry">
+      <div class="we-top"><span class="we-cat cat-o">소유자</span><span class="we-when">2026-06-18</span></div>
+      <div class="we-body">소유자 매도 의사 있으나 급하지 않음. 시세보다 높게 부르는 편, 협상 여지 있음.</div>
+      <div class="we-meta">
+        <span class="we-agree">👍 동의 2</span>
+        <span class="who"><b>이승욱</b></span>
+        <span class="link">💬 댓글 0</span>
+        <span class="link">신고</span>
+      </div>
+    </div>
+
+    <div class="wiki-entry">
+      <div class="we-top"><span class="we-cat cat-t">임차인</span><span class="we-when">2026-06-15</span></div>
+      <div class="we-body">지하1층 공실 6개월째. 습기 이슈로 임차 문의 적음.</div>
+      <div class="we-meta">
+        <span class="we-agree">👍 동의 1</span>
+        <span class="who"><b>최공인</b></span>
+        <span class="link">💬 댓글 0</span>
+        <span class="link">신고</span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 하단 고정 툴바 -->
 <div class="bottombar">
   <button class="icon-btn" title="뒤로가기 · 데이터 수정 취소 (undo)">←</button>
@@ -621,6 +762,7 @@ function renderChart(svg,data,o){
 
 function openCalc(){document.getElementById('calc').classList.add('open');}
 function openSevse(){document.getElementById('sevse').classList.add('open');}
+function openWiki(){document.getElementById('wiki').classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 </script>
 </body>
