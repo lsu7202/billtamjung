@@ -155,9 +155,9 @@ body{margin:0}
 .seg.multi button{border:1px solid var(--line); border-radius:999px; padding:6px 12px}
 .seg.multi button.on{background:var(--accent); color:#fff; border-color:var(--accent)}
 /* 옵션 많은 것 = 한 줄 가로 스크롤 알약 (드롭다운 대체) */
-.seg.multi.hscroll{flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; padding-bottom:6px; scrollbar-width:thin}
-.seg.multi.hscroll button{flex:0 0 auto}
-.seg.multi.hscroll::-webkit-scrollbar{height:7px}
+/* 옵션 많은 다중선택: 가로 스크롤 대신 아래로 쌓기(wrap) — 한눈에 스캔 · tier/sector와 일관 */
+.seg.multi.hscroll{max-height:300px; overflow-y:auto; overflow-x:hidden; scrollbar-width:thin}
+.seg.multi.hscroll::-webkit-scrollbar{width:7px}
 .seg.multi.hscroll::-webkit-scrollbar-thumb{background:#d3d9e0; border-radius:4px}
 .seg.multi.hscroll::-webkit-scrollbar-track{background:#f2f4f7; border-radius:4px}
 /* 섹터 그룹 다중선택 */
