@@ -176,6 +176,11 @@ body{margin:0}
 .sec.open .sec-exp{transform:rotate(90deg)}
 .sec-items{display:none; flex-wrap:wrap; gap:6px; padding:2px 6px 11px 30px}
 .sec.open .sec-items{display:flex}
+.sec-presets{display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:2px 2px 10px; margin-bottom:4px; border-bottom:1px solid #eef0f3}
+.sec-presets .pl{font-size:11px; color:#98a2ad; font-weight:700}
+.preset{border:1px solid #f0d29a; background:#fdf6e9; color:#b9791b; border-radius:999px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer}
+.preset::before{content:'⚡ '}
+.preset.on{background:#f5a623; border-color:#f5a623; color:#fff}
 .sec-items .opt{border:1px solid var(--line); background:#fff; border-radius:999px; padding:6px 12px; font-size:12px; cursor:pointer; color:#555}
 .sec-items .opt.on{background:var(--accent); color:#fff; border-color:var(--accent)}
 /* 주용도: 우선순위 2단(주/부 사용) */
@@ -274,7 +279,7 @@ body{margin:0}
 const S=(label,o={})=>({label,ctl:'slider',...o});
 const M=(label,opts)=>({label,ctl:'ms',opts});            /* 버튼 다중선택(옵션 적음) */
 const MD=(label,opts)=>({label,ctl:'ms',opts,dd:true});   /* 검색 드롭다운(옵션 많음) */
-const GRP=(label,sectors)=>({label,ctl:'sector',sectors}); /* 섹터 그룹 다중선택(섹터=전체선택 / 개별 펼침) */
+const GRP=(label,sectors,presets)=>({label,ctl:'sector',sectors,presets}); /* 섹터 그룹 다중선택(섹터=전체선택 / 개별 펼침) + 크로스 프리셋 */
 const TM=(label,groups)=>({label,ctl:'tier',groups});      /* 우선순위 2단(주/부 사용) 다중선택 */
 const SM=(label,opts)=>({label,ctl:'segmulti',opts});
 const T=(label,opts)=>({label,ctl:'segmulti',opts});   /* 유무형도 버튼 다중선택, 미선택=전체 */
@@ -283,14 +288,15 @@ const X=(label,ph,chips)=>({label,ctl:'text',ph,chips});   /* chips=자주 쓰�
 const 용도지역=['제1종전용주거','제2종전용주거','제1종일반주거','제2종일반주거','제3종일반주거','준주거','일반주거','중심상업','일반상업','근린상업','유통상업','전용공업','일반공업','준공업','보전녹지','생산녹지','자연녹지','개발제한구역','용도미지정','관리지역','보전관리','생산관리','계획관리','농림','자연환경보전'];
 const 지목=['전','답','과수원','목장용지','임야','광천지','염전','대','공장용지','학교용지','주차장','주유소용지','창고용지','도로','철도용지','제방','하천','구거','유지','양어장','수도용지','공원','체육용지','유원지','종교용지','사적지','묘지','잡종지'];
 const 이용상황섹터=[
- {name:'상업·업무', items:['상업용','업무용','상업기타']},
+ {name:'상업용 빌딩', items:['상업용','업무용','상업기타']},
  {name:'상가주택', items:['주상용','주상기타']},
  {name:'주거', items:['단독','연립','다세대','주거기타']},
  {name:'공업·산업', items:['공업용','공업기타']},
- {name:'나지·개발부지', items:['주거나지','상업나지','주상나지','공업나지','전','답','임야','주차장']},
- {name:'특수·기타시설', items:['아파트','태양광발전소부지','목장용지','광천지','염전','양어장','유원지','골프장','스키장','경마장','공원묘지','도로','하천','공원','운동장','위험시설','유해·혐오시설']},
- {name:'미분류', items:['지정되지않음','기타']},
+ {name:'신축부지', items:['주거나지','상업나지','주상나지','공업나지','주차장']},
+ {name:'특수·기타시설', items:['전','답','임야','아파트','태양광발전소부지','목장용지','광천지','염전','양어장','유원지','골프장','스키장','경마장','공원묘지','도로','하천','공원','운동장','위험시설','유해·혐오시설','지정되지않음','기타']},
 ];
+/* 디벨롭 = 배타 섹터가 아니라 크로스 프리셋(재개발·용도전환 유망 값 묶음 한번에 선택) */
+const 디벨롭=['단독','연립','다세대','주거기타','공업용','공업기타','상업용','업무용','상업기타','주상용','주상기타'];
 const 형상=['정방형','가로장방','세로장방','사다리형','부정형','자루형'];
 const 도로접면=['광대로한면','광대소각','광대세각','중로한면','중로각지','소로한면','소로각지','세로한면(가)','세로각지(가)','세로한면(불)','세로각지(불)','맹지'];
 /* 주용도(건축법 29종): 주 사용 섹터(자주)는 펼쳐 노출 · 부 사용 섹터(드묾)는 접기 */
@@ -330,7 +336,7 @@ const GROUPS=[
    reps:[ MD('용도지역',용도지역) ],
    body:[
     S('토지면적',{min:0,max:300,unit:'평',inf:1,ticks:'0,100,200'}),
-    MD('지목',지목), GRP('토지이용상황',이용상황섹터), M('지형형상',형상), MD('도로접면',도로접면),
+    MD('지목',지목), GRP('토지이용상황',이용상황섹터,[{name:'디벨롭',items:디벨롭}]), M('지형형상',형상), MD('도로접면',도로접면),
     S('경사도',{min:0,max:45,unit:'°',inf:1,handle:'right',ticks:'0,5,15,25',le:'이하'}),
     M('경사등급',['평지','완경사','중경사','급경사']) ]},
 
@@ -404,8 +410,9 @@ function fieldHTML(f){
     return `<div class="f" data-label="${f.label}">${L}<div class="seg multi${f.dd?' hscroll':''}">${pills}</div></div>`;
   }
   if(f.ctl==='sector'){
+    const pbar=(f.presets&&f.presets.length)?`<div class="sec-presets"><span class="pl">빠른 선택</span>${f.presets.map(p=>`<button class="preset" data-items="${p.items.join('|')}">${p.name}</button>`).join('')}</div>`:'';
     const secs=f.sectors.map(sec=>`<div class="sec" data-name="${sec.name}"><div class="sec-head"><button class="sec-chk"><span class="box"></span>${sec.name}</button><button class="sec-exp">▸</button></div><div class="sec-items">${sec.items.map(i=>`<button class="opt">${i}</button>`).join('')}</div></div>`).join('');
-    return `<div class="f" data-label="${f.label}">${L}<div class="sector-ms">${secs}</div></div>`;
+    return `<div class="f" data-label="${f.label}">${L}<div class="sector-ms">${pbar}${secs}</div></div>`;
   }
   if(f.ctl==='tier'){
     const g=f.groups.map(gr=>`<div class="tier${gr.open?' open':''}"><button class="tier-head"><span class="tx">▸</span>${gr.name}<span class="tier-n">${gr.items.length}</span></button><div class="tier-items">${gr.items.map(i=>`<button class="opt">${i}</button>`).join('')}</div></div>`).join('');
@@ -520,8 +527,12 @@ fillSido(); fillSgg();
 /* ── 섹터 그룹 다중선택 ── */
 function initSector(sm){
   const secs=[...sm.querySelectorAll('.sec')];
+  const presets=[...sm.querySelectorAll('.preset')];
+  function updPreset(){ presets.forEach(p=>{const its=p.dataset.items.split('|');
+    const opts=[...sm.querySelectorAll('.opt')].filter(b=>its.includes(b.textContent));
+    p.classList.toggle('on', opts.length>0 && opts.every(b=>b.classList.contains('on')));}); }
   function upd(sec){const items=[...sec.querySelectorAll('.opt')], on=items.filter(b=>b.classList.contains('on')).length, chk=sec.querySelector('.sec-chk');
-    chk.classList.toggle('all',on===items.length&&on>0); chk.classList.toggle('part',on>0&&on<items.length);}
+    chk.classList.toggle('all',on===items.length&&on>0); chk.classList.toggle('part',on>0&&on<items.length); updPreset();}
   secs.forEach(sec=>{
     const items=[...sec.querySelectorAll('.opt')];
     sec.querySelector('.sec-chk').onclick=()=>{const all=items.every(b=>b.classList.contains('on')); items.forEach(b=>b.classList.toggle('on',!all)); upd(sec); refresh();};
@@ -529,13 +540,20 @@ function initSector(sm){
     items.forEach(b=>b.onclick=()=>{b.classList.toggle('on'); upd(sec); refresh();});
     upd(sec);
   });
+  presets.forEach(p=>{const its=p.dataset.items.split('|');
+    p.onclick=()=>{const opts=[...sm.querySelectorAll('.opt')].filter(b=>its.includes(b.textContent));
+      const allOn=opts.length>0 && opts.every(b=>b.classList.contains('on'));
+      opts.forEach(b=>b.classList.toggle('on',!allOn)); secs.forEach(upd); refresh();};});
   sm._get=()=>[...sm.querySelectorAll('.opt.on')].map(b=>b.textContent);
   sm._setPicked=(arr)=>{sm.querySelectorAll('.opt').forEach(b=>b.classList.toggle('on',arr.includes(b.textContent))); secs.forEach(upd);};
   sm._clear=()=>{sm.querySelectorAll('.opt').forEach(b=>b.classList.remove('on')); secs.forEach(upd);};
-  sm._val=()=>{const parts=[];
+  sm._val=()=>{const onEls=[...sm.querySelectorAll('.opt.on')]; if(!onEls.length)return null;
+    const onSet=new Set(onEls.map(b=>b.textContent));
+    for(const p of presets){const its=p.dataset.items.split('|'); if(its.length===onSet.size&&its.every(i=>onSet.has(i)))return p.textContent.trim();}
+    const parts=[];
     secs.forEach(sec=>{const items=[...sec.querySelectorAll('.opt')], on=items.filter(b=>b.classList.contains('on'));
       if(!on.length)return; if(on.length===items.length)parts.push(sec.dataset.name+' 전체'); else on.forEach(b=>parts.push(b.textContent));});
-    if(!parts.length)return null; return parts.length<=2?parts.join(', '):parts[0]+' 외 '+(parts.length-1);};
+    return parts.length<=2?parts.join(', '):parts[0]+' 외 '+(parts.length-1);};
 }
 document.querySelectorAll('.sector-ms').forEach(initSector);
 
