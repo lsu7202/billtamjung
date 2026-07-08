@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S00 · 로그인/계정 — 빌탐정 와이어프레임</title>
+<link rel="stylesheet" href="wireframe.css">
+<style>
+.auth-wrap{min-height:calc(100vh - 90px); display:flex; align-items:center; justify-content:center; padding:20px}
+.auth-card{width:min(400px,100%); background:#fff; border:1px solid var(--line); border-radius:14px; padding:30px 30px 26px; box-shadow:0 10px 40px rgba(0,0,0,.06)}
+.auth-brand{text-align:center; margin-bottom:22px}
+.auth-brand .logo{font-size:24px; font-weight:800; color:var(--accent)}
+.auth-brand .tag{font-size:12.5px; color:var(--muted); margin-top:4px}
+.auth-tabs{display:flex; margin-bottom:20px; border-bottom:1px solid #eef0f3}
+.auth-tabs button{flex:1; border:0; background:none; padding:10px 0 11px; font-size:14px; font-weight:700; color:#98a2ad; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px}
+.auth-tabs button.on{color:var(--accent); border-bottom-color:var(--accent)}
+.field{margin-bottom:14px}
+.field label{display:block; font-size:12px; font-weight:700; color:#6b7280; margin-bottom:6px}
+.field input{width:100%; border:1px solid var(--line); border-radius:8px; padding:11px 12px; font-size:14px; outline:none}
+.field input:focus{border-color:var(--accent)}
+.pane{display:none} .pane.on{display:block}
+.row-between{display:flex; align-items:center; justify-content:space-between; font-size:12px; margin:2px 0 18px}
+.row-between label{color:#6b7280; display:flex; align-items:center; gap:6px; cursor:pointer}
+.row-between a{color:var(--accent); text-decoration:none}
+.btn-full{width:100%; border:0; background:var(--accent); color:#fff; border-radius:8px; padding:12px; font-size:14px; font-weight:700; cursor:pointer}
+.divider{display:flex; align-items:center; gap:12px; color:#b6bdc6; font-size:12px; margin:20px 0}
+.divider::before,.divider::after{content:''; flex:1; height:1px; background:#eef0f3}
+.social{display:flex; flex-direction:column; gap:9px}
+.social button{width:100%; border:1px solid var(--line); background:#fff; border-radius:8px; padding:11px; font-size:13.5px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; position:relative}
+.social .kakao{background:#FEE500; border-color:#FEE500; color:#3c1e1e}
+.social .naver{background:#03C75A; border-color:#03C75A; color:#fff}
+.later{position:absolute; right:10px; top:50%; transform:translateY(-50%); font-size:10px; font-weight:700; color:#98a2ad; background:#f1f3f6; border-radius:4px; padding:2px 6px}
+.auth-foot{text-align:center; font-size:12px; color:#98a2ad; margin-top:20px}
+.mvp-note{font-size:11px; color:#aab2bc; text-align:center; margin-top:14px; line-height:1.5}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="spec-note">
+    <b>S00 · 로그인 / 계정</b> — 정식 출시 기준 목업. <b>MVP</b>: 이메일 로그인·회원가입(최소 인증)만. 소셜 로그인은 <b>[정식]</b>.
+  </div>
+
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="logo">빌탐정</div>
+        <div class="tag">신뢰할 수 있는 부동산 가치 분석 파트너</div>
+      </div>
+
+      <div class="auth-tabs">
+        <button class="on" onclick="authTab(this,'login')">로그인</button>
+        <button onclick="authTab(this,'signup')">회원가입</button>
+      </div>
+
+      <!-- 로그인 -->
+      <div id="login" class="pane on">
+        <div class="field"><label>이메일</label><input type="email" placeholder="name@example.com"></div>
+        <div class="field"><label>비밀번호</label><input type="password" placeholder="비밀번호"></div>
+        <div class="row-between">
+          <label><input type="checkbox"> 로그인 유지</label>
+          <a href="#">비밀번호 찾기</a>
+        </div>
+        <button class="btn-full">로그인</button>
+      </div>
+
+      <!-- 회원가입 -->
+      <div id="signup" class="pane">
+        <div class="field"><label>이름</label><input type="text" placeholder="이름"></div>
+        <div class="field"><label>중개사무소명 <small style="color:#aab2bc;font-weight:400">(선택)</small></label><input type="text" placeholder="○○공인중개사사무소"></div>
+        <div class="field"><label>이메일</label><input type="email" placeholder="name@example.com"></div>
+        <div class="field"><label>비밀번호</label><input type="password" placeholder="8자 이상"></div>
+        <div class="row-between">
+          <label><input type="checkbox"> <span>이용약관·개인정보 동의</span></label>
+          <a href="#">약관 보기</a>
+        </div>
+        <button class="btn-full">가입하고 시작하기</button>
+      </div>
+
+      <div class="divider">또는</div>
+      <div class="social">
+        <button class="kakao">카카오로 계속하기 <span class="later">정식</span></button>
+        <button class="naver">네이버로 계속하기 <span class="later">정식</span></button>
+      </div>
+
+      <div class="mvp-note">가입 시 <b>체험판(1개월)</b> 자동 시작 · 검색 무제한 + 크레딧 60</div>
+    </div>
+  </div>
+</div>
+
+<script>
+function authTab(btn,id){
+  document.querySelectorAll('.auth-tabs button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+}
+</script>
+</body>
+</html>

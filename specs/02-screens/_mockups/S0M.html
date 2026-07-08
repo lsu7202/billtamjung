@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S0M · 마이페이지 — 빌탐정 와이어프레임</title>
+<link rel="stylesheet" href="wireframe.css">
+<style>
+.tag-later{font-size:10px; font-weight:700; color:#98a2ad; background:#f1f3f6; border-radius:4px; padding:2px 7px; margin-left:6px; vertical-align:middle}
+.tag-mvp{font-size:10px; font-weight:700; color:#1f8a4c; background:#e7f7ee; border-radius:4px; padding:2px 7px; margin-left:6px; vertical-align:middle}
+/* 프로필 헤더 */
+.profile{display:flex; align-items:center; gap:16px}
+.profile .pfp{width:60px; height:60px; border-radius:50%; background:#cfd3d8; flex:0 0 auto}
+.profile .pname{font-size:19px; font-weight:800}
+.profile .poffice{font-size:13px; color:var(--muted); margin-top:2px}
+.plan-badge{background:#eef4ff; color:var(--accent); border:1px solid #d6e4ff; border-radius:999px; padding:4px 12px; font-size:12px; font-weight:700; margin-left:8px}
+.profile .right{margin-left:auto; text-align:right}
+.profile .right .btn{margin-top:0}
+/* 통계 타일 */
+.stat-row{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; padding:14px}
+.stat{background:#f7f9fc; border:1px solid #eef1f6; border-radius:10px; padding:14px 16px}
+.stat .k{font-size:12px; color:#8a929b; margin-bottom:5px}
+.stat .v{font-size:24px; font-weight:800; color:#222; font-variant-numeric:tabular-nums}
+.stat .v small{font-size:13px; font-weight:600; color:#8a929b}
+.stat .sub{font-size:11px; color:#aab2bc; margin-top:3px}
+.stat.hl{background:#eef4ff; border-color:#d6e4ff}
+.stat.hl .v{color:var(--accent)}
+/* 플랜 비교 */
+.plans{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; padding:14px}
+.plan{border:1px solid var(--line); border-radius:12px; padding:16px; position:relative}
+.plan.cur{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent)}
+.plan .pn{font-size:15px; font-weight:800}
+.plan .pc{font-size:13px; color:var(--muted); margin:6px 0 12px}
+.plan .pc b{font-size:20px; color:#222}
+.plan ul{list-style:none; padding:0; margin:0 0 14px; font-size:12.5px; color:#555}
+.plan ul li{padding:5px 0; border-bottom:1px solid #f4f6f8; display:flex; gap:6px}
+.plan ul li::before{content:'✓'; color:var(--accent); font-weight:700}
+.plan .cur-tag{position:absolute; top:-10px; right:14px; background:var(--accent); color:#fff; font-size:11px; font-weight:700; border-radius:999px; padding:2px 10px}
+.plan .btn{width:100%}
+/* 사용 내역 */
+.use-tbl .out{color:#c0392b; font-weight:700}
+.use-tbl .in{color:#1f8a4c; font-weight:700}
+.saved-row{display:flex; align-items:center; gap:10px; padding:11px 14px; border-bottom:1px solid #f1f1f1; font-size:13px}
+.saved-row:last-child{border-bottom:0}
+.saved-row .nm{font-weight:600}
+.saved-row .cnt{color:#8a929b; font-size:12px}
+.saved-row .acts{margin-left:auto; display:flex; gap:6px}
+.saved-row .acts .btn{padding:5px 11px; font-size:12px}
+.beta-note{font-size:11.5px; color:#b9791b; background:#fdf6e9; border:1px solid #f0d29a; border-radius:8px; padding:8px 12px; margin:0 14px 12px}
+.set-grid{display:grid; grid-template-columns:1fr 1fr; gap:0 36px; padding:6px 14px 12px}
+.set-row{display:flex; align-items:center; justify-content:space-between; padding:11px 2px; border-bottom:1px solid #f1f1f1; font-size:13px}
+.set-row .btn{padding:5px 12px; font-size:12px}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="spec-note">
+    <b>S0M · 마이페이지</b> — 정식 출시 기준 목업. <span class="tag-mvp">MVP</span> 계정·크레딧 잔액/사용내역(그림자 계량)·저장조건 &nbsp;/&nbsp; <span class="tag-later">정식</span> 결제·플랜변경·충전·알림.
+  </div>
+
+  <div class="appbar">
+    <div class="brand">빌탐정 <small>마이페이지</small></div>
+    <div class="user"><span>이승욱 회원님</span><span class="avatar"></span></div>
+  </div>
+
+  <!-- 프로필 -->
+  <div class="panel">
+    <div class="profile">
+      <div class="pfp"></div>
+      <div>
+        <div class="pname">이승욱 <span class="plan-badge">프로 플랜</span></div>
+        <div class="poffice">탐정공인중개사사무소 · coms1768@gmail.com</div>
+      </div>
+      <div class="right"><button class="btn">프로필 수정</button> <button class="btn">로그아웃</button></div>
+    </div>
+  </div>
+
+  <!-- 크레딧 대시보드 -->
+  <div class="block">
+    <div class="sec-head">크레딧 <span class="tag-mvp">MVP</span>
+      <div class="right"><button class="btn">크레딧 충전<span class="tag-later">정식</span></button></div>
+    </div>
+    <div class="stat-row">
+      <div class="stat hl"><div class="k">사용 가능 잔액</div><div class="v">660</div><div class="sub">월 지급 620 + 이월 40</div></div>
+      <div class="stat"><div class="k">이번 달 사용</div><div class="v">280</div><div class="sub">분석 8 · 브리핑 4</div></div>
+      <div class="stat"><div class="k">이번 달 지급 (월말 소멸)</div><div class="v">900 <small>중 620</small></div><div class="sub">프로 플랜 월 지급</div></div>
+    </div>
+    <div class="beta-note">⚡ 베타 기간: <b>무결제 · 그림자 계량</b> — 크레딧은 <b>소비만 기록</b>하고 실제 차단/결제는 없습니다. (정식 전환 시 활성화)</div>
+    <div class="sec-head" style="border-top:1px solid #eef0f3">사용 내역</div>
+    <table class="wf use-tbl">
+      <thead><tr><th>일시</th><th>항목</th><th>매물</th><th class="num">변동</th><th class="num">잔액</th></tr></thead>
+      <tbody>
+        <tr><td>2026-07-07 14:20</td><td>매물분석보고서</td><td>충무로5가 20-29</td><td class="num out">−30</td><td class="num">660</td></tr>
+        <tr><td>2026-07-06 11:05</td><td>브리핑자료</td><td>역삼동 812-3</td><td class="num out">−10</td><td class="num">690</td></tr>
+        <tr><td>2026-07-05 09:40</td><td>위키 기여 채택<span class="tag-later">정식</span></td><td>목동 620-7</td><td class="num in">+3</td><td class="num">700</td></tr>
+        <tr><td>2026-07-04 16:30</td><td>매물분석보고서</td><td>청담동 45-1</td><td class="num out">−30</td><td class="num">697</td></tr>
+        <tr><td style="color:#aab2bc" colspan="5">⋯ 이전 내역 · 2026-07-01 프로 플랜 월 지급 +900</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 구독 플랜 -->
+  <div class="block">
+    <div class="sec-head">구독 플랜 <span class="tag-later">정식(결제)</span>
+      <div class="right" style="font-size:12px;color:#8a929b">가격 미정 · 베타 무료(창립 파트너)</div>
+    </div>
+    <div class="plans">
+      <div class="plan">
+        <div class="pn">체험판</div>
+        <div class="pc"><b>무료</b> / 1개월</div>
+        <ul><li>검색·데이터·관리 무제한</li><li>월 크레딧 60 (1회성)</li><li>분석 2 · 브리핑 6 상당</li></ul>
+        <button class="btn" disabled style="opacity:.5">종료됨</button>
+      </div>
+      <div class="plan">
+        <div class="pn">스타터</div>
+        <div class="pc"><b>₩ 미정</b> / 월</div>
+        <ul><li>검색·데이터·관리 무제한</li><li>월 크레딧 300</li><li>분석 10 · 브리핑 30 상당</li></ul>
+        <button class="btn">다운그레이드</button>
+      </div>
+      <div class="plan cur">
+        <div class="cur-tag">현재 플랜</div>
+        <div class="pn">프로</div>
+        <div class="pc"><b>₩ 미정</b> / 월</div>
+        <ul><li>검색·데이터·관리 무제한</li><li>월 크레딧 900</li><li>분석 30 · 브리핑 90 상당</li></ul>
+        <button class="btn primary">이용 중</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 저장한 검색 조건 -->
+  <div class="block">
+    <div class="sec-head">저장한 검색 조건 <span class="tag-mvp">MVP</span></div>
+    <div class="saved-row"><span class="nm">강남 수익형 5%↑</span><span class="cnt">예상 4건</span><div class="acts"><button class="btn">불러오기</button><button class="btn">삭제</button></div></div>
+    <div class="saved-row"><span class="nm">신축 사옥용 매물</span><span class="cnt">예상 2건</span><div class="acts"><button class="btn">불러오기</button><button class="btn">삭제</button></div></div>
+    <div class="saved-row"><span class="nm">목동 디벨롭 부지</span><span class="cnt">예상 7건</span><div class="acts"><button class="btn">불러오기</button><button class="btn">삭제</button></div></div>
+  </div>
+
+  <!-- 팀 / 직원 계정 (대표 1 : 직원 N, 매물 공유) -->
+  <div class="block">
+    <div class="sec-head">팀 · 직원 계정 <span class="tag-later">이후</span>
+      <div class="right"><button class="btn">＋ 직원 초대</button></div>
+    </div>
+    <div class="kv-grid">
+      <div class="kv"><span class="k">내 역할</span><span class="v">대표</span></div>
+      <div class="kv"><span class="k">연결된 직원</span><span class="v">2 / 5</span></div>
+    </div>
+    <div class="sec-head" style="border-top:1px solid #eef0f3">직원 목록</div>
+    <div class="saved-row"><span class="nm">박실장</span><span class="cnt">park@example.com · 활성</span><div class="acts"><button class="btn">해제</button></div></div>
+    <div class="saved-row"><span class="nm">김주임</span><span class="cnt">kim@example.com · 초대 대기</span><div class="acts"><button class="btn">재전송</button><button class="btn">해제</button></div></div>
+    <div class="sec-head" style="border-top:1px solid #eef0f3">매물 공유 범위</div>
+    <div style="padding:12px 14px">
+      <div class="segmented"><button class="active">기본 (단방향)</button><button>전부 공유 (양방향)</button></div>
+      <div style="font-size:12px;color:#8a929b;margin-top:8px">· <b>기본</b>: 대표 → 직원 매물 조회 가능 / 직원 → 대표 조회 불가<br>· <b>전부 공유</b>: 대표 ↔ 직원 양방향 전체 공유</div>
+    </div>
+  </div>
+
+  <!-- 결제 -->
+  <div class="block">
+    <div class="sec-head">결제 수단 · 청구 <span class="tag-later">정식</span></div>
+    <div class="kv-grid">
+      <div class="kv"><span class="k">결제 수단</span><span class="v" style="color:#98a2ad">미등록</span></div>
+      <div class="kv"><span class="k">다음 결제일</span><span class="v" style="color:#98a2ad">—</span></div>
+      <div class="kv"><span class="k">청구 이메일</span><span class="v">coms1768@gmail.com</span></div>
+      <div class="kv"><span class="k">청구 내역</span><span class="v" style="color:#98a2ad">없음 (베타 무료)</span></div>
+    </div>
+  </div>
+
+  <!-- 계정 설정 -->
+  <div class="block">
+    <div class="sec-head">계정 설정</div>
+    <div class="set-grid">
+      <div class="set-row"><span>비밀번호 변경</span><button class="btn">변경</button></div>
+      <div class="set-row"><span>알림 설정 <span class="tag-later">정식</span></span><button class="btn">설정</button></div>
+      <div class="set-row"><span>연결된 소셜 계정 <span class="tag-later">정식</span></span><button class="btn">관리</button></div>
+      <div class="set-row"><span style="color:#c0392b">회원 탈퇴</span><button class="btn">탈퇴</button></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
