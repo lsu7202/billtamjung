@@ -178,6 +178,18 @@ body{margin:0}
 .sec.open .sec-items{display:flex}
 .sec-items .opt{border:1px solid var(--line); background:#fff; border-radius:999px; padding:4px 11px; font-size:12px; cursor:pointer; color:#555}
 .sec-items .opt.on{background:var(--accent); color:#fff; border-color:var(--accent)}
+/* 주용도: 우선순위 2단(주/부 사용) */
+.tier-ms{display:flex; flex-direction:column; max-height:320px; overflow:auto}
+.tier{border-top:1px solid #f0f2f5}
+.tier:first-child{border-top:0}
+.tier-head{width:100%; display:flex; align-items:center; gap:7px; border:0; background:none; padding:9px 4px; font-size:12px; font-weight:700; color:#7a828c; cursor:pointer; text-align:left}
+.tier-head .tx{color:#b6bdc6; font-size:11px; transition:transform .12s}
+.tier.open .tier-head .tx{transform:rotate(90deg)}
+.tier-head .tier-n{color:#b6bdc6; font-weight:600}
+.tier-items{display:none; flex-wrap:wrap; gap:6px; padding:0 4px 11px 22px}
+.tier.open .tier-items{display:flex}
+.tier-items .opt{border:1px solid var(--line); background:#fff; border-radius:999px; padding:4px 11px; font-size:12px; cursor:pointer; color:#555}
+.tier-items .opt.on{background:var(--accent); color:#fff; border-color:var(--accent)}
 .f > label{display:block; font-size:12px; color:#555; margin-bottom:6px; font-weight:600}
 .f .txt{width:100%; border:1px solid var(--line); border-radius:7px; padding:8px 10px; font-size:13px; outline:none}
 </style>
@@ -263,6 +275,7 @@ const S=(label,o={})=>({label,ctl:'slider',...o});
 const M=(label,opts)=>({label,ctl:'ms',opts});            /* 버튼 다중선택(옵션 적음) */
 const MD=(label,opts)=>({label,ctl:'ms',opts,dd:true});   /* 검색 드롭다운(옵션 많음) */
 const GRP=(label,sectors)=>({label,ctl:'sector',sectors}); /* 섹터 그룹 다중선택(섹터=전체선택 / 개별 펼침) */
+const TM=(label,groups)=>({label,ctl:'tier',groups});      /* 우선순위 2단(주/부 사용) 다중선택 */
 const SM=(label,opts)=>({label,ctl:'segmulti',opts});
 const T=(label,opts)=>({label,ctl:'segmulti',opts});   /* 유무형도 버튼 다중선택, 미선택=전체 */
 const X=(label,ph,chips)=>({label,ctl:'text',ph,chips});   /* chips=자주 쓰는 검색어 프리셋 */
@@ -280,7 +293,9 @@ const 이용상황섹터=[
 ];
 const 형상=['정방형','가로장방','세로장방','사다리형','부정형','자루형'];
 const 도로접면=['광대로한면','광대소각','광대세각','중로한면','중로각지','소로한면','소로각지','세로한면(가)','세로각지(가)','세로한면(불)','세로각지(불)','맹지'];
-const 주용도=['단독주택','공동주택','제1종근린생활시설','제2종근린생활시설','문화및집회시설','종교시설','판매시설','운수시설','의료시설','교육연구시설','노유자시설','수련시설','운동시설','업무시설','숙박시설','위락시설','공장','창고시설','위험물저장및처리시설','자동차관련시설','동물및식물관련시설','자원순환관련시설','교정및군사시설','방송통신시설','발전시설','묘지관련시설','관광휴게시설','장례시설','야영장시설'];
+/* 주용도(건축법 29종): 주 사용 섹터(자주)는 펼쳐 노출 · 부 사용 섹터(드묾)는 접기 */
+const 주용도주=['단독주택','공동주택','제1종근린생활시설','제2종근린생활시설','판매시설','의료시설','교육연구시설','노유자시설','운동시설','업무시설','숙박시설','위락시설','공장','창고시설','자동차관련시설'];
+const 주용도부=['문화및집회시설','종교시설','운수시설','수련시설','위험물저장및처리시설','동물및식물관련시설','자원순환관련시설','교정및군사시설','방송통신시설','발전시설','묘지관련시설','관광휴게시설','장례시설','야영장시설'];
 
 const GROUPS=[
  {t:'입지정보',
@@ -314,7 +329,8 @@ const GROUPS=[
    reps:[ MD('용도지역',용도지역) ],
    body:[
     S('토지면적',{min:0,max:300,unit:'평',inf:1,ticks:'0,100,200'}),
-    MD('지목',지목), GRP('토지이용상황',이용상황섹터), M('지형형상',형상), MD('도로접면',도로접면), MD('주용도',주용도),
+    MD('지목',지목), GRP('토지이용상황',이용상황섹터), M('지형형상',형상), MD('도로접면',도로접면),
+    TM('주용도',[{name:'주 사용 섹터',open:true,items:주용도주},{name:'부 사용 섹터',items:주용도부}]),
     S('경사도',{min:0,max:45,unit:'°',inf:1,handle:'right',ticks:'0,5,15,25',le:'이하'}),
     M('경사등급',['평지','완경사','중경사','급경사']) ]},
 
@@ -390,6 +406,10 @@ function fieldHTML(f){
   if(f.ctl==='sector'){
     const secs=f.sectors.map(sec=>`<div class="sec" data-name="${sec.name}"><div class="sec-head"><button class="sec-chk"><span class="box"></span>${sec.name}</button><button class="sec-exp">▸</button></div><div class="sec-items">${sec.items.map(i=>`<button class="opt">${i}</button>`).join('')}</div></div>`).join('');
     return `<div class="f" data-label="${f.label}">${L}<div class="sector-ms">${secs}</div></div>`;
+  }
+  if(f.ctl==='tier'){
+    const g=f.groups.map(gr=>`<div class="tier${gr.open?' open':''}"><button class="tier-head"><span class="tx">▸</span>${gr.name}<span class="tier-n">${gr.items.length}</span></button><div class="tier-items">${gr.items.map(i=>`<button class="opt">${i}</button>`).join('')}</div></div>`).join('');
+    return `<div class="f" data-label="${f.label}">${L}<div class="tier-ms">${g}</div></div>`;
   }
   if(f.ctl==='segmulti') return `<div class="f" data-label="${f.label}">${L}<div class="seg multi">${f.opts.map(o=>`<button>${o}</button>`).join('')}</div></div>`;
   if(f.ctl==='toggle') return `<div class="f" data-label="${f.label}">${L}<div class="seg toggle">${f.opts.map((o,i)=>`<button class="${i===0?'on':''}">${o}</button>`).join('')}</div></div>`;
@@ -518,6 +538,17 @@ function initSector(sm){
     if(!parts.length)return null; return parts.length<=2?parts.join(', '):parts[0]+' 외 '+(parts.length-1);};
 }
 document.querySelectorAll('.sector-ms').forEach(initSector);
+
+/* ── 우선순위 2단(주/부 사용) 다중선택 ── */
+function initTier(tm){
+  tm.querySelectorAll('.tier-head').forEach(h=>h.onclick=()=>h.parentElement.classList.toggle('open'));
+  tm.querySelectorAll('.opt').forEach(o=>o.onclick=()=>{o.classList.toggle('on'); refresh();});
+  tm._get=()=>[...tm.querySelectorAll('.opt.on')].map(b=>b.textContent);
+  tm._setPicked=(arr)=>tm.querySelectorAll('.opt').forEach(b=>b.classList.toggle('on',arr.includes(b.textContent)));
+  tm._clear=()=>tm.querySelectorAll('.opt').forEach(b=>b.classList.remove('on'));
+  tm._val=()=>{const on=tm._get(); return on.length?(on.length<=3?on.join(', '):on[0]+' 외 '+(on.length-1)):null;};
+}
+document.querySelectorAll('.tier-ms').forEach(initTier);
 /* 텍스트 자주 쓰는 검색어 칩 */
 document.querySelectorAll('.tchips .tc').forEach(c=>c.onclick=()=>{const inp=c.closest('.f').querySelector('input.txt'); inp.value=c.textContent; inp.focus(); refresh();});
 
@@ -528,6 +559,7 @@ document.querySelectorAll('.seg.toggle').forEach(seg=>seg.querySelectorAll('butt
 function fval(f){
   const rs=f.querySelector('.rs'); if(rs&&rs._val)return rs._val();
   const sc=f.querySelector('.sector-ms'); if(sc&&sc._val)return sc._val();
+  const tm=f.querySelector('.tier-ms'); if(tm&&tm._val)return tm._val();
   const ms=f.querySelector('.ms'); if(ms&&ms._val)return ms._val();
   const sm=f.querySelector('.seg.multi'); if(sm){const on=[...sm.querySelectorAll('button.on')].map(b=>b.textContent); return on.length?on.join(', '):null;}
   const tg=f.querySelector('.seg.toggle'); if(tg){const o=tg.querySelector('button.on'); return o&&o.textContent.trim()!=='전체'?o.textContent.trim():null;}
@@ -537,6 +569,7 @@ function fval(f){
 function clearField(f){
   const rs=f.querySelector('.rs'); if(rs&&rs._clear)rs._clear();
   const sc=f.querySelector('.sector-ms'); if(sc&&sc._clear)sc._clear();
+  const tm=f.querySelector('.tier-ms'); if(tm&&tm._clear)tm._clear();
   const ms=f.querySelector('.ms'); if(ms&&ms._clear)ms._clear();
   const sm=f.querySelector('.seg.multi'); if(sm)sm.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
   const tg=f.querySelector('.seg.toggle'); if(tg)tg.querySelectorAll('button').forEach((b,i)=>b.classList.toggle('on',i===0));
@@ -628,6 +661,7 @@ function getState(){
     const label=f.dataset.label;
     const rs=f.querySelector('.rs'); if(rs&&rs._get){st.fields[label]={t:'s',...rs._get()}; return;}
     const sc=f.querySelector('.sector-ms'); if(sc&&sc._get){st.fields[label]={t:'sec',on:sc._get()}; return;}
+    const tm=f.querySelector('.tier-ms'); if(tm&&tm._get){st.fields[label]={t:'tier',on:tm._get()}; return;}
     const ms=f.querySelector('.ms'); if(ms&&ms._get){st.fields[label]={t:'m',picked:ms._get()}; return;}
     const sm=f.querySelector('.seg.multi'); if(sm){st.fields[label]={t:'b',on:[...sm.querySelectorAll('button.on')].map(b=>b.textContent)}; return;}
     const tx=f.querySelector('input.txt'); if(tx){st.fields[label]={t:'x',v:tx.value}; return;}
@@ -641,6 +675,7 @@ function applyState(st){
     const d=st.fields[f.dataset.label]; if(!d) return;
     if(d.t==='s'){const rs=f.querySelector('.rs'); rs&&rs._set(d.lo,d.hi);}
     else if(d.t==='sec'){const sc=f.querySelector('.sector-ms'); sc&&sc._setPicked(d.on);}
+    else if(d.t==='tier'){const tm=f.querySelector('.tier-ms'); tm&&tm._setPicked(d.on);}
     else if(d.t==='m'){const ms=f.querySelector('.ms'); ms&&ms._setPicked(d.picked);}
     else if(d.t==='b'){const sm=f.querySelector('.seg.multi'); if(sm)sm.querySelectorAll('button').forEach(b=>b.classList.toggle('on',d.on.includes(b.textContent)));}
     else if(d.t==='x'){const tx=f.querySelector('input.txt'); if(tx)tx.value=d.v;}
