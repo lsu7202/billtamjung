@@ -70,6 +70,29 @@
 /* 헤더 스크롤 고정 + 푸터처럼 가로 꽉 채움 */
 .hdr-panel{position:sticky; top:0; z-index:50; background:#fff;
   margin-left:-16px; margin-right:-16px; border-radius:0; border-left:0; border-right:0}
+/* ── M01 계산기: 편집 셀 + 결과 히어로 ── */
+table.wf input.cell{width:100%; border:1px solid transparent; background:transparent; border-radius:5px; padding:5px 6px; font-size:13px; text-align:right; font-variant-numeric:tabular-nums}
+table.wf input.cell:hover{border-color:var(--line)}
+table.wf input.cell:focus{border-color:var(--accent); background:#fff; outline:none}
+.vac-toggle{border:1px solid var(--line); background:#fff; border-radius:999px; padding:3px 12px; font-size:12px; font-weight:600; cursor:pointer; color:#2a7d46}
+.vac-toggle.vacant{background:#fbeaea; border-color:#f0c0c0; color:#c0392b}
+table.wf tr.is-vacant td{opacity:.42}
+table.wf tr.is-vacant .vac-toggle{opacity:1}
+.calc-hero{display:flex; gap:10px; padding:12px 14px 4px}
+.calc-hero .h{flex:1; background:#f7f9fc; border:1px solid #eef1f6; border-radius:8px; padding:11px 12px; text-align:center}
+.calc-hero .h .k{font-size:11px; color:#8a929b; margin-bottom:4px}
+.calc-hero .h .val{font-size:23px; font-weight:800; color:var(--accent); font-variant-numeric:tabular-nums}
+.calc-hero .h.sub .val{font-size:21px; color:#1a4fc0}
+.calc-formula{padding:2px 14px 12px; font-size:11px; color:#aab2bc; line-height:1.5}
+/* ── S03 주변시세: 좌우 레이아웃 + 반경 + 이상치 ── */
+.sevse-top{display:grid; grid-template-columns:1.15fr 1fr; gap:12px}
+.radius-row{display:flex; align-items:center; gap:10px; padding:8px 14px 4px; font-size:13px; color:#555; flex-wrap:wrap}
+.radius-row input[type=range]{flex:1; min-width:110px; accent-color:var(--accent)}
+.radius-row .rv{font-weight:700; color:var(--accent); min-width:56px; text-align:right}
+table.wf tr.outlier td{background:#fdf3f3}
+.badge-out{background:#e74c3c; color:#fff; font-size:10px; font-weight:700; border-radius:4px; padding:1px 6px; margin-left:6px; white-space:nowrap}
+table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15px; cursor:pointer}
+.avg-n{color:#8a929b; font-size:11px; font-weight:600}
 </style>
 </head>
 <body>
@@ -383,83 +406,91 @@
     <h3>금액 계산기 <span style="font-size:12px;color:#888;font-weight:400;margin-left:8px">층별정보 → 수익률 산출</span>
       <div class="right"><button class="btn" onclick="closeModal('calc')">취소</button><button class="btn primary" onclick="closeModal('calc')">확인</button></div></h3>
     <div class="block">
-      <div class="sec-head">층별 정보</div>
-      <table class="wf"><thead><tr><th>층</th><th>보증금</th><th>임대료</th><th>관리비</th><th>공실상태</th><th></th></tr></thead>
+      <div class="sec-head">층별 정보 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">셀 클릭해 편집 · 공실 토글 시 흐려짐(수익률에 반영)</span></div>
+      <table class="wf"><thead><tr><th>층</th><th class="num">보증금</th><th class="num">임대료</th><th class="num">관리비</th><th>공실상태</th><th></th></tr></thead>
         <tbody>
-          <tr><td>1층</td><td>3억</td><td>1,000만</td><td>150만</td><td>임대중</td><td><span class="x">×</span></td></tr>
-          <tr><td>2층</td><td>2억</td><td>800만</td><td>150만</td><td>공실</td><td><span class="x">×</span></td></tr>
+          <tr><td>1층</td><td><input class="cell" value="3억"></td><td><input class="cell" value="1,000만"></td><td><input class="cell" value="150만"></td><td><button class="vac-toggle">임대중</button></td><td class="num"><span class="x">×</span></td></tr>
+          <tr class="is-vacant"><td>2층</td><td><input class="cell" value="2억"></td><td><input class="cell" value="800만"></td><td><input class="cell" value="150만"></td><td><button class="vac-toggle vacant">공실</button></td><td class="num"><span class="x">×</span></td></tr>
         </tbody></table>
       <div style="padding:10px 14px"><button class="btn">＋ 층 추가</button></div>
     </div>
-    <div class="result-cols" style="grid-template-columns:1fr 1fr">
-      <div class="block"><div class="sec-head">자기자본</div>
-        <div class="kv-grid" style="grid-template-columns:1fr">
-          <div class="kv"><span class="k">매매가</span><span class="v">60억</span></div>
-          <div class="kv"><span class="k">자기자본</span><input class="input sm" style="max-width:160px" placeholder="입력"></div>
-          <div class="kv"><span class="k">대출 이자</span><input class="input sm" style="max-width:160px" placeholder="입력"></div>
-        </div></div>
-      <div class="block"><div class="sec-head">결과</div>
-        <div class="kv-grid" style="grid-template-columns:1fr">
-          <div class="kv"><span class="k">총공실</span><span class="v calc">있음</span></div>
-          <div class="kv"><span class="k">총보증금</span><span class="v calc">5억</span></div>
-          <div class="kv"><span class="k">총임대료</span><span class="v calc">1,800만</span></div>
-          <div class="kv"><span class="k">총관리비</span><span class="v calc">300만</span></div>
-          <div class="kv"><span class="k">수익률</span><span class="v calc">2.44%</span></div>
-          <div class="kv"><span class="k">자기자본수익률</span><span class="v calc">3.10%</span></div>
-        </div></div>
+    <div class="block">
+      <div class="sec-head">결과</div>
+      <div class="calc-hero">
+        <div class="h"><div class="k">수익률</div><div class="val">2.44%</div></div>
+        <div class="h sub"><div class="k">자기자본수익률</div><div class="val">3.10%</div></div>
+      </div>
+      <div class="kv-grid">
+        <div class="kv"><span class="k">매매가</span><span class="v">60억</span></div>
+        <div class="kv"><span class="k">총공실</span><span class="v calc">2층 (1개)</span></div>
+        <div class="kv"><span class="k">자기자본</span><input class="input sm" style="max-width:150px" placeholder="입력"></div>
+        <div class="kv"><span class="k">총보증금</span><span class="v calc">5억</span></div>
+        <div class="kv"><span class="k">대출 이자(월)</span><input class="input sm" style="max-width:150px" placeholder="입력"></div>
+        <div class="kv"><span class="k">총임대료</span><span class="v calc">1,800만</span></div>
+        <div class="kv"><span class="k">순임대수익(월)</span><span class="v calc">1,500만</span></div>
+        <div class="kv"><span class="k">총관리비</span><span class="v calc">300만</span></div>
+      </div>
+      <div class="calc-formula">수익률 = (총임대료 − 총관리비) × 12 ÷ 매매가 · 자기자본수익률 = 순임대수익 ÷ 자기자본 (공실층은 임대료 제외)</div>
     </div>
   </div>
 </div>
 
 <!-- M02 = S03 주변임대시세 분석 (지도 반경 → 조회 → 노이즈 수정 → 평균 등록) -->
 <div class="modal-bg" id="sevse">
-  <div class="modal" style="width:min(1100px,100%)">
+  <div class="modal" style="width:min(1180px,100%)">
     <h3>주변임대시세 분석 <span style="font-size:12px;color:#888;font-weight:400;margin-left:8px">본매물 주변 평균 임대시세 산출</span>
       <div class="right"><button class="btn" onclick="closeModal('sevse')">닫기</button>
         <button class="btn primary" onclick="closeModal('sevse')">평균 → 주변임대시세 등록</button></div></h3>
 
-    <!-- 1) 지도 + 반경 -->
-    <div class="block">
-      <div class="sec-head">① 지도에서 상권 반경 그리기 <div class="right"><button class="btn primary">분석하기</button></div></div>
-      <div style="padding:14px">
-        <div class="map-ph" style="height:260px;position:relative">
-          지도 (본매물 ◉ 중심, 반경 원)
-          <div style="position:absolute;width:200px;height:200px;border:2px dashed #d93025;border-radius:50%;background:rgba(217,48,37,.06)"></div>
-          <div style="position:absolute;width:12px;height:12px;background:#111;border-radius:50%" title="본매물"></div>
+    <div class="sevse-top">
+      <!-- 좌: 지도 + 반경 + 층범위 (입력) -->
+      <div class="block">
+        <div class="sec-head">① 상권 반경 <div class="right"><button class="btn primary">분석하기</button></div></div>
+        <div style="padding:12px 0 4px">
+          <div class="map-ph" style="height:220px;position:relative;margin:0 14px">
+            지도 (본매물 ◉ 중심)
+            <div style="position:absolute;width:170px;height:170px;border:2px dashed #d93025;border-radius:50%;background:rgba(217,48,37,.06)"></div>
+            <div style="position:absolute;width:12px;height:12px;background:#111;border-radius:50%" title="본매물"></div>
+          </div>
+          <div class="radius-row">
+            <span class="fl-label">반경</span>
+            <input type="range" min="200" max="1000" step="50" value="400">
+            <span class="rv">400m</span>
+          </div>
+          <div class="floor-row" style="padding:0 14px">
+            <span class="fl-label">조회 층</span>
+            지하 <input class="fin" type="number" min="0" value="3"> ~ 지상 <input class="fin" type="number" min="1" value="5"> 층
+            <span class="fl-hint">이 범위 층만 조회</span>
+          </div>
         </div>
-        <div class="floor-row">
-          <span class="fl-label">조회 층 범위</span>
-          지하 <input class="fin" type="number" min="0" value="3"> 층 ~ 지상 <input class="fin" type="number" min="1" value="5"> 층
-          <span class="fl-hint">이 범위의 층만 주변 임대시세를 조회합니다</span>
-        </div>
-        <div style="font-size:12px;color:#888;margin-top:8px">본매물 아이콘 중심으로 상권 반지름을 직접 그리면, 원 내부 매물의 임대시세를 조회합니다.</div>
+      </div>
+
+      <!-- 우: 층별 평균 (등록 결과) -->
+      <div class="block">
+        <div class="sec-head">③ 층별 평균 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">등록될 값 · 체크된 행만 반영</span></div>
+        <table class="wf matrix">
+          <thead><tr><th>층</th><th class="num">평당 보증금</th><th class="num">평당 임대료</th><th class="num">추정보증금</th><th class="num">추정임대료</th><th class="num">건수</th></tr></thead>
+          <tbody>
+            <tr><td>지하1층</td><td class="num calc">100만</td><td class="num calc">10만</td><td class="num">3,000만</td><td class="num">300만</td><td class="num avg-n">1건</td></tr>
+            <tr><td>1층</td><td class="num calc">300만</td><td class="num calc">24만</td><td class="num">7,500만</td><td class="num">600만</td><td class="num avg-n">2건</td></tr>
+          </tbody>
+        </table>
+        <div style="padding:8px 14px;font-size:12px;color:#888">같은 층끼리 평균 → 주변임대시세 표의 해당 층에 등록됩니다.</div>
       </div>
     </div>
 
-    <!-- 2) 조회 결과 (편집 가능, 노이즈 제거) -->
+    <!-- 하단 전폭: 조회 결과 + 이상치 -->
     <div class="block">
-      <div class="sec-head">② 조회 결과 · 노이즈 수정 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">행 편집/삭제 가능</span></div>
+      <div class="sec-head">② 조회 결과 · 노이즈 수정 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">이상치 자동 표시 · 체크 해제 시 평균에서 제외 (삭제는 ×)</span></div>
       <table class="wf">
-        <thead><tr><th>층</th><th class="num">계약면적</th><th class="num">전용면적</th><th class="num">보증금</th><th class="num">임대료</th><th class="num">계약평당보증금</th><th class="num">계약평당임대료</th><th class="num">관리비</th><th>주소</th><th></th></tr></thead>
+        <thead><tr><th style="width:34px" class="num"><input type="checkbox" checked></th><th>층</th><th class="num">계약면적</th><th class="num">전용면적</th><th class="num">보증금</th><th class="num">임대료</th><th class="num">평당보증금</th><th class="num">평당임대료</th><th class="num">관리비</th><th>주소</th><th></th></tr></thead>
         <tbody>
-          <tr><td>1층</td><td class="num">25평</td><td class="num">20평</td><td class="num">7,500만</td><td class="num">625만</td><td class="num">300만</td><td class="num">25만</td><td class="num">150만</td><td>목동 620-7</td><td><span class="x">×</span></td></tr>
-          <tr><td>1층</td><td class="num">30평</td><td class="num">24평</td><td class="num">9,000만</td><td class="num">700만</td><td class="num">300만</td><td class="num">23만</td><td class="num">180만</td><td>목동 615-2</td><td><span class="x">×</span></td></tr>
-          <tr><td>지하1층</td><td class="num">30평</td><td class="num">28평</td><td class="num">3,000만</td><td class="num">300만</td><td class="num">100만</td><td class="num">10만</td><td class="num">120만</td><td>목동 611-9</td><td><span class="x">×</span></td></tr>
+          <tr><td class="num"><input type="checkbox" checked></td><td>1층</td><td class="num">25평</td><td class="num">20평</td><td class="num">7,500만</td><td class="num">625만</td><td class="num">300만</td><td class="num">25만</td><td class="num">150만</td><td>목동 620-7</td><td class="num"><span class="x">×</span></td></tr>
+          <tr><td class="num"><input type="checkbox" checked></td><td>1층</td><td class="num">30평</td><td class="num">24평</td><td class="num">9,000만</td><td class="num">700만</td><td class="num">300만</td><td class="num">23만</td><td class="num">180만</td><td>목동 615-2</td><td class="num"><span class="x">×</span></td></tr>
+          <tr class="outlier"><td class="num"><input type="checkbox"></td><td>1층 <span class="badge-out">이상치</span></td><td class="num">18평</td><td class="num">14평</td><td class="num">1억 3천</td><td class="num">1,400만</td><td class="num">720만</td><td class="num">78만</td><td class="num">200만</td><td>목동 618-1</td><td class="num"><span class="x">×</span></td></tr>
+          <tr><td class="num"><input type="checkbox" checked></td><td>지하1층</td><td class="num">30평</td><td class="num">28평</td><td class="num">3,000만</td><td class="num">300만</td><td class="num">100만</td><td class="num">10만</td><td class="num">120만</td><td>목동 611-9</td><td class="num"><span class="x">×</span></td></tr>
         </tbody>
       </table>
-    </div>
-
-    <!-- 3) 층별 평균 (등록값) -->
-    <div class="block">
-      <div class="sec-head">③ 층별 평균 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">→ 주변임대시세에 층별 등록</span></div>
-      <table class="wf matrix">
-        <thead><tr><th>층</th><th class="num">평당 보증금</th><th class="num">평당 임대료</th><th class="num">추정보증금</th><th class="num">추정임대료</th></tr></thead>
-        <tbody>
-          <tr><td>지하1층</td><td class="num calc">100만</td><td class="num calc">10만</td><td class="num">3,000만</td><td class="num">300만</td></tr>
-          <tr><td>1층</td><td class="num calc">300만</td><td class="num calc">24만</td><td class="num">7,500만</td><td class="num">600만</td></tr>
-        </tbody>
-      </table>
-      <div style="padding:8px 14px;font-size:12px;color:#888">같은 층끼리 평균 → 위 값이 주변임대시세 표의 해당 층에 등록됩니다.</div>
     </div>
   </div>
 </div>
