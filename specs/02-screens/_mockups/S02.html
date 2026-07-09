@@ -152,6 +152,11 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
 .ad-status{padding:10px 14px 2px}
 .ad-status .ad-last{font-size:11px; color:#8a929b; margin-left:auto}
 .ad-note{font-size:11px; color:#8a929b; display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:0 14px 10px}
+.ad-badge{font-size:12px; font-weight:700; border-radius:999px; padding:3px 12px}
+.ad-badge.live{background:#e7f7ee; color:#1f8a4c; border:1px solid #bfe0c8}
+.ad-badge.off{background:#eef0f3; color:#6b7280; border:1px solid var(--line)}
+.ad-src{font-size:11px; color:#8a929b}
+.ad-src b{color:#6b7280}
 </style>
 </head>
 <body>
@@ -320,11 +325,11 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
         <div class="ad-status">
           <div class="wk-field">
             <span class="wk-k">광고 상태</span>
-            <div class="segmented"><button>미광고</button><button class="active ad-live">광고중</button><button>종료</button></div>
+            <span class="ad-badge live">광고중</span>
             <span class="ad-last">마지막 확인 2026-06-02 · 이승욱(담당)</span>
           </div>
         </div>
-        <div class="ad-note">시장 공개 정보(집단지성) — 아무 중개사나 <b>관찰 기여</b> 가능, 담당자 값 우선·나머지 수정이력 정제. <button class="btn" style="padding:4px 10px;font-size:12px">＋ 광고가 기여</button></div>
+        <div class="ad-note">시장 공개 정보(집단지성) — 아무 중개사나 <b>관찰 기여</b> 가능, 담당자 값 우선·나머지 수정이력 정제. <button class="btn" style="padding:4px 10px;font-size:12px" onclick="openAd()">광고 정보 입력</button></div>
         <div class="series-t">
           <table class="wf"><thead><tr><th>업데이트일</th><th class="num">광고가</th></tr></thead>
             <tbody><tr><td>2026/06/02</td><td class="num">62억</td></tr><tr><td>2026/01/15</td><td class="num">65억</td></tr></tbody></table>
@@ -662,6 +667,43 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
   </div>
 </div>
 
+<!-- 광고 정보 입력 (집단지성 · 공용) -->
+<div class="modal-bg" id="admodal">
+  <div class="modal" style="width:min(560px,100%)">
+    <h3>광고 정보 입력 <span style="font-size:12px;color:#888;font-weight:400;margin-left:8px">시장 공개 정보 · 집단지성 기여</span>
+      <div class="right"><button class="btn" onclick="closeModal('admodal')">취소</button><button class="btn primary" onclick="closeModal('admodal')">등록</button></div></h3>
+
+    <div class="block">
+      <div class="sec-head">광고 상태</div>
+      <div style="padding:12px 14px">
+        <div class="segmented"><button>미광고</button><button class="active ad-live">광고중</button><button>종료</button></div>
+        <div class="ad-src" style="margin-top:8px">이 매물이 시장에 광고로 나와있는지. <b>종료</b> = 거래완료·광고 내림.</div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="sec-head">광고가 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">광고중일 때</span></div>
+      <div class="kv-grid" style="grid-template-columns:1fr">
+        <div class="kv"><span class="k">광고가</span><span><input class="input sm" style="max-width:120px" placeholder="62"> 억</span></div>
+        <div class="kv"><span class="k">확인일</span><input class="input sm" type="date" value="2026-06-02" style="max-width:160px"></div>
+        <div class="kv"><span class="k">기여 유형</span><span class="v">이승욱 · <b>담당자</b> (최우선 반영)</span></div>
+      </div>
+      <div class="ad-src" style="padding:0 14px 12px">담당자면 최우선. <b>관찰 기여</b>(남의 광고 본 경우)면 다른 확인들과 함께 수정이력 최다값으로 정제됩니다.</div>
+    </div>
+
+    <div class="block">
+      <div class="sec-head">광고가 이력 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">시계열</span></div>
+      <table class="wf">
+        <thead><tr><th>확인일</th><th class="num">광고가</th><th>기여자</th></tr></thead>
+        <tbody>
+          <tr><td>2026/06/02</td><td class="num">62억</td><td>이승욱 (담당)</td></tr>
+          <tr><td>2026/01/15</td><td class="num">65억</td><td>김중개 (관찰)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <!-- 하단 고정 툴바 -->
 <div class="bottombar">
   <button class="icon-btn" title="뒤로가기 · 데이터 수정 취소 (undo)">←</button>
@@ -789,6 +831,7 @@ function renderChart(svg,data,o){
 function openCalc(){document.getElementById('calc').classList.add('open');}
 function openSevse(){document.getElementById('sevse').classList.add('open');}
 function openWiki(){document.getElementById('wiki').classList.add('open');}
+function openAd(){document.getElementById('admodal').classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 </script>
 </body>
