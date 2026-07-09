@@ -1,12 +1,2 @@
-# macOS
 .DS_Store
-
-# 임시/렌더 산출물
-*.tmp
-_*.html
-*.png.crop
-scratchpad/
-
-# 아카이브·복제본 (버전관리 제외)
-*.zip
-index copy.html
+data/raw/
