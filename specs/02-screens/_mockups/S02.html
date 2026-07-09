@@ -320,11 +320,11 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
       <div class="block" id="blk-gwanggo" data-grp="deal">
         <div class="sec-head">광고
           <div class="right"><span class="series-metric"></span>
+            <button class="btn" onclick="openAd()">광고 정보 입력</button>
             <div class="segmented seg-series"><button class="active" data-v="t">표</button><button data-v="c">그래프</button></div></div>
         </div>
-        <div class="ad-note"><button class="btn" style="padding:4px 10px;font-size:12px" onclick="openAd()">광고 정보 입력</button></div>
         <div class="series-t">
-          <table class="wf"><thead><tr><th>업데이트일</th><th class="num">광고가</th></tr></thead>
+          <table class="wf"><thead><tr><th>변동일</th><th class="num">광고가</th></tr></thead>
             <tbody><tr><td>2026/06/02</td><td class="num">62억</td></tr><tr><td>2026/01/15</td><td class="num">65억</td></tr></tbody></table>
         </div>
         <div class="series-c hidden"><svg class="svg-chart" viewBox="0 0 900 240"></svg></div>
@@ -390,7 +390,6 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
             <div class="wk-field">
               <span class="wk-k">내 광고</span>
               <span class="ad-badge live">62억</span>
-              <span class="ad-src" style="margin-left:2px">내가 등록한 광고 (공용 광고가에서)</span>
             </div>
           </div>
           <div class="kv-grid" style="grid-template-columns:1fr">
@@ -675,15 +674,14 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
       <div class="kv-grid" style="grid-template-columns:1fr">
         <div class="kv"><span class="k">광고가</span><span><input class="input sm" style="max-width:120px" placeholder="62"> 억</span></div>
         <div class="kv"><span class="k">확인일</span><input class="input sm" type="date" value="2026-06-02" style="max-width:160px"></div>
-        <div class="kv"><span class="k">내 광고</span><label style="display:flex;align-items:center;gap:7px;font-size:13px;color:#555;cursor:pointer"><input type="checkbox" checked> 내가 낸 광고 <small style="color:#aab2bc">(해제 시 관찰 기여)</small></label></div>
+        <div class="kv"><span class="k">내 광고</span><label style="display:flex;align-items:center;gap:7px;font-size:13px;color:#555;cursor:pointer"><input type="checkbox" checked> 내가 낸 광고</label></div>
       </div>
-      <div class="ad-src" style="padding:0 14px 12px"><b>값이 바뀌면</b> 새 점(추이) · <b>같은 값 재확인</b>은 확인 건수·신선도만↑ (새 점 아님). 대표값=최다 확인, 노이즈는 자동 정제. <b>내 광고</b> 체크=업무 탭 표시·크레딧 대상.</div>
     </div>
 
     <div class="block">
-      <div class="sec-head">광고가 이력 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">가격 변동 시점만 · ×는 내 기여만 취소(추이 보존)</span></div>
+      <div class="sec-head">광고가 이력</div>
       <table class="wf">
-        <thead><tr><th>변동일</th><th class="num">대표 광고가</th><th>확인</th><th></th></tr></thead>
+        <thead><tr><th>변동일</th><th class="num">광고가</th><th>확인</th><th></th></tr></thead>
         <tbody>
           <tr><td>2026/06/02</td><td class="num">62억</td><td>확인 3건 <span style="color:#1f8a4c;font-weight:700">· 내 기여</span></td><td class="num"><span class="x">×</span></td></tr>
           <tr><td>2026/01/15</td><td class="num">65억</td><td class="ad-src">확인 1건</td><td></td></tr>
