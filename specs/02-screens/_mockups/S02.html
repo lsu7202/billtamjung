@@ -326,10 +326,10 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
           <div class="wk-field">
             <span class="wk-k">광고 상태</span>
             <span class="ad-badge live">광고중</span>
-            <span class="ad-last">마지막 확인 2026-06-02 · 이승욱(담당)</span>
+            <span class="ad-last">마지막 확인 2026-06-02 · 확인 3건</span>
           </div>
         </div>
-        <div class="ad-note">시장 공개 정보(집단지성) — 아무 중개사나 <b>관찰 기여</b> 가능, 담당자 값 우선·나머지 수정이력 정제. <button class="btn" style="padding:4px 10px;font-size:12px" onclick="openAd()">광고 정보 입력</button></div>
+        <div class="ad-note"><button class="btn" style="padding:4px 10px;font-size:12px" onclick="openAd()">광고 정보 입력</button></div>
         <div class="series-t">
           <table class="wf"><thead><tr><th>업데이트일</th><th class="num">광고가</th></tr></thead>
             <tbody><tr><td>2026/06/02</td><td class="num">62억</td></tr><tr><td>2026/01/15</td><td class="num">65억</td></tr></tbody></table>
@@ -684,16 +684,16 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
         <div class="kv"><span class="k">확인일</span><input class="input sm" type="date" value="2026-06-02" style="max-width:160px"></div>
         <div class="kv"><span class="k">내 광고</span><label style="display:flex;align-items:center;gap:7px;font-size:13px;color:#555;cursor:pointer"><input type="checkbox" checked> 내가 낸 광고 <small style="color:#aab2bc">(해제 시 관찰 기여)</small></label></div>
       </div>
-      <div class="ad-src" style="padding:0 14px 12px">광고가 입력 = <b>광고중</b> · 이력에서 삭제 = <b>광고없음</b> (상태는 자동). <b>내 광고</b> 체크 시 업무 탭에도 표시(담당자 최우선). 미체크 = 남의 광고 관찰(수정이력 정제).</div>
+      <div class="ad-src" style="padding:0 14px 12px">광고가 입력 = <b>광고중</b> · 관측 없어지면 = <b>광고없음</b> (상태 자동). <b>내 광고</b> 체크 시 업무 탭에도 표시(크레딧 대상). 집계는 <b>다수결+최신</b>이라 노이즈는 자동 정제.</div>
     </div>
 
     <div class="block">
-      <div class="sec-head">광고가 이력 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">시계열 · 삭제(×) 시 해당 관측 취소</span></div>
+      <div class="sec-head">광고가 이력 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">시계열(다수결+최신) · ×는 내 기여만 취소, 추이는 보존</span></div>
       <table class="wf">
-        <thead><tr><th>확인일</th><th class="num">광고가</th><th>기여자</th><th></th></tr></thead>
+        <thead><tr><th>확인일</th><th class="num">대표 광고가</th><th>확인</th><th></th></tr></thead>
         <tbody>
-          <tr><td>2026/06/02</td><td class="num">62억</td><td>이승욱 (내 광고)</td><td class="num"><span class="x">×</span></td></tr>
-          <tr><td>2026/01/15</td><td class="num">65억</td><td>김중개 (관찰)</td><td class="num"><span class="x">×</span></td></tr>
+          <tr><td>2026/06/02</td><td class="num">62억</td><td>확인 3건 <span style="color:#1f8a4c;font-weight:700">· 내 기여</span></td><td class="num"><span class="x">×</span></td></tr>
+          <tr><td>2026/01/15</td><td class="num">65억</td><td class="ad-src">확인 1건</td><td></td></tr>
         </tbody>
       </table>
     </div>
