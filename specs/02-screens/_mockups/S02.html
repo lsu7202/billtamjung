@@ -141,6 +141,17 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
 .wiki-write textarea:focus{outline:none; border-color:var(--accent)}
 .wiki-write .ww-foot{display:flex; align-items:center; gap:10px; margin-top:9px}
 .wiki-write .ww-foot .hint{font-size:11px; color:#aab2bc; margin-left:auto}
+/* 업무 탭: 진행상태 · 광고 상태 */
+.wk-status{padding:12px 12px 2px}
+.wk-field{display:flex; align-items:center; gap:10px; margin-bottom:9px; flex-wrap:wrap}
+.wk-field .wk-k{font-size:12px; font-weight:700; color:#6b7280; flex:0 0 58px}
+.wk-field .segmented{flex-wrap:wrap; border-radius:7px}
+.wk-field .segmented button{padding:5px 10px; font-size:12px}
+.wk-field .segmented button.ad-live.active{background:#1f8a4c; border-color:#1f8a4c}
+.wk-ad-on{background:#f6fbf7; border:1px solid #d7ecdf; border-radius:8px; padding:4px 12px 8px; margin:2px 0 8px}
+.wk-ad-on .kv{padding:7px 2px; border-bottom:1px solid #eaf3ee}
+.wk-ad-on .kv:last-of-type{border-bottom:0}
+.wk-hint{font-size:11px; color:#8a929b; padding:5px 2px 2px; line-height:1.5}
 </style>
 </head>
 <body>
@@ -364,6 +375,22 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
       <div class="block" style="border-radius:0 8px 8px 8px">
 
         <div id="tab-work" class="tabpane active">
+          <!-- 진행 · 광고 상태 (업무관리 핵심) -->
+          <div class="wk-status">
+            <div class="wk-field">
+              <span class="wk-k">진행상태</span>
+              <div class="segmented"><button>준비중</button><button class="active">진행중</button><button>가격제시</button><button>매각</button><button>철회</button></div>
+            </div>
+            <div class="wk-field">
+              <span class="wk-k">광고 상태</span>
+              <div class="segmented"><button>미광고</button><button class="active ad-live">광고중</button><button>종료</button></div>
+            </div>
+            <div class="wk-ad-on">
+              <div class="kv"><span class="k">광고가</span><span class="v calc">62억</span></div>
+              <div class="kv"><span class="k">마지막 확인</span><span class="v">2026-06-02 · 이승욱(담당)</span></div>
+              <div class="wk-hint">광고중 등록 → 광고가가 시계열 DB에 축적되고 <b>광고 매물</b>로 자동 분류. 남의 광고도 <b>관찰 기여</b> 가능(담당자 값 우선, 나머지 집단 정제).</div>
+            </div>
+          </div>
           <div class="kv-grid" style="grid-template-columns:1fr">
             <div class="kv"><span class="k">담당자</span><span class="v">이승욱</span></div>
             <div class="kv"><span class="k">긴급도</span><span class="v">급함</span></div>
