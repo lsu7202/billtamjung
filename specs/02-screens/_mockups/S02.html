@@ -388,11 +388,16 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
       <div class="block" style="border-radius:0 8px 8px 8px">
 
         <div id="tab-work" class="tabpane active">
-          <!-- 진행상태 (담당자/팀 사적 업무) -->
+          <!-- 진행상태 · 내 광고 (담당자/팀 사적 업무) -->
           <div class="wk-status">
             <div class="wk-field">
               <span class="wk-k">진행상태</span>
               <div class="segmented"><button>준비중</button><button class="active">진행중</button><button>가격제시</button><button>매각</button><button>철회</button></div>
+            </div>
+            <div class="wk-field">
+              <span class="wk-k">내 광고</span>
+              <span class="ad-badge live">광고중 · 62억</span>
+              <span class="ad-src" style="margin-left:2px">공용 광고가에서 자동 (내가 등록)</span>
             </div>
           </div>
           <div class="kv-grid" style="grid-template-columns:1fr">
@@ -667,37 +672,28 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
   </div>
 </div>
 
-<!-- 광고 정보 입력 (집단지성 · 공용) -->
+<!-- 광고가 입력 (집단지성 · 공용) -->
 <div class="modal-bg" id="admodal">
-  <div class="modal" style="width:min(560px,100%)">
-    <h3>광고 정보 입력 <span style="font-size:12px;color:#888;font-weight:400;margin-left:8px">시장 공개 정보 · 집단지성 기여</span>
+  <div class="modal" style="width:min(520px,100%)">
+    <h3>광고가 입력 <span style="font-size:12px;color:#888;font-weight:400;margin-left:8px">시장 공개 정보 · 집단지성 기여</span>
       <div class="right"><button class="btn" onclick="closeModal('admodal')">취소</button><button class="btn primary" onclick="closeModal('admodal')">등록</button></div></h3>
 
     <div class="block">
-      <div class="sec-head">광고 상태</div>
-      <div style="padding:12px 14px">
-        <div class="segmented"><button>미광고</button><button class="active ad-live">광고중</button><button>종료</button></div>
-        <div class="ad-src" style="margin-top:8px">이 매물이 시장에 광고로 나와있는지. <b>종료</b> = 거래완료·광고 내림.</div>
-      </div>
-    </div>
-
-    <div class="block">
-      <div class="sec-head">광고가 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">광고중일 때</span></div>
       <div class="kv-grid" style="grid-template-columns:1fr">
         <div class="kv"><span class="k">광고가</span><span><input class="input sm" style="max-width:120px" placeholder="62"> 억</span></div>
         <div class="kv"><span class="k">확인일</span><input class="input sm" type="date" value="2026-06-02" style="max-width:160px"></div>
-        <div class="kv"><span class="k">기여 유형</span><span class="v">이승욱 · <b>담당자</b> (최우선 반영)</span></div>
+        <div class="kv"><span class="k">내 광고</span><label style="display:flex;align-items:center;gap:7px;font-size:13px;color:#555;cursor:pointer"><input type="checkbox" checked> 내가 낸 광고 <small style="color:#aab2bc">(해제 시 관찰 기여)</small></label></div>
       </div>
-      <div class="ad-src" style="padding:0 14px 12px">담당자면 최우선. <b>관찰 기여</b>(남의 광고 본 경우)면 다른 확인들과 함께 수정이력 최다값으로 정제됩니다.</div>
+      <div class="ad-src" style="padding:0 14px 12px">광고가 입력 = <b>광고중</b> · 이력에서 삭제 = <b>광고없음</b> (상태는 자동). <b>내 광고</b> 체크 시 업무 탭에도 표시(담당자 최우선). 미체크 = 남의 광고 관찰(수정이력 정제).</div>
     </div>
 
     <div class="block">
-      <div class="sec-head">광고가 이력 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">시계열</span></div>
+      <div class="sec-head">광고가 이력 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">시계열 · 삭제(×) 시 해당 관측 취소</span></div>
       <table class="wf">
-        <thead><tr><th>확인일</th><th class="num">광고가</th><th>기여자</th></tr></thead>
+        <thead><tr><th>확인일</th><th class="num">광고가</th><th>기여자</th><th></th></tr></thead>
         <tbody>
-          <tr><td>2026/06/02</td><td class="num">62억</td><td>이승욱 (담당)</td></tr>
-          <tr><td>2026/01/15</td><td class="num">65억</td><td>김중개 (관찰)</td></tr>
+          <tr><td>2026/06/02</td><td class="num">62억</td><td>이승욱 (내 광고)</td><td class="num"><span class="x">×</span></td></tr>
+          <tr><td>2026/01/15</td><td class="num">65억</td><td>김중개 (관찰)</td><td class="num"><span class="x">×</span></td></tr>
         </tbody>
       </table>
     </div>
