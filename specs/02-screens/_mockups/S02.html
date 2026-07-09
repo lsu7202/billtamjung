@@ -374,9 +374,9 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
         <table class="wf matrix">
           <thead><tr><th>층</th><th class="num">매물 면적</th><th class="num">평당 보증금</th><th class="num">평당 임대료</th><th class="num">추정보증금</th><th class="num">추정임대료</th></tr></thead>
           <tbody>
-            <tr><td>지하1층</td><td class="num">30평</td><td class="num">100만</td><td class="num">10만</td><td class="num">3,000만</td><td class="num">300만</td></tr>
-            <tr><td>1층</td><td class="num">25평</td><td class="num">300만</td><td class="num">25만</td><td class="num">7,500만</td><td class="num">625만</td></tr>
             <tr><td>2층</td><td class="num">25평</td><td class="num">150만</td><td class="num">15만</td><td class="num">3,750만</td><td class="num">375만</td></tr>
+            <tr><td>1층</td><td class="num">25평</td><td class="num">300만</td><td class="num">25만</td><td class="num">7,500만</td><td class="num">625만</td></tr>
+            <tr><td>지하1층</td><td class="num">30평</td><td class="num">100만</td><td class="num">10만</td><td class="num">3,000만</td><td class="num">300만</td></tr>
           </tbody>
         </table>
       </div>
@@ -500,9 +500,9 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
       <div class="sec-head">층별 정보 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">시뮬레이션 · 저장 안 됨</span></div>
       <table class="wf"><thead><tr><th>층</th><th>호실</th><th class="num">보증금</th><th class="num">임대료</th><th class="num">관리비</th><th>공실상태</th><th></th></tr></thead>
         <tbody>
+          <tr class="is-vacant"><td>2층</td><td>201호</td><td><input class="cell" value="2억"></td><td><input class="cell" value="800만"></td><td><input class="cell" value="150만"></td><td><button class="vac-toggle vacant">공실</button></td><td class="num"><span class="x">×</span></td></tr>
           <tr><td rowspan="2">1층</td><td>101호</td><td><input class="cell" value="2억"></td><td><input class="cell" value="600만"></td><td><input class="cell" value="100만"></td><td><button class="vac-toggle">임대중</button></td><td class="num"><span class="x">×</span></td></tr>
           <tr><td>102호</td><td><input class="cell" value="1억"></td><td><input class="cell" value="400만"></td><td><input class="cell" value="50만"></td><td><button class="vac-toggle">임대중</button></td><td class="num"><span class="x">×</span></td></tr>
-          <tr class="is-vacant"><td>2층</td><td>201호</td><td><input class="cell" value="2억"></td><td><input class="cell" value="800만"></td><td><input class="cell" value="150만"></td><td><button class="vac-toggle vacant">공실</button></td><td class="num"><span class="x">×</span></td></tr>
         </tbody></table>
       <div style="padding:10px 14px"><button class="btn">＋ 호실 추가</button></div>
     </div>
@@ -563,8 +563,8 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
         <table class="wf matrix">
           <thead><tr><th>층</th><th class="num">평당 보증금</th><th class="num">평당 임대료</th><th class="num">추정보증금</th><th class="num">추정임대료</th><th class="num">건수</th></tr></thead>
           <tbody>
-            <tr><td>지하1층</td><td class="num calc">100만</td><td class="num calc">10만</td><td class="num">3,000만</td><td class="num">300만</td><td class="num avg-n">1건</td></tr>
             <tr><td>1층</td><td class="num calc">300만</td><td class="num calc">24만</td><td class="num">7,500만</td><td class="num">600만</td><td class="num avg-n">2건</td></tr>
+            <tr><td>지하1층</td><td class="num calc">100만</td><td class="num calc">10만</td><td class="num">3,000만</td><td class="num">300만</td><td class="num avg-n">1건</td></tr>
           </tbody>
         </table>
         <div style="padding:8px 14px;font-size:12px;color:#888">같은 층끼리 평균 → 주변임대시세 표의 해당 층에 등록됩니다.</div>
