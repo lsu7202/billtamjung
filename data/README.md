@@ -3,6 +3,6 @@
 - **data/raw/** 에 다운받은 원본 파일을 그대로 넣기 (건축물대장·토지특성 SHP/CSV·공시지가 등).
 - 원본은 용량이 커서 **git에 커밋하지 않음** (.gitignore) — 이 README와 폴더 구조만 추적.
 - 파일 넣은 뒤 Claude에게 알려주면: 구조 파싱 → data-dictionary 필드 매핑 → 정본 코드표 추출(이용상황 등).
-- 데이터셋별 출처·상태 관리 = `specs/04-data/data-sources.md`.
+- 데이터셋별 출처·상태 관리 = `specs/04-data/data-overview.md`.
 
 권장 순서: A2 토지특성(정본 코드표) → A1 건축물대장 → A3 용도지역 SHP → A5 공시지가 → A6 대중교통 → B3 매각사례.

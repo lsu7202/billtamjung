@@ -13,3 +13,4 @@ index copy.html
 
 # 원본 데이터 (대용량, git 제외)
 data/raw/
+__pycache__/
