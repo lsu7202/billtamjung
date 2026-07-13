@@ -29,6 +29,20 @@ def load_chg():
             d[pnu]={'대지면적':fnum(p[24]),'건폐율':fnum(p[26]),'용적률':fnum(p[29])}
     return d
 
+def load_daesuseon():
+    """kcy_05 대수선 인허가 → PNU→{최근대수선일, 건수}. (2022 누적편중 주의)"""
+    latest={}; cnt=collections.Counter()
+    with open("data/raw/seoul/mart_kcy_05_seoul.txt",'rb') as f:
+        for line in f:
+            p=[x.decode('utf-8',errors='replace') for x in line.rstrip(b'\r\n').split(b'|')]
+            pnu=mkpnu(p[3],p[4],p[5],p[6],p[7])
+            if not pnu: continue
+            d=p[15].strip()
+            if len(d)==8 and d.isdigit():
+                cnt[pnu]+=1
+                if pnu not in latest or d>latest[pnu]: latest[pnu]=d
+    return {pnu:{'최근대수선일':latest[pnu],'대수선건수':cnt[pnu]} for pnu in latest}
+
 def load_land_area():
     """토지특성 PNU→면적(A12)."""
     d={}
@@ -39,6 +53,7 @@ def load_land_area():
 
 def main():
     print("총괄표제부 로드…"); chg=load_chg()
+    print("대수선 로드…"); ds=load_daesuseon()
     print("토지면적 로드…"); larea=load_land_area()
     landset=set(larea)
     print("표제부 조립…")
@@ -67,6 +82,8 @@ def main():
                 '연면적':fnum(p[28]), '주용도코드':p[34],'주용도':p[35],'기타용도':p[36],
                 '구조':p[32], '지상층수':int(fnum(p[43])),'지하층수':int(fnum(p[44])),
                 '사용승인일':p[60].strip(),
+                '최근대수선일': (ds.get(pnu) or {}).get('최근대수선일') if pnu else None,
+                '대수선건수': (ds.get(pnu) or {}).get('대수선건수', 0) if pnu else 0,
             }
             out.write(json.dumps(rec,ensure_ascii=False)+"\n")
             src[s]+=1
