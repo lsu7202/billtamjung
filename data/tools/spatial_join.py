@@ -8,12 +8,20 @@ import sys, json, time, glob, re
 import shapefile
 from shapely.geometry import shape
 from shapely import STRtree, area, intersection, make_valid
+from shapely.ops import transform as shp_transform
+from pyproj import Transformer
+from uqa_codes import uqa_name
+
+# UD801은 EPSG:5186, 나머지(지적도·UQ111)는 5174 → UD801만 재투영
+_T = Transformer.from_crs(5186, 5174, always_xy=True)
+def to5174(g):
+    return shp_transform(lambda x, y, z=None: _T.transform(x, y), g)
 
 LDREG="data/raw/LSMD_CONT_LDREG_5174_서울/LSMD_CONT_LDREG_5174_11_202606"
 UQ111="data/raw/LSMD_CONT_UQ111_5174_서울/LSMD_CONT_UQ111_5174_11_202606"
 UD801="data/raw/LSMD_CONT_UD801_서울/LSMD_CONT_UD801_11_202606"
 
-def load_polys(path, want_fields, sgg=None):
+def load_polys(path, want_fields, sgg=None, reproject=False):
     r=shapefile.Reader(path, encoding='cp949')
     flds=[f[0] for f in r.fields[1:]]
     idx={f:i for i,f in enumerate(flds)}
@@ -23,6 +31,7 @@ def load_polys(path, want_fields, sgg=None):
         if sgg and rec[idx['COL_ADM_SE']]!=sgg: continue
         try:
             g=shape(sr.shape.__geo_interface__)
+            if reproject: g=to5174(g)
             if not g.is_valid: g=make_valid(g)
         except Exception:
             continue
@@ -39,14 +48,8 @@ def run(sgg):
     sggf=None if sgg=='ALL' else sgg
     parcels_g, parcels_a = load_polys(LDREG, ['PNU'], sggf)
     zones_g, zones_a = load_polys(UQ111, ['ALIAS','MNUM'], sggf)
-    dev_g, _ = load_polys(UD801, ['MNUM'], sggf)
+    dev_g, _ = load_polys(UD801, ['MNUM'], sggf, reproject=True)  # 5186→5174
     print(f"필지 {len(parcels_g):,} · 용도지역 {len(zones_g):,} · 개발제한 {len(dev_g):,}  (로드 {time.time()-t0:.1f}s)")
-
-    # 코드→명 백필 맵 (ALIAS 있는 폴리곤에서 수집)
-    code2name={}
-    for za in zones_a:
-        c=uqa_code(za['MNUM']); nm=za['ALIAS']
-        if c and nm and not nm.isdigit(): code2name.setdefault(c,nm)
 
     MIN_SHARE=0.01  # 슬리버 임계(경계오차 조각 제거)
     ztree=STRtree(zones_g)
@@ -65,8 +68,7 @@ def run(sgg):
             try: ia=intersection(pg, zones_g[zi]).area
             except Exception: continue
             if ia<=0: continue
-            name=zones_a[zi]['ALIAS'] or uqa_code(zones_a[zi]['MNUM'])
-            code=uqa_code(zones_a[zi]['MNUM'])
+            name,code=uqa_name(uqa_code(zones_a[zi]['MNUM']))
             key=(name,code)
             parts[key]=parts.get(key,0.0)+ia
         if parts:
@@ -76,8 +78,7 @@ def run(sgg):
             if not kept: kept={max(parts,key=parts.get):max(parts.values())}
             tot=sum(kept.values())
             rec['용도지역']=sorted(
-                [{'명':(k[0] if k[0] and not str(k[0]).isdigit() else code2name.get(k[1],k[0])),
-                  '코드':k[1],'비중':round(v/tot,4)} for k,v in kept.items()],
+                [{'명':k[0],'코드':k[1],'비중':round(v/tot,4)} for k,v in kept.items()],
                 key=lambda x:-x['비중'])
             if len(rec['용도지역'])>1: multi+=1
         # 개발제한
