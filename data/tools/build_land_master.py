@@ -6,17 +6,20 @@ import sys, json, glob, collections
 sys.path.insert(0,'data/tools')
 from dbf_inspect import read_dbf
 
-# ── 공시지가 시계열 ──
-VINT={'2016':'AL_11_D150_20160921','2020':'AL_11_D150_20200813',
-      '2021':'AL_11_D150_20211123','2026':'AL_D150_11_20260526'}
+# ── 공시지가 시계열 (D150 폴더 자동탐색: AL_*D150*_YYYYMMDD) ──
+import re
 def load_price():
-    ts={}
-    for yr,d in VINT.items():
-        n,f,rows=read_dbf(f"data/raw/{d}/{d}.dbf",('cp949','utf-8'))
+    ts={}; found=[]
+    for dbf in sorted(glob.glob("data/raw/*D150*/*.dbf")):
+        m=re.search(r'(\d{4})\d{4}', dbf.rsplit('/',1)[-1])  # 폴더/파일명 내 YYYYMMDD → 연도
+        if not m: continue
+        yr=m.group(1); found.append(yr)
+        n,f,rows=read_dbf(dbf,('cp949','utf-8'))
         for r in rows():
             try: iv=int(str(r['A9']).strip() or 0)
             except: iv=0
             if iv>0: ts.setdefault(r['A0'],{})[yr]=iv
+    print(f"  공시지가 판 {len(found)}개: {sorted(found)}")
     return ts
 
 def main():
