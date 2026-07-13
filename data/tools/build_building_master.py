@@ -58,7 +58,7 @@ def main():
     landset=set(larea)
     print("표제부 조립…")
     out=open("data/tools/_building_master.jsonl","w")
-    N=0; src=collections.Counter()
+    N=0; src=collections.Counter(); clean_cnt=collections.Counter()
     has_pnu=has_land=has_area=has_far=0
     with open("data/raw/seoul/mart_djy_03_seoul.txt",'rb') as f:
         for line in f:
@@ -74,27 +74,43 @@ def main():
                 area,bcr,far,s=fnum(p[25]),fnum(p[27]),fnum(p[30]),'표제부'
             if area==0 and pnu in larea and larea[pnu]>0:
                 area,s=larea[pnu],'토지특성'
+            # ── 클린징(B안): 고범위 이탈(오류)만 재계산/무효. 0·결측은 손대지 않음 ──
+            pyo_dae=fnum(p[25]); 건축면적=fnum(p[26]); 용적산정=fnum(p[29])
+            clean='원본'
+            if bcr is not None and bcr>100:       # 건폐율>100% = 원본오류
+                fix=round(건축면적/pyo_dae*100,2) if pyo_dae>0 and 건축면적>0 else 0
+                if 0<fix<=100: bcr,clean=fix,'재계산'
+                else: bcr,clean=None,'무효'
+            if far is not None and far>2000:      # 용적률>2000% = 원본오류
+                fix=round(용적산정/pyo_dae*100,2) if pyo_dae>0 and 용적산정>0 else 0
+                if 0<fix<=2000: far=fix; clean=('재계산' if clean!='무효' else clean)
+                else: far,clean=None,'무효'
+            # 사용승인일 유효성
+            sd=p[60].strip()
+            if not (len(sd)==8 and sd.isdigit() and '19000101'<=sd<='20260713'): sd=None
             rec={
                 'PK':p[0], '대장구분':p[2], '주소':p[5], '도로명주소':p[6],
                 'PNU':pnu,
-                '대지면적':round(area,2),'건폐율':round(bcr,2),'용적률':round(far,2),
-                '대지건폐용적_출처':s,
+                '대지면적':round(area,2),'건폐율':bcr,'용적률':far,
+                '건축면적':round(건축면적,2) if 건축면적>0 else None,
+                '대지건폐용적_출처':s,'건폐용적_클린':clean,
                 '연면적':fnum(p[28]), '주용도코드':p[34],'주용도':p[35],'기타용도':p[36],
                 '구조':p[32], '지상층수':int(fnum(p[43])),'지하층수':int(fnum(p[44])),
-                '사용승인일':p[60].strip(),
+                '사용승인일':sd,
                 '최근대수선일': (ds.get(pnu) or {}).get('최근대수선일') if pnu else None,
                 '대수선건수': (ds.get(pnu) or {}).get('대수선건수', 0) if pnu else 0,
             }
             out.write(json.dumps(rec,ensure_ascii=False)+"\n")
-            src[s]+=1
+            src[s]+=1; clean_cnt[clean]+=1
             if pnu: has_pnu+=1
             if pnu in landset: has_land+=1
             if area>0: has_area+=1
-            if far>0: has_far+=1
+            if far and far>0: has_far+=1
     out.close()
     print(f"\n건물 마스터 {N:,}동 → _building_master.jsonl")
     print(f"  PNU 조립 {has_pnu:,} ({has_pnu/N*100:.1f}%) · 토지 매칭 {has_land:,} ({has_land/N*100:.1f}%)")
     print(f"  대지면적 확보 {has_area:,} ({has_area/N*100:.1f}%) · 용적률 확보 {has_far:,} ({has_far/N*100:.1f}%)")
     print(f"  대지/건폐/용적 출처: {dict(src)}")
+    print(f"  건폐용적 클린징: {dict(clean_cnt)}")
 
 if __name__=='__main__': main()
