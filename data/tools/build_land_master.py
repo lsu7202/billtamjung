@@ -9,17 +9,22 @@ from dbf_inspect import read_dbf
 # ── 공시지가 시계열 (D150 폴더 자동탐색: AL_*D150*_YYYYMMDD) ──
 import re
 def load_price():
-    ts={}; found=[]
+    # 연도별 최신 날짜 판만 선택 (같은 연도 여러 판이면 정정 최신본)
+    byyear={}
     for dbf in sorted(glob.glob("data/raw/*D150*/*.dbf")):
-        m=re.search(r'(\d{4})\d{4}', dbf.rsplit('/',1)[-1])  # 폴더/파일명 내 YYYYMMDD → 연도
+        m=re.search(r'(\d{4})(\d{4})', dbf.rsplit('/',1)[-1])
         if not m: continue
-        yr=m.group(1); found.append(yr)
+        yr, mmdd = m.group(1), m.group(2)
+        if yr not in byyear or mmdd>byyear[yr][0]: byyear[yr]=(mmdd,dbf)
+    ts={}
+    for yr in sorted(byyear):
+        dbf=byyear[yr][1]
         n,f,rows=read_dbf(dbf,('cp949','utf-8'))
         for r in rows():
             try: iv=int(str(r['A9']).strip() or 0)
             except: iv=0
             if iv>0: ts.setdefault(r['A0'],{})[yr]=iv
-    print(f"  공시지가 판 {len(found)}개: {sorted(found)}")
+    print(f"  공시지가 판 {len(byyear)}개년: {sorted(byyear)}")
     return ts
 
 def main():
