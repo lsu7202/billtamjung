@@ -8,3 +8,4 @@ tools/_land_master.jsonl
 tools/_building_master.jsonl
 tools/_transit_*.jsonl
 tools/_integrated.jsonl
+tools/_sales_*.json

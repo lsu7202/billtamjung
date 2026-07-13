@@ -17,6 +17,8 @@ def main():
          '공시지가','용도지역','용도지역_대표','개발제한비중'])
     transit=load_by_pnu("data/tools/_transit_ALL.jsonl",
         ['역과의거리','주변지하철','주변버스'])
+    aplus=json.load(open("data/tools/_sales_aplus.json"))    # PK → 추정 매각이력
+    area=json.load(open("data/tools/_sales_area.json"))      # 법정동코드 → 동 시세
     out=open("data/tools/_integrated.jsonl","w")
     N=0; hl=ht=hboth=0
     for line in open("data/tools/_building_master.jsonl"):
@@ -44,8 +46,9 @@ def main():
             '역과의거리':Tr['역과의거리'] if Tr else None,
             '주변지하철':Tr['주변지하철'] if Tr else None,
             '주변버스':Tr['주변버스'] if Tr else None,
-            # ── 매각(미확보) ──
-            '매각이력':None,
+            # ── 매각 ──
+            '매각이력_추정': aplus.get(b['PK']),                       # A+ (지번마스킹→추정)
+            '동매각시세': area.get(pnu[:10]) if pnu else None,          # A (법정동 통건물 집계)
         }
         out.write(json.dumps(rec,ensure_ascii=False)+"\n")
         if L: hl+=1
