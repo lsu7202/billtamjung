@@ -6,3 +6,4 @@
 tools/_spatial_*.json
 tools/_land_master.jsonl
 tools/_building_master.jsonl
+tools/_transit_*.jsonl
