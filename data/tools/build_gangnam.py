@@ -79,7 +79,7 @@ def main():
           '용적률산정연면적','지상층수','지하층수','엘리베이터','주차','사용승인일','최근대수선일','층별개요_프리필']
         +['공시지가_'+y for y in YEARS]+['공시지가_최신','상승률_5년','상승률_10년']
         +['역과의거리','최근접역','지하철수','최근접버스','버스수','주변지하철_전체','주변버스_전체']
-        +['매각횟수','최근매각_년월','최근매각_금액','최근매각_단가'])
+        +['매각횟수','최근매각_년월','최근매각_금액','최근매각_단가','매각이력_전체'])
 
     out=open("data/exports/강남_전체.csv","w",newline='',encoding='utf-8-sig')
     w=csv.writer(out); w.writerow(cols); n=0
@@ -119,7 +119,8 @@ def main():
             json.dumps(subs,ensure_ascii=False) if subs else None,
             json.dumps(buses,ensure_ascii=False) if buses else None,
             len(ap),(ap[-1]['계약년월'] if ap else None),(ap[-1]['금액'] if ap else None),
-            (ap[-1]['단가_연면적'] if ap else None)]
+            (ap[-1]['단가_연면적'] if ap else None),
+            json.dumps(ap,ensure_ascii=False) if ap else None]
         w.writerow(row)
     out.close()
     print(f"강남 {n:,}동 → data/exports/강남_전체.csv ({len(cols)}개 필드)")
