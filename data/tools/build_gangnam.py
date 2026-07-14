@@ -4,8 +4,27 @@
 출력: data/exports/강남_전체.csv (utf-8-sig, 엑셀 바로 열림).
 """
 import json, csv, collections
+import shapefile
+from shapely.geometry import shape
+from pyproj import Transformer
 
 SGG='11680'
+_T4326 = Transformer.from_crs(5174, 4326, always_xy=True)  # 5174→WGS84(경위도)
+
+def load_coords(sgg):
+    """강남 필지 중심점 → (x=경도, y=위도)."""
+    r=shapefile.Reader("data/raw/LSMD_CONT_LDREG_5174_서울/LSMD_CONT_LDREG_5174_11_202606",encoding='cp949')
+    idx=[f[0] for f in r.fields[1:]].index('PNU')
+    out={}
+    for sr in r.iterShapeRecords():
+        pnu=sr.record[idx]
+        if not pnu.startswith(sgg): continue
+        try:
+            c=shape(sr.shape.__geo_interface__).representative_point()
+            lon,lat=_T4326.transform(c.x,c.y)
+            out[pnu]=(round(lon,6),round(lat,6))
+        except: continue
+    return out
 def load_jsonl_by_pnu(path, keys):
     d={}
     for line in open(path):
@@ -38,12 +57,12 @@ def main():
         b=json.loads(line)
         if (b.get('PNU') or '').startswith(SGG): gpks.add(b['PK'])
     print(f"층별개요 프리필 로드({len(gpks):,} PK)…"); floors=load_floors(gpks)
+    print("필지 좌표 로드…"); coords=load_coords(SGG)
     spatial=json.load(open("data/tools/_spatial_ALL.json"))
     transit=load_jsonl_by_pnu("data/tools/_transit_ALL.jsonl",['역과의거리','주변지하철','주변버스'])
     legal=json.load(open(f"data/tools/_legal_{SGG}.json"))
     reg=json.load(open(f"data/tools/_regulations_{SGG}.json"))
     aplus=json.load(open("data/tools/_sales_aplus.json"))
-    area=json.load(open("data/tools/_sales_area.json"))
 
     def yongdo(pnu):
         z=spatial.get(pnu,{}).get('용도지역')
@@ -59,8 +78,8 @@ def main():
         +['대장구분','주용도','기타용도','구조','연면적','건축면적','대지면적','건폐율','용적률','용적여유분',
           '용적률산정연면적','지상층수','지하층수','엘리베이터','주차','사용승인일','최근대수선일','층별개요_프리필']
         +['공시지가_'+y for y in YEARS]+['공시지가_최신','상승률_5년','상승률_10년']
-        +['역과의거리','최근접역','지하철수','최근접버스','버스수']
-        +['매각횟수','최근매각_년월','최근매각_금액','최근매각_단가','동시세_건수','동시세_거래금액중앙','동시세_단가중앙'])
+        +['역과의거리','최근접역','지하철수','최근접버스','버스수','주변지하철_전체','주변버스_전체']
+        +['매각횟수','최근매각_년월','최근매각_금액','최근매각_단가'])
 
     out=open("data/exports/강남_전체.csv","w",newline='',encoding='utf-8-sig')
     w=csv.writer(out); w.writerow(cols); n=0
@@ -81,8 +100,8 @@ def main():
             except: pass
         subs=Tr.get('주변지하철') or []; buses=Tr.get('주변버스') or []
         ap=aplus.get(b['PK']) or []
-        a=area.get(pnu[:10]) or {}
-        row=[b['PK'],pnu,'강남구',pnu[:10],b['주소'],b['도로명주소'],None,None,
+        xy=coords.get(pnu, (None,None))
+        row=[b['PK'],pnu,'강남구',pnu[:10],b['주소'],b['도로명주소'],xy[0],xy[1],
             L.get('지목'),L.get('면적'),L.get('토지이용상황'),L.get('지형형상'),L.get('도로접면'),L.get('지세'),
             yongdo(pnu),lg.get('법정건폐율'),lg.get('법정용적률'),lg.get('적용방식'),
             rg.get('고도지구',''),rg.get('지구단위계획',''),rg.get('정비구역',''),rg.get('경관지구',''),
@@ -97,9 +116,10 @@ def main():
             len(subs),
             (f"{buses[0]['정류장명']} {buses[0]['거리']}m" if buses else None),
             len(buses),
+            json.dumps(subs,ensure_ascii=False) if subs else None,
+            json.dumps(buses,ensure_ascii=False) if buses else None,
             len(ap),(ap[-1]['계약년월'] if ap else None),(ap[-1]['금액'] if ap else None),
-            (ap[-1]['단가_연면적'] if ap else None),
-            a.get('건수'),a.get('거래금액_중앙'),a.get('단가연면적_중앙')]
+            (ap[-1]['단가_연면적'] if ap else None)]
         w.writerow(row)
     out.close()
     print(f"강남 {n:,}동 → data/exports/강남_전체.csv ({len(cols)}개 필드)")
