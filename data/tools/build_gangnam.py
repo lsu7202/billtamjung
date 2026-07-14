@@ -13,10 +13,31 @@ def load_jsonl_by_pnu(path, keys):
         if r.get('PNU','').startswith(SGG): d[r['PNU']]={k:r.get(k) for k in keys}
     return d
 
+def load_floors(pks):
+    """층별개요 djy_04 → PK별 층별 프리필 [{층,용도,면적}]. 강남 PK만."""
+    fl={}
+    with open("data/raw/seoul/mart_djy_04_seoul.txt",'rb') as f:
+        for line in f:
+            p=line.rstrip(b'\r\n').split(b'|')
+            pk=p[0].decode('utf-8',errors='replace')
+            if pk not in pks: continue
+            try:
+                층=p[21].decode('utf-8',errors='replace'); 용도=p[26].decode('utf-8',errors='replace')
+                면적=float(p[28] or 0)
+            except: continue
+            fl.setdefault(pk,[]).append({'층':층,'용도':용도,'면적':round(면적,2)})
+    return fl
+
 def main():
     print("소스 로드…")
     land=load_jsonl_by_pnu("data/tools/_land_master.jsonl",
         ['지목','면적','토지이용상황','지세','지형형상','도로접면','공시지가'])
+    # 강남 PK 집합 → 층별개요 프리필
+    gpks=set()
+    for line in open("data/tools/_building_master.jsonl"):
+        b=json.loads(line)
+        if (b.get('PNU') or '').startswith(SGG): gpks.add(b['PK'])
+    print(f"층별개요 프리필 로드({len(gpks):,} PK)…"); floors=load_floors(gpks)
     spatial=json.load(open("data/tools/_spatial_ALL.json"))
     transit=load_jsonl_by_pnu("data/tools/_transit_ALL.jsonl",['역과의거리','주변지하철','주변버스'])
     legal=json.load(open(f"data/tools/_legal_{SGG}.json"))
@@ -36,7 +57,7 @@ def main():
         +['용도지역','법정건폐율','법정용적률','법정_적용방식',
           '고도지구','지구단위계획','정비구역','경관지구','방화지구','문화재보존','개발제한']
         +['대장구분','주용도','기타용도','구조','연면적','건축면적','대지면적','건폐율','용적률','용적여유분',
-          '지상층수','지하층수','사용승인일','최근대수선일']
+          '용적률산정연면적','지상층수','지하층수','엘리베이터','주차','사용승인일','최근대수선일','층별개요_프리필']
         +['공시지가_'+y for y in YEARS]+['공시지가_최신','상승률_5년','상승률_10년']
         +['역과의거리','최근접역','지하철수','최근접버스','버스수']
         +['매각횟수','최근매각_년월','최근매각_금액','최근매각_단가','동시세_건수','동시세_거래금액중앙','동시세_단가중앙'])
@@ -67,7 +88,9 @@ def main():
             rg.get('고도지구',''),rg.get('지구단위계획',''),rg.get('정비구역',''),rg.get('경관지구',''),
             rg.get('방화지구',''),rg.get('문화재보존',''),spatial.get(pnu,{}).get('개발제한비중',0),
             b['대장구분'],b['주용도'],b['기타용도'],b['구조'],b['연면적'],b.get('건축면적'),b['대지면적'],
-            b['건폐율'],far,여유,b['지상층수'],b['지하층수'],b['사용승인일'],b.get('최근대수선일'),
+            b['건폐율'],far,여유,b.get('용적률산정연면적'),b['지상층수'],b['지하층수'],
+            b.get('엘리베이터'),b.get('주차'),b['사용승인일'],b.get('최근대수선일'),
+            json.dumps(floors.get(b['PK'],[]),ensure_ascii=False) if floors.get(b['PK']) else None,
             *[gj.get(y) for y in YEARS],latest,up5,up10,
             Tr.get('역과의거리'),
             (f"{subs[0]['역명']}({subs[0]['호선']}) 도보{subs[0]['도보']}분" if subs else None),
