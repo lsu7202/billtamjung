@@ -1,7 +1,7 @@
 # S01b 상세검색(필터 모달) — 설계
 
 > **상태**: 1차 검수 완료 (2026-07-04). 목업 `_mockups/S01b.html` 기준.
-> 데이터 근거: `04-data/data-dictionary.md` · 값: `04-data/enums.md`.
+> 데이터 근거: `04-data/data-overview.md` · 값: `04-data/enums.md`.
 
 ---
 
