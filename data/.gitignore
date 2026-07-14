@@ -10,3 +10,6 @@ tools/_transit_*.jsonl
 tools/_integrated.jsonl
 tools/_sales_*.json
 빌탐정.db
+tools/_regulations_*.json
+tools/_legal_*.json
+exports/

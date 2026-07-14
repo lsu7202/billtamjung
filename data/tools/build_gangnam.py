@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""강남(11680) 통합 샘플 — 새 필드 구조(schema.md v0)로 전 필드 CSV.
+소스: 건물·토지 마스터 + 교통 + 매각(A+/A) + 법정치 + 규제.
+출력: data/exports/강남_전체.csv (utf-8-sig, 엑셀 바로 열림).
+"""
+import json, csv, collections
+
+SGG='11680'
+def load_jsonl_by_pnu(path, keys):
+    d={}
+    for line in open(path):
+        r=json.loads(line)
+        if r.get('PNU','').startswith(SGG): d[r['PNU']]={k:r.get(k) for k in keys}
+    return d
+
+def main():
+    print("소스 로드…")
+    land=load_jsonl_by_pnu("data/tools/_land_master.jsonl",
+        ['지목','면적','토지이용상황','지세','지형형상','도로접면','공시지가'])
+    spatial=json.load(open("data/tools/_spatial_ALL.json"))
+    transit=load_jsonl_by_pnu("data/tools/_transit_ALL.jsonl",['역과의거리','주변지하철','주변버스'])
+    legal=json.load(open(f"data/tools/_legal_{SGG}.json"))
+    reg=json.load(open(f"data/tools/_regulations_{SGG}.json"))
+    aplus=json.load(open("data/tools/_sales_aplus.json"))
+    area=json.load(open("data/tools/_sales_area.json"))
+
+    def yongdo(pnu):
+        z=spatial.get(pnu,{}).get('용도지역')
+        if not z: return None
+        if len(z)==1: return z[0]['명']
+        return " + ".join(f"{x['명']} {round(x['비중']*100)}%" for x in z)
+
+    YEARS=[str(y) for y in range(2016,2027)]
+    cols=(['PK','PNU','시군구','법정동','주소','도로명주소','x','y']
+        +['지목','토지면적','토지이용상황','지형형상','도로접면','지세']
+        +['용도지역','법정건폐율','법정용적률','법정_적용방식',
+          '고도지구','지구단위계획','정비구역','경관지구','방화지구','문화재보존','개발제한']
+        +['대장구분','주용도','기타용도','구조','연면적','건축면적','대지면적','건폐율','용적률','용적여유분',
+          '지상층수','지하층수','사용승인일','최근대수선일']
+        +['공시지가_'+y for y in YEARS]+['공시지가_최신','상승률_5년','상승률_10년']
+        +['역과의거리','최근접역','지하철수','최근접버스','버스수']
+        +['매각횟수','최근매각_년월','최근매각_금액','최근매각_단가','동시세_건수','동시세_거래금액중앙','동시세_단가중앙'])
+
+    out=open("data/exports/강남_전체.csv","w",newline='',encoding='utf-8-sig')
+    w=csv.writer(out); w.writerow(cols); n=0
+    for line in open("data/tools/_building_master.jsonl"):
+        b=json.loads(line); pnu=b['PNU']
+        if not pnu or not pnu.startswith(SGG): continue
+        n+=1
+        L=land.get(pnu,{}); Tr=transit.get(pnu,{}); lg=legal.get(pnu,{}); rg=reg.get(pnu,{})
+        gj=L.get('공시지가') or {}
+        # 공시지가 상승률
+        latest=gj.get('2026'); p5=gj.get('2021'); p10=gj.get('2016')
+        up5=round((latest-p5)/p5*100,1) if latest and p5 else None
+        up10=round((latest-p10)/p10*100,1) if latest and p10 else None
+        far=b.get('용적률'); lf=lg.get('법정용적률')
+        여유=None
+        if far and lf and ',' not in lf:  # 병기 아닐 때만 여유분
+            try: 여유=round(float(lf.rstrip('%'))-far,1)
+            except: pass
+        subs=Tr.get('주변지하철') or []; buses=Tr.get('주변버스') or []
+        ap=aplus.get(b['PK']) or []
+        a=area.get(pnu[:10]) or {}
+        row=[b['PK'],pnu,'강남구',pnu[:10],b['주소'],b['도로명주소'],None,None,
+            L.get('지목'),L.get('면적'),L.get('토지이용상황'),L.get('지형형상'),L.get('도로접면'),L.get('지세'),
+            yongdo(pnu),lg.get('법정건폐율'),lg.get('법정용적률'),lg.get('적용방식'),
+            rg.get('고도지구',''),rg.get('지구단위계획',''),rg.get('정비구역',''),rg.get('경관지구',''),
+            rg.get('방화지구',''),rg.get('문화재보존',''),spatial.get(pnu,{}).get('개발제한비중',0),
+            b['대장구분'],b['주용도'],b['기타용도'],b['구조'],b['연면적'],b.get('건축면적'),b['대지면적'],
+            b['건폐율'],far,여유,b['지상층수'],b['지하층수'],b['사용승인일'],b.get('최근대수선일'),
+            *[gj.get(y) for y in YEARS],latest,up5,up10,
+            Tr.get('역과의거리'),
+            (f"{subs[0]['역명']}({subs[0]['호선']}) 도보{subs[0]['도보']}분" if subs else None),
+            len(subs),
+            (f"{buses[0]['정류장명']} {buses[0]['거리']}m" if buses else None),
+            len(buses),
+            len(ap),(ap[-1]['계약년월'] if ap else None),(ap[-1]['금액'] if ap else None),
+            (ap[-1]['단가_연면적'] if ap else None),
+            a.get('건수'),a.get('거래금액_중앙'),a.get('단가연면적_중앙')]
+        w.writerow(row)
+    out.close()
+    print(f"강남 {n:,}동 → data/exports/강남_전체.csv ({len(cols)}개 필드)")
+
+if __name__=='__main__': main()
