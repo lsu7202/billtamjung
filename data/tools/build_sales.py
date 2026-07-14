@@ -39,7 +39,7 @@ def main():
         if b['대장구분']!='일반': continue          # 통건물 후보만
         pnu=b['PNU']
         if not pnu or b['대지면적']<=0 or b['연면적']<=0: continue
-        yr=b['사용승인일'][:4]
+        yr=(b['사용승인일'] or '')[:4]
         bybjd[pnu[:10]].append((b['PK'], b['대지면적'], b['연면적'],
                                 int(yr) if yr.isdigit() else None, b['주소'], b['주용도']))
 
@@ -92,31 +92,20 @@ def main():
 
     print(f"실거래 총 {n_all:,}건 (상업업무용 {cat_cnt['F']:,} + 단독다가구 {cat_cnt['C']:,} · 해제제외 {n_haeje:,})")
     print(f"  통건물 {n_whole:,} · 그중 지분 {n_jibun:,}")
-    print(f"  A(동집계): {len(A):,}개 법정동에 거래 분포")
     tot=unique+multi+none
-    print(f"\nA+ 매칭 대상(통건물·비지분·대지+연면적+건축년도 완비) {tot:,}건:")
+    print(f"\n추정 매칭 대상(통건물·비지분·대지+연면적+건축년도 완비) {tot:,}건:")
     print(f"  단일확정 {unique:,} ({unique/tot*100:.1f}%) [정밀 {tier_cnt['정밀']:,} + 완화 {tier_cnt['완화']:,}] · 다중후보 {multi:,} ({multi/tot*100:.1f}%) · 무매칭 {none:,} ({none/tot*100:.1f}%)")
-    print("\n[A+ 단일확정 예시 5]")
     for rec,h in matched[:5]:
         print(f"  {h[1]} {h[2]} | 실거래 {rec['계약년월']} {rec['금액']:,}원 (대지{rec['대지']}·연{rec['연면적']}·{rec['건축년도']}년)")
-        print(f"      ↔ 건물 대지{h[3]:.0f}·연{h[4]:.0f}·승인{h[5]}")
 
-    # ── 저장: A+(PK→추정 매각이력), A(법정동→시세집계) ──
-    aplus=collections.defaultdict(list)
+    # ── 저장: 건물별 추정 매각이력 (PK→이력). 유저 수정 가능. ──
+    # 주변 매각시세는 반경 기반(S03에서 조회) — 동 집계(동시세) 폐기.
+    est=collections.defaultdict(list)
     for rec,h in matched:
-        aplus[h[0]].append({'계약년월':rec['계약년월'],'금액':rec['금액'],
+        est[h[0]].append({'계약년월':rec['계약년월'],'금액':rec['금액'],
             '연면적':rec['연면적'],'대지':rec['대지'],'단가_연면적':round(rec['금액']/rec['연면적']) if rec['연면적'] else None})
-    for pk in aplus: aplus[pk].sort(key=lambda x:x['계약년월'])
-    json.dump(aplus, open("data/tools/_sales_aplus.json",'w'), ensure_ascii=False)
-
-    area={}
-    for code,recs in A.items():
-        ilban=[x for x in recs if x['유형']=='일반' and x['금액'] and x['연면적']]
-        if not ilban: continue
-        amts=[x['금액'] for x in ilban]; units=[x['금액']/x['연면적'] for x in ilban]
-        area[code]={'건수':len(ilban),'거래금액_중앙':int(statistics.median(amts)),
-                    '단가연면적_중앙':int(statistics.median(units))}
-    json.dump(area, open("data/tools/_sales_area.json",'w'), ensure_ascii=False)
-    print(f"\n저장: _sales_aplus.json ({len(aplus):,}동에 추정이력) · _sales_area.json ({len(area):,}법정동 시세)")
+    for pk in est: est[pk].sort(key=lambda x:x['계약년월'])
+    json.dump(est, open("data/tools/_sales_est.json",'w'), ensure_ascii=False)
+    print(f"\n저장: _sales_est.json ({len(est):,}동에 추정 매각이력)")
 
 if __name__=='__main__': main()

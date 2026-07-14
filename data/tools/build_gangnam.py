@@ -62,7 +62,7 @@ def main():
     transit=load_jsonl_by_pnu("data/tools/_transit_ALL.jsonl",['역과의거리','주변지하철','주변버스'])
     legal=json.load(open(f"data/tools/_legal_{SGG}.json"))
     reg=json.load(open(f"data/tools/_regulations_{SGG}.json"))
-    aplus=json.load(open("data/tools/_sales_aplus.json"))
+    aplus=json.load(open("data/tools/_sales_est.json"))
 
     def yongdo(pnu):
         z=spatial.get(pnu,{}).get('용도지역')
