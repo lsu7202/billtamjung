@@ -228,7 +228,7 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
 
       <!-- 금액정보 -->
       <div class="block" data-grp="deal">
-        <div class="sec-head">금액정보 <div class="right"><button class="btn" onclick="openCalc()">계산기</button></div></div>
+        <div class="sec-head">금액정보</div>
         <div class="kv-grid">
           <div class="kv"><span class="k">매매가</span><span class="v">100억</span></div>
           <div class="kv"><span class="k">수익률</span><span class="v calc">3.2% <small style="color:#8a929b;font-weight:400">/ 2.1%</small></span></div>
@@ -238,6 +238,9 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
           <div class="kv"><span class="k">총임대료</span><span class="v">2,250만원</span></div>
           <div class="kv"><span class="k">총관리비</span><span class="v">265만원</span></div>
           <div class="kv"><span class="k">총공실</span><span class="v">있음</span></div>
+          <div class="kv"><span class="k">순임대수익(월)</span><span class="v calc">1,985만원</span></div>
+          <div class="kv"><span class="k">자기자본</span><span class="v"><input class="input sm" style="max-width:130px" placeholder="입력"></span></div>
+          <div class="kv"><span class="k">대출 이자(월)</span><span class="v"><input class="input sm" style="max-width:130px" placeholder="입력"></span></div>
           <div class="kv"><span class="k">자기자본 수익률</span><span class="v calc">3.10%</span></div>
         </div>
       </div>
@@ -387,7 +390,7 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
         </div>
       </div>
 
-      <!-- 주변임대시세 (계산기: 금액 계산기와 별개!) -->
+      <!-- 주변임대시세 (S03 반경 기반 계산기) -->
       <div class="block" data-grp="deal">
         <div class="sec-head">주변임대시세 <div class="right"><button class="btn" onclick="openSevse()">주변시세 계산기</button></div></div>
         <table class="wf matrix">
@@ -508,42 +511,6 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
 
   </div><!-- /detail-body -->
 
-</div>
-
-<!-- M01 금액 계산기 (층별정보 → 수익률) -->
-<div class="modal-bg" id="calc">
-  <div class="modal">
-    <h3>금액 계산기 <span style="font-size:12px;color:#888;font-weight:400;margin-left:8px">층별정보 → 수익률 산출</span>
-      <div class="right"><button class="btn" onclick="closeModal('calc')">취소</button><button class="btn primary" onclick="closeModal('calc')">확인</button></div></h3>
-    <div class="block">
-      <div class="sec-head">층별 정보 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">시뮬레이션 · 저장 안 됨</span></div>
-      <table class="wf"><thead><tr><th>층</th><th>호실</th><th class="num">보증금</th><th class="num">임대료</th><th class="num">관리비</th><th>공실상태</th><th></th></tr></thead>
-        <tbody>
-          <tr class="is-vacant"><td>2층</td><td>201호</td><td><input class="cell" value="2억"></td><td><input class="cell" value="800만"></td><td><input class="cell" value="150만"></td><td><button class="vac-toggle vacant">공실</button></td><td class="num"><span class="x">×</span></td></tr>
-          <tr><td rowspan="2">1층</td><td>101호</td><td><input class="cell" value="2억"></td><td><input class="cell" value="600만"></td><td><input class="cell" value="100만"></td><td><button class="vac-toggle">임대중</button></td><td class="num"><span class="x">×</span></td></tr>
-          <tr><td>102호</td><td><input class="cell" value="1억"></td><td><input class="cell" value="400만"></td><td><input class="cell" value="50만"></td><td><button class="vac-toggle">임대중</button></td><td class="num"><span class="x">×</span></td></tr>
-        </tbody></table>
-      <div style="padding:10px 14px"><button class="btn">＋ 호실 추가</button></div>
-    </div>
-    <div class="block">
-      <div class="sec-head">결과</div>
-      <div class="calc-hero">
-        <div class="h"><div class="k">수익률(만실)</div><div class="val">3.2% <small style="font-size:14px;color:#8a929b">/ 2.1%</small></div></div>
-        <div class="h sub"><div class="k">자기자본수익률</div><div class="val">3.10%</div></div>
-      </div>
-      <div class="kv-grid">
-        <div class="kv"><span class="k">매매가</span><span class="v">100억</span></div>
-        <div class="kv"><span class="k">총공실</span><span class="v calc">2층 (1개)</span></div>
-        <div class="kv"><span class="k">자기자본</span><input class="input sm" style="max-width:150px" placeholder="입력"></div>
-        <div class="kv"><span class="k">총보증금</span><span class="v calc">5억</span></div>
-        <div class="kv"><span class="k">대출 이자(월)</span><input class="input sm" style="max-width:150px" placeholder="입력"></div>
-        <div class="kv"><span class="k">총임대료</span><span class="v calc">1,800만</span></div>
-        <div class="kv"><span class="k">순임대수익(월)</span><span class="v calc">1,500만</span></div>
-        <div class="kv"><span class="k">총관리비</span><span class="v calc">300만</span></div>
-      </div>
-      <div class="calc-formula">수익률 = (총임대료 − 총관리비) × 12 ÷ 매매가 (공실 호실 임대료 제외) · 만실 = 공실 없다 가정한 최대 · 자기자본수익률 = 순임대수익 ÷ 자기자본</div>
-    </div>
-  </div>
 </div>
 
 <!-- M02 = S03 주변임대시세 분석 (지도 반경 → 조회 → 노이즈 수정 → 평균 등록) -->
@@ -869,7 +836,6 @@ function renderChart(svg,data,o){
   renderChart(document.querySelector('#blk-gwanggo svg'),gwanggo,{yTitle:'광고가(억)',xTitle:'업데이트일',fmt:fmtUk,trend:aR,metric:am});
 })();
 
-function openCalc(){document.getElementById('calc').classList.add('open');}
 function openSevse(){document.getElementById('sevse').classList.add('open');}
 function openWiki(){document.getElementById('wiki').classList.add('open');}
 function openAd(){document.getElementById('admodal').classList.add('open');}
