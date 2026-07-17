@@ -238,10 +238,22 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
           <div class="kv"><span class="k">총임대료</span><span class="v">2,250만원</span></div>
           <div class="kv"><span class="k">총관리비</span><span class="v">265만원</span></div>
           <div class="kv"><span class="k">총공실</span><span class="v">있음</span></div>
-          <div class="kv"><span class="k">순임대수익(월)</span><span class="v calc">1,985만원</span></div>
-          <div class="kv"><span class="k">자기자본</span><span class="v"><input class="input sm" style="max-width:130px" placeholder="입력"></span></div>
-          <div class="kv"><span class="k">대출 이자(월)</span><span class="v"><input class="input sm" style="max-width:130px" placeholder="입력"></span></div>
-          <div class="kv"><span class="k">자기자본 수익률</span><span class="v calc">3.10%</span></div>
+        </div>
+      </div>
+
+      <!-- 투자 분석 (레버리지) — 기본 접힘 · 매수자 가정값 -->
+      <div class="block" data-grp="deal">
+        <div class="sec-head">투자 분석 <small style="font-size:12px;color:#8a929b;font-weight:400;margin-left:6px">레버리지 · 내 가정값</small>
+          <div class="right"><button class="btn" onclick="toggleInvest(this)">＋ 펼치기</button></div>
+        </div>
+        <div id="invest-body" class="hidden">
+          <div class="kv-grid" style="border-bottom:1px solid #eef0f3">
+            <div class="kv"><span class="k">자기자본</span><span class="v"><input class="input sm" style="max-width:120px" value="50억"></span></div>
+            <div class="kv"><span class="k">대출 이자(월)</span><span class="v"><input class="input sm" style="max-width:120px" value="1,600만"></span></div>
+          </div>
+          <div class="kv-grid">
+            <div class="kv"><span class="k">자기자본 수익률</span><span class="v calc">0.9%</span></div>
+          </div>
         </div>
       </div>
 
@@ -840,6 +852,7 @@ function openSevse(){document.getElementById('sevse').classList.add('open');}
 function openWiki(){document.getElementById('wiki').classList.add('open');}
 function openAd(){document.getElementById('admodal').classList.add('open');}
 function openParcels(){document.getElementById('parcels').classList.add('open');}
+function toggleInvest(btn){const b=document.getElementById('invest-body');const open=b.classList.toggle('hidden');btn.textContent=open?'＋ 펼치기':'− 접기';}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 </script>
 </body>
