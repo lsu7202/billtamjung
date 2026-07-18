@@ -30,17 +30,24 @@ def load_chg():
     return d
 
 def load_daesuseon():
-    """kcy_05 대수선 인허가 → PNU→{최근대수선일, 건수}. (2022 누적편중 주의)"""
+    """kcy_01 인허가 → PNU→{최근대수선일, 건수}.
+    건축구분(20) ∈ {증축·개축·재축·대수선·이전}(신축·용도변경·발코니·행정변경·가설 제외).
+    날짜 = 사용승인일(37) 우선, 없으면 허가일(38). idx40=20220813 오염 회피(구 kcy_05 idx15 폐기)."""
+    TARGET={'증축','개축','재축','대수선','이전'}
+    def dig(s):
+        s=''.join(ch for ch in (s or '') if ch.isdigit()); return s if len(s)==8 else None
     latest={}; cnt=collections.Counter()
-    with open("data/raw/seoul/mart_kcy_05_seoul.txt",'rb') as f:
+    with open("data/raw/mart_kcy_01.txt", encoding='utf-8', errors='replace') as f:
         for line in f:
-            p=[x.decode('utf-8',errors='replace') for x in line.rstrip(b'\r\n').split(b'|')]
-            pnu=mkpnu(p[3],p[4],p[5],p[6],p[7])
+            c=line.rstrip('\n').split('|')
+            if len(c)<41 or not c[3].startswith('11'): continue      # 서울
+            if c[20].strip() not in TARGET: continue
+            pnu=mkpnu(c[3],c[4],c[5],c[6],c[7])
             if not pnu: continue
-            d=p[15].strip()
-            if len(d)==8 and d.isdigit():
-                cnt[pnu]+=1
-                if pnu not in latest or d>latest[pnu]: latest[pnu]=d
+            d=dig(c[37]) or dig(c[38])
+            if not d: continue
+            cnt[pnu]+=1
+            if pnu not in latest or d>latest[pnu]: latest[pnu]=d
     return {pnu:{'최근대수선일':latest[pnu],'대수선건수':cnt[pnu]} for pnu in latest}
 
 def load_land_area():
