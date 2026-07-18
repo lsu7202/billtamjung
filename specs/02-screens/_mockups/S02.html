@@ -9,6 +9,8 @@
 /* 매물사진 인덱스 */
 .photo-panel{padding:12px}
 .seg-photo button{font-size:13px}
+td.adr{color:#1a4fc0; cursor:pointer}
+.copy-tel{cursor:pointer; border-bottom:1px dashed #c7ccd3}
 .photo-stage{position:relative; height:300px; border-radius:8px; overflow:hidden; margin-top:10px}
 .photo-view{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#8a929b; font-size:14px; font-weight:600}
 .photo-view[data-v=road]{background:repeating-linear-gradient(45deg,#eef1f5,#eef1f5 10px,#e6eaef 10px,#e6eaef 20px)}
@@ -205,15 +207,15 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
       <div class="panel photo-panel">
         <div class="toolbar" style="margin:0">
           <div class="segmented seg-photo">
-            <button class="active" data-v="road">로드뷰</button>
-            <button data-v="map">지도</button>
+            <button class="active" data-v="map">지도</button>
+            <button data-v="road">로드뷰</button>
             <button data-v="upload">업로드 사진</button>
           </div>
         </div>
         <div class="photo-stage">
-          <div class="photo-view" data-v="road">로드뷰 — 로드뷰로 본 건물</div>
-          <div class="photo-view hidden" data-v="map">지도 — 건물 위치</div>
-          <div class="photo-view hidden" data-v="upload">업로드 사진</div>
+          <div class="photo-view" data-v="map">네이버 지도 — 본매물 마커</div>
+          <div class="photo-view hidden" data-v="road">네이버 파노라마(거리뷰) — 본매물 최근접</div>
+          <div class="photo-view hidden" data-v="upload">업로드 사진 (사적·팀 공유)</div>
           <button class="ph-nav prev">‹</button><button class="ph-nav next">›</button>
           <span class="ph-count">1 / 4</span>
         </div>
@@ -427,10 +429,10 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
         <table class="wf">
           <thead><tr><th style="width:30px" class="num">✓</th><th>층</th><th class="num">계약면적</th><th class="num">보증금</th><th class="num">임대료</th><th class="num">평당보증</th><th class="num">평당임대</th><th>주소</th><th></th></tr></thead>
           <tbody>
-            <tr><td class="num"><input type="checkbox" checked></td><td>1층</td><td class="num">25평</td><td class="num">7,500만</td><td class="num">625만</td><td class="num">300만</td><td class="num">25만</td><td>역삼동 725-3</td><td class="num"><span class="x">×</span></td></tr>
-            <tr><td class="num"><input type="checkbox" checked></td><td>1층</td><td class="num">30평</td><td class="num">9,000만</td><td class="num">700만</td><td class="num">300만</td><td class="num">23만</td><td>역삼동 718-2</td><td class="num"><span class="x">×</span></td></tr>
-            <tr class="outlier"><td class="num"><input type="checkbox"></td><td>1층 <span class="badge-out">이상치</span></td><td class="num">18평</td><td class="num">1억 3천</td><td class="num">1,400만</td><td class="num">720만</td><td class="num">78만</td><td>역삼동 730-1</td><td class="num"><span class="x">×</span></td></tr>
-            <tr><td class="num"><input type="checkbox" checked></td><td>지하1층</td><td class="num">30평</td><td class="num">3,000만</td><td class="num">300만</td><td class="num">100만</td><td class="num">10만</td><td>역삼동 712-9</td><td class="num"><span class="x">×</span></td></tr>
+            <tr><td class="num"><input type="checkbox" checked></td><td>1층</td><td class="num">25평</td><td class="num">7,500만</td><td class="num">625만</td><td class="num">300만</td><td class="num">25만</td><td class="adr">역삼동 725-3</td><td class="num"><span class="x">×</span></td></tr>
+            <tr><td class="num"><input type="checkbox" checked></td><td>1층</td><td class="num">30평</td><td class="num">9,000만</td><td class="num">700만</td><td class="num">300만</td><td class="num">23만</td><td class="adr">역삼동 718-2</td><td class="num"><span class="x">×</span></td></tr>
+            <tr class="outlier"><td class="num"><input type="checkbox"></td><td>1층 <span class="badge-out">이상치</span></td><td class="num">18평</td><td class="num">1억 3천</td><td class="num">1,400만</td><td class="num">720만</td><td class="num">78만</td><td class="adr">역삼동 730-1</td><td class="num"><span class="x">×</span></td></tr>
+            <tr><td class="num"><input type="checkbox" checked></td><td>지하1층</td><td class="num">30평</td><td class="num">3,000만</td><td class="num">300만</td><td class="num">100만</td><td class="num">10만</td><td class="adr">역삼동 712-9</td><td class="num"><span class="x">×</span></td></tr>
           </tbody>
         </table>
         <div class="sec-head" style="font-size:13px">층별 평균 <small style="font-size:11px;color:#aaa;font-weight:400">라이브 · 매물에 등록될 값</small></div>
@@ -446,10 +448,10 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
         <table class="wf">
           <thead><tr><th style="width:30px" class="num">✓</th><th>주소</th><th class="num">거리</th><th>거래일</th><th class="num">매각가</th><th class="num">연면적</th><th class="num">연면적 평단가</th><th></th></tr></thead>
           <tbody>
-            <tr><td class="num"><input type="checkbox" checked></td><td>역삼동 720-5</td><td class="num">180m</td><td>2024/06</td><td class="num">85억</td><td class="num">210평</td><td class="num">4,048만</td><td class="num"><span class="x">×</span></td></tr>
-            <tr><td class="num"><input type="checkbox" checked></td><td>역삼동 812-3</td><td class="num">240m</td><td>2023/11</td><td class="num">120억</td><td class="num">260평</td><td class="num">4,615만</td><td class="num"><span class="x">×</span></td></tr>
-            <tr><td class="num"><input type="checkbox" checked></td><td>역삼동 735-9</td><td class="num">320m</td><td>2025/02</td><td class="num">95억</td><td class="num">205평</td><td class="num">4,634만</td><td class="num"><span class="x">×</span></td></tr>
-            <tr class="outlier"><td class="num"><input type="checkbox"></td><td>역삼동 640-1 <span class="badge-out">이상치</span></td><td class="num">410m</td><td>2022/03</td><td class="num">210억</td><td class="num">180평</td><td class="num">1억 1,667만</td><td class="num"><span class="x">×</span></td></tr>
+            <tr><td class="num"><input type="checkbox" checked></td><td class="adr">역삼동 720-5</td><td class="num">180m</td><td>2024/06</td><td class="num">85억</td><td class="num">210평</td><td class="num">4,048만</td><td class="num"><span class="x">×</span></td></tr>
+            <tr><td class="num"><input type="checkbox" checked></td><td class="adr">역삼동 812-3</td><td class="num">240m</td><td>2023/11</td><td class="num">120억</td><td class="num">260평</td><td class="num">4,615만</td><td class="num"><span class="x">×</span></td></tr>
+            <tr><td class="num"><input type="checkbox" checked></td><td class="adr">역삼동 735-9</td><td class="num">320m</td><td>2025/02</td><td class="num">95억</td><td class="num">205평</td><td class="num">4,634만</td><td class="num"><span class="x">×</span></td></tr>
+            <tr class="outlier"><td class="num"><input type="checkbox"></td><td class="adr">역삼동 640-1 <span class="badge-out">이상치</span></td><td class="num">410m</td><td>2022/03</td><td class="num">210억</td><td class="num">180평</td><td class="num">1억 1,667만</td><td class="num"><span class="x">×</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -488,7 +490,7 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
             <div class="kv"><span class="k">협조도</span><span class="v">보통</span></div>
             <div class="kv"><span class="k">친절도</span><span class="v">보통</span></div>
             <div class="kv"><span class="k">매수의향서</span><span class="v">원함</span></div>
-            <div class="kv"><span class="k">전화번호</span><span class="v">010-****-1234</span></div>
+            <div class="kv"><span class="k">전화번호</span><span class="v"><span class="copy-tel">010-****-1234</span> 📋</span></div>
           </div>
         </div>
 
