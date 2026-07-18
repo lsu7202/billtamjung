@@ -11,6 +11,8 @@
 .seg-photo button{font-size:13px}
 td.adr{color:#1a4fc0; cursor:pointer}
 .copy-tel{cursor:pointer; border-bottom:1px dashed #c7ccd3}
+.slide-thumbs{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:6px 14px 14px}
+.slide-thumb{aspect-ratio:16/9; background:#f5f8fc; border:1px solid var(--line); border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:11px; color:#5a6572; text-align:center; padding:4px; font-weight:600}
 .photo-stage{position:relative; height:300px; border-radius:8px; overflow:hidden; margin-top:10px}
 .photo-view{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#8a929b; font-size:14px; font-weight:600}
 .photo-view[data-v=road]{background:repeating-linear-gradient(45deg,#eef1f5,#eef1f5 10px,#e6eaef 10px,#e6eaef 20px)}
@@ -693,12 +695,53 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
   <div class="segmented"><button class="active">평</button><button>㎡</button></div>
   <small>단위 전환</small>
   <div class="right">
-    <button class="btn">브리핑 자료</button>
-    <button class="btn primary">매물 분석하기</button>
+    <button class="btn" onclick="openGen('브리핑 자료',10,7)">브리핑 자료</button>
+    <button class="btn primary" onclick="openGen('매물분석보고서',30,8)">매물 분석하기</button>
+  </div>
+</div>
+
+<!-- 보고서 생성 모달 (브리핑 / 매물분석) -->
+<div class="modal-bg" id="genreport">
+  <div class="modal" style="width:min(760px,100%)">
+    <h3><span id="gen-title">매물분석보고서</span> 생성 <span style="font-size:12px;color:#888;font-weight:400;margin-left:8px">서울특별시 강남구 역삼동 601-5</span>
+      <div class="right"><button class="btn" onclick="closeModal('genreport')">닫기</button></div></h3>
+    <!-- 옵션 -->
+    <div class="block">
+      <div class="kv-grid" style="grid-template-columns:1fr">
+        <div class="kv"><span class="k">크레딧</span><span class="v"><b id="gen-credit">30</b> 소모 · 잔액 660</span></div>
+        <div class="kv"><span class="k">상권</span><span class="v">설정됨 · 반경 400m <small style="color:#8a929b">(주변시세에서 지정)</small></span></div>
+        <div class="kv" id="gen-sevse"><span class="k">주변임대시세 포함</span><span class="v"><span class="segmented" style="display:inline-flex"><button class="active">포함</button><button>제외</button></span></span></div>
+      </div>
+      <div style="padding:10px 14px;font-size:12px;color:#8a929b;border-top:1px solid #eef0f3">선행: 가치점수 9항목 · <b style="color:#c0392b">유동인구 미지정 = 0점</b>(값 채우면 점수↑). 결측이어도 생성은 됨.</div>
+      <div style="padding:0 14px 14px"><button class="btn primary" onclick="genDone()">생성하기</button></div>
+    </div>
+    <!-- 생성 완료 · 미리보기 (생성 후 노출) -->
+    <div class="block hidden" id="gen-preview">
+      <div class="sec-head">미리보기 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px" id="gen-slides">8슬라이드</span>
+        <div class="right"><button class="btn">재생성</button><button class="btn">내 산출물 저장</button><button class="btn primary">PPT 다운로드</button></div></div>
+      <div class="slide-thumbs" id="gen-thumbs"></div>
+    </div>
   </div>
 </div>
 
 <script>
+function openGen(title,credit,slides){
+  document.getElementById('gen-title').textContent=title;
+  document.getElementById('gen-credit').textContent=credit;
+  document.getElementById('gen-slides').textContent=slides+'슬라이드';
+  document.getElementById('gen-sevse').style.display=(slides===8)?'':'none';  // 브리핑엔 주변임대시세 없음
+  document.getElementById('gen-preview').classList.add('hidden');
+  window._genSlides=slides;
+  document.getElementById('genreport').classList.add('open');
+}
+function genDone(){
+  const n=window._genSlides||8;
+  const labels=n===8
+    ?['표지·요약','매물 기본정보','분석 흐름','STEP1 가치점수','STEP2 매매사례','STEP3 주변임대시세','STEP4 예상수익률','최종 요약']
+    :['표지','매물 기본정보','위치/지도','로드뷰/사진','임대 내역','추가 사진','마무리'];
+  document.getElementById('gen-thumbs').innerHTML=labels.map((l,i)=>`<div class="slide-thumb">${i+1}. ${l}</div>`).join('');
+  document.getElementById('gen-preview').classList.remove('hidden');
+}
 function tab(btn,id){
   btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
