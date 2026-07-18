@@ -11,9 +11,9 @@
 .map-canvas{position:relative; background:#e9eef3 repeating-linear-gradient(45deg,transparent,transparent 22px,rgba(0,0,0,.015) 22px,rgba(0,0,0,.015) 44px)}
 .map-canvas .center-note{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#a6b0bb; font-size:13px; font-weight:600}
 .pin{position:absolute; transform:translate(-50%,-100%); font-size:12px; font-weight:800; color:#fff; padding:4px 9px; border-radius:999px 999px 999px 2px; white-space:nowrap; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,.25)}
-.pin.ad{background:#d93025}      /* 광고 */
-.pin.mine{background:#1a4fc0}    /* 내 매물 */
-.pin.normal{background:#6b7684}  /* 일반 */
+.pin.ad{background:var(--green)}      /* 광고 */
+.pin.mine{background:var(--blue)}    /* 내 매물 */
+.pin.normal{background:var(--purple)}  /* 일반 */
 .pin.cluster{background:#111; border-radius:50%; width:34px; height:34px; padding:0; display:flex; align-items:center; justify-content:center; transform:translate(-50%,-50%)}
 .map-legend{position:absolute; left:12px; bottom:12px; background:#fff; border:1px solid var(--line); border-radius:8px; padding:8px 11px; font-size:12px; display:flex; gap:12px}
 .map-legend b{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; vertical-align:middle}
@@ -30,7 +30,7 @@
 .ml-row:hover{background:#f7f9fc}
 .ml-row .ml-a{font-size:13px}
 .ml-row .ml-tag{font-size:10px; font-weight:700; padding:1px 6px; border-radius:4px; color:#fff}
-.ml-tag.ad{background:#d93025} .ml-tag.mine{background:#1a4fc0} .ml-tag.normal{background:#6b7684}
+.ml-tag.ad{background:var(--green)} .ml-tag.mine{background:var(--blue)} .ml-tag.normal{background:var(--purple)}
 .ml-row .ml-nums{font-size:12px; color:#555; text-align:right; white-space:nowrap}
 </style>
 </head>
@@ -155,9 +155,9 @@
           <button class="btn primary">상세보기</button>
         </div>
         <div class="map-legend">
-          <span><b style="background:#d93025"></b>광고</span>
-          <span><b style="background:#1a4fc0"></b>내 매물</span>
-          <span><b style="background:#6b7684"></b>일반</span>
+          <span><b style="background:var(--green)"></b>광고</span>
+          <span><b style="background:var(--blue)"></b>내 매물</span>
+          <span><b style="background:var(--purple)"></b>일반</span>
         </div>
       </div>
       <!-- 우: 지도 영역 내 매물 동기 리스트 -->
