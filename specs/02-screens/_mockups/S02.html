@@ -408,26 +408,48 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
         </div>
       </div>
 
-      <!-- 주변시세 (임대 + 매각, 공용 반경 · S03) -->
+      <!-- 주변시세 (완전 인라인: 상권 지도 + comps curation · 모달 없음) -->
       <div class="block" data-grp="deal">
-        <div class="sec-head">주변시세 <small style="font-size:12px;color:#8a929b;font-weight:400;margin-left:6px">임대 · 매각 (공용 반경)</small>
-          <div class="right"><button class="btn" onclick="openSevse()">주변시세 분석</button></div></div>
-        <div class="sec-head" style="border-top:1px solid #eef0f3;font-size:13px">주변 임대시세</div>
-        <table class="wf matrix">
-          <thead><tr><th>층</th><th class="num">매물 면적</th><th class="num">평당 보증금</th><th class="num">평당 임대료</th><th class="num">추정보증금</th><th class="num">추정임대료</th></tr></thead>
+        <div class="sec-head">주변시세 <small style="font-size:12px;color:#8a929b;font-weight:400;margin-left:6px">임대 · 매각 · 상권 직접 설정</small>
+          <div class="right"><button class="btn primary">재조회</button></div></div>
+        <!-- 상권 지도 (중심·반경 사용자 지정, 본매물은 참조) -->
+        <div style="padding:12px 14px 4px">
+          <div class="map-ph" style="height:200px;position:relative">
+            상권 지도 — 원 드래그 = 중심·반경 (상권 중심 ≠ 본매물)
+            <div style="position:absolute;left:40%;top:38%;width:150px;height:150px;transform:translate(-50%,-50%);border:2px dashed #d93025;border-radius:50%;background:rgba(217,48,37,.06)"></div>
+            <div style="position:absolute;left:58%;top:60%;width:11px;height:11px;background:#111;border-radius:50%" title="본매물(참조)"></div>
+          </div>
+          <div class="radius-row"><span class="fl-label">반경</span><input type="range" min="200" max="1000" step="50" value="400"><span class="rv">400m</span></div>
+          <div class="floor-row" style="padding:0"><span class="fl-label">조회 층</span>지하 <input class="fin" type="number" min="0" value="3"> ~ 지상 <input class="fin" type="number" min="1" value="5"> 층</div>
+        </div>
+        <!-- 주변 임대시세 comps (인라인 curate) -->
+        <div class="sec-head" style="border-top:1px solid #eef0f3;font-size:13px">주변 임대시세 <small style="font-size:11px;color:#aaa;font-weight:400">체크 해제=평균 제외 · ×삭제</small></div>
+        <table class="wf">
+          <thead><tr><th style="width:30px" class="num">✓</th><th>층</th><th class="num">계약면적</th><th class="num">보증금</th><th class="num">임대료</th><th class="num">평당보증</th><th class="num">평당임대</th><th>주소</th><th></th></tr></thead>
           <tbody>
-            <tr><td>2층</td><td class="num">25평</td><td class="num">150만</td><td class="num">15만</td><td class="num">3,750만</td><td class="num">375만</td></tr>
-            <tr><td>1층</td><td class="num">25평</td><td class="num">300만</td><td class="num">25만</td><td class="num">7,500만</td><td class="num">625만</td></tr>
-            <tr><td>지하1층</td><td class="num">30평</td><td class="num">100만</td><td class="num">10만</td><td class="num">3,000만</td><td class="num">300만</td></tr>
+            <tr><td class="num"><input type="checkbox" checked></td><td>1층</td><td class="num">25평</td><td class="num">7,500만</td><td class="num">625만</td><td class="num">300만</td><td class="num">25만</td><td>역삼동 725-3</td><td class="num"><span class="x">×</span></td></tr>
+            <tr><td class="num"><input type="checkbox" checked></td><td>1층</td><td class="num">30평</td><td class="num">9,000만</td><td class="num">700만</td><td class="num">300만</td><td class="num">23만</td><td>역삼동 718-2</td><td class="num"><span class="x">×</span></td></tr>
+            <tr class="outlier"><td class="num"><input type="checkbox"></td><td>1층 <span class="badge-out">이상치</span></td><td class="num">18평</td><td class="num">1억 3천</td><td class="num">1,400만</td><td class="num">720만</td><td class="num">78만</td><td>역삼동 730-1</td><td class="num"><span class="x">×</span></td></tr>
+            <tr><td class="num"><input type="checkbox" checked></td><td>지하1층</td><td class="num">30평</td><td class="num">3,000만</td><td class="num">300만</td><td class="num">100만</td><td class="num">10만</td><td>역삼동 712-9</td><td class="num"><span class="x">×</span></td></tr>
           </tbody>
         </table>
-        <div class="sec-head" style="border-top:1px solid #eef0f3;font-size:13px">주변 매각사례 <small style="font-size:12px;color:#8a929b;font-weight:400">최근 5년 · 추정</small></div>
-        <table class="wf">
-          <thead><tr><th>주소</th><th class="num">거리</th><th>거래일</th><th class="num">매각가</th><th class="num">연면적</th><th class="num">연면적 평단가</th></tr></thead>
+        <div class="sec-head" style="font-size:13px">층별 평균 <small style="font-size:11px;color:#aaa;font-weight:400">라이브 · 매물에 등록될 값</small></div>
+        <table class="wf matrix">
+          <thead><tr><th>층</th><th class="num">평당 보증금</th><th class="num">평당 임대료</th><th class="num">추정보증금</th><th class="num">추정임대료</th><th class="num">건수</th></tr></thead>
           <tbody>
-            <tr><td>역삼동 720-5</td><td class="num">180m</td><td>2024/06</td><td class="num">85억</td><td class="num">210평</td><td class="num">4,048만</td></tr>
-            <tr><td>역삼동 812-3</td><td class="num">240m</td><td>2023/11</td><td class="num">120억</td><td class="num">260평</td><td class="num">4,615만</td></tr>
-            <tr><td>역삼동 735-9</td><td class="num">320m</td><td>2025/02</td><td class="num">95억</td><td class="num">205평</td><td class="num">4,634만</td></tr>
+            <tr><td>1층</td><td class="num calc">300만</td><td class="num calc">24만</td><td class="num">7,500만</td><td class="num">600만</td><td class="num avg-n">2건</td></tr>
+            <tr><td>지하1층</td><td class="num calc">100만</td><td class="num calc">10만</td><td class="num">3,000만</td><td class="num">300만</td><td class="num avg-n">1건</td></tr>
+          </tbody>
+        </table>
+        <!-- 주변 매각사례 comps (인라인 curate) -->
+        <div class="sec-head" style="border-top:1px solid #eef0f3;font-size:13px">주변 매각사례 <small style="font-size:11px;color:#aaa;font-weight:400">최근 5년 · 추정</small></div>
+        <table class="wf">
+          <thead><tr><th style="width:30px" class="num">✓</th><th>주소</th><th class="num">거리</th><th>거래일</th><th class="num">매각가</th><th class="num">연면적</th><th class="num">연면적 평단가</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="num"><input type="checkbox" checked></td><td>역삼동 720-5</td><td class="num">180m</td><td>2024/06</td><td class="num">85억</td><td class="num">210평</td><td class="num">4,048만</td><td class="num"><span class="x">×</span></td></tr>
+            <tr><td class="num"><input type="checkbox" checked></td><td>역삼동 812-3</td><td class="num">240m</td><td>2023/11</td><td class="num">120억</td><td class="num">260평</td><td class="num">4,615만</td><td class="num"><span class="x">×</span></td></tr>
+            <tr><td class="num"><input type="checkbox" checked></td><td>역삼동 735-9</td><td class="num">320m</td><td>2025/02</td><td class="num">95억</td><td class="num">205평</td><td class="num">4,634만</td><td class="num"><span class="x">×</span></td></tr>
+            <tr class="outlier"><td class="num"><input type="checkbox"></td><td>역삼동 640-1 <span class="badge-out">이상치</span></td><td class="num">410m</td><td>2022/03</td><td class="num">210억</td><td class="num">180평</td><td class="num">1억 1,667만</td><td class="num"><span class="x">×</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -519,81 +541,6 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
 
   </div><!-- /detail-body -->
 
-</div>
-
-<!-- M02 = S03 주변임대시세 분석 (지도 반경 → 조회 → 노이즈 수정 → 평균 등록) -->
-<div class="modal-bg" id="sevse">
-  <div class="modal" style="width:min(1180px,100%)">
-    <h3>주변시세 분석 <span style="font-size:12px;color:#888;font-weight:400;margin-left:8px">임대 + 매각 · 공용 반경</span>
-      <div class="right"><button class="btn" onclick="closeModal('sevse')">닫기</button>
-        <button class="btn" onclick="closeModal('sevse')">임대 평균 등록</button>
-        <button class="btn primary" onclick="closeModal('sevse')">매각 comps 저장</button></div></h3>
-
-    <div class="sevse-top">
-      <!-- 좌: 지도 + 반경 + 층범위 (입력) -->
-      <div class="block">
-        <div class="sec-head">① 공용 반경 <div class="right"><button class="btn primary">분석하기</button></div></div>
-        <div style="padding:12px 0 4px">
-          <div class="map-ph" style="height:220px;position:relative;margin:0 14px">
-            지도 (본매물 ◉ 중심)
-            <div style="position:absolute;width:170px;height:170px;border:2px dashed #d93025;border-radius:50%;background:rgba(217,48,37,.06)"></div>
-            <div style="position:absolute;width:12px;height:12px;background:#111;border-radius:50%" title="본매물"></div>
-          </div>
-          <div class="radius-row">
-            <span class="fl-label">반경</span>
-            <input type="range" min="200" max="1000" step="50" value="400">
-            <span class="rv">400m</span>
-          </div>
-          <div class="floor-row" style="padding:0 14px">
-            <span class="fl-label">조회 층</span>
-            지하 <input class="fin" type="number" min="0" value="3"> ~ 지상 <input class="fin" type="number" min="1" value="5"> 층
-            <span class="fl-hint">이 범위 층만 조회</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 우: 층별 평균 (등록 결과) -->
-      <div class="block">
-        <div class="sec-head">③ 층별 평균 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">등록될 값 · 체크된 행만 반영</span></div>
-        <table class="wf matrix">
-          <thead><tr><th>층</th><th class="num">평당 보증금</th><th class="num">평당 임대료</th><th class="num">추정보증금</th><th class="num">추정임대료</th><th class="num">건수</th></tr></thead>
-          <tbody>
-            <tr><td>1층</td><td class="num calc">300만</td><td class="num calc">24만</td><td class="num">7,500만</td><td class="num">600만</td><td class="num avg-n">2건</td></tr>
-            <tr><td>지하1층</td><td class="num calc">100만</td><td class="num calc">10만</td><td class="num">3,000만</td><td class="num">300만</td><td class="num avg-n">1건</td></tr>
-          </tbody>
-        </table>
-        <div style="padding:8px 14px;font-size:12px;color:#888">같은 층끼리 평균 → 주변임대시세 표의 해당 층에 등록됩니다.</div>
-      </div>
-    </div>
-
-    <!-- 하단 전폭: 조회 결과 + 이상치 -->
-    <div class="block">
-      <div class="sec-head">② 조회 결과 · 노이즈 수정 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">이상치 자동 표시 · 체크 해제 시 평균에서 제외 (삭제는 ×)</span></div>
-      <table class="wf">
-        <thead><tr><th style="width:34px" class="num"><input type="checkbox" checked></th><th>층</th><th class="num">계약면적</th><th class="num">전용면적</th><th class="num">보증금</th><th class="num">임대료</th><th class="num">평당보증금</th><th class="num">평당임대료</th><th class="num">관리비</th><th>주소</th><th></th></tr></thead>
-        <tbody>
-          <tr><td class="num"><input type="checkbox" checked></td><td>1층</td><td class="num">25평</td><td class="num">20평</td><td class="num">7,500만</td><td class="num">625만</td><td class="num">300만</td><td class="num">25만</td><td class="num">150만</td><td>목동 620-7</td><td class="num"><span class="x">×</span></td></tr>
-          <tr><td class="num"><input type="checkbox" checked></td><td>1층</td><td class="num">30평</td><td class="num">24평</td><td class="num">9,000만</td><td class="num">700만</td><td class="num">300만</td><td class="num">23만</td><td class="num">180만</td><td>목동 615-2</td><td class="num"><span class="x">×</span></td></tr>
-          <tr class="outlier"><td class="num"><input type="checkbox"></td><td>1층 <span class="badge-out">이상치</span></td><td class="num">18평</td><td class="num">14평</td><td class="num">1억 3천</td><td class="num">1,400만</td><td class="num">720만</td><td class="num">78만</td><td class="num">200만</td><td>목동 618-1</td><td class="num"><span class="x">×</span></td></tr>
-          <tr><td class="num"><input type="checkbox" checked></td><td>지하1층</td><td class="num">30평</td><td class="num">28평</td><td class="num">3,000만</td><td class="num">300만</td><td class="num">100만</td><td class="num">10만</td><td class="num">120만</td><td>목동 611-9</td><td class="num"><span class="x">×</span></td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- 하단 전폭: ④ 주변 매각 comps + 이상치 (적정매매가 재료) -->
-    <div class="block">
-      <div class="sec-head">④ 주변 매각사례 · 노이즈 수정 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">최근 5년 · 추정 · 이상치 자동 표시 (적정매매가 산정은 보고서)</span></div>
-      <table class="wf">
-        <thead><tr><th style="width:34px" class="num"><input type="checkbox" checked></th><th>주소</th><th class="num">거리</th><th>거래일</th><th class="num">매각가</th><th class="num">연면적</th><th class="num">연면적 평단가</th><th></th></tr></thead>
-        <tbody>
-          <tr><td class="num"><input type="checkbox" checked></td><td>역삼동 720-5</td><td class="num">180m</td><td>2024/06</td><td class="num">85억</td><td class="num">210평</td><td class="num">4,048만</td><td class="num"><span class="x">×</span></td></tr>
-          <tr><td class="num"><input type="checkbox" checked></td><td>역삼동 812-3</td><td class="num">240m</td><td>2023/11</td><td class="num">120억</td><td class="num">260평</td><td class="num">4,615만</td><td class="num"><span class="x">×</span></td></tr>
-          <tr><td class="num"><input type="checkbox" checked></td><td>역삼동 735-9</td><td class="num">320m</td><td>2025/02</td><td class="num">95억</td><td class="num">205평</td><td class="num">4,634만</td><td class="num"><span class="x">×</span></td></tr>
-          <tr class="outlier"><td class="num"><input type="checkbox"></td><td>역삼동 640-1 <span class="badge-out">이상치</span></td><td class="num">410m</td><td>2022/03</td><td class="num">210억</td><td class="num">180평</td><td class="num">1억 1,667만</td><td class="num"><span class="x">×</span></td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
 </div>
 
 <!-- 위키 전체보기 (집단지성 특이사항) -->
@@ -859,7 +806,6 @@ function renderChart(svg,data,o){
   renderChart(document.querySelector('#blk-gwanggo svg'),gwanggo,{yTitle:'광고가(억)',xTitle:'업데이트일',fmt:fmtUk,trend:aR,metric:am});
 })();
 
-function openSevse(){document.getElementById('sevse').classList.add('open');}
 function openWiki(){document.getElementById('wiki').classList.add('open');}
 function openAd(){document.getElementById('admodal').classList.add('open');}
 function openParcels(){document.getElementById('parcels').classList.add('open');}
