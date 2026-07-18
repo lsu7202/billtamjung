@@ -5,6 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>S01 · 매물 통합검색 — 빌탐정 와이어프레임</title>
 <link rel="stylesheet" href="wireframe.css">
+<style>
+/* 지도 뷰 (네이버 지도 + 핀 + 동기 리스트) */
+.map-split{display:grid; grid-template-columns:1fr 320px; gap:0; height:600px; border:1px solid var(--line); border-radius:10px; overflow:hidden}
+.map-canvas{position:relative; background:#e9eef3 repeating-linear-gradient(45deg,transparent,transparent 22px,rgba(0,0,0,.015) 22px,rgba(0,0,0,.015) 44px)}
+.map-canvas .center-note{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#a6b0bb; font-size:13px; font-weight:600}
+.pin{position:absolute; transform:translate(-50%,-100%); font-size:12px; font-weight:800; color:#fff; padding:4px 9px; border-radius:999px 999px 999px 2px; white-space:nowrap; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.pin.ad{background:#d93025}      /* 광고 */
+.pin.mine{background:#1a4fc0}    /* 내 매물 */
+.pin.normal{background:#6b7684}  /* 일반 */
+.pin.cluster{background:#111; border-radius:50%; width:34px; height:34px; padding:0; display:flex; align-items:center; justify-content:center; transform:translate(-50%,-50%)}
+.map-legend{position:absolute; left:12px; bottom:12px; background:#fff; border:1px solid var(--line); border-radius:8px; padding:8px 11px; font-size:12px; display:flex; gap:12px}
+.map-legend b{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; vertical-align:middle}
+.map-refresh{position:absolute; top:12px; left:50%; transform:translateX(-50%); background:#fff; border:1px solid var(--line); border-radius:999px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,.12)}
+/* 핀 팝오버(요약) */
+.pin-pop{position:absolute; width:210px; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.18); padding:11px 13px; z-index:5}
+.pin-pop .pp-addr{font-weight:700; font-size:13px; margin-bottom:6px}
+.pin-pop .pp-row{display:flex; justify-content:space-between; font-size:12px; color:#555; margin:2px 0}
+.pin-pop .btn{margin-top:8px; width:100%; text-align:center}
+/* 우측 동기 리스트 */
+.map-list{background:#fff; border-left:1px solid var(--line); overflow-y:auto}
+.map-list .ml-head{padding:10px 13px; font-size:12px; color:#888; border-bottom:1px solid var(--line); position:sticky; top:0; background:#fff}
+.ml-row{padding:10px 13px; border-bottom:1px solid #f0f2f5; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px}
+.ml-row:hover{background:#f7f9fc}
+.ml-row .ml-a{font-size:13px}
+.ml-row .ml-tag{font-size:10px; font-weight:700; padding:1px 6px; border-radius:4px; color:#fff}
+.ml-tag.ad{background:#d93025} .ml-tag.mine{background:#1a4fc0} .ml-tag.normal{background:#6b7684}
+.ml-row .ml-nums{font-size:12px; color:#555; text-align:right; white-space:nowrap}
+</style>
 </head>
 <body>
 <div class="screen">
@@ -104,9 +132,45 @@
 
   </div>
 
-  <!-- 지도 뷰 -->
-  <div id="view-map" class="panel hidden">
-    <div class="map-ph">지도 영역 (매물 핀 표시)</div>
+  <!-- 지도 뷰 (네이버 지도 + 핀 + 동기 리스트) -->
+  <div id="view-map" class="hidden">
+    <div class="map-split">
+      <!-- 좌: 지도 -->
+      <div class="map-canvas">
+        <span class="center-note">네이버 지도 — 결과 매물 핀</span>
+        <button class="map-refresh">↻ 이 지역 재검색</button>
+        <!-- 핀들 (광고/내매물/일반) -->
+        <div class="pin ad" style="left:30%;top:34%">60억</div>
+        <div class="pin mine" style="left:52%;top:28%">60억</div>
+        <div class="pin normal" style="left:44%;top:52%">42억</div>
+        <div class="pin normal" style="left:66%;top:46%">95억</div>
+        <div class="pin ad" style="left:24%;top:62%">88억</div>
+        <div class="pin cluster" style="left:72%;top:66%">12</div>
+        <!-- 열린 핀 팝오버 -->
+        <div class="pin-pop" style="left:52%;top:12%">
+          <div class="pp-addr">강남구 역삼동 601-5</div>
+          <div class="pp-row"><span>매매가</span><b>60억</b></div>
+          <div class="pp-row"><span>수익률</span><b>2.4%</b></div>
+          <div class="pp-row"><span>연면적</span><b>143평</b></div>
+          <button class="btn primary">상세보기</button>
+        </div>
+        <div class="map-legend">
+          <span><b style="background:#d93025"></b>광고</span>
+          <span><b style="background:#1a4fc0"></b>내 매물</span>
+          <span><b style="background:#6b7684"></b>일반</span>
+        </div>
+      </div>
+      <!-- 우: 지도 영역 내 매물 동기 리스트 -->
+      <div class="map-list">
+        <div class="ml-head">이 지도 영역 <b>18</b>건 · 핀과 동기화</div>
+        <div class="ml-row"><span class="ml-a">역삼동 601-5 <span class="ml-tag mine">내</span></span><span class="ml-nums">60억 · 2.4%</span></div>
+        <div class="ml-row"><span class="ml-a">역삼동 123-4 <span class="ml-tag ad">광고</span></span><span class="ml-nums">60억 · 2.4%</span></div>
+        <div class="ml-row"><span class="ml-a">논현동 55-1 <span class="ml-tag ad">광고</span></span><span class="ml-nums">88억 · 3.1%</span></div>
+        <div class="ml-row"><span class="ml-a">삼성동 7-2 <span class="ml-tag normal">일반</span></span><span class="ml-nums">120억 · 2.0%</span></div>
+        <div class="ml-row"><span class="ml-a">대치동 900-1 <span class="ml-tag mine">내</span></span><span class="ml-nums">75억 · 2.8%</span></div>
+        <div class="ml-row"><span class="ml-a">역삼동 812-3 <span class="ml-tag normal">일반</span></span><span class="ml-nums">42억 · 3.5%</span></div>
+      </div>
+    </div>
   </div>
 
 </div>
