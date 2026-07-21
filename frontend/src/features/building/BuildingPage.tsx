@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   buildingsApi, overlaysApi, rentsApi, reportsApi, extrasApi, FloorRent,
 } from "../../shared/api/endpoints";
+import { PhotoPanel } from "../../shared/map/PhotoPanel";
 
 const won = (n?: number) => (n == null ? "—" : n >= 1e8 ? `${(n / 1e8).toFixed(1)}억` : `${(n / 1e4).toLocaleString()}만`);
 
@@ -82,6 +83,11 @@ export function BuildingPage() {
         </div>
       </div>
       {genState && <div className="panel" style={{ padding: "10px 16px", fontSize: 13 }}>{genState}</div>}
+
+      {/* 매물사진: 지도 / 로드뷰 (S02 §3.2) */}
+      {typeof b.lng === "number" && typeof b.lat === "number" && (
+        <PhotoPanel lng={b.lng as number} lat={b.lat as number} />
+      )}
 
       {/* 건물정보(인라인 수정 데모: far) */}
       <div className="panel">

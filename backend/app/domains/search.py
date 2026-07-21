@@ -132,6 +132,7 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
       classified AS (
         SELECT b.building_pk, b.addr, b.land_area, b.total_area,
                b.floors_above, b.floors_below, b.use_zone,
+               ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat,
                b.last_sale_price, b.last_sale_ym,
                la.price AS ad_price,
                l.assignee_account_id,
