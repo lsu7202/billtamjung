@@ -1,13 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listingsApi, extrasApi, overlaysApi } from "../../shared/api/endpoints";
 import { api } from "../../shared/api/client";
+import { useEnums } from "../../shared/hooks/useEnums";
 
-/** S02 우측 고정 사이드바 — 업무 / 위키 / 수정이력 / 메모 4탭(목업 §4). */
-
-const JINDO = ["준비중", "진행중", "가격제시", "매각", "철회"];
-const JINDO_CODE: Record<string, string> = { 준비중: "ready", 진행중: "ongoing", 가격제시: "offered", 매각: "sold", 철회: "withdrawn" };
-const CODE_JINDO: Record<string, string> = Object.fromEntries(Object.entries(JINDO_CODE).map(([k, v]) => [v, k]));
+/** S02 우측 고정 사이드바 — 업무 / 위키 / 수정이력 / 메모 4탭(§4). enum=enums.md 정본. */
 
 export function Sidebar({ pk }: { pk: string }) {
   const qc = useQueryClient();
@@ -41,22 +38,28 @@ export function Sidebar({ pk }: { pk: string }) {
   );
 }
 
-/* ── 업무 탭: 담당자(등록/해제) + 진행상태 세그 + 소유자 CRM 자동저장 ── */
+/* ── 업무 탭(§4.1): 담당자(=선점) + 진행상태/긴급도/소유자타입·관계·협조도·친절도·매수의향서 enum + 소유자명/내용/전화 텍스트 ── */
+const BIZ_ENUM: [string, string, string][] = [
+  ["진행상태", "status", "jindo"],
+  ["긴급도", "urgency", "urgency"],
+  ["소유자 타입", "owner_type", "owner_type"],
+  ["관계", "relation", "relation"],
+  ["협조도", "cooperation", "cooperation"],
+  ["친절도", "kindness", "kindness"],
+  ["매수의향서", "intent", "intent"],
+];
+const BIZ_TEXT: [string, string, string][] = [
+  ["소유자 명", "owner_name", "성명/법인명"],
+  ["소유자 내용", "owner_note", "메모·특이사항"],
+  ["전화번호", "owner_phone", "010-0000-0000"],
+];
+
 function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string, unknown>; refresh: () => void }) {
+  const en = useEnums();
   const registered = listing?.registered === true;
-  const [fields, setFields] = useState<Record<string, string>>({});
-  useEffect(() => {
-    if (listing) {
-      const f: Record<string, string> = {};
-      for (const k of ["status", "urgency", "owner_type", "owner_name", "owner_note", "relation", "cooperation", "kindness", "intent", "owner_phone", "listing_no"]) {
-        if (listing[k]) f[k] = String(listing[k]);
-      }
-      setFields(f);
-    }
-  }, [listing]);
+  const val = (k: string) => (listing?.[k] != null ? String(listing[k]) : "");
 
   async function save(k: string, v: string) {
-    setFields((f) => ({ ...f, [k]: v }));
     await listingsApi.patchBiz(pk, { [k]: v || null });
     refresh();
   }
@@ -66,15 +69,6 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
     refresh();
   }
 
-  const Row = ({ label, k, placeholder }: { label: string; k: string; placeholder?: string }) => (
-    <div className="kv" style={{ alignItems: "center" }}>
-      <span className="k">{label}</span>
-      <input className="input" style={{ maxWidth: 150, padding: "4px 8px", fontSize: 13, textAlign: "right" }}
-        defaultValue={fields[k] ?? ""} placeholder={placeholder ?? "—"}
-        onBlur={(e) => { if (e.target.value !== (fields[k] ?? "")) save(k, e.target.value); }} />
-    </div>
-  );
-
   return (
     <div style={{ display: "grid", gap: 8, fontSize: 13 }}>
       <div className="kv"><span className="k">등록 상태</span><span className="v">{registered ? "내 매물" : "미등록"}</span></div>
@@ -82,24 +76,31 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
         ? <button className="btn" onClick={() => claim(false)}>등록 해제 (담당자 비우기)</button>
         : <button className="btn primary" onClick={() => claim(true)}>내 매물로 등록 (담당자 = 나)</button>}
 
-      <div style={{ margin: "6px 0 2px", fontWeight: 700 }}>진행상태</div>
-      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-        {JINDO.map((s) => (
-          <button key={s} className={`btn ${CODE_JINDO[fields.status ?? ""] === s ? "primary" : ""}`}
-            style={{ padding: "4px 10px", fontSize: 12 }}
-            onClick={() => save("status", JINDO_CODE[s])}>{s}</button>
-        ))}
-      </div>
+      <div style={{ margin: "6px 0 2px", fontWeight: 700 }}>업무 정보 <small style={{ color: "var(--muted)", fontWeight: 400 }}>변경 즉시 저장</small></div>
+      {BIZ_ENUM.map(([label, k, ek]) => {
+        const opts = en.options(ek);
+        const cur = val(k) || (k === "status" ? "준비중" : "미지정");
+        return (
+          <div className="kv" key={k} style={{ alignItems: "center" }}>
+            <span className="k">{label}</span>
+            <select className="input" style={{ maxWidth: 140, padding: "4px 8px", fontSize: 13 }}
+              value={cur} onChange={(e) => save(k, e.target.value)}>
+              {opts.length === 0 && <option>{cur}</option>}
+              {opts.map((o) => <option key={o.code} value={o.code}>{o.label}</option>)}
+            </select>
+          </div>
+        );
+      })}
 
-      <div style={{ margin: "6px 0 2px", fontWeight: 700 }}>소유자 · 업무 <small style={{ color: "var(--muted)", fontWeight: 400 }}>blur = 자동저장</small></div>
-      <Row label="소유자 명" k="owner_name" />
-      <Row label="관계" k="relation" placeholder="건물주/법인대표" />
-      <Row label="전화번호" k="owner_phone" placeholder="010-0000-0000" />
-      <Row label="협조도" k="cooperation" placeholder="보통" />
-      <Row label="친절도" k="kindness" placeholder="보통" />
-      <Row label="매수의향서" k="intent" placeholder="원함/불필요" />
-      <Row label="긴급도" k="urgency" placeholder="보통/급함" />
-      <Row label="소유자 메모" k="owner_note" />
+      <div style={{ margin: "6px 0 2px", fontWeight: 700 }}>소유자 <small style={{ color: "var(--muted)", fontWeight: 400 }}>blur = 자동저장</small></div>
+      {BIZ_TEXT.map(([label, k, ph]) => (
+        <div className="kv" key={k} style={{ alignItems: "center" }}>
+          <span className="k">{label}</span>
+          <input className="input" style={{ maxWidth: 150, padding: "4px 8px", fontSize: 13, textAlign: "right" }}
+            defaultValue={val(k)} placeholder={ph} key={val(k)}
+            onBlur={(e) => { if (e.target.value !== val(k)) save(k, e.target.value); }} />
+        </div>
+      ))}
       <p style={{ color: "var(--muted)", fontSize: 11 }}>전화번호는 담당자 본인·대표만 원문 조회(그 외 마스킹).</p>
     </div>
   );

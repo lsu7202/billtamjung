@@ -9,6 +9,7 @@ import { SeriesBlock } from "./SeriesBlock";
 import { MarketBlock } from "./MarketBlock";
 import { Sidebar } from "./Sidebar";
 import { ParcelBlock } from "./ParcelBlock";
+import { EnumField } from "./EnumField";
 
 /** S02 매물 상세 — 목업 전체 구조:
  * 헤더지표 · 사진(지도/로드뷰) · 표시범위 · 금액 · 투자분석 · 층별임대 · 상세정보
@@ -201,17 +202,16 @@ export function BuildingPage() {
               refresh={() => qc.invalidateQueries({ queryKey: ["rents", pk] })} eok={eok} />
           )}
 
-          {/* 상세정보(§3.4b — 사적 enum) */}
+          {/* 상세정보(§3.4b — 사적 enum, 드롭다운) */}
           {show("deal") && (
             <div className="panel">
-              <div className="sec-head">상세정보 <small style={{ color: "var(--muted)", fontWeight: 400 }}>사적 판단 태그 · 자동저장</small></div>
+              <div className="sec-head">상세정보 <small style={{ color: "var(--muted)", fontWeight: 400 }}>사적 판단 태그 · 선택 즉시 저장</small></div>
               <div className="kv-grid">
-                <KV label="명도" field="meongdo" value={String(b.meongdo ?? "미지정")} editable />
-                <KV label="입지" field="ipji" value={String(b.ipji ?? "미지정")} editable />
-                <KV label="용도변경" field="use_change" value={String(b.use_change ?? "미지정")} editable />
-                <KV label="등급" field="grade" value={String(b.grade ?? "미지정")} editable />
-                <KV label="멸실" field="myeolsil" value={String(b.myeolsil ?? "미지정")} editable />
-                <KV label="노후도" field="nohudo" value={String(b.nohudo ?? "미지정")} editable />
+                {([["명도", "meongdo"], ["입지", "ipji"], ["용도변경", "use_change"],
+                   ["등급", "grade"], ["멸실", "myeolsil"], ["노후도", "nohudo"], ["건물용도", "building_use"]] as const).map(([lbl, f]) => (
+                  <EnumField key={f} label={lbl} enumKey={f} value={b[f] as string}
+                    onSave={(v) => editField.mutate({ field: f, value: v })} />
+                ))}
               </div>
             </div>
           )}
