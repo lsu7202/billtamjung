@@ -56,10 +56,10 @@ async def regions(_: CurrentUser = Depends(current_user)):
 
 
 class Filters(BaseModel):
-    """S01b 속성 필터(베타 핵심 부분집합). None=미적용."""
+    """S01b 속성 필터(베타 핵심 부분집합). None/빈리스트=미적용."""
     bjd_code: str | None = None       # 법정동(prefix 매칭: 구=5자리, 동=10자리)
-    use_zone: str | None = None       # 용도지역
-    main_use: str | None = None       # 주용도 코드
+    use_zones: list[str] | None = None  # 용도지역 다중선택(§3.3.1 다중선택 알약)
+    main_use: str | None = None       # 주용도(부분일치)
     land_area_min: float | None = None
     land_area_max: float | None = None
     total_area_min: float | None = None
@@ -88,10 +88,10 @@ def _filter_sql(f: Filters, args: list) -> str:
         conds.append(cond.format(i=len(args)))
     if f.bjd_code:
         add("b.bjd_code LIKE ${i} || '%'", f.bjd_code)
-    if f.use_zone:
-        add("b.use_zone = ${i}", f.use_zone)
+    if f.use_zones:
+        add("b.use_zone = ANY(${i})", f.use_zones)
     if f.main_use:
-        add("b.main_use = ${i}", f.main_use)
+        add("b.main_use ILIKE '%' || ${i} || '%'", f.main_use)
     if f.land_area_min is not None:
         add("b.land_area >= ${i}", f.land_area_min)
     if f.land_area_max is not None:

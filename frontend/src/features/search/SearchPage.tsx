@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { searchApi, savedApi } from "../../shared/api/endpoints";
+import { searchApi, savedApi, type AttrFilters } from "../../shared/api/endpoints";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
+import { FilterModal, countActive } from "./FilterModal";
 
 /** S01 매물 통합검색 — 자동완성 + 지역(구/동) + 3열 목록 + 지도 뷰(핀·영역 그리기) */
 
@@ -24,6 +25,26 @@ const COLS = [
 const won = (n: number | null) =>
   n == null ? "—" : n >= 1e8 ? `${Math.round(n / 1e8)}억` : `${Math.round(n / 1e4).toLocaleString()}만`;
 
+// 조건 칩(§3.2) — 저장단위 ㎡ 기준 표기. clear = 해당 조건을 비우는 부분 패치.
+const unitM2 = (lo?: number | null, hi?: number | null, u = "") =>
+  lo != null && hi != null ? `${lo}~${hi}${u}` : lo != null ? `${lo}${u} 이상` : hi != null ? `${hi}${u} 이하` : "";
+
+function filterChips(f: AttrFilters, fmt: typeof unitM2) {
+  const chips: { key: string; label: string; clear: Partial<AttrFilters> }[] = [];
+  if (f.use_zones?.length)
+    chips.push({ key: "uz", label: `용도지역 ${f.use_zones.length === 1 ? f.use_zones[0] : `${f.use_zones[0]} 외 ${f.use_zones.length - 1}`}`, clear: { use_zones: null } });
+  if (f.main_use) chips.push({ key: "mu", label: `주용도 "${f.main_use}"`, clear: { main_use: null } });
+  if (f.land_area_min != null || f.land_area_max != null)
+    chips.push({ key: "la", label: `대지 ${fmt(f.land_area_min, f.land_area_max, "㎡")}`, clear: { land_area_min: null, land_area_max: null } });
+  if (f.total_area_min != null || f.total_area_max != null)
+    chips.push({ key: "ta", label: `연면적 ${fmt(f.total_area_min, f.total_area_max, "㎡")}`, clear: { total_area_min: null, total_area_max: null } });
+  if (f.floors_above_min != null || f.floors_above_max != null)
+    chips.push({ key: "fl", label: `지상 ${fmt(f.floors_above_min, f.floors_above_max, "층")}`, clear: { floors_above_min: null, floors_above_max: null } });
+  if (f.station_dist_max != null)
+    chips.push({ key: "sd", label: `역 ${f.station_dist_max}m 이내`, clear: { station_dist_max: null } });
+  return chips;
+}
+
 export function SearchPage() {
   const nav = useNavigate();
   const [q, setQ] = useState("");
@@ -35,7 +56,10 @@ export function SearchPage() {
   const [picked, setPicked] = useState<MapPin | null>(null);
   const [sort, setSort] = useState("price");
   const [favOnly, setFavOnly] = useState(false);
+  const [filters, setFilters] = useState<AttrFilters>({});
+  const [showFilter, setShowFilter] = useState(false);
   const [pages, setPages] = useState({ ad: 1, mine: 1, normal: 1 });
+  const filterCount = countActive(filters);
 
   const suggest = useQuery({
     queryKey: ["suggest", q],
@@ -45,11 +69,11 @@ export function SearchPage() {
   const regions = useQuery<Regions>({ queryKey: ["regions"], queryFn: searchApi.regions });
   // 영역(폴리곤)이 있으면 지역범위 대체(S01 §3.6c)
   const result = useQuery<SearchResult>({
-    queryKey: ["search3", bjd, polygon, sort, favOnly, pages],
+    queryKey: ["search3", bjd, polygon, sort, favOnly, filters, pages],
     queryFn: () =>
       searchApi.list({
         bjd_code: polygon ? undefined : bjd || undefined,
-        polygon: polygon ?? undefined, sort, fav_only: favOnly,
+        polygon: polygon ?? undefined, filters, sort, fav_only: favOnly,
         page_ad: pages.ad, page_mine: pages.mine, page_normal: pages.normal,
       }) as Promise<SearchResult>,
     enabled: !!bjd || !!polygon,
@@ -58,7 +82,7 @@ export function SearchPage() {
   async function saveCondition() {
     const name = prompt("검색조건 이름", bjd ? "저장 조건" : "그린 영역");
     if (!name) return;
-    await savedApi.save(name, { bjd_code: bjd || null, polygon, sort });
+    await savedApi.save(name, { bjd_code: bjd || null, polygon, sort, filters });
     alert("저장했습니다 — 마이페이지에서 확인");
   }
 
@@ -125,6 +149,9 @@ export function SearchPage() {
           </>
         )}
         {(bjd || polygon) && <span style={{ fontSize: 13, color: "var(--muted)" }}>전체 <b className="num">{total.toLocaleString()}</b>건</span>}
+        <button className={`btn ${filterCount ? "primary" : ""}`} onClick={() => setShowFilter(true)}>
+          필터{filterCount ? ` ${filterCount}` : ""}
+        </button>
         <button className={`btn ${favOnly ? "primary" : ""}`} onClick={() => setFavOnly(!favOnly)}>★ 즐겨찾기</button>
         {(bjd || polygon) && <button className="btn" onClick={saveCondition}>조건 저장</button>}
         <span style={{ flex: 1 }} />
@@ -137,6 +164,29 @@ export function SearchPage() {
           <button className={`btn ${view === "map" ? "primary" : ""}`} style={{ borderRadius: "0 6px 6px 0", borderLeft: 0 }} onClick={() => setView("map")}>지도</button>
         </div>
       </div>
+
+      {/* 적용된 조건 칩바(§3.2) — 각 × 개별 제거 */}
+      {filterCount > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+          {filterChips(filters, unitM2).map((c) => (
+            <span key={c.key} className="tag mine" style={{ padding: "4px 10px", fontSize: 12 }}>
+              {c.label}
+              <button className="btn" style={{ marginLeft: 6, padding: "0 5px", fontSize: 11 }}
+                onClick={() => { setFilters((f) => ({ ...f, ...c.clear })); setPages({ ad: 1, mine: 1, normal: 1 }); }}>×</button>
+            </span>
+          ))}
+          <button className="btn" style={{ padding: "3px 10px", fontSize: 12 }}
+            onClick={() => { setFilters({}); setPages({ ad: 1, mine: 1, normal: 1 }); }}>조건 초기화</button>
+        </div>
+      )}
+
+      {showFilter && (
+        <FilterModal
+          initial={filters}
+          onApply={(f) => { setFilters(f); setPages({ ad: 1, mine: 1, normal: 1 }); }}
+          onClose={() => setShowFilter(false)}
+        />
+      )}
 
       {/* 지도 뷰 */}
       {view === "map" && (

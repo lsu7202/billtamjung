@@ -23,15 +23,24 @@ export const authApi = {
   logout: () => api<{ ok: boolean }>("/auth/logout", { method: "POST" }),
 };
 
+export interface AttrFilters {
+  use_zones?: string[] | null;
+  main_use?: string | null;
+  land_area_min?: number | null; land_area_max?: number | null;
+  total_area_min?: number | null; total_area_max?: number | null;
+  floors_above_min?: number | null; floors_above_max?: number | null;
+  station_dist_max?: number | null;
+}
+
 export const searchApi = {
   suggest: (q: string) => api<Suggestion[]>(`/search/suggest?q=${encodeURIComponent(q)}`),
   regions: () => api<Record<string, { sgg_code: string; dongs: { bjd_code: string; dong: string; count: number }[] }>>("/search/regions"),
-  list: (p: { bjd_code?: string; polygon?: object; sort?: string; fav_only?: boolean; page_ad?: number; page_mine?: number; page_normal?: number }) =>
+  list: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string; fav_only?: boolean; page_ad?: number; page_mine?: number; page_normal?: number }) =>
     api("/search", {
       method: "POST",
       body: JSON.stringify({
         polygon: p.polygon ?? null,
-        filters: { bjd_code: p.bjd_code ?? null },
+        filters: { bjd_code: p.bjd_code ?? null, ...(p.filters ?? {}) },
         sort: p.sort ?? "price", fav_only: p.fav_only ?? false,
         page_ad: p.page_ad ?? 1, page_mine: p.page_mine ?? 1, page_normal: p.page_normal ?? 1,
       }),
