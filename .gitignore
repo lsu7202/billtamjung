@@ -14,3 +14,14 @@ index copy.html
 # 원본 데이터 (대용량, git 제외)
 data/raw/
 __pycache__/
+
+# 백엔드/프론트 (2026-07 구현)
+**/.venv/
+*.pyc
+.env
+.env.*
+!.env.example
+**/node_modules/
+frontend/dist/
+frontend/.vite/
+data/*.db
