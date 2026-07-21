@@ -6,11 +6,25 @@
 <title>S00 · 로그인/계정 — 빌탐정 와이어프레임</title>
 <link rel="stylesheet" href="wireframe.css">
 <style>
-.auth-wrap{min-height:calc(100vh - 90px); display:flex; align-items:center; justify-content:center; padding:20px}
-.auth-card{width:min(400px,100%); background:#fff; border:1px solid var(--line); border-radius:14px; padding:30px 30px 26px; box-shadow:0 10px 40px rgba(0,0,0,.06)}
-.auth-brand{text-align:center; margin-bottom:22px}
-.auth-brand .logo{font-size:24px; font-weight:800; color:var(--accent)}
-.auth-brand .tag{font-size:12.5px; color:var(--muted); margin-top:4px}
+/* 스플릿: 좌 브랜드 패널(네이비) + 우 로그인 폼 */
+.auth-split{display:grid; grid-template-columns:1.05fr .95fr; min-height:calc(100vh - 60px); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); border:1px solid var(--line)}
+.brand-panel{background:var(--ink); color:#fff; padding:52px 54px; display:flex; flex-direction:column; position:relative; overflow:hidden}
+.brand-panel::after{content:""; position:absolute; inset:0; opacity:.5; pointer-events:none;
+  background:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px) 0 0/48px 48px, linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px) 0 0/48px 48px}
+.bp-logo{font-size:26px; font-weight:800; letter-spacing:-.03em; display:flex; align-items:center; gap:9px; z-index:1}
+.bp-logo::before{content:""; width:11px; height:11px; border-radius:3px; background:var(--signal); box-shadow:0 0 0 4px rgba(30,90,240,.28)}
+.bp-headline{font-size:30px; font-weight:800; line-height:1.32; letter-spacing:-.03em; margin-top:auto; z-index:1}
+.bp-headline b{color:#7fa8ff}
+.bp-sub{color:#9fb0cc; font-size:14px; margin-top:14px; line-height:1.6; z-index:1}
+.bp-demo{margin-top:30px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:18px 20px; z-index:1}
+.bp-demo .dh{font-size:12px; color:#8ea0ba; font-weight:600; margin-bottom:12px; display:flex; justify-content:space-between}
+.bp-demo .daddr{font-family:var(--mono); color:#c3cde0}
+.auth-side{background:var(--bg); display:flex; align-items:center; justify-content:center; padding:20px}
+.auth-card{width:min(380px,100%); background:transparent; border:0; padding:0; box-shadow:none}
+.auth-brand{margin-bottom:22px}
+.auth-brand .logo{font-size:20px; font-weight:800; color:var(--ink); display:none}
+.auth-brand .tag{font-size:15px; color:var(--ink); font-weight:800; letter-spacing:-.01em}
+@media(max-width:840px){.auth-split{grid-template-columns:1fr} .brand-panel{display:none}}
 .auth-tabs{display:flex; margin-bottom:20px; border-bottom:1px solid #eef0f3}
 .auth-tabs button{flex:1; border:0; background:none; padding:10px 0 11px; font-size:14px; font-weight:700; color:#98a2ad; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px}
 .auth-tabs button.on{color:var(--accent); border-bottom-color:var(--accent)}
@@ -40,11 +54,29 @@
     <b>S00 · 로그인 / 계정</b> — 정식 출시 기준 목업. <b>MVP</b>: 이메일 로그인·회원가입(최소 인증)만. 소셜 로그인은 <b>[정식]</b>.
   </div>
 
-  <div class="auth-wrap">
+  <div class="auth-split">
+    <!-- 좌: 브랜드 패널 -->
+    <div class="brand-panel on-dark">
+      <div class="bp-logo">빌탐정</div>
+      <div class="bp-headline">건물의 진짜 가치를,<br><b>데이터로 증명</b>합니다.</div>
+      <div class="bp-sub">서울 전 건물의 대장·토지·공시지가·매각 데이터부터<br>가치점수·적정매매가 분석까지 — 하나의 화면에서.</div>
+      <div class="bp-demo">
+        <div class="dh"><span>가치점수 분석 · 매물분석보고서</span><span class="daddr">역삼동 735-29</span></div>
+        <div class="value-gauge">
+          <div class="vg-num"><span class="score">82.2</span><span class="max">/ 100</span></div>
+          <div class="vg-meta">
+            <span class="vg-grade a">A</span>
+            <span class="vg-bars"><i style="height:78%"></i><i style="height:91%"></i><i style="height:90%"></i><i style="height:60%"></i><i style="height:70%"></i><i style="height:80%"></i><i style="height:70%"></i><i style="height:60%"></i></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 우: 로그인 폼 -->
+    <div class="auth-side">
     <div class="auth-card">
       <div class="auth-brand">
-        <div class="logo">빌탐정</div>
-        <div class="tag">신뢰할 수 있는 부동산 가치 분석 파트너</div>
+        <div class="tag">로그인</div>
       </div>
 
       <div class="auth-tabs">
@@ -83,6 +115,7 @@
       </div>
 
       <div class="mvp-note">가입 시 <b>체험판(1개월)</b> 자동 시작 · 검색 무제한 + 크레딧 60</div>
+    </div>
     </div>
   </div>
 </div>

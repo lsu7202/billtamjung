@@ -46,6 +46,29 @@ td.adr{color:#1a4fc0; cursor:pointer}
 .ov-f .now{color:#1a4fc0}
 .ov-who{color:#aaa; font-size:11px; margin-left:4px}
 .ov-undo{padding:4px 10px; font-size:12px}
+.gen-spin{width:34px;height:34px;margin:0 auto;border:3px solid #e6eaef;border-top-color:var(--accent);border-radius:50%;animation:genspin .8s linear infinite}
+@keyframes genspin{to{transform:rotate(360deg)}}
+/* 필지 셀렉터 (2026-07-19) — 다필지 건물에서 토지·규제·공시지가를 필지별로 전환 */
+.parcel-tabs{display:flex; flex-wrap:wrap; gap:6px; padding:10px 0 12px}
+.parcel-tabs button{border:1px solid #dfe3e8; background:#fff; border-radius:999px;
+  padding:5px 12px; font-size:12px; color:#5a6572; cursor:pointer}
+.parcel-tabs button:hover{border-color:#b9c2cc}
+.parcel-tabs button.on{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700}
+.parcel-tabs .rep{font-size:10px; opacity:.75; margin-left:3px}
+.parcel-tabs .single{color:#8a929b; font-size:12px; padding:4px 0}
+/* 규제 건물 요약 (전 필지 OR 집계) — 2레벨 중 상위 */
+.reg-summary{display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:12px 14px}
+.reg-summary .rs-lead{font-size:12px; color:#8a929b; font-weight:700; margin-right:2px}
+.reg-summary .rs-on{background:#fbeaea; color:#c0392b; border:1px solid #f0c9c9; border-radius:999px; padding:3px 10px; font-size:12px; font-weight:700}
+.reg-summary .rs-none{color:#2a7d46; font-size:12px; font-weight:700}
+.reg-summary .rs-off{color:#8a929b; font-size:12px}
+/* 수정된 필드 표시 + 필드별 되돌리기 (2026-07-19) */
+.kv.edited .v{color:#1a4fc0}
+.kv.edited .k::after{content:"•"; color:#1a4fc0; margin-left:4px; font-size:15px; line-height:0; vertical-align:middle}
+.kv .revert{opacity:0; margin-left:6px; border:0; background:none; cursor:pointer;
+  color:#8a929b; font-size:12px; padding:0 2px; transition:opacity .12s}
+.kv.edited:hover .revert{opacity:1}
+.kv .revert:hover{color:#c0392b}
 .hist{padding:6px 12px 14px}
 .hist-field{padding:10px 0; border-bottom:1px solid #f0f2f5}
 .hist-field:last-child{border-bottom:0}
@@ -172,29 +195,39 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
 <body>
 <div class="screen" style="padding-bottom:76px">
 
+  <div class="appbar">
+    <div class="gnb-left">
+      <div class="brand">빌탐정</div>
+      <nav class="gnb"><a class="on">매물 검색</a><a>내 산출물</a></nav>
+    </div>
+    <div class="gnb-right">
+      <span class="credit-chip">크레딧 <b>660</b></span>
+      <span class="user">이승욱 <span class="avatar"></span></span>
+    </div>
+  </div>
+
   <div class="spec-note">
-    <b>S02 · 매물 상세</b> — 우측 <b>업무/위키/수정이력/메모</b>는 스크롤해도 고정. <b>노출 값 클릭 = 수정</b>(개인/팀 오버레이, 수정이력에서 되돌리기 · 넛지 없음).
-    분석값(가치점수·적정매매가)은 <b>보고서 전용</b> — 여기선 raw + 주변시세 curation까지.
+    <b>S02 · 매물 상세</b> — 우측 <b>업무/위키/수정이력/메모</b>는 스크롤해도 고정. <b>노출 값 클릭 = 수정</b>(개인/팀 오버레이, 수정이력에서 되돌리기 · 넛지 없음). 분석값(가치점수·적정매매가)은 <b>보고서 전용</b> — 여기선 raw + 주변시세 curation까지.
   </div>
 
   <!-- 헤더 -->
   <div class="panel hdr-panel">
     <div class="detail-top">
       <div class="hdr-left">
-        <h2>서울특별시 강남구 역삼동 601-5 <span class="star">★</span></h2>
+        <h2>서울특별시 강남구 역삼동 735-29 <span class="star">★</span></h2>
         <div class="meta-line">
           <span>매물번호 <b>11718</b></span><span>접수일 <b>2026-06-06</b></span><span>담당 <b>이승욱</b></span>
         </div>
       </div>
       <div class="hdr-metrics">
-        <div class="metric"><div class="k">매매가</div><div class="v">100억</div></div>
-        <div class="metric"><div class="k">수익률(만실)</div><div class="v">3.2% <small style="color:#8a929b;font-weight:600">/ 2.1%</small></div></div>
-        <div class="metric"><div class="k">평단가(대지)</div><div class="v">1억 3,900만</div></div>
+        <div class="metric"><div class="k">매매가</div><div class="v">110억</div></div>
+        <div class="metric"><div class="k">수익률(만실/현재)</div><div class="v">1.9% <small style="color:#8a929b;font-weight:600">/ 1.63%</small></div></div>
+        <div class="metric"><div class="k">평단가(대지)</div><div class="v">1억 8,400만</div></div>
         <div class="metric metric-area">
           <div class="k">면적 (평)</div>
-          <div class="area-v"><span><i>대지</i>71.9</span><span><i>연면적</i>143</span><span><i>건축</i>37.8</span></div>
+          <div class="area-v"><span><i>대지</i>59.9</span><span><i>연면적</i>222.4</span><span><i>건축</i>35.2</span></div>
         </div>
-        <div class="metric"><div class="k">층수</div><div class="v">B1F/3F</div></div>
+        <div class="metric"><div class="k">층수</div><div class="v">B1F/5F</div></div>
       </div>
     </div>
   </div>
@@ -240,13 +273,13 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
       <div class="block" data-grp="deal">
         <div class="sec-head">금액정보</div>
         <div class="kv-grid">
-          <div class="kv"><span class="k">매매가</span><span class="v">100억</span></div>
-          <div class="kv"><span class="k">수익률</span><span class="v calc">3.2% <small style="color:#8a929b;font-weight:400">/ 2.1%</small></span></div>
-          <div class="kv"><span class="k">대지면적 평단가</span><span class="v calc">1억 3,900만</span></div>
-          <div class="kv"><span class="k">연면적 평단가</span><span class="v calc">6,993만</span></div>
-          <div class="kv"><span class="k">총보증금</span><span class="v">8억</span></div>
-          <div class="kv"><span class="k">총임대료</span><span class="v">2,250만원</span></div>
-          <div class="kv"><span class="k">총관리비</span><span class="v">265만원</span></div>
+          <div class="kv"><span class="k">매매가</span><span class="v">110억</span></div>
+          <div class="kv"><span class="k">수익률</span><span class="v calc">1.9% <small style="color:#8a929b;font-weight:400">/ 1.63%</small></span></div>
+          <div class="kv"><span class="k">대지면적 평단가</span><span class="v calc">1억 8,400만</span></div>
+          <div class="kv"><span class="k">연면적 평단가</span><span class="v calc">4,946만</span></div>
+          <div class="kv"><span class="k">총보증금</span><span class="v">9억</span></div>
+          <div class="kv"><span class="k">총임대료</span><span class="v">1,490만원</span></div>
+          <div class="kv"><span class="k">총관리비</span><span class="v">500만원</span></div>
           <div class="kv"><span class="k">총공실</span><span class="v">있음</span></div>
         </div>
       </div>
@@ -271,12 +304,14 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
       <div class="block" data-grp="deal">
         <div class="sec-head">층별 임대정보 <div class="right"><button class="btn">＋ 호실 추가</button></div></div>
         <table class="wf">
-          <thead><tr><th>층</th><th>호실</th><th class="num">전용면적</th><th class="num">계약면적</th><th class="num">보증금</th><th class="num">임대료</th><th class="num">관리비</th><th>상태</th></tr></thead>
+          <thead><tr><th>층</th><th>호실</th><th>용도</th><th class="num">전용면적</th><th class="num">계약면적</th><th class="num">보증금</th><th class="num">임대료</th><th class="num">관리비</th><th>상태</th></tr></thead>
           <tbody>
-            <tr><td>3층</td><td>301호</td><td class="num">34평</td><td class="num">62평</td><td class="num">2억</td><td class="num">600만</td><td class="num">80만</td><td><span class="vac-toggle">임대중</span></td></tr>
-            <tr><td>2층</td><td>201호</td><td class="num">37평</td><td class="num">67평</td><td class="num">2억</td><td class="num">650만</td><td class="num">85만</td><td><span class="vac-toggle">임대중</span></td></tr>
-            <tr><td>1층</td><td>101호</td><td class="num">36평</td><td class="num">65평</td><td class="num">3억</td><td class="num">1,000만</td><td class="num">100만</td><td><span class="vac-toggle">임대중</span></td></tr>
-            <tr><td>지하1층</td><td>B101호</td><td class="num">36평</td><td class="num">65평</td><td class="num">1억</td><td class="num">400만</td><td class="num">60만</td><td><span class="vac-toggle vacant">공실</span></td></tr>
+            <tr><td>5층</td><td>501호</td><td>사무소</td><td class="num">22평</td><td class="num">37평</td><td class="num">1.5억</td><td class="num">250만</td><td class="num">90만</td><td><span class="vac-toggle">임대중</span></td></tr>
+            <tr><td>4층</td><td>401호</td><td>사무소</td><td class="num">22평</td><td class="num">37평</td><td class="num">1.5억</td><td class="num">250만</td><td class="num">90만</td><td><span class="vac-toggle">임대중</span></td></tr>
+            <tr><td>3층</td><td>301호</td><td>사무소</td><td class="num">22평</td><td class="num">37평</td><td class="num">1.5억</td><td class="num">260만</td><td class="num">90만</td><td><span class="vac-toggle">임대중</span></td></tr>
+            <tr><td>2층</td><td>201호</td><td>사무소</td><td class="num">22평</td><td class="num">37평</td><td class="num">1.5억</td><td class="num">280만</td><td class="num">90만</td><td><span class="vac-toggle">임대중</span></td></tr>
+            <tr><td>1층</td><td>101호</td><td>제1종근린생활시설</td><td class="num">25평</td><td class="num">38평</td><td class="num">3억</td><td class="num">450만</td><td class="num">90만</td><td><span class="vac-toggle">임대중</span></td></tr>
+            <tr><td>지하1층</td><td>B101호</td><td>제1종근린생활시설</td><td class="num">22평</td><td class="num">37평</td><td class="num">0</td><td class="num">0</td><td class="num">50만</td><td><span class="vac-toggle vacant">공실</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -290,7 +325,7 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
           <div class="kv"><span class="k">용도변경</span><span class="v">근생</span></div>
           <div class="kv"><span class="k">등급</span><span class="v">좋음</span></div>
           <div class="kv"><span class="k">멸실</span><span class="v">협조가능</span></div>
-          <div class="kv"><span class="k">건물용도</span><span class="v">수익률</span></div>
+          <div class="kv"><span class="k">노후도</span><span class="v">양호</span></div>
         </div>
       </div>
 
@@ -298,64 +333,50 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
       <div class="block" data-grp="land">
         <div class="sec-head">건물정보</div>
         <div class="kv-grid">
-          <div class="kv"><span class="k">대지면적</span><span class="v">71.9평</span></div>
-          <div class="kv"><span class="k">연면적</span><span class="v">143평</span></div>
-          <div class="kv"><span class="k">건축면적</span><span class="v">37.8평</span></div>
-          <div class="kv"><span class="k">층수</span><span class="v">지상 3 · 지하 1</span></div>
-          <div class="kv"><span class="k">용적률 산정용 연면적</span><span class="v">107평</span></div>
-          <div class="kv"><span class="k">주차</span><span class="v">4대</span></div>
-          <div class="kv"><span class="k">엘리베이터</span><span class="v">0대</span></div>
-          <div class="kv"><span class="k">사용승인일</span><span class="v">1995/11/13</span></div>
+          <div class="kv"><span class="k">대지면적</span><span class="v">59.9평 <small style="color:#8a929b;font-weight:400">(198.02㎡ · 단일필지)</small></span></div>
+          <div class="kv"><span class="k">연면적</span><span class="v">222.4평</span></div>
+          <div class="kv"><span class="k">건축면적</span><span class="v">35.2평</span></div>
+          <div class="kv"><span class="k">층수</span><span class="v">지상 5 · 지하 1</span></div>
+          <div class="kv"><span class="k">용적률 산정용 연면적</span><span class="v">199평</span></div>
+          <div class="kv edited"><span class="k">주차</span><span class="v">10대<button class="revert" title="마스터 원본(9대)으로 되돌리기">↺</button></span></div>
+          <div class="kv edited"><span class="k">엘리베이터</span><span class="v">1대<button class="revert" title="마스터 원본(0대)으로 되돌리기">↺</button></span></div>
+          <div class="kv"><span class="k">사용승인일</span><span class="v">2004/05/20</span></div>
           <div class="kv"><span class="k">대수선 및 리모델링</span><span class="v">2022/08/13</span></div>
-          <div class="kv"><span class="k">기타용도</span><span class="v">근린생활시설</span></div>
-          <div class="kv"><span class="k">건폐율</span><span class="v">52.5% <small style="color:#8a929b;font-weight:400">/ 법정 50% / 잔여 -2.5%p</small></span></div>
-          <div class="kv"><span class="k">용적률</span><span class="v">149% <small style="color:#8a929b;font-weight:400">/ 법정 250% / 잔여 101%p</small></span></div>
+          <div class="kv"><span class="k">주용도</span><span class="v">제1종근린생활시설</span></div>
+          <div class="kv"><span class="k">건폐율</span><span class="v">58.7% <small style="color:#8a929b;font-weight:400">/ 법정 60% / 잔여 1.3%p</small></span></div>
+          <div class="kv"><span class="k">용적률</span><span class="v">332.4% <small style="color:#8a929b;font-weight:400">/ 법정 800% / 잔여 467.6%p</small></span></div>
         </div>
       </div>
 
       <!-- 토지정보 -->
       <div class="block" data-grp="land">
-        <div class="sec-head">토지정보</div>
-        <div class="kv-grid">
-          <div class="kv"><span class="k">토지면적</span><span class="v">71.9평</span></div>
-          <div class="kv"><span class="k">지목</span><span class="v">대</span></div>
-          <div class="kv"><span class="k">용도지역</span><span class="v">제3종일반주거</span></div>
-          <div class="kv"><span class="k">이용상황</span><span class="v">주상기타</span></div>
-          <div class="kv"><span class="k">주용도</span><span class="v">제2종근린생활시설</span></div>
-          <div class="kv"><span class="k">지형/형상</span><span class="v">세로장방</span></div>
-          <div class="kv"><span class="k">도로접면</span><span class="v">세로한면(가)</span></div>
-          <div class="kv"><span class="k">지세</span><span class="v">평지</span></div>
-          <div class="kv" style="grid-column:1/-1"><span class="k">관련 필지</span><span class="v">단일 필지 <small style="color:#8a929b">(부속지번 없음)</small></span></div>
+        <div class="sec-head">토지정보
+          <div class="right"><small style="font-size:11px;color:#8a929b">필지별 값 · 합산 안 함</small></div>
         </div>
+        <!-- 필지 셀렉터 — 다필지일 때만 노출. 선택 시 토지정보·규제·특례·공시지가가 함께 전환 -->
+        <div class="parcel-tabs" id="parcel-tabs"></div>
+        <div class="kv-grid" id="kv-land"></div>
       </div>
 
-      <!-- 규제·특례 -->
+      <!-- 규제·특례 (2레벨: 건물 요약 = 전 필지 OR 집계 + 필지 상세) -->
       <div class="block" data-grp="land">
         <div class="sec-head">규제·특례</div>
-        <div class="kv-grid">
-          <div class="kv"><span class="k">지구단위계획</span><span class="v">해당 없음</span></div>
-          <div class="kv"><span class="k">정비구역</span><span class="v">해당 없음</span></div>
-          <div class="kv"><span class="k">고도지구</span><span class="v">해당 없음</span></div>
-          <div class="kv"><span class="k">경관지구</span><span class="v">해당 없음</span></div>
-          <div class="kv"><span class="k">방화지구</span><span class="v">해당 없음</span></div>
-          <div class="kv"><span class="k">문화재보존</span><span class="v">해당 없음</span></div>
-          <div class="kv"><span class="k">개발제한</span><span class="v">해당 없음</span></div>
-        </div>
+        <!-- 건물 요약: 이 건물이 규제에 걸리는가 한눈에 (전 필지 OR 집계) -->
+        <div id="reg-summary" class="reg-summary"></div>
+        <div class="sec-head" style="font-size:13px;border-top:1px solid #eef0f3">필지 상세 <small style="font-size:11px;color:#8a929b;font-weight:400;margin-left:6px">선택 필지 기준</small></div>
+        <div class="kv-grid" id="kv-reg"></div>
       </div>
 
       <!-- 공시지가 -->
       <div class="block" id="blk-gongsi" data-grp="land">
-        <div class="sec-head">공시지가
+        <div class="sec-head">공시지가 <small style="font-size:11px;color:#8a929b;font-weight:400;margin-left:6px">선택 필지 기준</small>
           <div class="right"><span class="series-metric"></span>
             <div class="segmented seg-series"><button class="active" data-v="t">표</button><button data-v="c">그래프</button></div></div>
         </div>
         <div class="series-t">
           <table class="wf"><thead><tr><th>년도</th><th class="num">공시지가(만원/㎡)</th></tr></thead>
             <tbody id="gongsi-rows"></tbody></table>
-          <div class="kv-grid">
-            <div class="kv"><span class="k">총공시지가</span><span class="v calc">31.2억 <small style="color:#8a929b;font-weight:400">= 1,312만/㎡ × 237.8㎡</small></span></div>
-            <div class="kv"><span class="k">공시지가 기준</span><span class="v calc">62.4억 <small style="color:#8a929b;font-weight:400">= 총공시지가 × 2</small></span></div>
-          </div>
+          <div class="kv-grid" id="kv-gongsi"></div>
         </div>
         <div class="series-c hidden"><svg class="svg-chart" viewBox="0 0 900 240"></svg></div>
       </div>
@@ -382,7 +403,7 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
         </div>
         <div class="series-t">
           <table class="wf"><thead><tr><th>변동일</th><th class="num">광고가</th></tr></thead>
-            <tbody><tr><td>2026/06/02</td><td class="num">62억</td></tr><tr><td>2026/01/15</td><td class="num">65억</td></tr></tbody></table>
+            <tbody><tr><td>2026/06/02</td><td class="num">110억</td></tr><tr><td>2026/01/15</td><td class="num">112억</td></tr></tbody></table>
         </div>
         <div class="series-c hidden"><svg class="svg-chart" viewBox="0 0 900 240"></svg></div>
       </div>
@@ -395,15 +416,15 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
           <div class="transit">
             <div class="transit-group">
               <div class="tg-head">🚇 주변 지하철</div>
-              <div class="tg-item"><span class="line lsin">신분당</span><span class="nm">신논현역</span><span class="dist">77m · 도보 1분</span></div>
-              <div class="tg-item"><span class="line l9">9호선</span><span class="nm">신논현역</span><span class="dist">77m · 도보 1분</span></div>
-              <div class="tg-item"><span class="line l2">2호선</span><span class="nm">강남역</span><span class="dist">738m · 도보 9분</span></div>
+              <div class="tg-item"><span class="line l2">2호선</span><span class="nm">역삼역</span><span class="dist">220m · 도보 3분</span></div>
+              <div class="tg-item"><span class="line l2">2호선</span><span class="nm">강남역</span><span class="dist">680m · 도보 9분</span></div>
+              <div class="tg-item"><span class="line lsin">수인분당</span><span class="nm">선릉역</span><span class="dist">900m · 도보 12분</span></div>
             </div>
             <div class="transit-group">
               <div class="tg-head">🚌 주변 버스정류소</div>
-              <div class="tg-item"><span class="nm">신논현역4번출구</span><span class="dist">27m · 도보 1분</span></div>
-              <div class="tg-item"><span class="nm">신논현역3번출구</span><span class="dist">70m · 도보 1분</span></div>
-              <div class="tg-item"><span class="nm">교보타워앞</span><span class="dist">159m · 도보 2분</span></div>
+              <div class="tg-item"><span class="nm">역삼역7번출구</span><span class="dist">40m · 도보 1분</span></div>
+              <div class="tg-item"><span class="nm">역삼역8번출구</span><span class="dist">85m · 도보 1분</span></div>
+              <div class="tg-item"><span class="nm">국기원입구</span><span class="dist">170m · 도보 2분</span></div>
             </div>
           </div>
           <div class="kv-grid">
@@ -423,18 +444,18 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
             <div style="position:absolute;left:40%;top:38%;width:150px;height:150px;transform:translate(-50%,-50%);border:2px dashed #d93025;border-radius:50%;background:rgba(217,48,37,.06)"></div>
             <div style="position:absolute;left:58%;top:60%;width:11px;height:11px;background:#111;border-radius:50%" title="본매물(참조)"></div>
           </div>
-          <div class="radius-row"><span class="fl-label">반경</span><input type="range" min="200" max="1000" step="50" value="400"><span class="rv">400m</span></div>
-          <div class="floor-row" style="padding:0"><span class="fl-label">조회 층</span>지하 <input class="fin" type="number" min="0" value="3"> ~ 지상 <input class="fin" type="number" min="1" value="5"> 층</div>
+          <div class="radius-row"><span class="fl-label">반경</span><input type="range" min="200" max="1000" step="50" value="500"><input class="rv" type="number" value="500" min="1" step="50" style="width:72px;text-align:right;border:1px solid #dfe3e8;border-radius:6px;padding:3px 6px;font-size:12px"><span style="font-size:12px;color:#8a929b">m</span></div>
+          <div class="floor-row" style="padding:0"><span class="fl-label">조회 층</span>지하 <input class="fin" type="number" min="0" value="1"> ~ 지상 <input class="fin" type="number" min="1" value="5"> 층</div>
         </div>
         <!-- 주변 임대시세 comps (인라인 curate) -->
         <div class="sec-head" style="border-top:1px solid #eef0f3;font-size:13px">주변 임대시세 <small style="font-size:11px;color:#aaa;font-weight:400">체크 해제=평균 제외 · ×삭제</small></div>
         <table class="wf">
-          <thead><tr><th style="width:30px" class="num">✓</th><th>층</th><th class="num">계약면적</th><th class="num">보증금</th><th class="num">임대료</th><th class="num">평당보증</th><th class="num">평당임대</th><th>주소</th><th></th></tr></thead>
+          <thead><tr><th style="width:30px" class="num">✓</th><th>층</th><th class="num">계약면적</th><th class="num">전용면적</th><th class="num">보증금</th><th class="num">임대료</th><th class="num">관리비</th><th class="num">평당보증</th><th class="num">평당임대</th><th>주소</th><th></th></tr></thead>
           <tbody>
-            <tr><td class="num"><input type="checkbox" checked></td><td>1층</td><td class="num">25평</td><td class="num">7,500만</td><td class="num">625만</td><td class="num">300만</td><td class="num">25만</td><td class="adr">역삼동 725-3</td><td class="num"><span class="x">×</span></td></tr>
-            <tr><td class="num"><input type="checkbox" checked></td><td>1층</td><td class="num">30평</td><td class="num">9,000만</td><td class="num">700만</td><td class="num">300만</td><td class="num">23만</td><td class="adr">역삼동 718-2</td><td class="num"><span class="x">×</span></td></tr>
-            <tr class="outlier"><td class="num"><input type="checkbox"></td><td>1층 <span class="badge-out">이상치</span></td><td class="num">18평</td><td class="num">1억 3천</td><td class="num">1,400만</td><td class="num">720만</td><td class="num">78만</td><td class="adr">역삼동 730-1</td><td class="num"><span class="x">×</span></td></tr>
-            <tr><td class="num"><input type="checkbox" checked></td><td>지하1층</td><td class="num">30평</td><td class="num">3,000만</td><td class="num">300만</td><td class="num">100만</td><td class="num">10만</td><td class="adr">역삼동 712-9</td><td class="num"><span class="x">×</span></td></tr>
+            <tr><td class="num"><input type="checkbox" checked></td><td>1층</td><td class="num">25평</td><td class="num">15평</td><td class="num">7,500만</td><td class="num">625만</td><td class="num">25만</td><td class="num">300만</td><td class="num">25만</td><td class="adr">역삼동 725-3</td><td class="num"><span class="x">×</span></td></tr>
+            <tr><td class="num"><input type="checkbox" checked></td><td>1층</td><td class="num">30평</td><td class="num">18평</td><td class="num">9,000만</td><td class="num">700만</td><td class="num">30만</td><td class="num">300만</td><td class="num">23만</td><td class="adr">역삼동 718-2</td><td class="num"><span class="x">×</span></td></tr>
+            <tr class="outlier"><td class="num"><input type="checkbox"></td><td>1층 <span class="badge-out">이상치</span></td><td class="num">18평</td><td class="num">11평</td><td class="num">1억 3천</td><td class="num">1,400만</td><td class="num">20만</td><td class="num">720만</td><td class="num">78만</td><td class="adr">역삼동 730-1</td><td class="num"><span class="x">×</span></td></tr>
+            <tr><td class="num"><input type="checkbox" checked></td><td>지하1층</td><td class="num">30평</td><td class="num">18평</td><td class="num">3,000만</td><td class="num">300만</td><td class="num">10만</td><td class="num">100만</td><td class="num">10만</td><td class="adr">역삼동 712-9</td><td class="num"><span class="x">×</span></td></tr>
           </tbody>
         </table>
         <div class="sec-head" style="font-size:13px">층별 평균 <small style="font-size:11px;color:#aaa;font-weight:400">라이브 · 매물에 등록될 값</small></div>
@@ -479,11 +500,12 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
             </div>
             <div class="wk-field">
               <span class="wk-k">내 광고</span>
-              <span class="ad-badge live">62억</span>
+              <span class="ad-badge live">110억</span>
             </div>
           </div>
           <div class="kv-grid" style="grid-template-columns:1fr">
-            <div class="kv"><span class="k">담당자</span><span class="v">이승욱</span></div>
+            <div class="kv"><span class="k">담당자</span><span class="v"><select style="font-size:13px;font-weight:600;color:#1c2430;border:1px solid #dfe3e8;border-radius:6px;padding:3px 6px;background:#fff" title="담당자 지정 = 매물 등록 · 미지정 = 등록 해제">
+              <option>미지정</option><option selected>이승욱</option><option>박실장</option><option>김대리</option></select></span></div>
             <div class="kv"><span class="k">긴급도</span><span class="v">급함</span></div>
             <div class="kv"><span class="k">소유자타입</span><span class="v">개인</span></div>
             <div class="kv"><span class="k">소유자 내용</span><span class="v">—</span></div>
@@ -492,7 +514,7 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
             <div class="kv"><span class="k">협조도</span><span class="v">보통</span></div>
             <div class="kv"><span class="k">친절도</span><span class="v">보통</span></div>
             <div class="kv"><span class="k">매수의향서</span><span class="v">원함</span></div>
-            <div class="kv"><span class="k">전화번호</span><span class="v"><span class="copy-tel">010-****-1234</span> 📋</span></div>
+            <div class="kv"><span class="k">전화번호 <span title="담당자 본인과 대표만 볼 수 있습니다" style="cursor:help">🔒</span></span><span class="v"><span class="copy-tel">010-****-1234</span> 📋</span></div>
           </div>
         </div>
 
@@ -522,21 +544,43 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
         </div>
 
         <div id="tab-hist" class="tabpane">
-          <div style="padding:12px 12px 4px;font-size:12px;color:#888">수정이력 · 마스터와 다르게 바꾼 값 <span style="color:#aaa">(내 + 팀 · 되돌리면 마스터로 복원)</span></div>
+          <div style="padding:12px 12px 4px;font-size:12px;color:#888">수정이력 · 다른 이용자들은 이 값을 무엇으로 갖고 있나
+            <span style="color:#aaa">(익명 집계 · 공공 필드만 · 마스터는 불변)</span></div>
           <div class="hist">
-            <div class="ov-row"><div class="ov-f"><b>엘리베이터</b><br><span class="was">0대</span> → <b class="now">1대</b> <span class="ov-who">이승욱</span></div><button class="btn ov-undo">되돌리기</button></div>
-            <div class="ov-row"><div class="ov-f"><b>주차</b><br><span class="was">4대</span> → <b class="now">5대</b> <span class="ov-who">박실장 · 팀</span></div><button class="btn ov-undo">되돌리기</button></div>
-            <div class="ov-row"><div class="ov-f"><b>유동인구</b><br><span class="was">미지정</span> → <b class="now">높음</b> <span class="ov-who">이승욱</span></div><button class="btn ov-undo">되돌리기</button></div>
-            <div class="ov-row"><div class="ov-f"><b>도로접면</b><br><span class="was">세로한면(가)</span> → <b class="now">소로한면</b> <span class="ov-who">이승욱</span></div><button class="btn ov-undo">되돌리기</button></div>
+            <div class="hist-field">
+              <div class="hf-name">엘리베이터</div>
+              <div class="hf-row top"><span class="v">1대</span><span class="bar"><i style="width:60%"></i></span><span class="cnt">3명</span></div>
+              <div class="hf-row"><span class="v">0대 <small style="color:#aab2bc">원본</small></span><span class="bar"><i style="width:40%"></i></span><span class="cnt">2명</span></div>
+            </div>
+            <div class="hist-field">
+              <div class="hf-name">주차</div>
+              <div class="hf-row top"><span class="v">10대</span><span class="bar"><i style="width:80%"></i></span><span class="cnt">4명</span></div>
+              <div class="hf-row"><span class="v">9대 <small style="color:#aab2bc">원본</small></span><span class="bar"><i style="width:20%"></i></span><span class="cnt">1명</span></div>
+            </div>
+            <div class="hist-field">
+              <div class="hf-name">도로접면</div>
+              <div class="hf-row top"><span class="v">광대소각 <small style="color:#aab2bc">원본</small></span><span class="bar"><i style="width:60%"></i></span><span class="cnt">3명</span></div>
+              <div class="hf-row"><span class="v">광대한면</span><span class="bar"><i style="width:40%"></i></span><span class="cnt">2명</span></div>
+            </div>
+          </div>
+          <div style="padding:2px 12px 14px;font-size:11px;color:#aab2bc;line-height:1.5">
+            참고용 힌트입니다. 분포가 쏠려도 자동 반영되지 않으며, 채택 여부는 직접 판단하세요.<br>
+            내 값을 되돌리려면 해당 필드의 <b>↺</b>(호버 시 표시) 또는 하단 <b>↺ 전체 되돌리기</b>를 사용하세요.
           </div>
         </div>
 
         <!-- 메모 (팀 공유) -->
         <div id="tab-memo" class="tabpane">
-          <div style="padding:12px 12px 0;font-size:12px;color:#888">팀 공유 메모 <span style="color:#aaa">(대표+직원 팀 내부만)</span></div>
+          <div style="padding:12px 12px 0;font-size:12px;color:#888">메모 <span style="color:#aaa">(팀 전체 공유)</span></div>
           <div class="memo-area">
             <textarea placeholder="팀원과 공유할 메모"></textarea>
-            <div style="text-align:right;margin-top:8px"><button class="btn primary">저장</button></div>
+          </div>
+          <div style="padding:14px 12px 0;font-size:12px;color:#888;border-top:1px solid #eef0f3;margin-top:10px">
+            🔒 비밀메모 <span style="color:#aaa">(담당자 본인 + 대표만)</span>
+          </div>
+          <div class="memo-area">
+            <textarea placeholder="팀원에게도 공개하지 않을 내용 (소유자 사정·협상 여지 등)" style="background:#fffdf5"></textarea>
+            <div style="font-size:11px;color:#aab2bc;margin-top:6px">보고서·수정이력 분포에 포함되지 않습니다.</div>
           </div>
         </div>
 
@@ -550,7 +594,7 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
 <!-- 위키 전체보기 (집단지성 특이사항) -->
 <div class="modal-bg" id="wiki">
   <div class="modal" style="width:min(760px,100%)">
-    <h3>위키 · 집단지성 특이사항 <span style="font-size:12px;color:#888;font-weight:400;margin-left:8px">서울특별시 강남구 역삼동 601-5 · 8건</span>
+    <h3>위키 · 집단지성 특이사항 <span style="font-size:12px;color:#888;font-weight:400;margin-left:8px">서울특별시 강남구 역삼동 735-29 · 8건</span>
       <div class="right"><button class="btn" onclick="closeModal('wiki')">닫기</button></div></h3>
 
     <div class="wiki-toolbar">
@@ -657,40 +701,19 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
       <table class="wf">
         <thead><tr><th>변동일</th><th class="num">광고가</th><th>확인</th><th></th></tr></thead>
         <tbody>
-          <tr><td>2026/06/02</td><td class="num">62억</td><td>확인 3건 <span style="color:#1f8a4c;font-weight:700">· 내 기여</span></td><td class="num"><span class="x">×</span></td></tr>
-          <tr><td>2026/01/15</td><td class="num">65억</td><td class="ad-src">확인 1건</td><td></td></tr>
+          <tr><td>2026/06/02</td><td class="num">110억</td><td>확인 3건 <span style="color:#1f8a4c;font-weight:700">· 내 기여</span></td><td class="num"><span class="x">×</span></td></tr>
+          <tr><td>2026/01/15</td><td class="num">112억</td><td class="ad-src">확인 1건</td><td></td></tr>
         </tbody>
       </table>
     </div>
   </div>
 </div>
 
-<!-- 관련 필지(부속지번) 모달 -->
-<div class="modal-bg" id="parcels">
-  <div class="modal" style="width:min(820px,100%)">
-    <h3>관련 필지 <span style="font-size:12px;color:#888;font-weight:400;margin-left:8px">이 건물이 앉은 필지들 · 각 필지 독립 데이터</span>
-      <div class="right"><button class="btn" onclick="closeModal('parcels')">닫기</button></div></h3>
-    <div class="block">
-      <table class="wf">
-        <thead><tr><th>구분</th><th>지번</th><th class="num">면적(평)</th><th>용도지역</th><th class="num">공시지가(만원/㎡)</th><th class="num">법정용적</th></tr></thead>
-        <tbody>
-          <tr><td><b>대표</b></td><td>601-5</td><td class="num">55.2</td><td>일반상업</td><td class="num">5,941</td><td class="num">800%</td></tr>
-          <tr><td>부속</td><td>719-2</td><td class="num">74.0</td><td>일반상업</td><td class="num">5,941</td><td class="num">800%</td></tr>
-          <tr><td>부속</td><td>719-3</td><td class="num">67.2</td><td>일반상업</td><td class="num">5,941</td><td class="num">800%</td></tr>
-          <tr><td>부속</td><td>719-11</td><td class="num">142.3</td><td>일반상업</td><td class="num">5,941</td><td class="num">800%</td></tr>
-          <tr><td>부속</td><td>719-14</td><td class="num">100.5</td><td>일반상업</td><td class="num">5,941</td><td class="num">800%</td></tr>
-        </tbody>
-      </table>
-      <div style="margin-top:8px;font-size:12px;color:#8a929b">※ 각 필지는 자기 공시지가·용도지역·법정치를 그대로 표시(합산·평균 안 함). 필지마다 값이 다를 수 있음.</div>
-    </div>
-  </div>
-</div>
+<!-- 관련 필지 모달 폐기(2026-07-19) — 토지정보 섹션의 필지 셀렉터로 대체 -->
 
 <!-- 하단 고정 툴바 -->
 <div class="bottombar">
-  <button class="icon-btn" title="뒤로가기 · 데이터 수정 취소 (undo)">←</button>
-  <button class="icon-btn" title="앞으로가기 · 되돌리기 (redo)">→</button>
-  <button class="icon-btn" title="새로고침 · 데이터 초기화">↺</button>
+  <button class="icon-btn" title="이 매물의 내 수정값을 전부 마스터 원본으로 되돌리기">↺ 전체 되돌리기</button>
   <span class="sep"></span>
   <div class="segmented"><button class="active">평</button><button>㎡</button></div>
   <small>단위 전환</small>
@@ -703,21 +726,30 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
 <!-- 보고서 생성 모달 (브리핑 / 매물분석) -->
 <div class="modal-bg" id="genreport">
   <div class="modal" style="width:min(760px,100%)">
-    <h3><span id="gen-title">매물분석보고서</span> 생성 <span style="font-size:12px;color:#888;font-weight:400;margin-left:8px">서울특별시 강남구 역삼동 601-5</span>
+    <h3><span id="gen-title">매물분석보고서</span> 생성 <span style="font-size:12px;color:#888;font-weight:400;margin-left:8px">서울특별시 강남구 역삼동 735-29</span>
       <div class="right"><button class="btn" onclick="closeModal('genreport')">닫기</button></div></h3>
     <!-- 옵션 -->
     <div class="block">
       <div class="kv-grid" style="grid-template-columns:1fr">
         <div class="kv"><span class="k">크레딧</span><span class="v"><b id="gen-credit">30</b> 소모 · 잔액 660</span></div>
-        <div class="kv"><span class="k">상권</span><span class="v">설정됨 · 반경 400m</span></div>
+        <div class="kv"><span class="k">상권</span><span class="v">설정됨 · 반경 500m</span></div>
         <div class="kv" id="gen-sevse"><span class="k">주변임대시세 포함</span><span class="v"><span class="segmented" style="display:inline-flex"><button class="active">포함</button><button>제외</button></span></span></div>
       </div>
       <div style="padding:12px 14px 14px;border-top:1px solid #eef0f3"><button class="btn primary" onclick="genDone()">생성하기</button></div>
     </div>
     <!-- 생성 완료 · 미리보기 (생성 후 노출) -->
+    <!-- 생성 중 (비동기 잡 · 2026-07-19) -->
+    <div class="block hidden" id="gen-loading">
+      <div style="padding:26px 14px;text-align:center">
+        <div class="gen-spin"></div>
+        <div style="font-size:14px;font-weight:700;margin-top:14px" id="gen-step">데이터 수집 중…</div>
+        <div style="font-size:12px;color:#8a929b;margin-top:6px">완료되면 자동으로 다운로드됩니다.<br>
+          창을 닫아도 생성은 계속되며 <b>내 산출물</b>에서 받을 수 있습니다.</div>
+      </div>
+    </div>
     <div class="block hidden" id="gen-preview">
       <div class="sec-head">미리보기 <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px" id="gen-slides">8슬라이드</span>
-        <div class="right"><button class="btn">재생성</button><button class="btn">내 산출물 저장</button><button class="btn primary">PPT 다운로드</button></div></div>
+        <div class="right"><small style="font-size:11px;color:#8a929b;margin-right:8px">내 산출물에 자동 보관됨</small><button class="btn primary">PPT 다운로드</button></div></div>
       <div class="slide-thumbs" id="gen-thumbs"></div>
     </div>
   </div>
@@ -734,6 +766,19 @@ function openGen(title,credit,slides){
   document.getElementById('genreport').classList.add('open');
 }
 function genDone(){
+  // 비동기 잡 시뮬레이션 — 대기 → 완료 → 자동 다운로드 (R-보고서 §2a)
+  document.getElementById('gen-loading').classList.remove('hidden');
+  document.getElementById('gen-preview').classList.add('hidden');
+  const steps=['데이터 수집 중…','가치점수·적정매매가 산출 중…','차트 렌더링 중…','PPT 파일 생성 중…'];
+  let i=0;
+  const el=document.getElementById('gen-step');
+  const t=setInterval(()=>{ i++; if(i<steps.length) el.textContent=steps[i]; }, 550);
+  setTimeout(()=>{ clearInterval(t);
+    document.getElementById('gen-loading').classList.add('hidden');
+    genRender();                       // 완료 → 미리보기 + 자동 다운로드
+  }, 2300);
+}
+function genRender(){
   const n=window._genSlides||8;
   const labels=n===8
     ?['표지·요약','매물 기본정보','분석 흐름','STEP1 가치점수','STEP2 매매사례','STEP3 주변임대시세','STEP4 예상수익률','최종 요약']
@@ -771,7 +816,7 @@ function fmtWon(v){return (v/10000).toLocaleString('en')+'만';}
 function fmtUk(v){return v+'억';}
 function pct(a,b){return (a-b)/b*100;}
 function signStr(p){return (p>=0?'+':'')+p.toFixed(1)+'%';}
-function colorOf(p){return p>=0?'#d93025':'#1a4fc0';} // +빨강 / −파랑
+function colorOf(p){return p>=0?'#DC2F30':'#2C6BE0';} // 등락색 --up/--down (상승률 숫자 전용)
 function setMetric(id,text,p){const el=document.querySelector('#'+id+' .series-metric'); el.textContent=text; el.className='series-metric '+(p>=0?'pos':'neg');}
 
 // 호버 툴팁 (모든 구간 상승률 실시간 계산)
@@ -794,7 +839,8 @@ function renderChart(svg,data,o){
   const n=data.length;
   const X=i=> n===1?(L+(W-L-R)/2):L+i*(W-L-R)/(n-1);
   const Y=v=> T+(H-T-B)*(1-(v-ymin)/span);
-  const col=colorOf(o.trend);
+  const col=o.color||'#1E5AF0';      // 계열 정체성색(선·점) — S01 개요 스파크와 동일
+  const trendCol=colorOf(o.trend);   // 등락색(상승률 숫자 전용)
   let s='';
   s+=`<line class="axis" x1="${L}" y1="${T-6}" x2="${L}" y2="${H-B}"/>`;
   s+=`<line class="axis" x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}"/>`;
@@ -802,14 +848,14 @@ function renderChart(svg,data,o){
   s+=`<text x="${L-10}" y="${H-B+4}" text-anchor="end">${o.fmt(ymin)}</text>`;
   s+=`<text class="axtitle" x="${L-10}" y="${T-20}" text-anchor="end">${o.yTitle} ▲</text>`;
   s+=`<text class="axtitle" x="${W-R}" y="${H-B+38}" text-anchor="end">${o.xTitle} ▶</text>`;
-  s+=`<polyline class="line" stroke="${col}" points="${data.map((d,i)=>X(i)+','+Y(d.y)).join(' ')}"/>`;
+  s+=`<polyline class="line" style="stroke:${col}" points="${data.map((d,i)=>X(i)+','+Y(d.y)).join(' ')}"/>`;
   data.forEach((d,i)=>{
     const showX = n<=8 || i%2===0 || i===n-1;
     if(showX) s+=`<text x="${X(i)}" y="${H-B+22}" text-anchor="middle">${d.x}</text>`;
     if(i===0||i===n-1) s+=`<text class="val" x="${X(i)}" y="${Y(d.y)-12}" text-anchor="middle">${o.fmt(d.y)}</text>`;
-    s+=`<circle class="dot" cx="${X(i)}" cy="${Y(d.y)}" r="4.5" fill="${col}"/>`;
+    s+=`<circle class="dot" cx="${X(i)}" cy="${Y(d.y)}" r="4.5" style="fill:${col}"/>`;
   });
-  s+=`<text class="rate" x="${L+10}" y="${T-6}" text-anchor="start" fill="${col}">${o.metric}</text>`;
+  s+=`<text class="rate" x="${L+10}" y="${T-6}" text-anchor="start" style="fill:${trendCol}">${o.metric}</text>`;
   s+=`<text class="axtitle" x="${L+10}" y="${T+13}" text-anchor="start">점에 마우스를 올리면 구간 상승률</text>`;
   svg.innerHTML=s;
   svg.querySelectorAll('.dot').forEach((c,i)=>{
@@ -818,43 +864,108 @@ function renderChart(svg,data,o){
   });
 }
 
-(function initCharts(){
-  // 공시지가 — 10년치(연도별), 상승률 5년/10년 실시간 계산
-  const gongsi=[
-    {x:'2016',y:5990000},{x:'2017',y:6420000},{x:'2018',y:6420000},{x:'2019',y:8230000},
-    {x:'2020',y:9140000},{x:'2021',y:10100000},{x:'2022',y:11800000},{x:'2023',y:11210000},
-    {x:'2024',y:11610000},{x:'2025',y:12300000},{x:'2026',y:13120000}
-  ];
-  // 표는 최신순으로 채움
-  document.getElementById('gongsi-rows').innerHTML =
-    [...gongsi].reverse().map(d=>`<tr><td>${d.x}</td><td class="num">${(d.y/10000).toLocaleString('en')}</td></tr>`).join('');
+function initCharts(){
+  // 공시지가 — 표(renderParcel)와 동일 시계열을 그래프에도 사용(단일 소스). series=만원/㎡ → 원/㎡ 환산.
+  const gongsi = PARCELS[0].gongsi.series.slice().reverse().map(([yr,v])=>({x:yr, y:v*10000}));
+  // 표는 renderParcel가 필지 시계열로 채움 — 여기선 그래프·상승률만.
   const last=gongsi[gongsi.length-1].y;
   const byYear=y=>gongsi.find(d=>d.x==y).y;
   const g5=pct(last,byYear('2021')), g10=pct(last,byYear('2016'));
   const gm=`상승률 5년 ${signStr(g5)} · 10년 ${signStr(g10)}`;
   setMetric('blk-gongsi',gm,g10);
-  renderChart(document.querySelector('#blk-gongsi svg'),gongsi,{yTitle:'공시지가(만원/㎡)',xTitle:'년도',fmt:fmtWon,trend:g10,metric:gm});
+  renderChart(document.querySelector('#blk-gongsi svg'),gongsi,{yTitle:'공시지가(만원/㎡)',xTitle:'년도',fmt:fmtWon,trend:g10,metric:gm,color:'#1E5AF0'});
 
   // 매각 — 직전→최근 손익
   const maegak=[{x:'2009/10',y:40.5},{x:'2019/02',y:69}];
   const mL=pct(maegak[maegak.length-1].y,maegak[maegak.length-2].y);
   const mm=`매각손익 ${signStr(mL)}`;
   setMetric('blk-maegak',mm,mL);
-  renderChart(document.querySelector('#blk-maegak svg'),maegak,{yTitle:'매각액(억)',xTitle:'매각일',fmt:fmtUk,trend:mL,metric:mm});
+  renderChart(document.querySelector('#blk-maegak svg'),maegak,{yTitle:'매각액(억)',xTitle:'매각일',fmt:fmtUk,trend:mL,metric:mm,color:'#0F1A2E'});
 
   // 광고 — 직전→최신 상승률
-  const gwanggo=[{x:'2026/01',y:65},{x:'2026/06',y:62}];
+  const gwanggo=[{x:'2026/01',y:112},{x:'2026/06',y:110}];
   const aR=pct(gwanggo[gwanggo.length-1].y,gwanggo[gwanggo.length-2].y);
   const am=`광고 상승률 ${signStr(aR)}`;
   setMetric('blk-gwanggo',am,aR);
-  renderChart(document.querySelector('#blk-gwanggo svg'),gwanggo,{yTitle:'광고가(억)',xTitle:'업데이트일',fmt:fmtUk,trend:aR,metric:am});
-})();
+  renderChart(document.querySelector('#blk-gwanggo svg'),gwanggo,{yTitle:'광고가(억)',xTitle:'업데이트일',fmt:fmtUk,trend:aR,metric:am,color:'#6E56E8'});
+}
 
 function openWiki(){document.getElementById('wiki').classList.add('open');}
 function openAd(){document.getElementById('admodal').classList.add('open');}
-function openParcels(){document.getElementById('parcels').classList.add('open');}
 function toggleInvest(btn){const b=document.getElementById('invest-body');const open=b.classList.toggle('hidden');btn.textContent=open?'＋ 펼치기':'− 접기';}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
+/* ───────── 필지 셀렉터 (2026-07-19) ─────────
+   다필지 건물에서 토지정보·규제·특례·공시지가 3개 섹션을 필지별로 전환.
+   건물정보·금액정보 등 건물 단위 값은 바뀌지 않는다. */
+const PARCELS = [
+  { pnu:'735-29', rep:true,
+    land:{ 토지면적:'59.9평 (198.02㎡)', 지목:'대', 용도지역:'일반상업지역',
+      이용상황:'상업용', '지형/형상':'가로장방', 도로접면:'광대소각',
+      지세:'평지', '법정 건폐/용적':'60% / 800%' },
+    reg:{ 지구단위계획:'역삼지구 지구단위계획구역', 정비구역:'해당 없음', 고도지구:'해당 없음', 경관지구:'해당 없음', 방화지구:'방화지구', 문화재보존:'해당 없음', 개발제한:'해당 없음' },
+    gongsi:{ unit:3325, area:198.02, series:[['2026',3325], ['2025',3138], ['2024',2985], ['2023',2934], ['2022',3076], ['2021',2670], ['2020',2128], ['2019',2025], ['2018',1747], ['2017',1747], ['2016',1618]] } },
+];
+
+function kvHTML(obj, calc){
+  return Object.entries(obj).map(([k,v])=>
+    `<div class="kv"><span class="k">${k}</span><span class="v${calc?' calc':''}">${v}</span></div>`).join('');
+}
+function won(n){ return (n/1e8).toFixed(1)+'억'; }
+
+function renderParcel(i){
+  const p = PARCELS[i];
+  document.getElementById('kv-land').innerHTML = kvHTML(p.land);
+  document.getElementById('kv-reg').innerHTML  = kvHTML(p.reg);
+  // 공시지가 시계열
+  document.getElementById('gongsi-rows').innerHTML =
+    p.gongsi.series.map(([y,v])=>`<tr><td>${y}</td><td class="num">${v.toLocaleString()}</td></tr>`).join('');
+  // 총공시지가 = 단가 × 그 필지 면적 (합산 아님)
+  const tot = p.gongsi.unit*10000*p.gongsi.area;
+  document.getElementById('kv-gongsi').innerHTML =
+    `<div class="kv"><span class="k">총공시지가</span><span class="v calc">${won(tot)} <small style="color:#8a929b;font-weight:400">= ${p.gongsi.unit.toLocaleString()}만/㎡ × ${p.gongsi.area}㎡</small></span></div>`+
+    `<div class="kv"><span class="k">공시지가 기준</span><span class="v calc">${won(tot*2)} <small style="color:#8a929b;font-weight:400">= 총공시지가 × 2</small></span></div>`;
+  document.querySelectorAll('#parcel-tabs button').forEach((b,j)=>b.classList.toggle('on', j===i));
+}
+
+// 규제 건물 요약 = 전 필지 OR 집계 ("한 필지라도 걸리면 이 건물은 걸린다")
+function renderRegSummary(){
+  const box=document.getElementById('reg-summary'); if(!box) return;
+  const keys=Object.keys(PARCELS[0].reg);
+  const on=[]; // 적용 규제 = 어느 한 필지라도 '해당 없음'이 아닌 값
+  keys.forEach(k=>{
+    const applied=PARCELS.map(p=>p.reg[k]).find(v=>v && v!=='해당 없음');
+    if(applied) on.push(applied);
+  });
+  let html='<span class="rs-lead">건물 요약</span>';
+  html += on.length
+    ? on.map(v=>`<span class="rs-on">${v}</span>`).join('') + '<span class="rs-off">· 그 외 해당 없음</span>'
+    : '<span class="rs-none">규제 사항 없음 — 전 필지 해당 없음</span>';
+  box.innerHTML=html;
+}
+
+(function initParcels(){
+  const tabs=document.getElementById('parcel-tabs'); if(!tabs) return;
+  renderRegSummary();
+  if(PARCELS.length<=1){                       // 단일 필지 → 셀렉터 없음
+    tabs.innerHTML='<span class="single">단일 필지 (부속지번 없음)</span>';
+  } else {
+    tabs.innerHTML = PARCELS.map((p,i)=>
+      `<button onclick="renderParcel(${i})">${p.pnu}${p.rep?'<span class="rep">대표</span>':''}</button>`).join('');
+  }
+  renderParcel(0);                             // 기본 = 대표필지
+})();
+initCharts();   // PARCELS 정의 이후 실행 — 공시지가 그래프가 필지 시계열(표와 동일)을 참조
+
+/* 반경: 슬라이더(흔한 범위) ↔ 직접입력(상한 없음) 양방향 동기 — 2026-07-19 */
+(function(){
+  const row=document.querySelector('.radius-row'); if(!row) return;
+  const sl=row.querySelector('input[type=range]'), nu=row.querySelector('.rv');
+  sl.addEventListener('input',()=>{ nu.value=sl.value; });
+  nu.addEventListener('input',()=>{
+    const v=parseInt(nu.value||0,10);
+    if(v>=+sl.min && v<=+sl.max) sl.value=v;   // 슬라이더 범위 밖이면 입력값만 유효
+  });
+})();
 </script>
 </body>
 </html>
