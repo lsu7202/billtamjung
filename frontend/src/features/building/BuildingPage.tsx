@@ -241,12 +241,12 @@ export function BuildingPage() {
 
           {/* 매각·광고 시계열(§3.7) */}
           {show("deal") && (
-            <SeriesBlock title="매각사례" color="#0F1A2E" unitLabel="매각액"
+            <SeriesBlock title="매각사례" color="var(--c-real)" unitLabel="매각액"
               points={(b.sales_history ?? []).map((s: { ym: string; price: number }) => ({ x: `${s.ym.slice(0, 4)}/${s.ym.slice(4)}`, y: s.price }))}
               fmt={(v) => eok(v)} />
           )}
           {show("deal") && (
-            <SeriesBlock title="광고" color="#6E56E8" dashed unitLabel="광고가"
+            <SeriesBlock title="광고" color="var(--c-ad)" dashed unitLabel="광고가"
               points={adSeries} fmt={(v) => eok(v)}
               extra={<AdInput pk={pk} refresh={() => qc.invalidateQueries({ queryKey: ["ads", pk] })} />} />
           )}

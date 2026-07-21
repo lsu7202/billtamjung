@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { searchApi, savedApi, type AttrFilters } from "../../shared/api/endpoints";
+import { searchApi, savedApi, buildingsApi, extrasApi, type AttrFilters } from "../../shared/api/endpoints";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
 import { FilterModal, countActive } from "./FilterModal";
+import { PriceTrendChart, buildTrendSeries } from "../../shared/ui/PriceTrendChart";
 
 /** S01 매물 통합검색 — 자동완성 + 지역(구/동) + 3열 목록 + 지도 뷰(핀·영역 그리기) */
 
@@ -96,6 +97,17 @@ export function SearchPage() {
     else if (e.key === "Enter" && active >= 0) { e.preventDefault(); go(items[active].building_pk); }
     else if (e.key === "Escape") setQ("");
   }
+
+  // 지도 요약카드 가격추이(§3.6) — 선택 매물만 상세 데이터 로드
+  const pickedBldg = useQuery({
+    queryKey: ["pickBldg", picked?.building_pk],
+    queryFn: () => buildingsApi.get(picked!.building_pk), enabled: !!picked,
+  });
+  const pickedAds = useQuery({
+    queryKey: ["pickAds", picked?.building_pk],
+    queryFn: () => extrasApi.adPrices(picked!.building_pk), enabled: !!picked,
+  });
+  const trend = useMemo(() => buildTrendSeries(pickedBldg.data, pickedAds.data), [pickedBldg.data, pickedAds.data]);
 
   const dongs = gu && regions.data ? regions.data[gu]?.dongs ?? [] : [];
   const total = result.data ? result.data.ad.total + result.data.mine.total + result.data.normal.total : 0;
@@ -200,6 +212,10 @@ export function SearchPage() {
                 <div className="kv"><span className="k">평단가</span><span className="v num">{picked.price && picked.land_area ? `${Math.round(picked.price / (picked.land_area / 3.3058) / 1e4).toLocaleString()}만/평` : "—"}</span></div>
                 <div className="kv"><span className="k">대지면적</span><span className="v num">{picked.land_area ?? "—"}㎡</span></div>
                 <div className="kv"><span className="k">층수</span><span className="v">지상 {picked.floors_above ?? "—"} · 지하 {picked.floors_below ?? "—"}</span></div>
+                <div style={{ marginTop: 12, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-2)", marginBottom: 4 }}>가격 추이</div>
+                  <PriceTrendChart series={trend} />
+                </div>
                 <button className="btn primary" style={{ width: "100%", marginTop: 12 }} onClick={() => go(picked.building_pk)}>상세보기 →</button>
               </>
             ) : (
