@@ -75,6 +75,8 @@ INSERT INTO ref.enums(enum_key,code,label,sort_order) VALUES
 
 ## 2. `ref.fields` — 필드 레지스트리 (컬럼정의서 정본)
 
+> **★ 오버레이 수정 정책 (사용자 확정 · 정정 2026-07-21)**: 마스터 데이터는 **좌표·주소·폴리곤·식별자(building_pk·pnu·geom·addr·lng·lat·sgg_code·bjd_code)를 제외하고 전부 유저 오버레이로 수정 가능**하다. `ref.fields`는 **enum 검증·라벨 메타**이지 editability 게이트가 **아니다**. 즉 레지스트리에 등록 안 된 마스터 필드도 수정된다(차단목록만 거부, `app.validate_overlay` 트리거). `editable` 컬럼은 참고용(차단목록 외 전부 true).
+
 ```sql
 CREATE TABLE ref.fields (
   field_key     text PRIMARY KEY,          -- 'gongsi','land_area','far','assignee','value_score'
@@ -86,7 +88,7 @@ CREATE TABLE ref.fields (
   source_ref    text,                        -- 'build_gangnam.A13'(public) / null(private·derived)
   enum_key      text REFERENCES ref.enum_groups(enum_key),    -- data_type='enum'일 때
   formula_id    text,                        -- 'F-16'(layer='derived')
-  editable      boolean NOT NULL DEFAULT false,  -- 유저 오버레이 수정 가능?
+  editable      boolean NOT NULL DEFAULT true,   -- 참고용(차단목록 외 전부 true) · 게이트 아님
   masked        boolean NOT NULL DEFAULT false,  -- 응답 마스킹(전화 등)?
   searchable    boolean NOT NULL DEFAULT false,  -- S01b 필터 대상?
   in_report     boolean NOT NULL DEFAULT false,  -- 보고서 노출?
@@ -174,23 +176,24 @@ INSERT INTO ref.formula_params(set_version,formula_id,param_key,value_json) VALU
 ## 4. app 레이어와의 연결 (정합 강제)
 
 ```sql
--- 오버레이 field는 레지스트리의 editable 필드만 허용
-ALTER TABLE app.overlays
-  ADD CONSTRAINT overlays_field_fk FOREIGN KEY (field) REFERENCES ref.fields(field_key);
-
--- 수정값 검증: enum 필드면 유효 code인지, editable인지 (트리거)
+-- 오버레이 field에 FK를 걸지 않는다(미등록 마스터 필드도 수정 가능해야 하므로).
+-- 검증 = 차단목록(식별·위치)만 거부 + enum이면 코드 검증. 나머지 자유값 허용.
 CREATE OR REPLACE FUNCTION app.validate_overlay() RETURNS trigger AS $$
 DECLARE f ref.fields; BEGIN
+  IF NEW.field IN ('building_pk','pnu','addr','road_addr','jibun_norm',
+                   'geom','lng','lat','sgg_code','bjd_code') THEN
+    RAISE EXCEPTION '수정 불가 필드(식별·위치): %', NEW.field;   -- 좌표·주소·식별자만 불변
+  END IF;
   SELECT * INTO f FROM ref.fields WHERE field_key = NEW.field;
-  IF NOT f.editable THEN RAISE EXCEPTION '수정 불가 필드: %', NEW.field; END IF;
-  IF f.data_type = 'enum' AND NOT EXISTS (
+  IF FOUND AND f.data_type = 'enum' AND NEW.value IS NOT NULL AND NOT EXISTS (
        SELECT 1 FROM ref.enums e WHERE e.enum_key=f.enum_key AND e.code=NEW.value AND e.active)
   THEN RAISE EXCEPTION '유효하지 않은 enum 값: %=%', NEW.field, NEW.value; END IF;
-  RETURN NEW;
+  RETURN NEW;   -- 미등록·비enum = 마스터 위 자유 오버레이 허용
 END $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_overlay_validate BEFORE INSERT OR UPDATE ON app.overlays
   FOR EACH ROW EXECUTE FUNCTION app.validate_overlay();
 ```
+> **불변 필드(수정 불가)**: `building_pk · pnu · addr · road_addr · jibun_norm · geom · lng · lat · sgg_code · bjd_code`. **그 외 마스터 전 필드 = 오버레이 수정 가능.** (마이그레이션 `db/migrations/0010`)
 
 ---
 

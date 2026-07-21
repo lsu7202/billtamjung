@@ -8,6 +8,37 @@ from ..core.deps import current_user, CurrentUser
 router = APIRouter(tags=["extras"])
 
 
+_enum_cache: dict | None = None
+
+
+@router.get("/enums")
+async def enums(_: CurrentUser = Depends(current_user)):
+    """전 enum 그룹 {enum_key: [{code,label,tier}]} — 드롭다운·코드↔라벨 매핑(레지스트리)."""
+    global _enum_cache
+    if _enum_cache is None:
+        rows = await pool().fetch(
+            "SELECT enum_key, code, label, tier FROM ref.enums WHERE active ORDER BY enum_key, sort_order"
+        )
+        out: dict[str, list] = {}
+        for r in rows:
+            out.setdefault(r["enum_key"], []).append(
+                {"code": r["code"], "label": r["label"], "tier": r["tier"]}
+            )
+        _enum_cache = out
+    return _enum_cache
+
+
+@router.get("/fields")
+async def fields(_: CurrentUser = Depends(current_user)):
+    """필드 레지스트리 {field_key: {label,unit,data_type,enum_key,editable,display_group}}."""
+    rows = await pool().fetch(
+        """SELECT field_key, label, unit, data_type::text, layer::text, enum_key,
+                  editable, masked, display_group, display_order
+           FROM ref.fields WHERE active ORDER BY display_group, display_order"""
+    )
+    return {r["field_key"]: dict(r) for r in rows}
+
+
 # ── 즐겨찾기(개인 전용) ──────────────────────────────
 @router.put("/favorites/{building_pk}")
 async def fav_toggle(building_pk: str, user: CurrentUser = Depends(current_user)):

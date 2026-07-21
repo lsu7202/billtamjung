@@ -99,6 +99,13 @@ export const reportsApi = {
   list: () => api<Report[]>("/reports"),
 };
 
+export interface EnumOpt { code: string; label: string; tier: string | null }
+
+export const metaApi = {
+  enums: () => api<Record<string, EnumOpt[]>>("/enums"),
+  fields: () => api<Record<string, { label: string; unit: string | null; data_type: string; enum_key: string | null; editable: boolean; display_group: string }>>("/fields"),
+};
+
 export const extrasApi = {
   favToggle: (pk: string) => api<{ favorited: boolean }>(`/favorites/${pk}`, { method: "PUT" }),
   adPrices: (pk: string) => api<{ observed_on: string; price: number | null; is_mine: boolean; confirms: number }[]>(`/buildings/${pk}/ad-prices`),
