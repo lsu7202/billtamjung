@@ -1,0 +1,81 @@
+/* 정밀 데이터 랩 디자인 토큰 — specs/02-screens/_mockups/wireframe.css 이식 */
+:root {
+  --ink: #0F1A2E;
+  --ink-2: #3A4657;
+  --muted: #8A94A6;
+  --bg: #EDF1F6;
+  --panel: #FFFFFF;
+  --surface-2: #F5F8FC;
+  --line: #E3E8F0;
+  --line-2: #CFD8E4;
+  --signal: #1E5AF0;
+  --signal-ink: #1544C4;
+  --signal-bg: #EAF0FE;
+  --green: #0E9F6E;  --green-bg: #E4F5EE;
+  --blue: #1E5AF0;   --blue-bg: #EAF0FE;
+  --purple: #6E56E8; --purple-bg: #EEEBFC;
+  --up: #DC2F30;  --down: #2C6BE0;
+  --c-real: #0F1A2E; --c-gongsi: #1E5AF0; --c-ad: #6E56E8;
+  --radius: 9px; --radius-sm: 6px;
+  --shadow: 0 1px 2px rgba(15,26,46,.04), 0 2px 6px rgba(15,26,46,.06);
+  --shadow-lg: 0 8px 28px rgba(15,26,46,.14);
+  --mono: "SF Mono","JetBrains Mono","Cascadia Mono",ui-monospace,Consolas,"D2Coding",monospace;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: -apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo",sans-serif;
+  font-size: 14px; line-height: 1.5;
+}
+.num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* 공통 GNB */
+.appbar {
+  background: var(--ink); color: #fff; display: flex; align-items: center;
+  gap: 26px; padding: 0 max(18px, calc(50vw - 652px)); height: 56px;
+  position: sticky; top: 0; z-index: 50;
+}
+.appbar .logo { font-weight: 800; font-size: 17px; letter-spacing: -.02em; display: flex; align-items: center; gap: 8px; }
+.appbar .logo::before { content: ""; width: 9px; height: 9px; border-radius: 2.5px; background: var(--signal); box-shadow: 0 0 0 3px rgba(30,90,240,.28); }
+.appbar nav { display: flex; gap: 4px; flex: 1; }
+.appbar nav a { color: #9fb0cc; text-decoration: none; font-weight: 700; font-size: 14px; padding: 17px 12px; border-bottom: 2px solid transparent; }
+.appbar nav a.on { color: #fff; border-bottom-color: var(--signal); }
+.appbar .credit { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 999px; padding: 5px 14px; font-size: 13px; }
+.appbar .credit b { font-family: var(--mono); margin-left: 6px; }
+
+/* 패널·버튼·입력 */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.btn { border: 1px solid var(--line-2); background: #fff; border-radius: var(--radius-sm); padding: 8px 14px; font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer; }
+.btn:hover { border-color: var(--signal); color: var(--signal); }
+.btn.primary { background: var(--signal); border-color: var(--signal); color: #fff; }
+.btn.primary:hover { background: var(--signal-ink); color: #fff; }
+.btn:disabled { opacity: .5; cursor: default; }
+.input { border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 9px 12px; background: #fff; font: inherit; color: var(--ink); width: 100%; }
+.input:focus { outline: 2px solid var(--signal-bg); border-color: var(--signal); }
+
+/* 자동완성 */
+.ac-wrap { position: relative; }
+.ac-drop { position: absolute; top: calc(100% + 5px); left: 0; right: 0; z-index: 60; background: #fff; border: 1px solid var(--line-2); border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); overflow: hidden; }
+.ac-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 13px; }
+.ac-item:hover, .ac-item.active { background: var(--signal-bg); }
+
+/* 태그·배지 */
+.tag { font-size: 11px; font-weight: 700; border-radius: 4px; padding: 2px 8px; }
+.tag.mine { background: var(--blue-bg); color: var(--blue); }
+.tag.ad { background: var(--green-bg); color: var(--green); }
+.tag.stale { background: #FDECEC; color: var(--up); }
+.tag.fresh { background: var(--green-bg); color: var(--green); }
+
+/* KV 그리드(S02) */
+.kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; padding: 6px 14px 12px; }
+.kv { display: flex; justify-content: space-between; gap: 12px; padding: 9px 2px; border-bottom: 1px solid var(--line); }
+.kv .k { color: var(--ink-2); }
+.kv .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+.kv .v.edited { color: var(--signal-ink); }
+
+.sec-head { font-weight: 800; font-size: 15px; padding: 13px 14px 9px; display: flex; align-items: center; justify-content: space-between; }
+table.wf { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.wf th { text-align: left; color: var(--muted); font-size: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line-2); }
+table.wf td { padding: 9px 12px; border-bottom: 1px solid var(--line); }
+table.wf .num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }

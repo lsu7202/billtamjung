@@ -1,47 +1,66 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { searchApi, creditsApi } from "../../shared/api/endpoints";
-import { useAuth } from "../../shared/store/auth";
+import { useNavigate } from "react-router-dom";
+import { searchApi } from "../../shared/api/endpoints";
 
+/** S01 매물 통합검색 — 주소 자동완성(타입어헤드) → S02 이동 */
 export function SearchPage() {
-  const clear = useAuth((s) => s.clear);
+  const nav = useNavigate();
   const [q, setQ] = useState("");
+  const [active, setActive] = useState(-1);
 
-  const credits = useQuery({ queryKey: ["credits"], queryFn: creditsApi.balance });
   const suggest = useQuery({
     queryKey: ["suggest", q],
     queryFn: () => searchApi.suggest(q),
     enabled: q.trim().length > 0,
   });
+  const items = suggest.data ?? [];
+
+  function go(pk: string) {
+    nav(`/buildings/${pk}`);
+  }
+
+  function onKey(e: React.KeyboardEvent) {
+    if (!items.length) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, items.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
+    else if (e.key === "Enter" && active >= 0) { e.preventDefault(); go(items[active].building_pk); }
+    else if (e.key === "Escape") setQ("");
+  }
 
   return (
-    <div style={{ maxWidth: 720, margin: "40px auto", fontFamily: "system-ui" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <b>빌탐정 · 매물 검색</b>
-        <span style={{ fontSize: 13 }}>
-          크레딧 {credits.data?.total ?? "…"}
-          <button style={{ marginLeft: 12 }} onClick={clear}>로그아웃</button>
-        </span>
-      </header>
-
-      <div style={{ position: "relative", marginTop: 20 }}>
+    <div className="panel" style={{ padding: 18 }}>
+      <div className="ac-wrap" style={{ maxWidth: 520 }}>
         <input
-          style={{ width: "100%", padding: 10, fontSize: 14 }}
+          className="input"
           placeholder="주소 입력 (예: 강남구 역삼동 735-29)"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => { setQ(e.target.value); setActive(-1); }}
+          onKeyDown={onKey}
           autoComplete="off"
+          autoFocus
         />
-        {suggest.data && suggest.data.length > 0 && (
-          <ul style={{ border: "1px solid #ddd", margin: 0, padding: 0, listStyle: "none" }}>
-            {suggest.data.map((s) => (
-              <li key={s.building_pk} style={{ padding: "8px 12px", borderTop: "1px solid #eee" }}>
+        {items.length > 0 && (
+          <div className="ac-drop">
+            <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, padding: "8px 12px 5px" }}>
+              주소 후보 {items.length}건
+            </div>
+            {items.map((s, i) => (
+              <div
+                key={s.building_pk}
+                className={`ac-item ${i === active ? "active" : ""}`}
+                onMouseDown={() => go(s.building_pk)}
+                onMouseEnter={() => setActive(i)}
+              >
                 {s.addr}
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </div>
+      <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 14 }}>
+        지번/도로명 주소로 서울 전역 건물을 검색합니다. 검색은 무제한·무크레딧.
+      </p>
     </div>
   );
 }
