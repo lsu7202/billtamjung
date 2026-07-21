@@ -3,22 +3,51 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { searchApi } from "../../shared/api/endpoints";
 
-/** S01 매물 통합검색 — 주소 자동완성(타입어헤드) → S02 이동 */
+/** S01 매물 통합검색 — 자동완성 + 지역(구/동) + 3열 목록(광고/내매물/일반)·열별 페이징 */
+
+interface Hit {
+  building_pk: string; addr: string; price: number | null;
+  land_area: number | null; floors_above: number | null; floors_below: number | null;
+}
+interface Col { items: Hit[]; total: number; page: number; pages: number }
+interface SearchResult { ad: Col; mine: Col; normal: Col }
+type Regions = Record<string, { sgg_code: string; dongs: { bjd_code: string; dong: string; count: number }[] }>;
+
+const COLS = [
+  { key: "ad" as const, label: "광고", color: "var(--green)" },
+  { key: "mine" as const, label: "내 매물", color: "var(--blue)" },
+  { key: "normal" as const, label: "일반", color: "var(--purple)" },
+];
+
+const won = (n: number | null) =>
+  n == null ? "—" : n >= 1e8 ? `${Math.round(n / 1e8)}억` : `${Math.round(n / 1e4).toLocaleString()}만`;
+
 export function SearchPage() {
   const nav = useNavigate();
   const [q, setQ] = useState("");
   const [active, setActive] = useState(-1);
+  const [gu, setGu] = useState("");
+  const [bjd, setBjd] = useState("");
+  const [pages, setPages] = useState({ ad: 1, mine: 1, normal: 1 });
 
   const suggest = useQuery({
     queryKey: ["suggest", q],
     queryFn: () => searchApi.suggest(q),
     enabled: q.trim().length > 0,
   });
-  const items = suggest.data ?? [];
+  const regions = useQuery<Regions>({ queryKey: ["regions"], queryFn: searchApi.regions });
+  const result = useQuery<SearchResult>({
+    queryKey: ["search3", bjd, pages],
+    queryFn: () =>
+      searchApi.list({ bjd_code: bjd || undefined, ...pagesToParams(pages) }) as Promise<SearchResult>,
+    enabled: !!bjd,
+  });
 
-  function go(pk: string) {
-    nav(`/buildings/${pk}`);
+  function pagesToParams(p: typeof pages) {
+    return { page_ad: p.ad, page_mine: p.mine, page_normal: p.normal };
   }
+  const items = suggest.data ?? [];
+  const go = (pk: string) => nav(`/buildings/${pk}`);
 
   function onKey(e: React.KeyboardEvent) {
     if (!items.length) return;
@@ -28,39 +57,90 @@ export function SearchPage() {
     else if (e.key === "Escape") setQ("");
   }
 
+  const dongs = gu && regions.data ? regions.data[gu]?.dongs ?? [] : [];
+  const total = result.data ? result.data.ad.total + result.data.mine.total + result.data.normal.total : 0;
+
   return (
-    <div className="panel" style={{ padding: 18 }}>
-      <div className="ac-wrap" style={{ maxWidth: 520 }}>
-        <input
-          className="input"
-          placeholder="주소 입력 (예: 강남구 역삼동 735-29)"
-          value={q}
-          onChange={(e) => { setQ(e.target.value); setActive(-1); }}
-          onKeyDown={onKey}
-          autoComplete="off"
-          autoFocus
-        />
-        {items.length > 0 && (
-          <div className="ac-drop">
-            <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, padding: "8px 12px 5px" }}>
-              주소 후보 {items.length}건
+    <div style={{ display: "grid", gap: 14 }}>
+      {/* 검색바: 자동완성 + 지역 캐스케이드 */}
+      <div className="panel" style={{ padding: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <div className="ac-wrap" style={{ flex: "1 1 300px", maxWidth: 420 }}>
+          <input className="input" placeholder="주소 입력 (예: 강남구 역삼동 735-29)"
+            value={q} onChange={(e) => { setQ(e.target.value); setActive(-1); }} onKeyDown={onKey} autoComplete="off" />
+          {items.length > 0 && (
+            <div className="ac-drop">
+              {items.map((s, i) => (
+                <div key={s.building_pk} className={`ac-item ${i === active ? "active" : ""}`}
+                  onMouseDown={() => go(s.building_pk)} onMouseEnter={() => setActive(i)}>
+                  {s.addr}
+                </div>
+              ))}
             </div>
-            {items.map((s, i) => (
-              <div
-                key={s.building_pk}
-                className={`ac-item ${i === active ? "active" : ""}`}
-                onMouseDown={() => go(s.building_pk)}
-                onMouseEnter={() => setActive(i)}
-              >
-                {s.addr}
-              </div>
-            ))}
-          </div>
-        )}
+          )}
+        </div>
+        <select className="input" style={{ width: 140 }} value={gu}
+          onChange={(e) => { setGu(e.target.value); setBjd(""); }}>
+          <option value="">구 선택</option>
+          {Object.keys(regions.data ?? {}).map((g) => <option key={g}>{g}</option>)}
+        </select>
+        <select className="input" style={{ width: 160 }} value={bjd} disabled={!gu}
+          onChange={(e) => { setBjd(e.target.value); setPages({ ad: 1, mine: 1, normal: 1 }); }}>
+          <option value="">법정동 선택</option>
+          {dongs.map((d) => (
+            <option key={d.bjd_code} value={d.bjd_code}>{d.dong} ({d.count.toLocaleString()})</option>
+          ))}
+        </select>
+        {bjd && <span style={{ fontSize: 13, color: "var(--muted)" }}>전체 <b className="num">{total.toLocaleString()}</b>건</span>}
       </div>
-      <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 14 }}>
-        지번/도로명 주소로 서울 전역 건물을 검색합니다. 검색은 무제한·무크레딧.
-      </p>
+
+      {/* 3열 결과 */}
+      {result.data ? (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 0 }}>
+          {COLS.map(({ key, label, color }, ci) => {
+            const col = result.data![key];
+            return (
+              <div key={key} className="panel" style={{
+                borderRadius: ci === 0 ? "9px 0 0 9px" : ci === 2 ? "0 9px 9px 0" : 0,
+                borderLeft: ci > 0 ? 0 : undefined,
+              }}>
+                <div style={{ background: color, color: "#fff", fontWeight: 800, textAlign: "center",
+                  padding: "9px 0", borderRadius: ci === 0 ? "8px 0 0 0" : ci === 2 ? "0 8px 0 0" : 0 }}>
+                  {label} <span className="num" style={{ opacity: .85, fontWeight: 600 }}>{col.total.toLocaleString()}</span>
+                </div>
+                <table className="wf">
+                  <thead><tr><th>주소</th><th className="num">매매가{key === "normal" && <small style={{ color: "var(--muted)" }}> 추정</small>}</th></tr></thead>
+                  <tbody>
+                    {col.items.map((h) => (
+                      <tr key={h.building_pk} style={{ cursor: "pointer" }} onClick={() => go(h.building_pk)}>
+                        <td>{h.addr.replace("서울특별시 ", "").replace("번지", "")}</td>
+                        <td className="num">{won(h.price)}</td>
+                      </tr>
+                    ))}
+                    {col.items.length === 0 && (
+                      <tr><td colSpan={2} style={{ color: "var(--muted)", textAlign: "center", padding: 20 }}>
+                        {key === "mine" ? "아직 등록한 매물이 없습니다" : "표시할 매물이 없습니다"}
+                      </td></tr>
+                    )}
+                  </tbody>
+                </table>
+                {col.pages > 1 && (
+                  <div style={{ display: "flex", justifyContent: "center", gap: 12, padding: 9, borderTop: "1px solid var(--line)", fontSize: 12 }}>
+                    <button className="btn" disabled={col.page <= 1}
+                      onClick={() => setPages((p) => ({ ...p, [key]: col.page - 1 }))}>‹</button>
+                    <span className="num" style={{ alignSelf: "center" }}>{col.page} / {col.pages}</span>
+                    <button className="btn" disabled={col.page >= col.pages}
+                      onClick={() => setPages((p) => ({ ...p, [key]: col.page + 1 }))}>›</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="panel" style={{ padding: 24, color: "var(--muted)", fontSize: 13 }}>
+          주소를 검색하거나 구·법정동을 선택하면 광고 / 내 매물 / 일반 3열로 매물이 표시됩니다.
+        </div>
+      )}
     </div>
   );
 }

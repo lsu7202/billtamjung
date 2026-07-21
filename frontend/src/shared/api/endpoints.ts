@@ -25,8 +25,16 @@ export const authApi = {
 
 export const searchApi = {
   suggest: (q: string) => api<Suggestion[]>(`/search/suggest?q=${encodeURIComponent(q)}`),
-  byPolygon: (polygon: object | null) =>
-    api<Suggestion[]>("/search", { method: "POST", body: JSON.stringify({ polygon }) }),
+  regions: () => api<Record<string, { sgg_code: string; dongs: { bjd_code: string; dong: string; count: number }[] }>>("/search/regions"),
+  list: (p: { bjd_code?: string; polygon?: object; page_ad?: number; page_mine?: number; page_normal?: number }) =>
+    api("/search", {
+      method: "POST",
+      body: JSON.stringify({
+        polygon: p.polygon ?? null,
+        filters: { bjd_code: p.bjd_code ?? null },
+        page_ad: p.page_ad ?? 1, page_mine: p.page_mine ?? 1, page_normal: p.page_normal ?? 1,
+      }),
+    }),
 };
 
 export const creditsApi = {

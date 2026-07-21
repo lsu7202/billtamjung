@@ -13,12 +13,17 @@ import sys
 import uuid
 import asyncpg
 
-# 소스별 정의: staging 테이블·컬럼·검증 쿼리
+# 소스별 정의: staging 테이블·컬럼·검증 쿼리 (0006 확장 스키마)
 SOURCES = {
     "buildings": {
-        "columns": ["building_pk", "addr", "jibun_norm", "lng", "lat", "land_area",
-                    "total_area", "floors_above", "floors_below", "bcr", "far",
-                    "main_use", "approval_ymd"],
+        "columns": ["building_pk", "addr", "jibun_norm", "lng", "lat",
+                    "road_addr", "pnu", "sgg_code", "bjd_code",
+                    "land_area", "total_area", "floors_above", "floors_below", "bcr", "far",
+                    "main_use", "main_use_name", "etc_use", "structure",
+                    "approval_ymd", "remodel_ymd",
+                    "jimok", "parcel_area", "land_use", "use_zone", "use_zone_mix",
+                    "slope", "shape", "road_frontage", "station_dist", "subway_json", "bus_json",
+                    "gongsi_latest", "last_sale_ym", "last_sale_price"],
         "table": "buildings",
     },
 }
@@ -64,6 +69,11 @@ async def main() -> int:
         await conn.execute(f"DROP TABLE IF EXISTS {tmp}")
         cols_ddl = ", ".join(f"{c} text" for c in src["columns"])
         await conn.execute(f"CREATE TABLE {tmp} ({cols_ddl})")
+        # 불량 날짜(예: 1974-02-30) 내성: 실패 시 NULL
+        await conn.execute("""
+            CREATE OR REPLACE FUNCTION pg_temp.safe_date(t text) RETURNS date AS $$
+            BEGIN RETURN t::date; EXCEPTION WHEN others THEN RETURN NULL; END
+            $$ LANGUAGE plpgsql IMMUTABLE""")
         with open(args.csv, "rb") as f:
             await conn.copy_to_table(
                 f"_load_tmp_{args.source}", source=f, schema_name="master",
@@ -71,14 +81,27 @@ async def main() -> int:
             )
         await conn.execute(f"""
             INSERT INTO {new_tbl}
-              (building_pk, addr, jibun_norm, geom, land_area, total_area,
-               floors_above, floors_below, bcr, far, main_use, approval_ymd)
+              (building_pk, addr, jibun_norm, geom,
+               road_addr, pnu, sgg_code, bjd_code,
+               land_area, total_area, floors_above, floors_below, bcr, far,
+               main_use, main_use_name, etc_use, structure,
+               approval_ymd, remodel_ymd,
+               jimok, parcel_area, land_use, use_zone, use_zone_mix,
+               slope, shape, road_frontage, station_dist, subway_json, bus_json,
+               gongsi_latest, last_sale_ym, last_sale_price)
             SELECT building_pk, addr, jibun_norm,
                    ST_SetSRID(ST_MakePoint(lng::float, lat::float), 4326),
+                   NULLIF(road_addr,''), NULLIF(pnu,''), NULLIF(sgg_code,''), NULLIF(bjd_code,''),
                    NULLIF(land_area,'')::numeric, NULLIF(total_area,'')::numeric,
                    NULLIF(floors_above,'')::int, NULLIF(floors_below,'')::int,
                    NULLIF(bcr,'')::numeric, NULLIF(far,'')::numeric,
-                   NULLIF(main_use,''), NULLIF(approval_ymd,'')::date
+                   NULLIF(main_use,''), NULLIF(main_use_name,''), NULLIF(etc_use,''), NULLIF(structure,''),
+                   pg_temp.safe_date(NULLIF(approval_ymd,'')), pg_temp.safe_date(NULLIF(remodel_ymd,'')),
+                   NULLIF(jimok,''), NULLIF(parcel_area,'')::numeric,
+                   NULLIF(land_use,''), NULLIF(use_zone,''), NULLIF(use_zone_mix,'')::jsonb,
+                   NULLIF(slope,''), NULLIF(shape,''), NULLIF(road_frontage,''),
+                   NULLIF(station_dist,'')::int, NULLIF(subway_json,'')::jsonb, NULLIF(bus_json,'')::jsonb,
+                   NULLIF(gongsi_latest,'')::bigint, NULLIF(last_sale_ym,''), NULLIF(last_sale_price,'')::bigint
             FROM {tmp}""")
         await conn.execute(f"DROP TABLE {tmp}")
 
