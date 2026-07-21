@@ -8,6 +8,7 @@ import { PhotoPanel } from "../../shared/map/PhotoPanel";
 import { SeriesBlock } from "./SeriesBlock";
 import { MarketBlock } from "./MarketBlock";
 import { Sidebar } from "./Sidebar";
+import { ParcelBlock } from "./ParcelBlock";
 
 /** S02 매물 상세 — 목업 전체 구조:
  * 헤더지표 · 사진(지도/로드뷰) · 표시범위 · 금액 · 투자분석 · 층별임대 · 상세정보
@@ -229,29 +230,10 @@ export function BuildingPage() {
             </div>
           )}
 
-          {/* 토지정보(§3.6) */}
-          {show("land") && (
-            <div className="panel">
-              <div className="sec-head">토지정보</div>
-              <div className="kv-grid">
-                <KV label="지목" value={String(b.jimok ?? "—")} />
-                <KV label="토지면적" value={area(b.parcel_area)} />
-                <KV label="용도지역" value={String(b.use_zone ?? "—")} />
-                <KV label="토지이용상황" value={String(b.land_use ?? "—")} />
-                <KV label="지형형상" value={String(b.shape ?? "—")} />
-                <KV label="지세" value={String(b.slope ?? "—")} />
-                <KV label="도로접면" value={String(b.road_frontage ?? "—")} />
-                <KV label="역과의거리" value={b.station_dist != null ? `${b.station_dist}m` : "—"} />
-              </div>
-            </div>
-          )}
+          {/* 토지정보 · 규제 · 공시지가 = 필지 셀렉터(§3.6 · 다필지·규제 2레벨) */}
+          {show("land") && <ParcelBlock pk={pk} />}
 
-          {/* 시계열 3종(§3.7) — 계열색 통일 */}
-          {show("land") && (
-            <SeriesBlock title="공시지가" color="#1E5AF0" unitLabel="만원/㎡"
-              points={(b.gongsi_series ?? []).map((g: [number, number]) => ({ x: String(g[0]), y: g[1] }))}
-              fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}만`} />
-          )}
+          {/* 매각·광고 시계열(§3.7) */}
           {show("deal") && (
             <SeriesBlock title="매각사례" color="#0F1A2E" unitLabel="매각액"
               points={(b.sales_history ?? []).map((s: { ym: string; price: number }) => ({ x: `${s.ym.slice(0, 4)}/${s.ym.slice(4)}`, y: s.price }))}

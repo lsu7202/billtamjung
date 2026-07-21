@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { searchApi } from "../../shared/api/endpoints";
+import { searchApi, savedApi } from "../../shared/api/endpoints";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
 
 /** S01 매물 통합검색 — 자동완성 + 지역(구/동) + 3열 목록 + 지도 뷰(핀·영역 그리기) */
@@ -33,6 +33,8 @@ export function SearchPage() {
   const [view, setView] = useState<"list" | "map">("list");
   const [polygon, setPolygon] = useState<object | null>(null);
   const [picked, setPicked] = useState<MapPin | null>(null);
+  const [sort, setSort] = useState("price");
+  const [favOnly, setFavOnly] = useState(false);
   const [pages, setPages] = useState({ ad: 1, mine: 1, normal: 1 });
 
   const suggest = useQuery({
@@ -43,15 +45,22 @@ export function SearchPage() {
   const regions = useQuery<Regions>({ queryKey: ["regions"], queryFn: searchApi.regions });
   // 영역(폴리곤)이 있으면 지역범위 대체(S01 §3.6c)
   const result = useQuery<SearchResult>({
-    queryKey: ["search3", bjd, polygon, pages],
+    queryKey: ["search3", bjd, polygon, sort, favOnly, pages],
     queryFn: () =>
       searchApi.list({
         bjd_code: polygon ? undefined : bjd || undefined,
-        polygon: polygon ?? undefined,
+        polygon: polygon ?? undefined, sort, fav_only: favOnly,
         page_ad: pages.ad, page_mine: pages.mine, page_normal: pages.normal,
       }) as Promise<SearchResult>,
     enabled: !!bjd || !!polygon,
   });
+
+  async function saveCondition() {
+    const name = prompt("검색조건 이름", bjd ? "저장 조건" : "그린 영역");
+    if (!name) return;
+    await savedApi.save(name, { bjd_code: bjd || null, polygon, sort });
+    alert("저장했습니다 — 마이페이지에서 확인");
+  }
 
   const items = suggest.data ?? [];
   const go = (pk: string) => nav(`/buildings/${pk}`);
@@ -116,7 +125,14 @@ export function SearchPage() {
           </>
         )}
         {(bjd || polygon) && <span style={{ fontSize: 13, color: "var(--muted)" }}>전체 <b className="num">{total.toLocaleString()}</b>건</span>}
+        <button className={`btn ${favOnly ? "primary" : ""}`} onClick={() => setFavOnly(!favOnly)}>★ 즐겨찾기</button>
+        {(bjd || polygon) && <button className="btn" onClick={saveCondition}>조건 저장</button>}
         <span style={{ flex: 1 }} />
+        <select className="input" style={{ width: 120 }} value={sort} onChange={(e) => setSort(e.target.value)}>
+          <option value="price">매매가순</option>
+          <option value="roi">낮은가격순</option>
+          <option value="addr">주소순</option>
+        </select>
         <div style={{ display: "flex" }}>
           <button className={`btn ${view === "list" ? "primary" : ""}`} style={{ borderRadius: "6px 0 0 6px" }} onClick={() => setView("list")}>매물</button>
           <button className={`btn ${view === "map" ? "primary" : ""}`} style={{ borderRadius: "0 6px 6px 0", borderLeft: 0 }} onClick={() => setView("map")}>지도</button>

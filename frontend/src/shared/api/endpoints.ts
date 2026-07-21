@@ -26,12 +26,13 @@ export const authApi = {
 export const searchApi = {
   suggest: (q: string) => api<Suggestion[]>(`/search/suggest?q=${encodeURIComponent(q)}`),
   regions: () => api<Record<string, { sgg_code: string; dongs: { bjd_code: string; dong: string; count: number }[] }>>("/search/regions"),
-  list: (p: { bjd_code?: string; polygon?: object; page_ad?: number; page_mine?: number; page_normal?: number }) =>
+  list: (p: { bjd_code?: string; polygon?: object; sort?: string; fav_only?: boolean; page_ad?: number; page_mine?: number; page_normal?: number }) =>
     api("/search", {
       method: "POST",
       body: JSON.stringify({
         polygon: p.polygon ?? null,
         filters: { bjd_code: p.bjd_code ?? null },
+        sort: p.sort ?? "price", fav_only: p.fav_only ?? false,
         page_ad: p.page_ad ?? 1, page_mine: p.page_mine ?? 1, page_normal: p.page_normal ?? 1,
       }),
     }),
@@ -39,7 +40,14 @@ export const searchApi = {
 
 export const creditsApi = {
   balance: () => api<Balance>("/credits"),
-  entries: () => api<Record<string, unknown>[]>("/credits/entries"),
+  entries: () => api<{ occurred_at: string; type: string; bucket: string; amount: number; reason: string; ref_id: number | null }[]>("/credits/entries"),
+};
+
+export const savedApi = {
+  list: () => api<{ id: number; name: string; conditions_json: Record<string, unknown>; created_at: string }[]>("/saved-searches"),
+  save: (name: string, conditions: Record<string, unknown>) =>
+    api<{ id: number }>("/saved-searches", { method: "POST", body: JSON.stringify({ name, conditions }) }),
+  remove: (id: number) => api(`/saved-searches/${id}`, { method: "DELETE" }),
 };
 
 export const buildingsApi = {

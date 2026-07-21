@@ -39,3 +39,48 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
         for r in s
     ]
     return data
+
+
+REG_LABELS = {
+    "reg_godo": "고도지구", "reg_district": "지구단위계획", "reg_jeongbi": "정비구역",
+    "reg_gyeong": "경관지구", "reg_banghwa": "방화지구", "reg_munhwa": "문화재보존",
+}
+
+
+@router.get("/{building_pk}/parcels")
+async def get_parcels(building_pk: str, user: CurrentUser = Depends(current_user)):
+    """필지 셀렉터(S02 §3.6): 대표+부속 필지별 속성·공시지가 시계열·규제 + 건물 요약(OR 집계)."""
+    rows = await pool().fetch(
+        """SELECT bp.role, p.pnu, p.area, p.jimok, p.land_use, p.slope, p.shape,
+                  p.road_frontage, p.use_zone, p.legal_bcr, p.legal_far, p.gongsi_latest,
+                  p.reg_godo, p.reg_district, p.reg_jeongbi, p.reg_gyeong, p.reg_banghwa, p.reg_munhwa
+           FROM master.building_parcels bp
+           JOIN master.parcels p ON p.pnu = bp.pnu
+           WHERE bp.building_pk = $1
+           ORDER BY (bp.role='대표') DESC, p.pnu""",
+        building_pk,
+    )
+    parcels = []
+    summary: dict[str, str] = {}   # 건물 요약 = 전 필지 OR(한 필지라도 걸리면)
+    for r in rows:
+        d = dict(r)
+        d["area"] = float(d["area"]) if d["area"] is not None else None
+        # 필지별 오버레이 병합(팀)
+        ov = await pool().fetch(
+            """SELECT field, value FROM app.overlays
+               WHERE team_id=$1 AND target_type='parcel' AND target_id=$2""",
+            user.team_id, r["pnu"],
+        )
+        for o in ov:
+            d[o["field"]] = o["value"]
+        # 공시지가 시계열
+        g = await pool().fetch(
+            "SELECT year, price FROM master.gongsi_series WHERE pnu=$1 ORDER BY year", r["pnu"]
+        )
+        d["gongsi_series"] = [[x["year"], x["price"]] for x in g]
+        d["regs"] = {REG_LABELS[k]: d[k] for k in REG_LABELS if d.get(k)}
+        for k, label in REG_LABELS.items():
+            if d.get(k) and label not in summary:
+                summary[label] = d[k]
+        parcels.append(d)
+    return {"parcels": parcels, "reg_summary": summary, "count": len(parcels)}

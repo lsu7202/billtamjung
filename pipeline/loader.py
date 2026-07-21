@@ -34,6 +34,38 @@ SOURCES = {
                      WHERE pnu <> '' AND year <> '' AND price <> ''""",
         "checks": ["pk_rows"],
     },
+    "parcels": {         # 필지 속성·규제·폴리곤(0009)
+        "columns": ["pnu", "building_pk", "is_rep", "wkt", "area",
+                    "jimok", "land_use", "slope", "shape", "road_frontage",
+                    "use_zone", "legal_bcr", "legal_far", "gongsi_latest",
+                    "reg_godo", "reg_district", "reg_jeongbi", "reg_gyeong", "reg_banghwa", "reg_munhwa"],
+        "table": "parcels",
+        "insert": """INSERT INTO {new}
+                       (pnu, building_pk, is_rep, geom, area, jimok, land_use, slope, shape,
+                        road_frontage, use_zone, legal_bcr, legal_far, gongsi_latest,
+                        reg_godo, reg_district, reg_jeongbi, reg_gyeong, reg_banghwa, reg_munhwa, uqa)
+                     SELECT pnu, NULLIF(building_pk,''), is_rep::boolean,
+                            ST_Multi(ST_MakeValid(ST_GeomFromText(wkt, 4326))),
+                            NULLIF(area,'')::numeric, NULLIF(jimok,''), NULLIF(land_use,''),
+                            NULLIF(slope,''), NULLIF(shape,''), NULLIF(road_frontage,''),
+                            NULLIF(use_zone,''), NULLIF(legal_bcr,''), NULLIF(legal_far,''),
+                            NULLIF(gongsi_latest,'')::bigint,
+                            NULLIF(reg_godo,''), NULLIF(reg_district,''), NULLIF(reg_jeongbi,''),
+                            NULLIF(reg_gyeong,''), NULLIF(reg_banghwa,''), NULLIF(reg_munhwa,''),
+                            NULLIF(use_zone,'')
+                     FROM {tmp} WHERE pnu <> ''
+                     ON CONFLICT (pnu) DO NOTHING""",
+        "checks": ["pk_rows"],
+    },
+    "building_parcels": {  # 대표-부속 관계(0009)
+        "columns": ["building_pk", "pnu", "role"],
+        "table": "building_parcels",
+        "insert": """INSERT INTO {new} (building_pk, pnu, role)
+                     SELECT building_pk, pnu, role FROM {tmp}
+                     WHERE building_pk <> '' AND pnu <> ''
+                     ON CONFLICT (building_pk, pnu) DO NOTHING""",
+        "checks": ["pk_rows"],
+    },
     "sales_history": {   # 매각 이력(0007)
         "columns": ["building_pk", "contract_ym", "price", "total_area", "land_area"],
         "table": "sales_history",

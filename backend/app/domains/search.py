@@ -72,7 +72,8 @@ class Filters(BaseModel):
 class SearchIn(BaseModel):
     polygon: dict | None = None       # GeoJSON — 있으면 지역범위 대체(§3.6c)
     filters: Filters = Filters()
-    sort: str = "price"               # price|addr
+    sort: str = "price"               # price|roi|addr
+    fav_only: bool = False            # 즐겨찾기 빠른 필터(§3.2a)
     page_ad: int = 1                  # 열별 독립 페이징(§3.4)
     page_mine: int = 1
     page_normal: int = 1
@@ -121,7 +122,11 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
         args.append(json.dumps(body.polygon))
         poly_sql = f" AND ST_Within(b.geom, ST_MakeValid(ST_GeomFromGeoJSON(${len(args)}::text)))"
     filt_sql = _filter_sql(body.filters, args)
-    order = "price DESC NULLS LAST" if body.sort == "price" else "addr"
+    order = {"price": "price DESC NULLS LAST", "roi": "price ASC NULLS LAST", "addr": "addr"}.get(body.sort, "price DESC NULLS LAST")
+    args.append(user.account_id)   # 즐겨찾기 조인용
+    acct_i = len(args)
+    fav_join = f"LEFT JOIN app.favorites fv ON fv.building_pk=b.building_pk AND fv.account_id=${acct_i}"
+    fav_where = "AND fv.building_pk IS NOT NULL" if body.fav_only else ""
 
     base = f"""
       WITH latest_ad AS (
@@ -136,6 +141,7 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
                b.last_sale_price, b.last_sale_ym,
                la.price AS ad_price,
                l.assignee_account_id,
+               (fv.building_pk IS NOT NULL) AS is_fav,
                CASE
                  WHEN la.price IS NOT NULL THEN 'ad'
                  WHEN l.assignee_account_id IS NOT NULL THEN 'mine'
@@ -150,7 +156,8 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
         LEFT JOIN app.listings l
           ON l.building_pk = b.building_pk AND l.team_id = $1
              AND l.assignee_account_id IS NOT NULL
-        WHERE TRUE {poly_sql} {filt_sql}
+        {fav_join}
+        WHERE TRUE {poly_sql} {filt_sql} {fav_where}
       )
     """
 
