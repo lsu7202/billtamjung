@@ -106,3 +106,15 @@ async def refresh(resp: Response, refresh: str | None = Cookie(default=None)):
 async def logout(resp: Response):
     resp.delete_cookie("refresh", path="/auth")
     return {"ok": True}
+
+
+from ..core.deps import current_user, CurrentUser  # noqa: E402
+from fastapi import Depends  # noqa: E402
+
+
+@router.get("/me")
+async def me(user: CurrentUser = Depends(current_user)):
+    row = await pool().fetchrow("SELECT name, email FROM app.accounts WHERE id=$1", user.account_id)
+    return {"account_id": user.account_id, "team_id": user.team_id,
+            "role": user.role, "tier": user.tier,
+            "name": row["name"] if row else None}
