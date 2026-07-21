@@ -7,7 +7,7 @@ import { MapPanel, MapPin } from "../../shared/map/MapPanel";
 /** S01 매물 통합검색 — 자동완성 + 지역(구/동) + 3열 목록 + 지도 뷰(핀·영역 그리기) */
 
 interface Hit {
-  building_pk: string; addr: string; price: number | null;
+  building_pk: string; addr: string; price: number | null; roi: number | null;
   lng: number; lat: number;
   land_area: number | null; floors_above: number | null; floors_below: number | null;
 }
@@ -130,8 +130,7 @@ export function SearchPage() {
         <span style={{ flex: 1 }} />
         <select className="input" style={{ width: 120 }} value={sort} onChange={(e) => setSort(e.target.value)}>
           <option value="price">매매가순</option>
-          <option value="roi">낮은가격순</option>
-          <option value="addr">주소순</option>
+          <option value="roi">수익률순</option>
         </select>
         <div style={{ display: "flex" }}>
           <button className={`btn ${view === "list" ? "primary" : ""}`} style={{ borderRadius: "6px 0 0 6px" }} onClick={() => setView("list")}>매물</button>
@@ -147,6 +146,8 @@ export function SearchPage() {
               <>
                 <div style={{ fontWeight: 800, marginBottom: 8 }}>{picked.addr.replace("서울특별시 ", "").replace("번지", "")}</div>
                 <div className="kv"><span className="k">매매가</span><span className="v num">{won(picked.price)}</span></div>
+                <div className="kv"><span className="k">수익률</span><span className="v num" style={{ color: picked.roi == null ? "var(--muted)" : undefined }}>{picked.roi == null ? "—" : `${picked.roi}%`}</span></div>
+                <div className="kv"><span className="k">평단가</span><span className="v num">{picked.price && picked.land_area ? `${Math.round(picked.price / (picked.land_area / 3.3058) / 1e4).toLocaleString()}만/평` : "—"}</span></div>
                 <div className="kv"><span className="k">대지면적</span><span className="v num">{picked.land_area ?? "—"}㎡</span></div>
                 <div className="kv"><span className="k">층수</span><span className="v">지상 {picked.floors_above ?? "—"} · 지하 {picked.floors_below ?? "—"}</span></div>
                 <button className="btn primary" style={{ width: "100%", marginTop: 12 }} onClick={() => go(picked.building_pk)}>상세보기 →</button>
@@ -182,16 +183,21 @@ export function SearchPage() {
                   {label} <span className="num" style={{ opacity: .85, fontWeight: 600 }}>{col.total.toLocaleString()}</span>
                 </div>
                 <table className="wf">
-                  <thead><tr><th>주소</th><th className="num">매매가{key === "normal" && <small style={{ color: "var(--muted)" }}> 추정</small>}</th></tr></thead>
+                  <thead><tr>
+                    <th>주소</th>
+                    <th className="num">매매가{key === "normal" && <small style={{ color: "var(--muted)" }}> 추정</small>}</th>
+                    <th className="num">수익률</th>
+                  </tr></thead>
                   <tbody>
                     {col.items.map((h) => (
                       <tr key={h.building_pk} style={{ cursor: "pointer" }} onClick={() => go(h.building_pk)}>
                         <td>{h.addr.replace("서울특별시 ", "").replace("번지", "")}</td>
                         <td className="num">{won(h.price)}</td>
+                        <td className="num" style={{ color: h.roi == null ? "var(--muted)" : undefined }}>{h.roi == null ? "—" : `${h.roi}%`}</td>
                       </tr>
                     ))}
                     {col.items.length === 0 && (
-                      <tr><td colSpan={2} style={{ color: "var(--muted)", textAlign: "center", padding: 20 }}>
+                      <tr><td colSpan={3} style={{ color: "var(--muted)", textAlign: "center", padding: 20 }}>
                         {key === "mine" ? "아직 등록한 매물이 없습니다" : "표시할 매물이 없습니다"}
                       </td></tr>
                     )}

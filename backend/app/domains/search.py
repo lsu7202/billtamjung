@@ -122,7 +122,11 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
         args.append(json.dumps(body.polygon))
         poly_sql = f" AND ST_Within(b.geom, ST_MakeValid(ST_GeomFromGeoJSON(${len(args)}::text)))"
     filt_sql = _filter_sql(body.filters, args)
-    order = {"price": "price DESC NULLS LAST", "roi": "price ASC NULLS LAST", "addr": "addr"}.get(body.sort, "price DESC NULLS LAST")
+    # 정렬 = 매매가순 / 수익률순만(S01 §3.3). 값 없는 항목은 후순위(NULLS LAST).
+    order = {
+        "price": "price DESC NULLS LAST, addr",
+        "roi": "roi DESC NULLS LAST, price DESC NULLS LAST",
+    }.get(body.sort, "price DESC NULLS LAST, addr")
     args.append(user.account_id)   # 즐겨찾기 조인용
     acct_i = len(args)
     fav_join = f"LEFT JOIN app.favorites fv ON fv.building_pk=b.building_pk AND fv.account_id=${acct_i}"
@@ -133,6 +137,12 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
         SELECT DISTINCT ON (building_pk) building_pk, price
         FROM app.ad_prices WHERE deleted_at IS NULL
         ORDER BY building_pk, observed_on DESC
+      ),
+      team_rent AS (   -- 팀 층별임대 합계(수익률 추정용, S01 §3.5)
+        SELECT building_pk, SUM(rent) AS monthly_rent
+        FROM app.floor_rents
+        WHERE team_id = $1 AND deleted_at IS NULL AND rent IS NOT NULL
+        GROUP BY building_pk
       ),
       classified AS (
         SELECT b.building_pk, b.addr, b.land_area, b.total_area,
@@ -150,9 +160,17 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
                CASE
                  WHEN la.price IS NOT NULL THEN la.price
                  ELSE b.last_sale_price          -- sales.금액 = 원 단위
-               END AS price
+               END AS price,
+               -- 수익률(추정) = 연임대료 / 매매가 · 임대 정보 없으면 NULL(§3.5 후순위)
+               CASE
+                 WHEN tr.monthly_rent IS NOT NULL AND COALESCE(la.price, b.last_sale_price) > 0
+                 THEN round((tr.monthly_rent * 12.0)
+                            / COALESCE(la.price, b.last_sale_price) * 100, 2)
+                 ELSE NULL
+               END AS roi
         FROM master.buildings b
         LEFT JOIN latest_ad la ON la.building_pk = b.building_pk
+        LEFT JOIN team_rent tr ON tr.building_pk = b.building_pk
         LEFT JOIN app.listings l
           ON l.building_pk = b.building_pk AND l.team_id = $1
              AND l.assignee_account_id IS NOT NULL

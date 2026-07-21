@@ -11,6 +11,7 @@ export interface MapPin {
   lat: number;
   col: "ad" | "mine" | "normal";
   price: number | null;
+  roi?: number | null;
   land_area?: number | null;
   floors_above?: number | null;
   floors_below?: number | null;
