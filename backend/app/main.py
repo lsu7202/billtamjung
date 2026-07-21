@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .core import db
 from .core.config import settings
-from .domains import auth, search, buildings, overlays, credits
+from .domains import auth, search, buildings, overlays, credits, listings, floor_rents, market, reports, extras
 
 
 @asynccontextmanager
@@ -24,7 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for m in (auth, search, buildings, overlays, credits):
+for m in (auth, search, buildings, overlays, credits, listings, floor_rents, market, reports, extras):
     app.include_router(m.router)
 
 
