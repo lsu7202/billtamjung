@@ -26,6 +26,23 @@ SOURCES = {
                     "gongsi_latest", "last_sale_ym", "last_sale_price"],
         "table": "buildings",
     },
+    "gongsi_series": {   # 공시지가 연도별(0007)
+        "columns": ["pnu", "year", "price"],
+        "table": "gongsi_series",
+        "insert": """INSERT INTO {new} (pnu, year, price)
+                     SELECT pnu, year::int, price::bigint FROM {tmp}
+                     WHERE pnu <> '' AND year <> '' AND price <> ''""",
+        "checks": ["pk_rows"],
+    },
+    "sales_history": {   # 매각 이력(0007)
+        "columns": ["building_pk", "contract_ym", "price", "total_area", "land_area"],
+        "table": "sales_history",
+        "insert": """INSERT INTO {new} (building_pk, contract_ym, price, total_area, land_area)
+                     SELECT building_pk, contract_ym, price::bigint,
+                            NULLIF(total_area,'')::numeric, NULLIF(land_area,'')::numeric
+                     FROM {tmp} WHERE building_pk <> '' AND price <> ''""",
+        "checks": ["pk_rows"],
+    },
 }
 
 ROW_FLOOR_RATIO = 0.95   # 행수 하한(§2.5): staging ≥ live × 0.95
@@ -55,7 +72,14 @@ async def main() -> int:
         run_id, args.source,
     )
     try:
-        cur_version = await conn.fetchval("SELECT version FROM master.master_version")
+        # 소스별 물리테이블 최신 버전 탐지(전역 master_version과 독립)
+        tbl_ver = await conn.fetchval(
+            """SELECT max(substring(table_name from '_v(\\d+)$')::int)
+               FROM information_schema.tables
+               WHERE table_schema='master' AND table_name ~ ('^' || $1 || '_v\\d+$')""",
+            table,
+        )
+        cur_version = tbl_ver or 1
         next_v = cur_version + 1
         live_tbl = f"master.{table}_v{cur_version}"
         new_tbl = f"master.{table}_v{next_v}"
@@ -79,7 +103,10 @@ async def main() -> int:
                 f"_load_tmp_{args.source}", source=f, schema_name="master",
                 columns=src["columns"], format="csv", header=True,
             )
-        await conn.execute(f"""
+        if "insert" in src:   # 시계열 등 단순 소스
+            await conn.execute(src["insert"].format(new=new_tbl, tmp=tmp))
+        else:                  # buildings(geom 변환 포함)
+            await conn.execute(f"""
             INSERT INTO {new_tbl}
               (building_pk, addr, jibun_norm, geom,
                road_addr, pnu, sgg_code, bjd_code,
@@ -108,18 +135,24 @@ async def main() -> int:
         # 3) 검증 게이트(§2.5)
         rows_live = await conn.fetchval(f"SELECT count(*) FROM {live_tbl}")
         rows_new = await conn.fetchval(f"SELECT count(*) FROM {new_tbl}")
-        checks = {
-            "row_floor": rows_new >= rows_live * ROW_FLOOR_RATIO,
-            "pk_not_null": await conn.fetchval(
-                f"SELECT count(*)=0 FROM {new_tbl} WHERE building_pk IS NULL OR geom IS NULL"),
-            "geom_valid": await conn.fetchval(
-                f"SELECT count(*)=0 FROM {new_tbl} WHERE NOT ST_IsValid(geom)"),
-            "addr_not_null": await conn.fetchval(
-                f"SELECT count(*)=0 FROM {new_tbl} WHERE addr IS NULL OR addr=''"),
-            "seoul_bbox": await conn.fetchval(
-                f"""SELECT count(*)=0 FROM {new_tbl}
-                    WHERE NOT ST_Within(geom, ST_MakeEnvelope(126.7,37.4,127.2,37.7,4326))"""),
-        }
+        if "checks" in src:   # 시계열 등 단순 소스: 행수 하한 + 비어있지 않음
+            checks = {
+                "row_floor": rows_new >= rows_live * ROW_FLOOR_RATIO,
+                "not_empty": rows_new > 0,
+            }
+        else:                  # buildings 전체 검증
+            checks = {
+                "row_floor": rows_new >= rows_live * ROW_FLOOR_RATIO,
+                "pk_not_null": await conn.fetchval(
+                    f"SELECT count(*)=0 FROM {new_tbl} WHERE building_pk IS NULL OR geom IS NULL"),
+                "geom_valid": await conn.fetchval(
+                    f"SELECT count(*)=0 FROM {new_tbl} WHERE NOT ST_IsValid(geom)"),
+                "addr_not_null": await conn.fetchval(
+                    f"SELECT count(*)=0 FROM {new_tbl} WHERE addr IS NULL OR addr=''"),
+                "seoul_bbox": await conn.fetchval(
+                    f"""SELECT count(*)=0 FROM {new_tbl}
+                        WHERE NOT ST_Within(geom, ST_MakeEnvelope(126.7,37.4,127.2,37.7,4326))"""),
+            }
         import json
         failed = [k for k, ok in checks.items() if not ok]
         if failed:

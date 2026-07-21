@@ -21,4 +21,21 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
     if coords:
         data["lng"], data["lat"] = coords["lng"], coords["lat"]
     data.pop("geom", None)   # WKB 불필요
+
+    # 시계열: 공시지가(대표 PNU 연도별) · 매각 이력 (S02 §3.7)
+    if data.get("pnu"):
+        g = await pool().fetch(
+            "SELECT year, price FROM master.gongsi_series WHERE pnu=$1 ORDER BY year",
+            data["pnu"],
+        )
+        data["gongsi_series"] = [[r["year"], r["price"]] for r in g]
+    s = await pool().fetch(
+        """SELECT contract_ym, price, total_area FROM master.sales_history
+           WHERE building_pk=$1 ORDER BY contract_ym""",
+        building_pk,
+    )
+    data["sales_history"] = [
+        {"ym": r["contract_ym"], "price": r["price"], "total_area": float(r["total_area"]) if r["total_area"] else None}
+        for r in s
+    ]
     return data

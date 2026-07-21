@@ -36,7 +36,9 @@ INSERT INTO ref.enums(enum_key,code,label,sort_order) VALUES
  ('meongdo','done','완료',10),('meongdo','able','가능',20),('meongdo','unable','불가',30),('meongdo','part','일부',40),('meongdo','cond','조건부',50),('meongdo','U','미지정',99),
  ('nohudo','good','양호',10),('nohudo','normal','보통',20),('nohudo','old','노후',30),('nohudo','U','미지정',99),
  ('jindo','ready','준비중',10),('jindo','ongoing','진행중',20),('jindo','offered','가격제시',30),('jindo','sold','매각',40),('jindo','withdrawn','철회',50),
- ('owner_type','person','개인',10),('owner_type','corp','법인',20),('owner_type','U','미지정',99)
+ ('owner_type','person','개인',10),('owner_type','corp','법인',20),('owner_type','U','미지정',99),
+ ('use_change','geunsaeng','근생',10),('use_change','sanga_jutaek','상가주택',20),('use_change','possible','가능',30),('use_change','impossible','불가',40),('use_change','nego','협의가능',50),('use_change','cond','조건부',60),('use_change','U','미지정',99),
+ ('myeolsil','impossible','불가',10),('myeolsil','coop','협조가능',20),('myeolsil','before_balance','잔금전멸실',30),('myeolsil','nego','협의가능',40),('myeolsil','cond','조건부',50),('myeolsil','U','미지정',99)
 ON CONFLICT DO NOTHING;
 
 -- ── 필드 레지스트리 ──────────────────────────────────
@@ -51,7 +53,12 @@ INSERT INTO ref.fields
  ('nohudo','노후도',NULL,'enum','private','building',NULL,'nohudo',NULL,true,false,true,false,'detail',20),
  ('assignee','담당자',NULL,'text','private','building',NULL,NULL,NULL,true,false,true,false,'biz',10),
  ('owner_phone','전화번호',NULL,'text','private','building',NULL,NULL,NULL,true,true,false,false,'biz',90),
- ('value_score','가치점수',NULL,'num','derived','building',NULL,NULL,'F-16',false,false,false,true,'report',10)
+ ('value_score','가치점수',NULL,'num','derived','building',NULL,NULL,'F-16',false,false,false,true,'report',10),
+ ('grade','등급',NULL,'enum','private','building',NULL,'grade',NULL,true,false,true,false,'detail',30),
+ ('ipji','입지',NULL,'enum','private','building',NULL,'ipji',NULL,true,false,true,false,'detail',40),
+ ('use_change','용도변경',NULL,'enum','private','building',NULL,'use_change',NULL,true,false,true,false,'detail',50),
+ ('myeolsil','멸실',NULL,'enum','private','building',NULL,'myeolsil',NULL,true,false,true,false,'detail',60),
+ ('float_pop','유동인구',NULL,'text','private','building',NULL,NULL,NULL,true,false,true,false,'location',10)
 ON CONFLICT (field_key) DO NOTHING;
 
 -- ── 산식 파라미터(F-16 가중치·등급컷 등) ────────────

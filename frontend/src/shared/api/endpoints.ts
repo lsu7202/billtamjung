@@ -51,6 +51,11 @@ export const overlaysApi = {
     api("/overlays", { method: "PUT", body: JSON.stringify({ target_id, field, value }) }),
   revert: (target_id: string, field: string) =>
     api("/overlays", { method: "DELETE", body: JSON.stringify({ target_id, field, value: null }) }),
+  revertAll: (target_id: string) =>
+    api<{ reverted: number }>(`/overlays/all/${target_id}`, { method: "DELETE" }),
+  distribution: (target_id: string) =>
+    api<Record<string, { label: string; values: { value: string; count: number }[] }>>(
+      `/overlays/distribution/${target_id}`),
 };
 
 export const listingsApi = {
@@ -82,6 +87,9 @@ export const reportsApi = {
 
 export const extrasApi = {
   favToggle: (pk: string) => api<{ favorited: boolean }>(`/favorites/${pk}`, { method: "PUT" }),
+  adPrices: (pk: string) => api<{ observed_on: string; price: number | null; is_mine: boolean; confirms: number }[]>(`/buildings/${pk}/ad-prices`),
+  adPriceAdd: (pk: string, observed_on: string, price: number | null, is_mine: boolean) =>
+    api(`/buildings/${pk}/ad-prices`, { method: "POST", body: JSON.stringify({ observed_on, price, is_mine }) }),
   wikiList: (pk: string) => api<Record<string, unknown>[]>(`/buildings/${pk}/wiki`),
   wikiPost: (pk: string, body: string, category?: string) =>
     api(`/buildings/${pk}/wiki`, { method: "POST", body: JSON.stringify({ body, category }) }),

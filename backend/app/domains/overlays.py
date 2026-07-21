@@ -39,3 +39,34 @@ async def revert(body: OverlayIn, user: CurrentUser = Depends(current_user)):
         user.team_id, body.target_type, body.target_id, body.field,
     )
     return {"ok": True}
+
+
+@router.delete("/all/{target_id}")
+async def revert_all(target_id: str, user: CurrentUser = Depends(current_user)):
+    """전체 되돌리기(S02 §5) — 그 건물의 팀 오버레이 전부 삭제(확인은 프론트)."""
+    n = await pool().fetchval(
+        """WITH d AS (DELETE FROM app.overlays
+             WHERE team_id=$1 AND target_id=$2 RETURNING 1)
+           SELECT count(*) FROM d""",
+        user.team_id, target_id,
+    )
+    return {"ok": True, "reverted": n}
+
+
+@router.get("/distribution/{target_id}")
+async def distribution(target_id: str, _: CurrentUser = Depends(current_user)):
+    """수정이력 = 값별 분포(익명, S02 §4.3). 공공 마스터 정정 필드만 — 전 팀 집계."""
+    rows = await pool().fetch(
+        """SELECT o.field, f.label, o.value, count(*) AS cnt
+           FROM app.overlays o
+           JOIN ref.fields f ON f.field_key = o.field AND f.layer = 'public'
+           WHERE o.target_id = $1 AND o.target_type = 'building'
+           GROUP BY o.field, f.label, o.value
+           ORDER BY o.field, cnt DESC""",
+        target_id,
+    )
+    out: dict[str, dict] = {}
+    for r in rows:
+        e = out.setdefault(r["field"], {"label": r["label"], "values": []})
+        e["values"].append({"value": r["value"], "count": r["cnt"]})
+    return out

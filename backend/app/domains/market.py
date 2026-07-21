@@ -70,5 +70,27 @@ async def nearby(body: NearbyIn, _: CurrentUser = Depends(current_user)):
         for f, xs in sorted(by_floor.items())
     ]
 
-    return {"rents": rents, "floor_avg": floor_avg,
+    # 매각 comps: 반경 내 최근 5년 매각 이력(추정) — S03 §3.3
+    sale_rows = await pool().fetch(
+        """SELECT sh.building_pk, sh.contract_ym, sh.price, sh.total_area, b.addr,
+                  round(ST_Distance(b.geom::geography,
+                        ST_SetSRID(ST_MakePoint($1,$2),4326)::geography)) AS dist_m
+           FROM master.sales_history sh
+           JOIN master.buildings b ON b.building_pk = sh.building_pk
+           WHERE sh.contract_ym >= to_char(now() - interval '5 years', 'YYYYMM')
+             AND ST_DWithin(b.geom::geography,
+                            ST_SetSRID(ST_MakePoint($1,$2),4326)::geography, $3)
+           ORDER BY sh.contract_ym DESC LIMIT 50""",
+        body.center_lng, body.center_lat, body.radius_m,
+    )
+    sales = []
+    for r in sale_rows:
+        d = dict(r)
+        d["is_outlier"] = False
+        if d["total_area"]:
+            d["per_area"] = round(d["price"] / float(d["total_area"]) * 3.305785)  # 원/평(연면적)
+        sales.append(d)
+    _flag_outliers(sales, "per_area")
+
+    return {"rents": rents, "floor_avg": floor_avg, "sales": sales,
             "radius_m": body.radius_m, "count": len(rents)}
