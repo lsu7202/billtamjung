@@ -44,12 +44,30 @@ async def _assemble(building_pk: str, team_id: int) -> dict:
     b["total_deposit"] = sum(r["deposit"] or 0 for r in rents)
     b["total_rent"] = sum(r["rent"] or 0 for r in rents)
     b["vacant_count"] = sum(1 for r in rents if r["is_vacant"])
-    # 가치점수 입력(있는 것만 — 결측=0점)
-    b["use_zone"] = b.get("use_zone") or b.get("uqa")
+
+    # 가치점수 입력 보강(F-16) — 토지 속성은 대표필지에서, 연수는 날짜→환산
+    if b.get("pnu"):
+        p = await pool().fetchval(
+            """SELECT to_jsonb(x) FROM (
+                 SELECT road_frontage, use_zone, shape, slope
+                 FROM master.parcels WHERE pnu=$1) x""",
+            b["pnu"],
+        )
+        pj = json.loads(p) if isinstance(p, str) else (p or {})
+        for k in ("road_frontage", "use_zone", "shape", "slope"):
+            b.setdefault(k, pj.get(k)) if not b.get(k) else None
+            if not b.get(k):
+                b[k] = pj.get(k)
     if b.get("approval_ymd"):
         try:
             y = dt.date.fromisoformat(str(b["approval_ymd"])[:10])
             b["age_years"] = (dt.date.today() - y).days / 365.25
+        except ValueError:
+            pass
+    if b.get("remodel_ymd"):
+        try:
+            y = dt.date.fromisoformat(str(b["remodel_ymd"])[:10])
+            b["remodel_years"] = (dt.date.today() - y).days / 365.25
         except ValueError:
             pass
     return b
