@@ -52,6 +52,12 @@ export const savedApi = {
 
 export const buildingsApi = {
   get: (pk: string) => api<Record<string, unknown>>(`/buildings/${pk}`),
+  parcels: (pk: string) => api<Record<string, unknown>>(`/buildings/${pk}/parcels`),
+};
+
+export const photosApi = {
+  list: (pk: string) => api<{ id: number; url: string }[]>(`/buildings/${pk}/photos`),
+  del: (pk: string, id: number) => api(`/buildings/${pk}/photos/${id}`, { method: "DELETE" }),
 };
 
 export const overlaysApi = {

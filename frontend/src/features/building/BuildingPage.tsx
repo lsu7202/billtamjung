@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  buildingsApi, overlaysApi, rentsApi, reportsApi, extrasApi, FloorRent,
+  buildingsApi, overlaysApi, rentsApi, reportsApi, extrasApi, listingsApi, FloorRent,
 } from "../../shared/api/endpoints";
 import { PhotoPanel } from "../../shared/map/PhotoPanel";
 import { SeriesBlock } from "./SeriesBlock";
@@ -28,6 +28,7 @@ export function BuildingPage() {
   const building = useQuery({ queryKey: ["building", pk], queryFn: () => buildingsApi.get(pk) });
   const rents = useQuery({ queryKey: ["rents", pk], queryFn: () => rentsApi.list(pk) });
   const ads = useQuery({ queryKey: ["ads", pk], queryFn: () => extrasApi.adPrices(pk) });
+  const listing = useQuery({ queryKey: ["listing", pk], queryFn: () => listingsApi.get(pk) });
 
   const editField = useMutation({
     mutationFn: ({ field, value }: { field: string; value: string }) => overlaysApi.put(pk, field, value),
@@ -128,14 +129,19 @@ export function BuildingPage() {
             {b.addr}
             <button className="btn" style={{ marginLeft: 10 }} onClick={() => extrasApi.favToggle(pk)}>★</button>
           </h2>
-          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>{String(b.road_addr ?? "")}</div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4, display: "flex", gap: 14 }}>
+            {(listing.data?.listing_no as string) && <span>매물번호 <b>{String(listing.data?.listing_no)}</b></span>}
+            {(listing.data?.received_on as string) && <span>접수일 <b>{String(listing.data?.received_on).slice(0, 10)}</b></span>}
+            {Boolean(listing.data?.registered) && <span>담당 <b>나</b></span>}
+            <span>{String(b.road_addr ?? "")}</span>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div className="hdr-metrics" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {metric("매매가", price ? eok(price) : "—")}
-          {metric("수익률(현재)", roiNow ? `${roiNow.toFixed(1)}%` : "—")}
+          {metric("수익률(만실/현재)", roiNow ? `${roiNow.toFixed(1)}%` : "—")}
           {metric("평단가(대지)", pricePerLand ? eok(pricePerLand) : "—")}
-          {metric("면적", `${landP ? landP.toFixed(1) : "—"} / ${totalP ? totalP.toFixed(1) : "—"}평`)}
-          {metric("층수", `${b.floors_above ?? "—"}F/B${b.floors_below ?? "—"}`)}
+          {metric("면적 (평)", `${landP ? landP.toFixed(1) : "—"} / ${totalP ? totalP.toFixed(1) : "—"} / —`)}
+          {metric("층수", `B${b.floors_below ?? "—"}F/${b.floors_above ?? "—"}F`)}
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <button className="btn" onClick={() => generate("briefing")}>브리핑 자료 (10)</button>
@@ -147,7 +153,7 @@ export function BuildingPage() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 14, alignItems: "start" }}>
         <div style={{ display: "grid", gap: 14 }}>
           {typeof b.lng === "number" && typeof b.lat === "number" && (
-            <PhotoPanel lng={b.lng} lat={b.lat} />
+            <PhotoPanel lng={b.lng} lat={b.lat} pk={pk} />
           )}
 
           {/* 표시범위 토글(§3.3) */}
