@@ -84,7 +84,7 @@
 .s01b .modal-foot .apply { border: 0; background: var(--accent); color: #fff; border-radius: 9px; padding: 10px 20px; font-size: 13.5px; font-weight: 700; cursor: pointer; }
 
 /* ── 팝오버 ── */
-.s01b-popover { position: fixed; z-index: 200; width: 340px; max-width: calc(100vw - 24px); background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,.24); padding: 14px 16px 16px; display: none; }
+.s01b-popover { position: fixed; z-index: 200; width: 340px; max-width: calc(100vw - 24px); max-height: calc(100vh - 24px); overflow-y: auto; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,.24); padding: 14px 16px 16px; display: none; }
 .s01b-popover.show { display: block; }
 .s01b-popover .pop-head { display: flex; align-items: center; margin-bottom: 8px; }
 .s01b-popover .pop-head .pt { font-size: 13px; font-weight: 800; }

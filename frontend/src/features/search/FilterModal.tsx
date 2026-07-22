@@ -111,30 +111,12 @@ function Slider({ f, value, onChange, unit }: { f: Field; value: SliderVal; onCh
   );
 }
 
-/* ── 알약 다중선택(ms/segmulti) ── */
-function PillMulti({ f, value, onChange }: { f: Field; value: string[]; onChange: (v: string[]) => void }) {
+/* ── 알약 다중선택(ms/segmulti) — 옵션 많으면 hscroll(아래로 쌓이는 wrap, 목업 드롭다운 대체) ── */
+function PillMulti({ f, value, onChange, hscroll }: { f: Field; value: string[]; onChange: (v: string[]) => void; hscroll?: boolean }) {
   const toggle = (o: string) => onChange(value.includes(o) ? value.filter((x) => x !== o) : [...value, o]);
   return (
-    <div className="seg multi">
+    <div className={`seg multi ${hscroll ? "hscroll" : ""}`}>
       {(f.opts ?? []).map((o) => <button key={o} className={value.includes(o) ? "on" : ""} onClick={() => toggle(o)}>{o}</button>)}
-    </div>
-  );
-}
-
-/* ── 드롭다운 다중선택(ms dd) ── */
-function DropdownMulti({ f, value, onChange }: { f: Field; value: string[]; onChange: (v: string[]) => void }) {
-  const [q, setQ] = useState("");
-  const opts = (f.opts ?? []).filter((o) => o.includes(q));
-  const toggle = (o: string) => onChange(value.includes(o) ? value.filter((x) => x !== o) : [...value, o]);
-  return (
-    <div className="ms open">
-      <div className="ms-box">
-        {value.map((v) => <span key={v} className="tag">{v}<b onClick={() => toggle(v)}>×</b></span>)}
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="검색·선택" />
-      </div>
-      <div className="ms-menu" style={{ position: "static", maxHeight: 200, marginTop: 5 }}>
-        {opts.map((o) => <div key={o} className={`ms-opt ${value.includes(o) ? "sel" : ""}`} onClick={() => toggle(o)}>{value.includes(o) ? "✓ " : ""}{o}</div>)}
-      </div>
     </div>
   );
 }
@@ -201,7 +183,7 @@ function TextChips({ f, value, onChange }: { f: Field; value: string; onChange: 
 function Control({ f, value, onChange, unit }: { f: Field; value: Val | undefined; onChange: (v: Val) => void; unit: "평" | "㎡" }) {
   switch (f.ctl) {
     case "slider": return <Slider f={f} value={(value as SliderVal) ?? {}} onChange={onChange} unit={unit} />;
-    case "ms": return f.dd ? <DropdownMulti f={f} value={(value as string[]) ?? []} onChange={onChange} /> : <PillMulti f={f} value={(value as string[]) ?? []} onChange={onChange} />;
+    case "ms": return <PillMulti f={f} value={(value as string[]) ?? []} onChange={onChange} hscroll={f.dd} />;
     case "segmulti": return <PillMulti f={f} value={(value as string[]) ?? []} onChange={onChange} />;
     case "sector": return <SectorGroup f={f} value={(value as string[]) ?? []} onChange={onChange} />;
     case "tier": return <TierMulti f={f} value={(value as string[]) ?? []} onChange={onChange} />;
@@ -281,7 +263,7 @@ export function FilterModal({
   const clearVal = (label: string) => setValues((s) => { const n = { ...s }; delete n[label]; return n; });
   const openPop = (f: Field, e: React.MouseEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setPop({ f, x: Math.min(r.left, window.innerWidth - 356), y: r.bottom + 6 });
+    setPop({ f, x: Math.min(r.left, window.innerWidth - 356), y: Math.min(r.bottom + 6, window.innerHeight - 380) });
   };
   const addRegion = () => {
     if (!gu || !dong) return;
