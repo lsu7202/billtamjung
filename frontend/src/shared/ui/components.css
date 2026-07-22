@@ -1,0 +1,123 @@
+/* 시그니처 컴포넌트 — specs/02-screens/_mockups/wireframe.css 이식(정본).
+   tokens.css에 이미 있는 .panel/.btn/.input/.tag/.wf/.kv/.sec-head/.appbar는 제외.
+   화면 JSX 리팩터(Phase 1~3)가 이 클래스들을 사용한다. */
+
+.toolbar{display:flex; gap:9px; align-items:center; flex-wrap:wrap}
+
+/* 자동완성 리치 표시(S01) */
+.ac-head{font-size:11px; color:var(--muted); font-weight:600; padding:8px 12px 5px; letter-spacing:.02em}
+.ac-addr{flex:1; font-family:var(--mono); font-size:13px; color:var(--ink); font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.ac-addr mark{background:none; color:var(--signal); font-weight:700}
+.ac-meta{font-size:12px; color:var(--ink-2); font-family:var(--mono); font-weight:700; white-space:nowrap}
+.ac-tag{font-size:10px; font-weight:700; border-radius:4px; padding:2px 6px; white-space:nowrap}
+.ac-tag.mine{background:var(--blue-bg); color:var(--blue)}
+.ac-tag.ad{background:var(--green-bg); color:var(--green)}
+.ac-empty{padding:14px 12px; font-size:13px; color:var(--muted); text-align:center}
+
+/* 조건 칩 */
+.chips{display:flex; gap:8px; flex-wrap:wrap; margin-top:11px}
+.chip{display:inline-flex; align-items:center; gap:6px; background:var(--signal-bg); border:1px solid #d3e0fd; border-radius:999px; padding:4px 11px; font-size:12px; color:var(--signal-ink); font-weight:600}
+.chip .x{color:#7fa0e6; cursor:pointer}
+.chip .x:hover{color:var(--signal-ink)}
+
+/* 세그먼트 토글 */
+.segmented{display:inline-flex; border:1px solid var(--line-2); border-radius:var(--radius-sm); overflow:hidden; background:#fff}
+.segmented button{border:0; background:#fff; padding:7px 16px; cursor:pointer; font-size:13px; color:var(--ink-2); font-weight:600}
+.segmented button.active{background:var(--ink); color:#fff}
+
+/* S01 3열 결과 */
+.result-cols{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px}
+.col-card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow)}
+.col-head{padding:11px 14px; font-weight:700; color:#fff; text-align:center; font-size:13px; letter-spacing:-.01em}
+.col-head.ad{background:var(--green)}
+.col-head.mine{background:var(--blue)}
+.col-head.normal{background:var(--purple)}
+.col-head .count{font-weight:600; opacity:.9; font-size:12px; margin-left:6px; font-variant-numeric:tabular-nums}
+.col-body{max-height:58vh; overflow-y:auto}
+.wf-list .wf-head,.wf-list .wf-row{display:grid; grid-template-columns:1fr 58px 48px; align-items:center; gap:8px; padding:9px 12px}
+.wf-list .wf-head{color:var(--muted); font-size:11px; font-weight:600; background:var(--surface-2); position:sticky; top:0; z-index:1; border-bottom:1px solid var(--line-2)}
+.wf-list .wf-row span:first-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.wf-list .wf-row{position:relative; cursor:pointer; border-bottom:1px solid var(--line)}
+.wf-list .wf-row:hover{background:var(--signal-bg)}
+.wf-list .wf-row .num{text-align:right; font-family:var(--mono)}
+.row-actions{position:absolute; right:8px; top:50%; transform:translateY(-50%); display:none; gap:6px; background:#fff; box-shadow:-8px 0 12px -4px rgba(15,26,46,.12); padding-left:8px}
+.wf-list .wf-row:hover .row-actions{display:flex}
+.row-actions .btn{padding:4px 10px; font-size:12px}
+
+/* 등급·임대/공실 배지 */
+.grade{display:inline-flex; align-items:center; justify-content:center; min-width:26px; height:24px; padding:0 8px; border-radius:6px; font-weight:800; font-size:13px; font-variant-numeric:tabular-nums; letter-spacing:0}
+.grade.s{background:#efe9ff; color:#5b3fd6} .grade.a{background:var(--signal-bg); color:var(--signal-ink)}
+.grade.b{background:#eef2f7; color:#4a5768} .grade.c{background:#fdeee3; color:var(--vacant)}
+.tag-lease{color:var(--lease); background:#e4f2ec; border-radius:5px; padding:2px 8px; font-size:11px; font-weight:700}
+.tag-vac{color:var(--vacant); background:#fbeadd; border-radius:5px; padding:2px 8px; font-size:11px; font-weight:700}
+
+/* ★ 가치점수 게이지 — 브랜드 시그니처(S00·S0M·보고서) */
+.value-gauge{display:flex; align-items:flex-end; gap:14px}
+.vg-num{display:flex; align-items:baseline; gap:4px; font-family:var(--mono); font-variant-numeric:tabular-nums}
+.vg-num .score{font-size:52px; font-weight:800; line-height:.9; letter-spacing:-.03em}
+.vg-num .max{font-size:20px; font-weight:700; color:var(--muted)}
+.vg-meta{display:flex; flex-direction:column; gap:7px; padding-bottom:4px}
+.vg-grade{display:inline-flex; align-items:center; justify-content:center; width:34px; height:30px; border-radius:8px; font-weight:800; font-size:17px; font-family:var(--mono)}
+.vg-grade.s{background:#efe9ff;color:#5b3fd6} .vg-grade.a{background:var(--signal-bg);color:var(--signal-ink)}
+.vg-grade.b{background:#eef2f7;color:#4a5768} .vg-grade.c{background:#fdeee3;color:var(--vacant)}
+.vg-bars{display:flex; gap:3px; align-items:flex-end; height:22px}
+.vg-bars i{width:5px; background:var(--signal); border-radius:2px; opacity:.85}
+.on-dark .vg-num .score{color:#fff} .on-dark .vg-num .max{color:#7f8ea8}
+.on-dark .vg-bars i{background:#4d8bff}
+.on-dark .vg-grade.a{background:rgba(30,90,240,.22);color:#93b4ff}
+
+/* S02 헤더·계기판·탭 */
+.detail-top{display:flex; justify-content:space-between; align-items:flex-start; gap:16px}
+.detail-top h2{margin:0; font-size:19px; font-weight:800; letter-spacing:-.02em}
+.meta-line{color:var(--muted); font-size:12px; display:flex; gap:14px; flex-wrap:wrap; margin-top:6px}
+.meta-line b{color:var(--ink-2); font-weight:600}
+.star{font-size:22px; color:#f5b81f; cursor:pointer; user-select:none}
+.metrics{display:flex; margin:14px 0; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; background:#fff; box-shadow:var(--shadow)}
+.metric{flex:1; padding:13px 16px; border-right:1px solid var(--line)}
+.metric:last-child{border-right:0}
+.metric .k{font-size:11px; color:var(--muted); font-weight:600; letter-spacing:.01em}
+.metric .v{font-size:19px; font-weight:800; margin-top:4px; font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.01em}
+.metric .v small{font-size:12px; color:var(--muted); font-weight:600}
+.tabs{display:flex; gap:4px; margin-bottom:0}
+.tabs button{border:1px solid var(--line); border-bottom:0; background:var(--surface-2); padding:9px 18px; border-radius:var(--radius) var(--radius) 0 0; cursor:pointer; font-size:13px; color:var(--ink-2); font-weight:600}
+.tabs button.active{background:#fff; color:var(--ink); font-weight:800}
+.tabpane{display:none} .tabpane.active{display:block}
+.block{background:#fff; border:1px solid var(--line); border-radius:var(--radius); margin-bottom:14px; overflow:hidden; box-shadow:var(--shadow)}
+.pos{color:var(--up); font-weight:700; font-size:13px}
+.neg{color:var(--down); font-weight:700; font-size:13px}
+.detail-body{display:grid; grid-template-columns:1fr 372px; gap:14px; align-items:start}
+.sidebar{position:sticky; top:14px; align-self:start; max-height:calc(100vh - 28px); overflow:auto}
+@media(max-width:1100px){.detail-body{grid-template-columns:1fr} .sidebar{position:static; max-height:none}}
+
+/* 차트(SeriesBlock 정합) */
+.svg-chart{display:block; width:100%; height:auto; background:var(--surface-2)}
+.svg-chart .axis{stroke:var(--line-2); stroke-width:1}
+.svg-chart .grid{stroke:var(--line); stroke-width:1}
+.svg-chart .line{fill:none; stroke-width:2.5; stroke:var(--c-gongsi)}
+.svg-chart .dot{stroke:#fff; stroke-width:1.5; fill:var(--c-gongsi); cursor:pointer}
+.svg-chart text{fill:var(--muted); font-size:13px; font-family:var(--mono)}
+.svg-chart .rate{font-size:16px; font-weight:700}
+.chart-tip{position:fixed; z-index:60; background:var(--ink); color:#fff; font-size:12px; line-height:1.5; padding:8px 11px; border-radius:6px; pointer-events:none; opacity:0; transition:opacity .1s; white-space:nowrap; transform:translate(-50%,-118%); font-family:var(--mono)}
+.chart-tip.show{opacity:1}
+.chart-tip .up{color:#ff8f8a; font-weight:700} .chart-tip .down{color:#93b4ff; font-weight:700}
+.matrix th:first-child,.matrix td:first-child{background:var(--surface-2); font-weight:600}
+
+/* 모달·하단바 */
+.modal-bg{position:fixed; inset:0; background:rgba(15,26,46,.42); display:none; align-items:flex-start; justify-content:center; padding:40px 16px; overflow:auto; z-index:50; backdrop-filter:blur(2px)}
+.modal-bg.open{display:flex}
+.modal{background:#fff; border-radius:12px; width:min(900px,100%); padding:20px; box-shadow:var(--shadow-lg)}
+.modal h3{margin:0 0 14px; display:flex; align-items:center; font-weight:800}
+.modal h3 .right{margin-left:auto; display:flex; gap:8px}
+.bottombar{position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line); box-shadow:0 -3px 12px rgba(15,26,46,.07); padding:11px 22px; display:flex; align-items:center; gap:8px; z-index:40}
+.bottombar .icon-btn{min-width:40px; height:38px; border:1px solid var(--line-2); border-radius:8px; background:#fff; cursor:pointer; font-size:15px; line-height:1; font-weight:600; color:var(--ink-2)}
+.bottombar .icon-btn:hover{background:var(--signal-bg); border-color:var(--signal); color:var(--signal)}
+.bottombar .sep{width:1px; height:24px; background:var(--line-2); margin:0 6px}
+.bottombar .right{margin-left:auto; display:flex; gap:10px}
+.bottombar small{color:var(--muted); font-size:11px; margin-left:2px}
+
+/* ★ 추정값 통일 정보 컴포넌트 — ⓘ 호버 툴팁(S02b·S02 공용) */
+.info-i{display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; border-radius:50%; background:var(--muted); color:#fff; font-size:10px; font-weight:800; font-style:normal; cursor:help; position:relative; vertical-align:middle; margin-left:4px; line-height:1}
+.info-i:hover{background:var(--signal)}
+.info-i .info-pop{display:none; position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%); width:220px; background:var(--ink); color:#fff; font-size:11px; font-weight:400; line-height:1.55; text-align:left; padding:9px 11px; border-radius:7px; box-shadow:var(--shadow-lg); z-index:9; white-space:normal}
+.info-i .info-pop::after{content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:5px solid transparent; border-top-color:var(--ink)}
+.info-i:hover .info-pop{display:block}
