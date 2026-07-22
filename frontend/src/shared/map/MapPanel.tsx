@@ -12,6 +12,7 @@ export interface MapPin {
   col: "ad" | "mine" | "normal";
   price: number | null;
   roi?: number | null;
+  is_fav?: boolean;
   land_area?: number | null;
   floors_above?: number | null;
   floors_below?: number | null;
@@ -169,7 +170,7 @@ export function MapPanel({
   });
 
   return (
-    <div style={{ position: "relative", height: 560, borderRadius: "var(--radius)", overflow: "hidden", border: "1px solid var(--line)" }}>
+    <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
       <div ref={divRef} style={{ position: "absolute", inset: 0 }} />
       {/* 영역 그리기 도구(S01 §3.6c) */}
       <div style={{ position: "absolute", top: 12, left: 12, zIndex: 5, display: "flex", gap: 6 }}>

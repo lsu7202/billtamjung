@@ -26,6 +26,48 @@ const COLS = [
 const won = (n: number | null) =>
   n == null ? "—" : n >= 1e8 ? `${Math.round(n / 1e8)}억` : `${Math.round(n / 1e4).toLocaleString()}만`;
 
+const PY = 3.3058;                                    // ㎡→평
+const py = (m2?: number | null) => (m2 == null ? "—" : (m2 / PY).toFixed(m2 / PY < 100 ? 1 : 0));
+
+/** 지도 선택 매물 요약 카드 — 목업 .sel-card(로드뷰 스트립·계기판·시계열·상세보기) */
+function SelCard({ picked, bldg, trend, onDetail, onFav }: {
+  picked: MapPin; bldg?: Record<string, unknown>; trend: Parameters<typeof PriceTrendChart>[0]["series"];
+  onDetail: () => void; onFav: () => void;
+}) {
+  const num = (k: string) => (bldg && bldg[k] != null ? Number(bldg[k]) : null);
+  const land = num("land_area") ?? picked.land_area ?? null;
+  const total = num("total_area");
+  const build = num("build_area");
+  const fa = num("floors_above") ?? picked.floors_above ?? null;
+  const fb = num("floors_below") ?? picked.floors_below ?? null;
+  const ppy = picked.price && land ? won(picked.price / (land / PY)) : "—";  // 대지 평단가
+  return (
+    <div className="sel-card">
+      <div className="sel-road" />
+      <div className="sel-body">
+        <div className="sel-addr">{picked.addr.replace("서울특별시 ", "").replace("번지", "")}
+          <span className={`ml-tag ${picked.col}`}>{picked.col === "ad" ? "광고" : picked.col === "mine" ? "내" : "일반"}</span>
+          <span className="star" style={{ color: picked.is_fav ? "#f5a623" : "var(--line-2)" }} onClick={onFav}>★</span>
+        </div>
+        <div className="sel-metrics">
+          <div className="m"><div className="mk">매매가</div><div className="mv">{won(picked.price)}</div></div>
+          <div className="m"><div className="mk">수익률(현재)</div><div className="mv">{picked.roi == null ? "—" : `${picked.roi}%`}</div></div>
+          <div className="m"><div className="mk">평단가(대지)</div><div className="mv">{ppy}</div></div>
+          <div className="m"><div className="mk">층수</div><div className="mv">{fb ? `B${fb}` : ""}{fb ? "/" : ""}{fa != null ? `${fa}F` : "—"}</div></div>
+          <div className="m wide"><div className="mk">면적 (평)</div>
+            <div className="sel-area"><span><i>대지</i>{py(land)}</span><span><i>연면적</i>{py(total)}</span><span><i>건축</i>{py(build)}</span></div>
+          </div>
+        </div>
+        <div className="sel-spark">
+          <div className="sh"><span>가격 추이</span></div>
+          <PriceTrendChart series={trend} />
+        </div>
+        <button className="sel-detail" onClick={onDetail}>상세보기 →</button>
+      </div>
+    </div>
+  );
+}
+
 export function SearchPage() {
   const nav = useNavigate();
   const qc = useQueryClient();
@@ -168,37 +210,37 @@ export function SearchPage() {
         />
       )}
 
-      {/* 지도 뷰 */}
+      {/* 지도 뷰 — 목업 S01 .map-split: 좌 사이드바(선택카드+미니리스트) / 우 지도 */}
       {view === "map" && (
-        <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 14 }}>
-          <div className="panel" style={{ padding: 14, alignSelf: "start" }}>
-            {picked ? (
-              <>
-                <div style={{ fontWeight: 800, marginBottom: 8 }}>{picked.addr.replace("서울특별시 ", "").replace("번지", "")}</div>
-                <div className="kv"><span className="k">매매가</span><span className="v num">{won(picked.price)}</span></div>
-                <div className="kv"><span className="k">수익률</span><span className="v num" style={{ color: picked.roi == null ? "var(--muted)" : undefined }}>{picked.roi == null ? "—" : `${picked.roi}%`}</span></div>
-                <div className="kv"><span className="k">평단가</span><span className="v num">{picked.price && picked.land_area ? `${Math.round(picked.price / (picked.land_area / 3.3058) / 1e4).toLocaleString()}만/평` : "—"}</span></div>
-                <div className="kv"><span className="k">대지면적</span><span className="v num">{picked.land_area ?? "—"}㎡</span></div>
-                <div className="kv"><span className="k">층수</span><span className="v">지상 {picked.floors_above ?? "—"} · 지하 {picked.floors_below ?? "—"}</span></div>
-                <div style={{ marginTop: 12, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-2)", marginBottom: 4 }}>가격 추이</div>
-                  <PriceTrendChart series={trend} />
-                </div>
-                <button className="btn primary" style={{ width: "100%", marginTop: 12 }} onClick={() => go(picked.building_pk)}>상세보기 →</button>
-              </>
-            ) : (
-              <p style={{ color: "var(--muted)", fontSize: 13 }}>핀을 클릭하면 요약이 표시됩니다</p>
-            )}
-            <p style={{ color: "var(--muted)", fontSize: 12, marginTop: 14, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
-              이 화면 {pins.length}핀 · ✎ 도구로 영역을 그리면 그 안의 매물만 검색됩니다
-            </p>
+        <div className="map-split">
+          {/* 좌: 선택 매물 요약 + 미니리스트(핀 동기) */}
+          <div className="map-list">
+            {picked ? <SelCard picked={picked} bldg={pickedBldg.data} trend={trend} onDetail={() => go(picked.building_pk)} onFav={() => toggleFav(picked.building_pk)} /> : null}
+            <div className="ml-head">이 지도 영역 <b className="num">{pins.length}</b>건 · 핀과 동기화</div>
+            {pins.map((p) => (
+              <div key={p.building_pk} className={`ml-row ${picked?.building_pk === p.building_pk ? "on" : ""}`} onClick={() => setPicked(p)}>
+                <span className="ml-a">{p.addr.replace("서울특별시 ", "").replace("번지", "")}
+                  <span className={`ml-tag ${p.col}`}>{p.col === "ad" ? "광고" : p.col === "mine" ? "내" : "일반"}</span>
+                </span>
+                <span className="ml-nums">{won(p.price)}{p.roi != null && <small> · {p.roi}%</small>}</span>
+              </div>
+            ))}
+            {pins.length === 0 && <div className="sel-empty">이 영역에 표시할 매물이 없습니다</div>}
           </div>
-          <MapPanel
-            pins={pins}
-            polygonActive={!!polygon}
-            onPick={(pk) => setPicked(pins.find((p) => p.building_pk === pk) ?? null)}
-            onPolygon={(g) => { setPolygon(g); setPages({ ad: 1, mine: 1, normal: 1 }); }}
-          />
+          {/* 우: 지도 + 범례 */}
+          <div className="map-canvas">
+            <MapPanel
+              pins={pins}
+              polygonActive={!!polygon}
+              onPick={(pk) => setPicked(pins.find((p) => p.building_pk === pk) ?? null)}
+              onPolygon={(g) => { setPolygon(g); setPages({ ad: 1, mine: 1, normal: 1 }); }}
+            />
+            <div className="map-legend">
+              <span><b style={{ background: "var(--green)" }} />광고</span>
+              <span><b style={{ background: "var(--blue)" }} />내 매물</span>
+              <span><b style={{ background: "var(--purple)" }} />일반</span>
+            </div>
+          </div>
         </div>
       )}
 
