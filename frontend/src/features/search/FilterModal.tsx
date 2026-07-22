@@ -42,7 +42,7 @@ const dispUnit = (f: Field, u: "평" | "㎡") => (isArea(f) ? u : f.unit ?? "");
 const toDisp = (n: number, f: Field, u: "평" | "㎡") => (isArea(f) && u === "㎡" ? Math.round(n * PY) : n);
 const toStore = (n: number, f: Field, u: "평" | "㎡") => (isArea(f) && u === "㎡" ? +(n / PY).toFixed(1) : n);
 
-/* ── 컨트롤: 듀얼 슬라이더 ── */
+/* ── 컨트롤: 듀얼 슬라이더 (목업 initSlider 정본) ── */
 function Slider({ f, value, onChange, unit }: { f: Field; value: SliderVal; onChange: (v: SliderVal) => void; unit: "평" | "㎡" }) {
   const min = f.min ?? 0, max = f.max ?? 100, step = f.step ?? 1;
   const both = (f.handle ?? "dual") === "dual";
@@ -50,25 +50,48 @@ function Slider({ f, value, onChange, unit }: { f: Field; value: SliderVal; onCh
   const useHi = both || f.handle === "right";
   const lo = value.lo ?? min, hi = value.hi ?? max;
   const pct = (n: number) => ((n - min) / (max - min)) * 100;
-  const ticks = (f.ticks ?? "").split(",").filter(Boolean).map(Number);
   const u = dispUnit(f, unit), d = (n: number) => toDisp(n, f, unit);
+  const railRef = useRef<HTMLDivElement>(null);
+  const [expand, setExpand] = useState(false);
+  const full = isEmpty(f, value) && !expand;
   const setIn = (k: "lo" | "hi", raw: string) => onChange({ ...value, [k]: raw === "" ? undefined : toStore(Number(raw), f, unit) });
+
+  // ④ 가까운 핸들로 이동(레일/눈금 클릭). left/right 모드는 고정.
+  const moveHandle = (v: number) => {
+    v = Math.max(min, Math.min(Math.round(v / step) * step, max));
+    if (f.handle === "left") onChange({ ...value, lo: v });
+    else if (f.handle === "right") onChange({ ...value, hi: v });
+    else if (Math.abs(v - lo) <= Math.abs(v - hi)) onChange({ ...value, lo: v });
+    else onChange({ ...value, hi: v });
+  };
+  const railClick = (e: React.MouseEvent) => {
+    const r = railRef.current!.getBoundingClientRect();
+    moveHandle(min + Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * (max - min));
+  };
+
+  // ⑤ 무한(끝) 포함 눈금 구성(목업 tk)
+  const parsed = (f.ticks ?? "").split(",").filter(Boolean).map(Number);
+  const tk: { v: number; l: string }[] = [];
+  if (f.inflo) tk.push({ v: min, l: "무한" });
+  parsed.forEach((v) => { if ((f.inflo && v === min) || v === max) return; tk.push({ v, l: `${d(v)}${u}` }); });
+  tk.push({ v: max, l: f.inf ? "무한" : `${d(max)}${u}` });
+
   return (
     <div>
-      <div className={`rs-io ${isEmpty(f, value) ? "full" : ""}`}>
+      <div className={`rs-io ${full ? "full" : ""}`} onClick={() => { if (full) setExpand(true); }}>
         <span className="rs-all">전체</span>
         <div className="rs-inputs">
-          {useLo && <span className="lo-g"><input inputMode="numeric" value={value.lo != null ? d(value.lo) : ""} onChange={(e) => setIn("lo", e.target.value)} /><span className="u">{u}</span><span className="ge">{f.ge ?? "이상"}</span></span>}
-          {useHi && <span className="hi-g"><input inputMode="numeric" value={value.hi != null ? d(value.hi) : ""} onChange={(e) => setIn("hi", e.target.value)} /><span className="u">{u}</span><span className="le">{f.le ?? "이하"}</span></span>}
+          {useLo && <span className="lo-g"><input inputMode="numeric" value={value.lo != null ? d(value.lo) : ""} onFocus={() => setExpand(true)} onBlur={() => isEmpty(f, value) && setExpand(false)} onChange={(e) => setIn("lo", e.target.value)} /><span className="u">{u}</span><span className="ge">{f.ge ?? "이상"}</span></span>}
+          {useHi && <span className="hi-g"><input inputMode="numeric" value={value.hi != null ? d(value.hi) : ""} onFocus={() => setExpand(true)} onBlur={() => isEmpty(f, value) && setExpand(false)} onChange={(e) => setIn("hi", e.target.value)} /><span className="u">{u}</span><span className="le">{f.le ?? "이하"}</span></span>}
         </div>
       </div>
       <div className="rs">
-        <div className="rs-rail"><div className="rs-sel" style={{ left: `${useLo ? pct(lo) : 0}%`, width: `${(useHi ? pct(hi) : 100) - (useLo ? pct(lo) : 0)}%` }} /></div>
+        <div ref={railRef} className="rs-rail" onClick={railClick}><div className="rs-sel" style={{ left: `${useLo ? pct(lo) : 0}%`, width: `${(useHi ? pct(hi) : 100) - (useLo ? pct(lo) : 0)}%` }} /></div>
         {useLo && <input type="range" min={min} max={max} step={step} value={lo} onChange={(e) => onChange({ ...value, lo: Number(e.target.value) })} />}
         {useHi && <input type="range" min={min} max={max} step={step} value={hi} onChange={(e) => onChange({ ...value, hi: Number(e.target.value) })} />}
         <div className="rs-ticks">
-          {ticks.map((t) => (
-            <span key={t} className="rs-tick" style={{ left: `${pct(t)}%` }} onClick={() => onChange(useHi && !both ? { hi: t } : { ...value, lo: t })}><i /><span>{(f.inflo && t === min) || (f.inf && t === max) ? "무한" : d(t)}</span></span>
+          {tk.map((t) => (
+            <span key={t.v} className="rs-tick" style={{ left: `${pct(t.v)}%` }} onClick={() => moveHandle(t.v)}><i /><span>{t.l}</span></span>
           ))}
         </div>
       </div>
