@@ -1,0 +1,21 @@
+/* S01 매물 통합검색 — 목업 S01.html page <style> 이식(정본). */
+
+/* 3열 리스트: 이음새 병합(마진 없이 한 블록) */
+.result-cols.s01 { gap: 0; }
+.result-cols.s01 .col-card { border-radius: 0; }
+.result-cols.s01 .col-card:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.result-cols.s01 .col-card:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.result-cols.s01 .col-card:not(:first-child) { border-left: 0; }
+
+/* 행 그리드: ★ 20 · 주소 1fr · 매매가 58 · 수익률 48 (components.css 기본 3열 override) */
+.result-cols.s01 .wf-head, .result-cols.s01 .wf-row { grid-template-columns: 20px 1fr 58px 48px; }
+.wf-head .est { font-size: 10px; color: #aab2bf; font-weight: 600; margin-left: 3px; }
+.wf-row .dash { color: #c0c6d0; }
+
+.col-empty { padding: 34px 16px; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.col-empty small { display: block; margin-top: 5px; color: #aab2bf; font-size: 12px; }
+
+.col-pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 9px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.col-pager button { border: 1px solid var(--line-2); background: #fff; border-radius: 6px; width: 26px; height: 26px; cursor: pointer; color: var(--ink-2); font-size: 13px; line-height: 1; }
+.col-pager button:disabled { opacity: .4; cursor: default; }
+.col-pager .pg { font-family: var(--mono); font-variant-numeric: tabular-nums; }

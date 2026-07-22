@@ -5,6 +5,7 @@ import { searchApi, savedApi, buildingsApi, extrasApi, type AttrFilters } from "
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
 import { FilterModal, countActive } from "./FilterModal";
 import { PriceTrendChart, buildTrendSeries } from "../../shared/ui/PriceTrendChart";
+import "./search.css";
 
 /** S01 매물 통합검색 — 자동완성 + 지역(구/동) + 3열 목록 + 지도 뷰(핀·영역 그리기) */
 
@@ -243,49 +244,46 @@ export function SearchPage() {
         </div>
       )}
 
-      {/* 3열 결과(col-card + wf-list + ★ + 호버 액션) */}
+      {/* 3열 결과 — 목업 S01.html 정본(이음새 병합·주소/매매가/수익률) */}
       {view === "list" && (result.data ? (
-        <div className="result-cols">
+        <div className="result-cols wf-list s01">
           {COLS.map(({ key, label }) => {
             const col = result.data![key];
-            const grid = "18px 1fr 76px 52px";
             return (
               <div key={key} className="col-card">
                 <div className={`col-head ${key}`}>
                   {label} <span className="count">{col.total.toLocaleString()}</span>
                 </div>
                 <div className="col-body">
-                  <div className="wf-list">
-                    <div className="wf-head" style={{ gridTemplateColumns: grid }}>
-                      <span></span><span>주소</span>
-                      <span className="num">매매가{key === "normal" ? " 실거래" : ""}</span>
-                      <span className="num">수익률</span>
-                    </div>
-                    {col.items.map((h) => (
-                      <div key={h.building_pk} className="wf-row" style={{ gridTemplateColumns: grid }} onClick={() => go(h.building_pk)}>
-                        <span className="star" style={{ fontSize: 15, color: h.is_fav ? "#f5b81f" : "var(--line-2)" }}
-                          onClick={(e) => { e.stopPropagation(); toggleFav(h.building_pk); }}>★</span>
-                        <span>{h.addr.replace("서울특별시 ", "").replace("번지", "")}</span>
-                        <span className="num">{won(h.price)}</span>
-                        <span className="num" style={{ color: h.roi == null ? "var(--muted)" : undefined }}>{h.roi == null ? "—" : `${h.roi}%`}</span>
-                        <div className="row-actions">
-                          <button className="btn primary" onClick={(e) => { e.stopPropagation(); go(h.building_pk); }}>상세보기</button>
-                          <button className="btn" onClick={(e) => { e.stopPropagation(); toMap(h, key); }}>지도위치</button>
-                        </div>
-                      </div>
-                    ))}
-                    {col.items.length === 0 && (
-                      <div className="empty">{key === "mine" ? "아직 등록한 매물이 없습니다" : "표시할 매물이 없습니다"}</div>
-                    )}
+                  <div className="wf-head">
+                    <span></span><span>주소</span>
+                    <span className="num">매매가{key === "normal" && <span className="est">추정</span>}</span>
+                    <span className="num">수익률</span>
                   </div>
+                  {col.items.map((h) => (
+                    <div key={h.building_pk} className="wf-row" onClick={() => go(h.building_pk)}>
+                      <span className="star" style={{ fontSize: 15, color: h.is_fav ? "#f5b81f" : "var(--line-2)" }}
+                        onClick={(e) => { e.stopPropagation(); toggleFav(h.building_pk); }}>★</span>
+                      <span>{h.addr.replace("서울특별시 ", "").replace("번지", "")}</span>
+                      <span className="num">{won(h.price)}</span>
+                      <span className="num" style={{ color: h.roi == null ? "var(--muted)" : undefined }}>{h.roi == null ? "—" : `${h.roi}%`}</span>
+                      <span className="row-actions">
+                        <button className="btn primary" onClick={(e) => { e.stopPropagation(); go(h.building_pk); }}>상세보기</button>
+                        <button className="btn" onClick={(e) => { e.stopPropagation(); toMap(h, key); }}>지도위치</button>
+                      </span>
+                    </div>
+                  ))}
+                  {col.items.length === 0 && (
+                    <div className="col-empty">
+                      {key === "mine" ? <>아직 등록한 매물이 없습니다<small>매물 상세에서 담당자를 지정하면 내 매물이 됩니다</small></> : "표시할 매물이 없습니다"}
+                    </div>
+                  )}
                 </div>
                 {col.pages > 1 && (
-                  <div style={{ display: "flex", justifyContent: "center", gap: 12, padding: 9, borderTop: "1px solid var(--line)", fontSize: 12 }}>
-                    <button className="btn" disabled={col.page <= 1}
-                      onClick={() => setPages((p) => ({ ...p, [key]: col.page - 1 }))}>‹</button>
-                    <span className="num" style={{ alignSelf: "center" }}>{col.page} / {col.pages}</span>
-                    <button className="btn" disabled={col.page >= col.pages}
-                      onClick={() => setPages((p) => ({ ...p, [key]: col.page + 1 }))}>›</button>
+                  <div className="col-pager">
+                    <button disabled={col.page <= 1} onClick={() => setPages((p) => ({ ...p, [key]: col.page - 1 }))}>‹</button>
+                    <span className="pg">{col.page} / {col.pages}</span>
+                    <button disabled={col.page >= col.pages} onClick={() => setPages((p) => ({ ...p, [key]: col.page + 1 }))}>›</button>
                   </div>
                 )}
               </div>
