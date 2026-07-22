@@ -44,6 +44,7 @@ export function SearchPage() {
   const bjd = fRegions[0]?.bjd_code ?? "";                       // 단일지역(멀티는 백엔드 확장 예정)
   const filterCount = activeCount(fValues, fRegions);
   const resetPages = () => setPages({ ad: 1, mine: 1, normal: 1 });
+  const doSearch = () => { resetPages(); result.refetch(); };   // 명시적 재조회(페이지 1 + 강제 refetch)
 
   const suggest = useQuery({
     queryKey: ["suggest", q],
@@ -123,7 +124,7 @@ export function SearchPage() {
             )}
           </div>
           <button className={`btn ${filterCount ? "primary" : ""}`} onClick={() => setShowFilter(true)}>필터{filterCount ? ` ${filterCount}` : ""}</button>
-          <button className="btn primary" onClick={resetPages}>검색</button>
+          <button className="btn primary" onClick={doSearch}>검색</button>
           <button className={`btn ${favOnly ? "primary" : ""}`} onClick={() => setFavOnly(!favOnly)}>★ 즐겨찾기</button>
           <span style={{ flex: 1 }} />
           <div className="segmented">
