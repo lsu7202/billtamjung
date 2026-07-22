@@ -29,7 +29,8 @@ def _set_refresh(resp: Response, account_id: int) -> None:
     resp.set_cookie(
         "refresh", security.make_refresh(account_id),
         httponly=True, secure=True, samesite="lax",
-        max_age=settings.refresh_ttl_days * 86400, path="/auth",
+        # path="/": dev(Vite 프록시 /api/auth/refresh)·prod(임의 프리픽스) 모두 전송되게. 그 외 경로엔 httponly라 노출 없음
+        max_age=settings.refresh_ttl_days * 86400, path="/",
     )
 
 
@@ -104,7 +105,7 @@ async def refresh(resp: Response, refresh: str | None = Cookie(default=None)):
 
 @router.post("/logout")
 async def logout(resp: Response):
-    resp.delete_cookie("refresh", path="/auth")
+    resp.delete_cookie("refresh", path="/")
     return {"ok": True}
 
 

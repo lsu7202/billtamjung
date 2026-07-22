@@ -3,7 +3,7 @@ import { useAuth } from "../store/auth";
 
 const BASE = "/api";
 
-async function refresh(): Promise<string | null> {
+export async function refresh(): Promise<string | null> {
   const r = await fetch(`${BASE}/auth/refresh`, { method: "POST", credentials: "include" });
   if (!r.ok) return null;
   const j = await r.json();
