@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { searchApi, savedApi, buildingsApi, extrasApi, type AttrFilters } from "../../shared/api/endpoints";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
@@ -10,7 +10,7 @@ import { PriceTrendChart, buildTrendSeries } from "../../shared/ui/PriceTrendCha
 
 interface Hit {
   building_pk: string; addr: string; price: number | null; roi: number | null;
-  lng: number; lat: number;
+  lng: number; lat: number; is_fav?: boolean;
   land_area: number | null; floors_above: number | null; floors_below: number | null;
 }
 interface Col { items: Hit[]; total: number; page: number; pages: number }
@@ -48,6 +48,7 @@ function filterChips(f: AttrFilters, fmt: typeof unitM2) {
 
 export function SearchPage() {
   const nav = useNavigate();
+  const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [active, setActive] = useState(-1);
   const [gu, setGu] = useState("");
@@ -89,6 +90,14 @@ export function SearchPage() {
 
   const items = suggest.data ?? [];
   const go = (pk: string) => nav(`/buildings/${pk}`);
+  async function toggleFav(pk: string) {
+    await extrasApi.favToggle(pk);
+    qc.invalidateQueries({ queryKey: ["search3"] });
+  }
+  function toMap(h: Hit, key: "ad" | "mine" | "normal") {
+    setPicked({ ...h, col: key });
+    setView("map");
+  }
 
   function onKey(e: React.KeyboardEvent) {
     if (!items.length) return;
@@ -234,41 +243,42 @@ export function SearchPage() {
         </div>
       )}
 
-      {/* 3열 결과 */}
+      {/* 3열 결과(col-card + wf-list + ★ + 호버 액션) */}
       {view === "list" && (result.data ? (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 0 }}>
-          {COLS.map(({ key, label, color }, ci) => {
+        <div className="result-cols">
+          {COLS.map(({ key, label }) => {
             const col = result.data![key];
+            const grid = "18px 1fr 76px 52px";
             return (
-              <div key={key} className="panel" style={{
-                borderRadius: ci === 0 ? "9px 0 0 9px" : ci === 2 ? "0 9px 9px 0" : 0,
-                borderLeft: ci > 0 ? 0 : undefined,
-              }}>
-                <div style={{ background: color, color: "#fff", fontWeight: 800, textAlign: "center",
-                  padding: "9px 0", borderRadius: ci === 0 ? "8px 0 0 0" : ci === 2 ? "0 8px 0 0" : 0 }}>
-                  {label} <span className="num" style={{ opacity: .85, fontWeight: 600 }}>{col.total.toLocaleString()}</span>
+              <div key={key} className="col-card">
+                <div className={`col-head ${key}`}>
+                  {label} <span className="count">{col.total.toLocaleString()}</span>
                 </div>
-                <table className="wf">
-                  <thead><tr>
-                    <th>주소</th>
-                    <th className="num">매매가{key === "normal" && <small style={{ color: "var(--muted)" }}> 추정</small>}</th>
-                    <th className="num">수익률</th>
-                  </tr></thead>
-                  <tbody>
+                <div className="col-body">
+                  <div className="wf-list">
+                    <div className="wf-head" style={{ gridTemplateColumns: grid }}>
+                      <span></span><span>주소</span>
+                      <span className="num">매매가{key === "normal" ? " 추정" : ""}</span>
+                      <span className="num">수익률</span>
+                    </div>
                     {col.items.map((h) => (
-                      <tr key={h.building_pk} style={{ cursor: "pointer" }} onClick={() => go(h.building_pk)}>
-                        <td>{h.addr.replace("서울특별시 ", "").replace("번지", "")}</td>
-                        <td className="num">{won(h.price)}</td>
-                        <td className="num" style={{ color: h.roi == null ? "var(--muted)" : undefined }}>{h.roi == null ? "—" : `${h.roi}%`}</td>
-                      </tr>
+                      <div key={h.building_pk} className="wf-row" style={{ gridTemplateColumns: grid }} onClick={() => go(h.building_pk)}>
+                        <span className="star" style={{ fontSize: 15, color: h.is_fav ? "#f5b81f" : "var(--line-2)" }}
+                          onClick={(e) => { e.stopPropagation(); toggleFav(h.building_pk); }}>★</span>
+                        <span>{h.addr.replace("서울특별시 ", "").replace("번지", "")}</span>
+                        <span className="num">{won(h.price)}</span>
+                        <span className="num" style={{ color: h.roi == null ? "var(--muted)" : undefined }}>{h.roi == null ? "—" : `${h.roi}%`}</span>
+                        <div className="row-actions">
+                          <button className="btn primary" onClick={(e) => { e.stopPropagation(); go(h.building_pk); }}>상세보기</button>
+                          <button className="btn" onClick={(e) => { e.stopPropagation(); toMap(h, key); }}>지도위치</button>
+                        </div>
+                      </div>
                     ))}
                     {col.items.length === 0 && (
-                      <tr><td colSpan={3} style={{ color: "var(--muted)", textAlign: "center", padding: 20 }}>
-                        {key === "mine" ? "아직 등록한 매물이 없습니다" : "표시할 매물이 없습니다"}
-                      </td></tr>
+                      <div className="empty">{key === "mine" ? "아직 등록한 매물이 없습니다" : "표시할 매물이 없습니다"}</div>
                     )}
-                  </tbody>
-                </table>
+                  </div>
+                </div>
                 {col.pages > 1 && (
                   <div style={{ display: "flex", justifyContent: "center", gap: 12, padding: 9, borderTop: "1px solid var(--line)", fontSize: 12 }}>
                     <button className="btn" disabled={col.page <= 1}
