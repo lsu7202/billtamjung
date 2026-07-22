@@ -50,7 +50,6 @@ const BIZ_ENUM: [string, string, string][] = [
 ];
 const BIZ_TEXT: [string, string, string][] = [
   ["소유자 명", "owner_name", "성명/법인명"],
-  ["소유자 내용", "owner_note", "메모·특이사항"],
   ["전화번호", "owner_phone", "010-0000-0000"],
 ];
 

@@ -169,7 +169,7 @@ CREATE TABLE app.listings (
   assignee_account_id bigint REFERENCES app.accounts(id),  -- NULL=선점 해제
   -- 업무 필드(사적·팀 공유). enum류는 ref.enums 코드 저장
   status       text, urgency text, grade text, ipji text,
-  owner_type   text, owner_name text, owner_note text,
+  owner_type   text, owner_name text,
   relation     text, cooperation text, kindness text, intent text,
   owner_phone  text,                          -- 담당자·대표만 조회(마스킹)
   listing_no   text, received_on date,

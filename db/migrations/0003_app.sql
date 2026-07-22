@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS app.listings (
   team_id             bigint NOT NULL REFERENCES app.teams(id),
   assignee_account_id bigint REFERENCES app.accounts(id),
   status text, urgency text, grade text, ipji text,
-  owner_type text, owner_name text, owner_note text,
+  owner_type text, owner_name text,
   relation text, cooperation text, kindness text, intent text,
   owner_phone text, listing_no text, received_on date,
   created_at timestamptz NOT NULL DEFAULT now(),

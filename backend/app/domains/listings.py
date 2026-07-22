@@ -10,7 +10,7 @@ router = APIRouter(prefix="/listings", tags=["listings"])
 # 업무 필드(사적·팀 공유). 수정 가능 컬럼 화이트리스트
 BIZ_FIELDS = {
     "status", "urgency", "grade", "ipji", "owner_type", "owner_name",
-    "owner_note", "relation", "cooperation", "kindness", "intent",
+    "relation", "cooperation", "kindness", "intent",
     "owner_phone", "listing_no", "received_on",
 }
 
