@@ -381,14 +381,14 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
         <div class="series-c hidden"><svg class="svg-chart" viewBox="0 0 900 240"></svg></div>
       </div>
 
-      <!-- 매각사례 -->
+      <!-- 실거래사례 -->
       <div class="block" id="blk-maegak" data-grp="deal">
-        <div class="sec-head">매각사례
+        <div class="sec-head">실거래사례
           <div class="right"><span class="series-metric"></span>
             <div class="segmented seg-series"><button class="active" data-v="t">표</button><button data-v="c">그래프</button></div></div>
         </div>
         <div class="series-t">
-          <table class="wf"><thead><tr><th>매각일</th><th class="num">매각액</th></tr></thead>
+          <table class="wf"><thead><tr><th>실거래일</th><th class="num">실거래가</th></tr></thead>
             <tbody><tr><td>2019/02</td><td class="num">69억 <small style="color:#8a929b">추정</small></td></tr><tr><td>2009/10</td><td class="num">40.5억 <small style="color:#8a929b">추정</small></td></tr></tbody></table>
         </div>
         <div class="series-c hidden"><svg class="svg-chart" viewBox="0 0 900 240"></svg></div>
@@ -435,7 +435,7 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
 
       <!-- 주변시세 (완전 인라인: 상권 지도 + comps curation · 모달 없음) -->
       <div class="block" data-grp="deal">
-        <div class="sec-head">주변시세 <small style="font-size:12px;color:#8a929b;font-weight:400;margin-left:6px">임대 · 매각 · 상권 직접 설정</small>
+        <div class="sec-head">주변시세 <small style="font-size:12px;color:#8a929b;font-weight:400;margin-left:6px">임대 · 실거래 · 상권 직접 설정</small>
           <div class="right"><button class="btn primary">재조회</button></div></div>
         <!-- 상권 지도 (중심·반경 사용자 지정, 본매물은 참조) -->
         <div style="padding:12px 14px 4px">
@@ -465,10 +465,10 @@ table.wf input[type=checkbox]{accent-color:var(--accent); width:15px; height:15p
             <tr><td>지하1층</td><td class="num calc">100만</td><td class="num calc">10만</td><td class="num">3,000만</td><td class="num">300만</td><td class="num avg-n">1건</td></tr>
           </tbody>
         </table>
-        <!-- 주변 매각사례 comps (인라인 curate) -->
-        <div class="sec-head" style="border-top:1px solid #eef0f3;font-size:13px">주변 매각사례 <small style="font-size:11px;color:#aaa;font-weight:400">최근 5년 · 추정</small></div>
+        <!-- 주변 실거래사례 comps (인라인 curate) -->
+        <div class="sec-head" style="border-top:1px solid #eef0f3;font-size:13px">주변 실거래사례 <small style="font-size:11px;color:#aaa;font-weight:400">최근 5년 · 추정</small></div>
         <table class="wf">
-          <thead><tr><th style="width:30px" class="num">✓</th><th>주소</th><th class="num">거리</th><th>거래일</th><th class="num">매각가</th><th class="num">연면적</th><th class="num">연면적 평단가</th><th></th></tr></thead>
+          <thead><tr><th style="width:30px" class="num">✓</th><th>주소</th><th class="num">거리</th><th>거래일</th><th class="num">실거래가</th><th class="num">연면적</th><th class="num">연면적 평단가</th><th></th></tr></thead>
           <tbody>
             <tr><td class="num"><input type="checkbox" checked></td><td class="adr">역삼동 720-5</td><td class="num">180m</td><td>2024/06</td><td class="num">85억</td><td class="num">210평</td><td class="num">4,048만</td><td class="num"><span class="x">×</span></td></tr>
             <tr><td class="num"><input type="checkbox" checked></td><td class="adr">역삼동 812-3</td><td class="num">240m</td><td>2023/11</td><td class="num">120억</td><td class="num">260평</td><td class="num">4,615만</td><td class="num"><span class="x">×</span></td></tr>
@@ -873,12 +873,12 @@ function initCharts(){
   setMetric('blk-gongsi',gm,g10);
   renderChart(document.querySelector('#blk-gongsi svg'),gongsi,{yTitle:'공시지가(만원/㎡)',xTitle:'년도',fmt:fmtWon,trend:g10,metric:gm,color:'#1E5AF0'});
 
-  // 매각 — 직전→최근 손익
+  // 실거래 — 직전→최근 손익
   const maegak=[{x:'2009/10',y:40.5},{x:'2019/02',y:69}];
   const mL=pct(maegak[maegak.length-1].y,maegak[maegak.length-2].y);
-  const mm=`매각손익 ${signStr(mL)}`;
+  const mm=`실거래손익 ${signStr(mL)}`;
   setMetric('blk-maegak',mm,mL);
-  renderChart(document.querySelector('#blk-maegak svg'),maegak,{yTitle:'매각액(억)',xTitle:'매각일',fmt:fmtUk,trend:mL,metric:mm,color:'#0F1A2E'});
+  renderChart(document.querySelector('#blk-maegak svg'),maegak,{yTitle:'실거래가(억)',xTitle:'실거래일',fmt:fmtUk,trend:mL,metric:mm,color:'#0F1A2E'});
 
   // 광고 — 직전→최신 상승률
   const gwanggo=[{x:'2026/01',y:112},{x:'2026/06',y:110}];

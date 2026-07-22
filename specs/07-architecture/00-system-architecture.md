@@ -50,7 +50,7 @@ flowchart TB
 
 | 스키마 | 내용 | 쓰기 주체 | 갱신 |
 |---|---|---|---|
-| `master` | 건물·필지·공시지가·매각·교통·규제 (586,343동) | **파이프라인만** (배치) | 부정기(공시지가 연 1회 등) → `master_version` |
+| `master` | 건물·필지·공시지가·실거래·교통·규제 (586,343동) | **파이프라인만** (배치) | 부정기(공시지가 연 1회 등) → `master_version` |
 | `app` | 계정·팀·오버레이·매물등록·크레딧·위키·산출물 (`schema-app.md`) | **API** (실시간) | 상시 |
 
 - [규칙] **API는 `master`를 읽기만** 한다. 유저 수정은 `app.overlays`로 덮는다(마스터 불변 원칙, `S02 §1.1`).
@@ -96,7 +96,7 @@ POST /market/nearby  (center_lat, center_lng, radius_m, floor_range)
   임대 comps: SELECT ... FROM app.floor_rents fr
               JOIN master.buildings b ON b.pk=fr.building_pk
               WHERE ST_DWithin(b.geom, ST_Point(?,?)::geography, ?)   ← PostGIS
-  매각 comps: master의 추정 매각이력에 동일 반경 쿼리
+  실거래 comps: master의 추정 실거래이력에 동일 반경 쿼리
   → 원본 행 그대로 반환(병합·다수결 없음), 이상치 플래그만 부착
 ```
 - **floor_rents는 사적(팀 소유)이지만 S03 조회는 전 팀** — "저장은 사적, 조회는 공용"(`F-01` B안). 정제는 프론트에서 curation.
