@@ -136,7 +136,7 @@ export function SearchPage() {
       {/* 검색바 */}
       <div className="panel" style={{ padding: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <div className="ac-wrap" style={{ flex: "1 1 300px", maxWidth: 420 }}>
-          <input className="input" placeholder="주소 입력 (예: 강남구 역삼동 735-29)"
+          <input className="input"
             value={q} onChange={(e) => { setQ(e.target.value); setActive(-1); }} onKeyDown={onKey} autoComplete="off" />
           {items.length > 0 && (
             <div className="ac-drop">
