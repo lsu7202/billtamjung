@@ -362,7 +362,7 @@ export function FilterModal({
             <span className="applied">적용 조건 <b>{count}</b>개</span>
             <span className="sp" />
             <button className="cancel" onClick={onClose}>취소</button>
-            <button className="apply" onClick={() => onApply({ values, regions, filters: toFilters(values) })}>적용</button>
+            <button className="apply" onClick={() => { onApply({ values, regions, filters: toFilters(values) }); onClose(); }}>적용</button>
           </div>
         </div>
       </div>
