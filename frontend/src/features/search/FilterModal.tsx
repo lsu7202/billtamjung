@@ -54,15 +54,22 @@ function Slider({ f, value, onChange, unit }: { f: Field; value: SliderVal; onCh
   const railRef = useRef<HTMLDivElement>(null);
   const [expand, setExpand] = useState(false);
   const full = isEmpty(f, value) && !expand;
-  const setIn = (k: "lo" | "hi", raw: string) => onChange({ ...value, [k]: raw === "" ? undefined : toStore(Number(raw), f, unit) });
+  // 끝에 닿으면 무경계(undefined) = 무한: lo≤min → 하한 없음, hi≥max → 상한 없음(목업 fromSlider)
+  const clampLo = (v: number): number | undefined => (v <= min ? undefined : v);
+  const clampHi = (v: number): number | undefined => (v >= max ? undefined : v);
+  const setIn = (k: "lo" | "hi", raw: string) => {
+    if (raw === "") { onChange({ ...value, [k]: undefined }); return; }
+    const n = toStore(Number(raw), f, unit);
+    onChange({ ...value, [k]: k === "lo" ? clampLo(n) : clampHi(n) });
+  };
 
-  // ④ 가까운 핸들로 이동(레일/눈금 클릭). left/right 모드는 고정.
+  // ④ 눈금/레일 클릭 → handle 모드대로 핸들 이동(left=하한·right=상한·dual=가까운 쪽). 끝=무한.
   const moveHandle = (v: number) => {
     v = Math.max(min, Math.min(Math.round(v / step) * step, max));
-    if (f.handle === "left") onChange({ ...value, lo: v });
-    else if (f.handle === "right") onChange({ ...value, hi: v });
-    else if (Math.abs(v - lo) <= Math.abs(v - hi)) onChange({ ...value, lo: v });
-    else onChange({ ...value, hi: v });
+    if (f.handle === "left") onChange({ ...value, lo: clampLo(v) });
+    else if (f.handle === "right") onChange({ ...value, hi: clampHi(v) });
+    else if (Math.abs(v - lo) <= Math.abs(v - hi)) onChange({ ...value, lo: clampLo(v) });
+    else onChange({ ...value, hi: clampHi(v) });
   };
   const railClick = (e: React.MouseEvent) => {
     const r = railRef.current!.getBoundingClientRect();
@@ -87,8 +94,8 @@ function Slider({ f, value, onChange, unit }: { f: Field; value: SliderVal; onCh
       </div>
       <div className="rs">
         <div ref={railRef} className="rs-rail" onClick={railClick}><div className="rs-sel" style={{ left: `${useLo ? pct(lo) : 0}%`, width: `${(useHi ? pct(hi) : 100) - (useLo ? pct(lo) : 0)}%` }} /></div>
-        {useLo && <input type="range" min={min} max={max} step={step} value={lo} onChange={(e) => onChange({ ...value, lo: Number(e.target.value) })} />}
-        {useHi && <input type="range" min={min} max={max} step={step} value={hi} onChange={(e) => onChange({ ...value, hi: Number(e.target.value) })} />}
+        {useLo && <input type="range" min={min} max={max} step={step} value={lo} onChange={(e) => onChange({ ...value, lo: clampLo(Number(e.target.value)) })} />}
+        {useHi && <input type="range" min={min} max={max} step={step} value={hi} onChange={(e) => onChange({ ...value, hi: clampHi(Number(e.target.value)) })} />}
         <div className="rs-ticks">
           {tk.map((t) => (
             <span key={t.v} className="rs-tick" style={{ left: `${pct(t.v)}%` }} onClick={() => moveHandle(t.v)}><i /><span>{t.l}</span></span>
