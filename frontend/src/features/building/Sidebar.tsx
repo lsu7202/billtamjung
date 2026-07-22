@@ -78,7 +78,7 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
       <div style={{ margin: "6px 0 2px", fontWeight: 700 }}>업무 정보 <small style={{ color: "var(--muted)", fontWeight: 400 }}>변경 즉시 저장</small></div>
       {BIZ_ENUM.map(([label, k, ek]) => {
         const opts = en.options(ek);
-        const cur = val(k) || (k === "status" ? "준비중" : "미지정");
+        const cur = val(k) || "미지정";
         return (
           <div className="kv" key={k} style={{ alignItems: "center" }}>
             <span className="k">{label}</span>
