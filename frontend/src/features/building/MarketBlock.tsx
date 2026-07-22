@@ -65,7 +65,7 @@ export function MarketBlock({ lng, lat }: { lng: number; lat: number }) {
 
   return (
     <div className="panel">
-      <div className="sec-head">주변시세 <small style={{ color: "var(--muted)", fontWeight: 400 }}>임대 · 매각 · 반경 직접 설정</small>
+      <div className="sec-head">주변시세 <small style={{ color: "var(--muted)", fontWeight: 400 }}>임대 · 실거래 · 반경 직접 설정</small>
         <span style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}>
           반경
           <input type="range" min={200} max={1000} step={50} value={radius} onChange={(e) => setRadius(+e.target.value)} />
@@ -115,10 +115,10 @@ export function MarketBlock({ lng, lat }: { lng: number; lat: number }) {
       )}
 
       <div className="sec-head" style={{ fontSize: 13, borderTop: "1px solid var(--line)" }}>
-        주변 매각사례 <small style={{ color: "var(--muted)", fontWeight: 400 }}>최근 5년 · 추정</small>
+        주변 실거래 <small style={{ color: "var(--muted)", fontWeight: 400 }}>최근 5년</small>
       </div>
       <table className="wf">
-        <thead><tr><th>주소</th><th className="num">거리</th><th>거래일</th><th className="num">매각가</th><th className="num">연면적 평단가</th></tr></thead>
+        <thead><tr><th>주소</th><th className="num">거리</th><th>거래일</th><th className="num">실거래가</th><th className="num">연면적 평단가</th></tr></thead>
         <tbody>
           {sales.slice(0, 10).map((s) => (
             <tr key={`${s.building_pk}-${s.contract_ym}-${s.price}`} style={s.is_outlier ? { opacity: .6 } : undefined}>
@@ -129,7 +129,7 @@ export function MarketBlock({ lng, lat }: { lng: number; lat: number }) {
               <td className="num">{s.per_area ? man(s.per_area) : "—"}</td>
             </tr>
           ))}
-          {sales.length === 0 && <tr><td colSpan={5} style={{ color: "var(--muted)", textAlign: "center", padding: 16 }}>반경 내 최근 5년 매각사례가 없습니다 — 반경을 넓혀보세요</td></tr>}
+          {sales.length === 0 && <tr><td colSpan={5} style={{ color: "var(--muted)", textAlign: "center", padding: 16 }}>반경 내 최근 5년 실거래가 없습니다 — 반경을 넓혀보세요</td></tr>}
         </tbody>
       </table>
     </div>

@@ -258,7 +258,7 @@ export function SearchPage() {
                   <div className="wf-list">
                     <div className="wf-head" style={{ gridTemplateColumns: grid }}>
                       <span></span><span>주소</span>
-                      <span className="num">매매가{key === "normal" ? " 추정" : ""}</span>
+                      <span className="num">매매가{key === "normal" ? " 실거래" : ""}</span>
                       <span className="num">수익률</span>
                     </div>
                     {col.items.map((h) => (

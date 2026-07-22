@@ -241,7 +241,7 @@ export function BuildingPage() {
 
           {/* 매각·광고 시계열(§3.7) */}
           {show("deal") && (
-            <SeriesBlock title="매각사례" color="var(--c-real)" unitLabel="매각액"
+            <SeriesBlock title="실거래가" color="var(--c-real)" unitLabel="실거래가"
               points={(b.sales_history ?? []).map((s: { ym: string; price: number }) => ({ x: `${s.ym.slice(0, 4)}/${s.ym.slice(4)}`, y: s.price }))}
               fmt={(v) => eok(v)} />
           )}
