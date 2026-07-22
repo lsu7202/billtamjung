@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { loadNaver, PIN_COLORS, priceLabel } from "./naver";
+import { searchApi } from "../api/endpoints";
 
 /** S01 지도 뷰 — 분류색 핀 · 레이어(일반/위성/지적도) · 영역 그리기(자유곡선/다각형).
  * specs S01 §3.6·3.6a·3.6c, 네이버지도-연동 §1.2·3.1.
@@ -18,7 +19,7 @@ export interface MapPin {
   floors_below?: number | null;
 }
 
-type DrawMode = "off" | "free" | "poly";
+type DrawMode = "off" | "free" | "poly" | "magnet";
 
 export function MapPanel({
   pins, onPick, onPolygon, polygonActive,
@@ -39,6 +40,7 @@ export function MapPanel({
   const [mapType, setMapType] = useState<"normal" | "satellite">("normal");
   const [cadastre, setCadastre] = useState(false);
   const [drawMode, setDrawMode] = useState<DrawMode>("off");
+  const [snapping, setSnapping] = useState(false);       // 자석 스냅 진행 표시
 
   // 지도 초기화
   useEffect(() => {
@@ -97,7 +99,7 @@ export function MapPanel({
     cadastralRef.current.setMap(cadastre ? mapRef.current : null);
   }, [ready, cadastre]);
 
-  // 영역 그리기(자유곡선: 드래그 / 다각형: 클릭+더블클릭 닫기)
+  // 영역 그리기(자유곡선/자석: 드래그 / 다각형: 클릭+더블클릭 닫기)
   useEffect(() => {
     if (!ready) return;
     const naver = window.naver;
@@ -109,25 +111,49 @@ export function MapPanel({
     if (drawMode === "off") return;
     d.pts = [];
 
-    const finish = () => {
+    // GeoJSON(Poly/MultiPoly) → naver paths(링 배열)
+    const toPaths = (geo: any): any[] => {
+      const rings: any[] = [];
+      const add = (poly: number[][][]) => poly.forEach((r) => rings.push(r.map(([lng, lat]) => new naver.maps.LatLng(lat, lng))));
+      if (geo.type === "Polygon") add(geo.coordinates);
+      else if (geo.type === "MultiPolygon") geo.coordinates.forEach(add);
+      return rings;
+    };
+    const drawOverlay = (paths: any[], snapped: boolean) => {
+      overlayRef.current?.setMap(null);
+      overlayRef.current = new naver.maps.Polygon({
+        map, paths,
+        fillColor: "#1E5AF0", fillOpacity: 0.12,
+        strokeColor: "#1E5AF0", strokeWeight: snapped ? 2 : 1.5, strokeStyle: snapped ? "solid" : "shortdash",
+      });
+    };
+
+    const finish = async () => {
       if (d.temp) { d.temp.setMap(null); d.temp = null; }
       if (d.pts.length >= 3) {
-        overlayRef.current?.setMap(null);
-        overlayRef.current = new naver.maps.Polygon({
-          map, paths: [d.pts],
-          fillColor: "#1E5AF0", fillOpacity: 0.12,
-          strokeColor: "#1E5AF0", strokeWeight: 1.5, strokeStyle: "shortdash",
-        });
         const ring = d.pts.map((ll: any) => [ll.lng(), ll.lat()]);
         ring.push(ring[0]);
-        onPolygon({ type: "Polygon", coordinates: [ring] });
+        const raw = { type: "Polygon", coordinates: [ring] };
+        if (d.mode === "magnet") {
+          // 자석(후처리): 그린 영역 → 걸치는 필지 합집합으로 스냅
+          setSnapping(true);
+          try {
+            const { polygon } = await searchApi.snap(raw);
+            if (polygon) { drawOverlay(toPaths(polygon), true); onPolygon(polygon); }
+            else { drawOverlay([d.pts], false); onPolygon(raw); }   // 필지 미포함 → 원본 폴백
+          } catch { drawOverlay([d.pts], false); onPolygon(raw); }
+          finally { setSnapping(false); }
+        } else {
+          drawOverlay([d.pts], false);
+          onPolygon(raw);
+        }
       }
       d.pts = [];
       setDrawMode("off");
     };
 
     const listeners: any[] = [];
-    if (drawMode === "free") {
+    if (drawMode === "free" || drawMode === "magnet") {
       let down = false;
       listeners.push(
         naver.maps.Event.addListener(map, "mousedown", (e: any) => { down = true; d.pts = [e.coord]; }),
@@ -176,6 +202,7 @@ export function MapPanel({
       <div style={{ position: "absolute", top: 12, left: 12, zIndex: 5, display: "flex", gap: 6 }}>
         <button className="btn" style={layerBtn(drawMode === "free")} onClick={() => setDrawMode(drawMode === "free" ? "off" : "free")}>✎ 자유곡선</button>
         <button className="btn" style={layerBtn(drawMode === "poly")} onClick={() => setDrawMode(drawMode === "poly" ? "off" : "poly")}>▱ 다각형</button>
+        <button className="btn" style={layerBtn(drawMode === "magnet")} onClick={() => setDrawMode(drawMode === "magnet" ? "off" : "magnet")}>🧲 자석 올가미</button>
         {polygonActive && <button className="btn" style={{ color: "var(--up)" }} onClick={clearPolygon}>✕ 영역 지우기</button>}
       </div>
       {/* 레이어 툴바(§3.6a) */}
@@ -184,10 +211,13 @@ export function MapPanel({
         <button className="btn" style={layerBtn(mapType === "satellite")} onClick={() => setMapType("satellite")}>위성</button>
         <button className="btn" style={layerBtn(cadastre)} onClick={() => setCadastre(!cadastre)}>지적도</button>
       </div>
-      {drawMode !== "off" && (
+      {(drawMode !== "off" || snapping) && (
         <div style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", zIndex: 5,
           background: "var(--ink)", color: "#fff", fontSize: 12, padding: "7px 14px", borderRadius: 999 }}>
-          {drawMode === "free" ? "드래그로 영역을 그리세요" : "클릭으로 꼭짓점 · 더블클릭으로 닫기"}
+          {snapping ? "🧲 필지 경계로 스냅 중…"
+            : drawMode === "poly" ? "클릭으로 꼭짓점 · 더블클릭으로 닫기"
+            : drawMode === "magnet" ? "드래그로 감싸면 필지 경계로 자동 스냅됩니다"
+            : "드래그로 영역을 그리세요"}
         </div>
       )}
     </div>

@@ -106,6 +106,23 @@ class SearchIn(BaseModel):
     per_page: int = 20
 
 
+class SnapIn(BaseModel):
+    polygon: dict                     # GeoJSON — 손으로 그린 영역
+
+
+@router.post("/snap")
+async def snap_parcels(body: SnapIn, _: CurrentUser = Depends(current_user)):
+    """자석 올가미(후처리): 그린 영역에 걸치는 필지 합집합으로 스냅 → 필지 경계 정합 폴리곤 반환.
+    specs S01 §3.6c(영역 그리기)·기능목록 §2(자석 스냅 후처리). parcels_v2 GiST 인덱스 사용."""
+    gj = await pool().fetchval(
+        """SELECT ST_AsGeoJSON(ST_Union(p.geom))
+           FROM master.parcels p
+           WHERE ST_Intersects(p.geom, ST_MakeValid(ST_GeomFromGeoJSON($1::text)))""",
+        json.dumps(body.polygon),
+    )
+    return {"polygon": json.loads(gj) if gj else None}
+
+
 def _filter_sql(f: Filters, args: list) -> str:
     """속성 필터 → WHERE 절. args에 파라미터 추가."""
     conds = []
