@@ -207,6 +207,7 @@ export function SearchPage() {
           initialValues={fValues} initialRegions={fRegions}
           onApply={(r) => { setFilters(r.filters); setFValues(r.values); setFRegions(r.regions); resetPages(); }}
           onClose={() => setShowFilter(false)}
+          onDraw={() => { setShowFilter(false); setView("map"); }}
         />
       )}
 

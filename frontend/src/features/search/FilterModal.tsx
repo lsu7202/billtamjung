@@ -238,10 +238,10 @@ export function conditionChips(v: Values): { label: string; text: string }[] {
 }
 
 export function FilterModal({
-  initialValues, initialRegions, onApply, onClose,
+  initialValues, initialRegions, onApply, onClose, onDraw,
 }: {
   initialValues?: Values; initialRegions?: RegionPick[];
-  onApply: (r: FilterResult) => void; onClose: () => void;
+  onApply: (r: FilterResult) => void; onClose: () => void; onDraw?: () => void;
 }) {
   const regionsQ = useQuery({ queryKey: ["regions"], queryFn: searchApi.regions });
   const saved = useQuery({ queryKey: ["saved"], queryFn: savedApi.list });
@@ -249,7 +249,7 @@ export function FilterModal({
   const [tab, setTab] = useState<"all" | number>("all");
   const [values, setValues] = useState<Values>(initialValues ?? {});
   const [regions, setRegions] = useState<RegionPick[]>(initialRegions ?? []);
-  const [gu, setGu] = useState(""); const [dong, setDong] = useState("");
+  const [gu, setGu] = useState("");
   const [pop, setPop] = useState<{ f: Field; x: number; y: number } | null>(null);
   const [showSave, setShowSave] = useState(false); const [showLoad, setShowLoad] = useState(false);
   const [saveName, setSaveName] = useState(""); const [saveWarn, setSaveWarn] = useState("");
@@ -265,18 +265,17 @@ export function FilterModal({
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setPop({ f, x: Math.min(r.left, window.innerWidth - 356), y: Math.min(r.bottom + 6, window.innerHeight - 380) });
   };
-  const addRegion = () => {
-    if (!gu || !dong) return;
+  const addRegion = (val: string) => {               // 법정동 선택 즉시 조건 추가(목업)
+    if (!gu || !val) return;
     let pick: RegionPick | null = null;
-    if (dong === "ALL") {                              // 구 전체 = sgg_code 5자리 prefix
+    if (val === "ALL") {                               // 구 전체 = sgg_code 5자리 prefix
       const sgg = regionsQ.data?.[gu]?.sgg_code;
       if (sgg) pick = { bjd_code: sgg, label: `${gu} 전체` };
     } else {
-      const d = dongs.find((x) => x.bjd_code === dong);
-      if (d) pick = { bjd_code: dong, label: `${gu} ${d.dong}` };
+      const d = dongs.find((x) => x.bjd_code === val);
+      if (d) pick = { bjd_code: val, label: `${gu} ${d.dong}` };
     }
     if (pick && !regions.some((r) => r.bjd_code === pick!.bjd_code)) setRegions([...regions, pick]);
-    setDong("");
   };
 
   const chip = (f: Field) => {
@@ -299,23 +298,27 @@ export function FilterModal({
             <span className="unit"><button className={unit === "평" ? "on" : ""} onClick={() => setUnit("평")}>평</button><button className={unit === "㎡" ? "on" : ""} onClick={() => setUnit("㎡")}>㎡</button></span>
             <button className="lnk" onClick={() => setShowLoad(true)}>불러오기</button>
             <button className="lnk" onClick={() => setShowSave(true)}>조건저장</button>
-            <button className="close" onClick={onClose}>×</button>
           </div>
 
           <div className="modal-body">
-            {/* 지역 앵커 */}
+            {/* 지역 앵커 — 법정동 선택 즉시 조건 추가(목업) */}
             <div className="region">
               <div className="f"><label>시/도</label><select value="서울특별시" disabled><option>서울특별시</option></select></div>
-              <div className="f"><label>시/군/구</label><select value={gu} onChange={(e) => { setGu(e.target.value); setDong(""); }}><option value="">선택</option>{guList.map((g) => <option key={g}>{g}</option>)}</select></div>
-              <div className="f"><label>법정동 <small>선택 시 조건 추가</small></label>
-                <select value={dong} disabled={!gu} onChange={(e) => setDong(e.target.value)}>
+              <div className="f"><label>시/군/구</label><select value={gu} onChange={(e) => setGu(e.target.value)}><option value="">선택</option>{guList.map((g) => <option key={g}>{g}</option>)}</select></div>
+              <div className="f"><label>법정동 <small>선택 시 조건 추가 · 여러 개 가능</small></label>
+                <select value="" disabled={!gu} onChange={(e) => addRegion(e.target.value)}>
                   <option value="">선택</option>
                   {gu && <option value="ALL">{gu} 전체</option>}
                   {dongs.map((d) => <option key={d.bjd_code} value={d.bjd_code}>{d.dong} ({d.count.toLocaleString()})</option>)}
                 </select>
               </div>
             </div>
-            <div className="region-draw"><button className="rd-btn" onClick={addRegion} disabled={!dong}>＋ 지역 추가</button><span className="rd-hint">여러 지역 누적 가능 · 지도 영역 그리기는 지도 뷰에서</span></div>
+            {/* 영역 그리기 진입(S01 지도와 범위 공유) */}
+            <div className="region-draw">
+              <span className="rd-or">또는</span>
+              <button className="rd-btn" onClick={onDraw}>🗺️ 지도에서 영역 그리기</button>
+              <span className="rd-hint">행정경계로 못 자르는 임의 범위를 지도에 직접 그립니다</span>
+            </div>
 
             {/* 적용 조건 칩바 */}
             <div className="applied-bar">
