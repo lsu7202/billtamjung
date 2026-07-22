@@ -56,17 +56,43 @@ async def regions(_: CurrentUser = Depends(current_user)):
 
 
 class Filters(BaseModel):
-    """S01b 속성 필터(베타 핵심 부분집합). None/빈리스트=미적용."""
-    bjd_code: str | None = None       # 법정동(prefix 매칭: 구=5자리, 동=10자리)
-    use_zones: list[str] | None = None  # 용도지역 다중선택(§3.3.1 다중선택 알약)
-    main_use: str | None = None       # 주용도(부분일치)
+    """S01b 속성 필터 — master.buildings 컬럼 매핑 필드. None/빈리스트=미적용.
+    (UI엔 60필드지만 여기 없는 건 app레이어/미보유라 서버 필터 미지원 — 점진 확장)"""
+    bjd_code: str | None = None       # 법정동(prefix: 구=5자리·동=10자리)
+    # 다중선택(= ANY)
+    use_zones: list[str] | None = None       # 용도지역
+    jimoks: list[str] | None = None          # 지목
+    road_frontages: list[str] | None = None  # 도로접면
+    shapes: list[str] | None = None          # 지형형상
+    slopes: list[str] | None = None          # 지세
+    main_uses: list[str] | None = None       # 주용도
+    etc_use: str | None = None               # 기타용도(부분일치)
+    # 범위 (min/max)
     land_area_min: float | None = None
     land_area_max: float | None = None
     total_area_min: float | None = None
     total_area_max: float | None = None
+    build_area_min: float | None = None
+    build_area_max: float | None = None
     floors_above_min: int | None = None
     floors_above_max: int | None = None
+    floors_below_min: int | None = None
+    floors_below_max: int | None = None
+    bcr_min: float | None = None
+    bcr_max: float | None = None
+    far_min: float | None = None
+    far_max: float | None = None
+    elevator_min: int | None = None
+    elevator_max: int | None = None
+    parking_min: int | None = None
+    parking_max: int | None = None
     station_dist_max: int | None = None
+    last_sale_min: int | None = None         # 실거래가(원)
+    last_sale_max: int | None = None
+    gongsi_min: int | None = None            # 최신 공시지가(원/㎡)
+    gongsi_max: int | None = None
+    age_min: int | None = None               # 연식(년) — 사용승인일 기준
+    age_max: int | None = None
 
 
 class SearchIn(BaseModel):
@@ -86,26 +112,40 @@ def _filter_sql(f: Filters, args: list) -> str:
     def add(cond: str, val):
         args.append(val)
         conds.append(cond.format(i=len(args)))
+    def rng(col: str, lo, hi):
+        if lo is not None: add(f"b.{col} >= ${{i}}", lo)
+        if hi is not None: add(f"b.{col} <= ${{i}}", hi)
+    def anyof(col: str, vals):
+        if vals: add(f"b.{col} = ANY(${{i}})", vals)
+
     if f.bjd_code:
         add("b.bjd_code LIKE ${i} || '%'", f.bjd_code)
-    if f.use_zones:
-        add("b.use_zone = ANY(${i})", f.use_zones)
-    if f.main_use:
-        add("b.main_use ILIKE '%' || ${i} || '%'", f.main_use)
-    if f.land_area_min is not None:
-        add("b.land_area >= ${i}", f.land_area_min)
-    if f.land_area_max is not None:
-        add("b.land_area <= ${i}", f.land_area_max)
-    if f.total_area_min is not None:
-        add("b.total_area >= ${i}", f.total_area_min)
-    if f.total_area_max is not None:
-        add("b.total_area <= ${i}", f.total_area_max)
-    if f.floors_above_min is not None:
-        add("b.floors_above >= ${i}", f.floors_above_min)
-    if f.floors_above_max is not None:
-        add("b.floors_above <= ${i}", f.floors_above_max)
+    anyof("use_zone", f.use_zones)
+    anyof("jimok", f.jimoks)
+    anyof("road_frontage", f.road_frontages)
+    anyof("shape", f.shapes)
+    anyof("slope", f.slopes)
+    anyof("main_use", f.main_uses)
+    if f.etc_use:
+        add("b.etc_use ILIKE '%' || ${i} || '%'", f.etc_use)
+    rng("land_area", f.land_area_min, f.land_area_max)
+    rng("total_area", f.total_area_min, f.total_area_max)
+    rng("build_area", f.build_area_min, f.build_area_max)
+    rng("floors_above", f.floors_above_min, f.floors_above_max)
+    rng("floors_below", f.floors_below_min, f.floors_below_max)
+    rng("bcr", f.bcr_min, f.bcr_max)
+    rng("far", f.far_min, f.far_max)
+    rng("elevator", f.elevator_min, f.elevator_max)
+    rng("parking", f.parking_min, f.parking_max)
     if f.station_dist_max is not None:
         add("b.station_dist <= ${i}", f.station_dist_max)
+    rng("last_sale_price", f.last_sale_min, f.last_sale_max)
+    rng("gongsi_latest", f.gongsi_min, f.gongsi_max)
+    # 연식(년): approval_ymd 기준. age≤max → 지은지 max년 이내 → approval_ymd ≥ 오늘-max년
+    if f.age_max is not None:
+        add("b.approval_ymd >= (CURRENT_DATE - make_interval(years => ${i}))", f.age_max)
+    if f.age_min is not None:
+        add("b.approval_ymd <= (CURRENT_DATE - make_interval(years => ${i}))", f.age_min)
     return (" AND " + " AND ".join(conds)) if conds else ""
 
 

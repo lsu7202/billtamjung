@@ -209,27 +209,36 @@ function Control({ f, value, onChange, unit }: { f: Field; value: Val | undefine
   }
 }
 
-/* ── 백엔드 지원 필드만 AttrFilters로 직렬화(나머지 UI 전용, 백엔드 추가 시 활성) ── */
-const ZONE_MAP: Record<string, string> = {
-  "제1종전용주거": "제1종전용주거지역", "제2종전용주거": "제2종전용주거지역", "제1종일반주거": "제1종일반주거지역",
-  "제2종일반주거": "제2종일반주거지역", "제3종일반주거": "제3종일반주거지역", "준주거": "준주거지역",
-  "중심상업": "중심상업지역", "일반상업": "일반상업지역", "근린상업": "근린상업지역", "유통상업": "유통상업지역",
-  "전용공업": "전용공업지역", "일반공업": "일반공업지역", "준공업": "준공업지역",
-  "보전녹지": "보전녹지지역", "생산녹지": "생산녹지지역", "자연녹지": "자연녹지지역",
-};
+/* ── AttrFilters 직렬화: master 컬럼 매핑 필드. 나머지는 UI 전용(백엔드 확장 시 활성) ── */
+// 용도지역: 모달 짧은형 → 마스터 풀형("...지역"). 도시지역미지정=미지정.
+const ZONE_MAP: Record<string, string> = { "도시지역미지정": "미지정", "전용주거": "", "일반주거": "" };
+const toZone = (z: string) => (z in ZONE_MAP ? ZONE_MAP[z] : `${z}지역`);
 function toFilters(v: Values): AttrFilters {
   const sl = (label: string) => (v[label] as SliderVal | undefined) ?? {};
-  const area = (n?: number) => (n == null ? null : Math.round(n * PY)); // 저장값=평(native) → ㎡
-  const zones = (v["용도지역"] as string[] | undefined)?.map((z) => ZONE_MAP[z]).filter(Boolean) ?? [];
-  const la = sl("대지면적"), ta = sl("연면적"), fl = sl("규모 지상"), st = sl("역과의거리");
-  const mainUse = ((v["기타용도"] as string) || "").trim() || null;
+  const ms = (label: string) => (v[label] as string[] | undefined) ?? [];
+  const area = (n?: number) => (n == null ? null : Math.round(n * PY));           // 평(native)→㎡
+  const eok = (n?: number) => (n == null ? null : Math.round(n * 1e8));           // 억→원
+  const man = (n?: number) => (n == null ? null : Math.round(n * 1e4));           // 만원→원
+  const num = (n?: number) => n ?? null;
+  const arr = (a: string[]) => (a.length ? a : null);
+  const la = sl("대지면적"), ta = sl("연면적");
+  const fa = sl("규모 지상"), fb = sl("규모 지하"), bc = sl("건폐율"), fr = sl("용적률");
+  const st = sl("역과의거리"), price = sl("실거래가"), gongsi = sl("최신 공시지가"), age = sl("사용승인일");
+  const zones = ms("용도지역").map(toZone).filter(Boolean);
+  // 마스터 buildings에 데이터 있는 필드만 서버 필터. 미적재(엘베·주차·건축면적·지목·
+  // 도로접면·지형·지세·주용도이름·기타용도)는 UI 전용 — 데이터 적재 시 여기에 추가.
   return {
-    use_zones: zones.length ? zones : null,
-    main_use: mainUse,
+    use_zones: arr(zones),
     land_area_min: area(la.lo), land_area_max: area(la.hi),
     total_area_min: area(ta.lo), total_area_max: area(ta.hi),
-    floors_above_min: fl.lo ?? null, floors_above_max: fl.hi ?? null,
-    station_dist_max: st.hi ?? null,
+    floors_above_min: num(fa.lo), floors_above_max: num(fa.hi),
+    floors_below_min: num(fb.lo), floors_below_max: num(fb.hi),
+    bcr_min: num(bc.lo), bcr_max: num(bc.hi),
+    far_min: num(fr.lo), far_max: num(fr.hi),
+    station_dist_max: num(st.hi),
+    last_sale_min: eok(price.lo), last_sale_max: eok(price.hi),
+    gongsi_min: man(gongsi.lo), gongsi_max: man(gongsi.hi),
+    age_min: num(age.lo), age_max: num(age.hi),
   };
 }
 

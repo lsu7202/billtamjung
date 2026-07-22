@@ -25,11 +25,25 @@ export const authApi = {
 
 export interface AttrFilters {
   use_zones?: string[] | null;
-  main_use?: string | null;
+  jimoks?: string[] | null;
+  road_frontages?: string[] | null;
+  shapes?: string[] | null;
+  slopes?: string[] | null;
+  main_uses?: string[] | null;
+  etc_use?: string | null;
   land_area_min?: number | null; land_area_max?: number | null;
   total_area_min?: number | null; total_area_max?: number | null;
+  build_area_min?: number | null; build_area_max?: number | null;
   floors_above_min?: number | null; floors_above_max?: number | null;
+  floors_below_min?: number | null; floors_below_max?: number | null;
+  bcr_min?: number | null; bcr_max?: number | null;
+  far_min?: number | null; far_max?: number | null;
+  elevator_min?: number | null; elevator_max?: number | null;
+  parking_min?: number | null; parking_max?: number | null;
   station_dist_max?: number | null;
+  last_sale_min?: number | null; last_sale_max?: number | null;
+  gongsi_min?: number | null; gongsi_max?: number | null;
+  age_min?: number | null; age_max?: number | null;
 }
 
 export const searchApi = {
