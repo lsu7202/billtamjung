@@ -21,22 +21,29 @@ const isEmpty = (f: Field, v: Val | undefined): boolean => {
   return (v as string[]).length === 0;
 };
 
-/* vchip 값 요약 */
-function summary(f: Field, v: Val | undefined): string {
+/* vchip 값 요약 (목업 포맷: "100평 이상 200평 이하") */
+function summary(f: Field, v: Val | undefined, unit: "평" | "㎡" = "평"): string {
   if (isEmpty(f, v)) return "전체";
   if (f.ctl === "slider") {
-    const { lo, hi } = v as SliderVal; const u = f.unit ?? "";
-    if (lo != null && hi != null) return `${lo}~${hi}${u}`;
-    if (lo != null) return `${lo}${u} ${f.ge ?? "이상"}`;
-    return `${hi}${u} ${f.le ?? "이하"}`;
+    const { lo, hi } = v as SliderVal; const u = dispUnit(f, unit);
+    const D = (n: number) => toDisp(n, f, unit);
+    if (lo != null && hi != null) return `${D(lo)}${u} ${f.ge ?? "이상"} ${D(hi)}${u} ${f.le ?? "이하"}`;
+    if (lo != null) return `${D(lo)}${u} ${f.ge ?? "이상"}`;
+    return `${D(hi!)}${u} ${f.le ?? "이하"}`;
   }
   if (f.ctl === "text") return v as string;
   const arr = v as string[];
-  return arr.length === 1 ? arr[0] : `${arr[0]} 외 ${arr.length - 1}`;
+  return arr.length <= 2 ? arr.join(", ") : `${arr[0]} 외 ${arr.length - 1}`;
 }
 
+/* 면적 필드(평)는 헤더 토글에 따라 ㎡로 표시. 저장값=평(config 단위, 내부). */
+const isArea = (f: Field) => f.unit === "평";
+const dispUnit = (f: Field, u: "평" | "㎡") => (isArea(f) ? u : f.unit ?? "");
+const toDisp = (n: number, f: Field, u: "평" | "㎡") => (isArea(f) && u === "㎡" ? Math.round(n * PY) : n);
+const toStore = (n: number, f: Field, u: "평" | "㎡") => (isArea(f) && u === "㎡" ? +(n / PY).toFixed(1) : n);
+
 /* ── 컨트롤: 듀얼 슬라이더 ── */
-function Slider({ f, value, onChange }: { f: Field; value: SliderVal; onChange: (v: SliderVal) => void }) {
+function Slider({ f, value, onChange, unit }: { f: Field; value: SliderVal; onChange: (v: SliderVal) => void; unit: "평" | "㎡" }) {
   const min = f.min ?? 0, max = f.max ?? 100, step = f.step ?? 1;
   const both = (f.handle ?? "dual") === "dual";
   const useLo = both || f.handle === "left";
@@ -44,17 +51,15 @@ function Slider({ f, value, onChange }: { f: Field; value: SliderVal; onChange: 
   const lo = value.lo ?? min, hi = value.hi ?? max;
   const pct = (n: number) => ((n - min) / (max - min)) * 100;
   const ticks = (f.ticks ?? "").split(",").filter(Boolean).map(Number);
-  const set = (k: "lo" | "hi", raw: string) => {
-    const n = raw === "" ? undefined : Number(raw);
-    onChange({ ...value, [k]: n });
-  };
+  const u = dispUnit(f, unit), d = (n: number) => toDisp(n, f, unit);
+  const setIn = (k: "lo" | "hi", raw: string) => onChange({ ...value, [k]: raw === "" ? undefined : toStore(Number(raw), f, unit) });
   return (
     <div>
       <div className={`rs-io ${isEmpty(f, value) ? "full" : ""}`}>
         <span className="rs-all">전체</span>
         <div className="rs-inputs">
-          {useLo && <span className="lo-g"><input inputMode="numeric" value={value.lo ?? ""} onChange={(e) => set("lo", e.target.value)} /><span className="u">{f.unit}</span><span className="ge">{f.ge ?? "이상"}</span></span>}
-          {useHi && <span className="hi-g"><input inputMode="numeric" value={value.hi ?? ""} onChange={(e) => set("hi", e.target.value)} /><span className="u">{f.unit}</span><span className="le">{f.le ?? "이하"}</span></span>}
+          {useLo && <span className="lo-g"><input inputMode="numeric" value={value.lo != null ? d(value.lo) : ""} onChange={(e) => setIn("lo", e.target.value)} /><span className="u">{u}</span><span className="ge">{f.ge ?? "이상"}</span></span>}
+          {useHi && <span className="hi-g"><input inputMode="numeric" value={value.hi != null ? d(value.hi) : ""} onChange={(e) => setIn("hi", e.target.value)} /><span className="u">{u}</span><span className="le">{f.le ?? "이하"}</span></span>}
         </div>
       </div>
       <div className="rs">
@@ -63,7 +68,7 @@ function Slider({ f, value, onChange }: { f: Field; value: SliderVal; onChange: 
         {useHi && <input type="range" min={min} max={max} step={step} value={hi} onChange={(e) => onChange({ ...value, hi: Number(e.target.value) })} />}
         <div className="rs-ticks">
           {ticks.map((t) => (
-            <span key={t} className="rs-tick" style={{ left: `${pct(t)}%` }} onClick={() => onChange(useHi && !both ? { hi: t } : { ...value, lo: t })}><i /><span>{f.inf && t === min ? "무한" : t}</span></span>
+            <span key={t} className="rs-tick" style={{ left: `${pct(t)}%` }} onClick={() => onChange(useHi && !both ? { hi: t } : { ...value, lo: t })}><i /><span>{(f.inflo && t === min) || (f.inf && t === max) ? "무한" : d(t)}</span></span>
           ))}
         </div>
       </div>
@@ -163,9 +168,9 @@ function TextChips({ f, value, onChange }: { f: Field; value: string; onChange: 
   );
 }
 
-function Control({ f, value, onChange }: { f: Field; value: Val | undefined; onChange: (v: Val) => void }) {
+function Control({ f, value, onChange, unit }: { f: Field; value: Val | undefined; onChange: (v: Val) => void; unit: "평" | "㎡" }) {
   switch (f.ctl) {
-    case "slider": return <Slider f={f} value={(value as SliderVal) ?? {}} onChange={onChange} />;
+    case "slider": return <Slider f={f} value={(value as SliderVal) ?? {}} onChange={onChange} unit={unit} />;
     case "ms": return f.dd ? <DropdownMulti f={f} value={(value as string[]) ?? []} onChange={onChange} /> : <PillMulti f={f} value={(value as string[]) ?? []} onChange={onChange} />;
     case "segmulti": return <PillMulti f={f} value={(value as string[]) ?? []} onChange={onChange} />;
     case "sector": return <SectorGroup f={f} value={(value as string[]) ?? []} onChange={onChange} />;
@@ -182,9 +187,9 @@ const ZONE_MAP: Record<string, string> = {
   "전용공업": "전용공업지역", "일반공업": "일반공업지역", "준공업": "준공업지역",
   "보전녹지": "보전녹지지역", "생산녹지": "생산녹지지역", "자연녹지": "자연녹지지역",
 };
-function toFilters(v: Values, unit: "평" | "㎡"): AttrFilters {
+function toFilters(v: Values): AttrFilters {
   const sl = (label: string) => (v[label] as SliderVal | undefined) ?? {};
-  const area = (n?: number) => (n == null ? null : unit === "평" ? Math.round(n * PY) : n); // 저장=㎡
+  const area = (n?: number) => (n == null ? null : Math.round(n * PY)); // 저장값=평(native) → ㎡
   const zones = (v["용도지역"] as string[] | undefined)?.map((z) => ZONE_MAP[z]).filter(Boolean) ?? [];
   const la = sl("대지면적"), ta = sl("연면적"), fl = sl("규모 지상"), st = sl("역과의거리");
   const mainUse = ((v["기타용도"] as string) || "").trim() || null;
@@ -241,8 +246,15 @@ export function FilterModal({
   };
   const addRegion = () => {
     if (!gu || !dong) return;
-    const d = dongs.find((x) => x.bjd_code === dong);
-    if (d && !regions.some((r) => r.bjd_code === dong)) setRegions([...regions, { bjd_code: dong, label: `${gu} ${d.dong}` }]);
+    let pick: RegionPick | null = null;
+    if (dong === "ALL") {                              // 구 전체 = sgg_code 5자리 prefix
+      const sgg = regionsQ.data?.[gu]?.sgg_code;
+      if (sgg) pick = { bjd_code: sgg, label: `${gu} 전체` };
+    } else {
+      const d = dongs.find((x) => x.bjd_code === dong);
+      if (d) pick = { bjd_code: dong, label: `${gu} ${d.dong}` };
+    }
+    if (pick && !regions.some((r) => r.bjd_code === pick!.bjd_code)) setRegions([...regions, pick]);
     setDong("");
   };
 
@@ -250,7 +262,7 @@ export function FilterModal({
     const active = !isEmpty(f, values[f.label]);
     return (
       <span key={f.label} className={`vchip ${active ? "active" : ""}`} onClick={(e) => openPop(f, e)}>
-        <span className="vc-l">{f.label}</span><span className="vc-v">{summary(f, values[f.label])}</span>
+        <span className="vc-l">{f.label}</span><span className="vc-v">{summary(f, values[f.label], unit)}</span>
         {active && <span className="clr" onClick={(e) => { e.stopPropagation(); clearVal(f.label); }}>×</span>}
       </span>
     );
@@ -275,7 +287,11 @@ export function FilterModal({
               <div className="f"><label>시/도</label><select value="서울특별시" disabled><option>서울특별시</option></select></div>
               <div className="f"><label>시/군/구</label><select value={gu} onChange={(e) => { setGu(e.target.value); setDong(""); }}><option value="">선택</option>{guList.map((g) => <option key={g}>{g}</option>)}</select></div>
               <div className="f"><label>법정동 <small>선택 시 조건 추가</small></label>
-                <select value={dong} disabled={!gu} onChange={(e) => { setDong(e.target.value); }}><option value="">선택</option>{dongs.map((d) => <option key={d.bjd_code} value={d.bjd_code}>{d.dong} ({d.count.toLocaleString()})</option>)}</select>
+                <select value={dong} disabled={!gu} onChange={(e) => setDong(e.target.value)}>
+                  <option value="">선택</option>
+                  {gu && <option value="ALL">{gu} 전체</option>}
+                  {dongs.map((d) => <option key={d.bjd_code} value={d.bjd_code}>{d.dong} ({d.count.toLocaleString()})</option>)}
+                </select>
               </div>
             </div>
             <div className="region-draw"><button className="rd-btn" onClick={addRegion} disabled={!dong}>＋ 지역 추가</button><span className="rd-hint">여러 지역 누적 가능 · 지도 영역 그리기는 지도 뷰에서</span></div>
@@ -286,7 +302,7 @@ export function FilterModal({
               {count === 0 && <span className="empty">아직 없음 — 카테고리에서 조건을 지정하세요</span>}
               {regions.map((r) => <span key={r.bjd_code} className="achip"><span className="k">지역</span>{r.label}<span className="x" onClick={() => setRegions(regions.filter((x) => x.bjd_code !== r.bjd_code))}>×</span></span>)}
               {GROUPS.flatMap((g) => [...g.reps, ...g.body]).filter((f) => !isEmpty(f, values[f.label])).map((f) => (
-                <span key={f.label} className="achip"><span className="k">{f.label}</span>{summary(f, values[f.label])}<span className="x" onClick={() => clearVal(f.label)}>×</span></span>
+                <span key={f.label} className="achip"><span className="k">{f.label}</span>{summary(f, values[f.label], unit)}<span className="x" onClick={() => clearVal(f.label)}>×</span></span>
               ))}
             </div>
 
@@ -325,7 +341,7 @@ export function FilterModal({
             <span className="applied">적용 조건 <b>{count}</b>개</span>
             <span className="sp" />
             <button className="cancel" onClick={onClose}>취소</button>
-            <button className="apply" onClick={() => onApply({ values, regions, filters: toFilters(values, unit) })}>적용</button>
+            <button className="apply" onClick={() => onApply({ values, regions, filters: toFilters(values) })}>적용</button>
           </div>
         </div>
       </div>
@@ -336,7 +352,7 @@ export function FilterModal({
           <div style={{ position: "fixed", inset: 0, zIndex: 199 }} onClick={() => setPop(null)} />
           <div ref={popRef} className="s01b-popover show" style={{ left: pop.x, top: pop.y }} onClick={(e) => e.stopPropagation()}>
             <div className="pop-head"><span className="pt">{pop.f.label}</span><button className="pclr" onClick={() => { clearVal(pop.f.label); }}>이 조건 지우기</button></div>
-            <div className="pop-slot"><div className="f"><Control f={pop.f} value={values[pop.f.label]} onChange={(val) => setVal(pop.f.label, val)} /></div></div>
+            <div className="pop-slot"><div className="f"><Control f={pop.f} value={values[pop.f.label]} onChange={(val) => setVal(pop.f.label, val)} unit={unit} /></div></div>
           </div>
         </>
       )}
