@@ -92,8 +92,9 @@ export function MapPanel({
   const panoDivRef = useRef<HTMLDivElement>(null);
   const panoRef = useRef<any>(null);
   const streetRef = useRef<any>(null);                   // StreetLayer(커버리지)
-  const rvMarkerRef = useRef<any>(null);                 // 지도 위 로드뷰 위치 마커
   const rvConeRef = useRef<any>(null);                   // 지도 위 시야(POV) 부채꼴
+  const rvKeepRef = useRef<{ pos: any; pov: any } | null>(null);  // 전체화면 전환 시 위치·시점 보존
+  const rvLastRef = useRef<{ lng: number; lat: number } | null>(null);  // 직전 roadview(위치 변경 감지)
   const [measure, setMeasure] = useState<"off" | "dist" | "area" | "radius">("off");  // 측정 도구
   const measureRef = useRef<{ pts: any[]; shapes: any[]; labels: any[] }>({ pts: [], shapes: [], labels: [] });
 
@@ -241,15 +242,18 @@ export function MapPanel({
     if (!ready) return;
     const naver = window.naver;
     const map = mapRef.current;
-    rvMarkerRef.current?.setMap(null); rvMarkerRef.current = null;
     rvConeRef.current?.setMap(null); rvConeRef.current = null;
     panoRef.current = null;
     if (panoDivRef.current) panoDivRef.current.innerHTML = "";
     if (!roadview || !panoDivRef.current) return;
 
-    const pos = new naver.maps.LatLng(roadview.lat, roadview.lng);
+    // roadview(위치)가 바뀌면 그 좌표로, panoBig(전체화면)만 바뀌면 직전 위치·시점 보존
+    const moved = !rvLastRef.current || rvLastRef.current.lng !== roadview.lng || rvLastRef.current.lat !== roadview.lat;
+    rvLastRef.current = roadview;
+    const startPos = !moved && rvKeepRef.current ? rvKeepRef.current.pos : new naver.maps.LatLng(roadview.lat, roadview.lng);
+    const startPov = !moved && rvKeepRef.current ? rvKeepRef.current.pov : { pan: 0, tilt: 0, fov: 100 };
     const pano = new naver.maps.Panorama(panoDivRef.current, {
-      position: pos, pov: { pan: 0, tilt: 0, fov: 100 },
+      position: startPos, pov: startPov,
       flightSpot: false, aroundControl: false, zoomControl: false,  // 기본 화살표·컨트롤 숨김
     });
     panoRef.current = pano;
@@ -257,8 +261,8 @@ export function MapPanel({
     const sync = () => {
       const p = pano.getPosition?.(); if (!p) return;
       const pov = pano.getPov?.() ?? { pan: 0, fov: 90 };
-      map.setCenter(p);                                  // 마크(=위치)를 지도 중앙에 고정 → 지도가 따라 이동
-      rvMarkerRef.current?.setPosition(p);
+      rvKeepRef.current = { pos: p, pov };               // 현재 상태 보존(전체화면 전환 대비)
+      map.setCenter(p);                                  // 위치를 지도 중앙에 → CSS 중앙 마크 밑에 오게(지도가 이동)
       rvConeRef.current?.setMap(null);
       rvConeRef.current = new naver.maps.Polygon({
         map, paths: [conePath(naver, p.lat(), p.lng(), pov.pan, pov.fov)],
@@ -284,29 +288,17 @@ export function MapPanel({
     };
     el.addEventListener("dblclick", onDbl);
 
-    rvMarkerRef.current = new naver.maps.Marker({
-      position: pos, map, zIndex: 91,
-      icon: { content: `<div style="width:16px;height:16px;border-radius:50%;background:#1E5AF0;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`, anchor: new naver.maps.Point(8, 8) },
-    });
     setTimeout(sync, 500);
     return () => el.removeEventListener("dblclick", onDbl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, roadview]);
+  }, [ready, roadview, panoBig]);   // panoBig 포함 → 전체화면 전환 시 파노라마 재생성(크기 반영·위치 보존)
 
-  // 전체화면 전환 시 지도·파노라마 캔버스 리사이즈(컨테이너 크기 교체 반영)
+  // 전체화면 전환 시 지도(PiP)도 컨테이너 크기에 맞게 재배치
   useEffect(() => {
     if (!ready) return;
-    const naver = window.naver;
-    const t = setTimeout(() => {
-      naver.maps.Event.trigger(mapRef.current, "resize");
-      const el = panoDivRef.current;
-      if (panoRef.current && el) {
-        const { width, height } = el.getBoundingClientRect();
-        if (width && height && panoRef.current.setSize) panoRef.current.setSize(new naver.maps.Size(width, height));
-      }
-    }, 60);
+    const t = setTimeout(() => window.dispatchEvent(new Event("resize")), 90);
     return () => clearTimeout(t);
-  }, [panoBig, roadview, ready]);
+  }, [panoBig, ready]);
 
   // 선택 건물의 필지에 분류색 오버레이(폴리곤 클릭·사이드바·핀 선택 공통 경로)
   useEffect(() => {
@@ -434,6 +426,13 @@ export function MapPanel({
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
       <div ref={divRef} style={mapStyle} />
+
+      {/* 로드뷰 위치 마크 — 지도 컨테이너 정중앙 고정. 로드뷰 이동 시 지도가 움직여 위치가 이 마크 밑에 옴 */}
+      {rvOpen && (
+        <div style={{ ...mapStyle, zIndex: (typeof mapStyle.zIndex === "number" ? mapStyle.zIndex : 1) + 3, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center", border: 0, boxShadow: "none", background: "transparent" }}>
+          <div style={{ width: 16, height: 16, borderRadius: "50%", background: "#1E5AF0", border: "3px solid #fff", boxShadow: "0 1px 4px rgba(0,0,0,.4)" }} />
+        </div>
+      )}
 
       {/* 로드뷰 파노라마 — 전체화면 시 지도와 크기 교체 */}
       <div style={{
