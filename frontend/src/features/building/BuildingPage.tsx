@@ -79,12 +79,9 @@ export function BuildingPage() {
   const total = rents.data?.total;
   const adSeries = useMemo(() => (ads.data ?? []).filter((a) => a.price != null)
     .map((a) => ({ x: a.observed_on, y: a.price as number })).reverse(), [ads.data]);
-  const latestAd = adSeries.length ? adSeries[adSeries.length - 1].y : null;
-  // 매매가 = 사용자 입력(✏️ sale_price 오버레이) 우선. 미입력이면 광고가/실거래 기반 '추정'(실거래가≠매매가)
-  const saleOverlay = b.sale_price != null && b.sale_price !== "" ? Number(b.sale_price) : null;
-  const estPrice = latestAd ?? (b.last_sale_price ? Number(b.last_sale_price) : null);
-  const price = saleOverlay ?? estPrice;               // 수익률·평단가 계산용
-  const priceIsEst = saleOverlay == null;              // 매매가 미입력 → 추정치 표시
+  // 매매가 = ✏️ sale_price 오버레이(수기)뿐. 기본값 미지정=0 → 추정 안 함(실거래≠매매가, data-overview.md:174).
+  // 실거래·광고가는 각자 시계열 섹션에 별도 표시. 매매가 미입력 시 수익률·평단가는 계산 불가(—).
+  const price = b.sale_price != null && b.sale_price !== "" ? Number(b.sale_price) : null;
   const landP = b.land_area ? Number(b.land_area) / P : null;
   const totalP = b.total_area ? Number(b.total_area) / P : null;
   const yearRent = total ? total.rent * 12 : 0;
@@ -140,7 +137,7 @@ export function BuildingPage() {
           </div>
         </div>
         <div className="hdr-metrics" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {metric("매매가", price ? <>{eok(price)}{priceIsEst && <small style={{ fontSize: 10, color: "var(--muted)", fontWeight: 600 }}> 추정</small>}</> : "—")}
+          {metric("매매가", price ? eok(price) : "미지정")}
           {metric("수익률(만실)", roiNow ? `${roiNow.toFixed(1)}%` : "—")}
           {metric("평단가(대지)", pricePerLand ? eok(pricePerLand) : "—")}
           {metric("면적 (평)", `${landP ? landP.toFixed(1) : "—"} / ${totalP ? totalP.toFixed(1) : "—"} / —`)}
@@ -177,7 +174,7 @@ export function BuildingPage() {
             <div className="panel">
               <div className="sec-head">금액정보</div>
               <div className="kv-grid">
-                <KV label="매매가" field="sale_price" value={price != null ? `${eok(price)}${priceIsEst ? " (추정)" : ""}` : "—"}
+                <KV label="매매가" field="sale_price" value={price != null ? eok(price) : "미지정"}
                   editable current={price != null ? +(price / 1e8).toFixed(2) : ""} parse={(v) => String(Math.round(parseFloat(v) * 1e8))} validate={vPos}
                   onSave={onSave} onRevert={onRevert} />
                 <KV label="수익률(만실)" value={roiNow ? `${roiNow.toFixed(2)}%` : "—"} calc />
