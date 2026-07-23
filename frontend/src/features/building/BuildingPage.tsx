@@ -24,6 +24,49 @@ type Validate = (v: string) => string | null;
 const vRate100: Validate = (v) => { const n = parseFloat(v); if (Number.isNaN(n)) return "숫자를 입력하세요"; if (n < 0 || n > 100) return "0~100% 범위"; return null; };
 const vNonNeg: Validate = (v) => { const n = parseFloat(v); if (Number.isNaN(n)) return "숫자를 입력하세요"; if (n < 0) return "0 이상 값"; return null; };
 
+/* 마스터 표시 + 유저 오버레이 인라인 편집(값 클릭→수정→자동저장·검증·↺되돌리기). 최상위=편집 중 리마운트 방지 */
+interface KVProps {
+  label: string; field?: string; value: React.ReactNode; unit?: string; editable?: boolean; calc?: boolean;
+  validate?: Validate; current?: unknown; onSave?: (field: string, value: string) => void; onRevert?: (field: string) => void;
+}
+function KV({ label, field, value, unit: u, editable, calc, validate, current, onSave, onRevert }: KVProps) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  function commit() {
+    const e = validate && val ? validate(val) : null;
+    if (e) { setErr(e); return; }                   // 오류 → 저장 안 함, 편집 유지
+    setErr(null); setEditing(false);
+    if (val && field) onSave?.(field, val);
+  }
+  if (editable && field && editing) {
+    return (
+      <div className="kv"><span className="k">{label}</span>
+        <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+          <input className="input" style={{ maxWidth: 110, padding: "3px 8px", borderColor: err ? "var(--up)" : undefined }} autoFocus value={val}
+            onChange={(e) => { setVal(e.target.value); if (err) setErr(null); }}
+            onBlur={commit}
+            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setErr(null); setEditing(false); } }} />
+          {err && <span style={{ fontSize: 10, color: "var(--up)" }}>{err}</span>}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="kv"><span className="k">{label}</span>
+      <span className="v num" style={{ ...(editable ? { cursor: "pointer" } : {}), ...(calc ? { color: "var(--signal)" } : {}) }}
+        onClick={editable && field ? () => { setVal(String(current ?? "")); setErr(null); setEditing(true); } : undefined}
+        title={editable ? "클릭 = 수정(자동저장)" : undefined}>
+        {value}{u}
+        {editable && field && (
+          <button className="btn" style={{ marginLeft: 6, padding: "0 6px", fontSize: 11 }}
+            onClick={(e) => { e.stopPropagation(); onRevert?.(field); }} title="마스터 원본으로 되돌리기">↺</button>
+        )}
+      </span>
+    </div>
+  );
+}
+
 export function BuildingPage() {
   const { pk = "" } = useParams();
   const qc = useQueryClient();
@@ -103,45 +146,9 @@ export function BuildingPage() {
 
   const show = (grp: Scope) => scope === "all" || scope === grp;
 
-  function KV({ label, field, value, unit: u, editable, calc, validate }: {
-    label: string; field?: string; value: React.ReactNode; unit?: string; editable?: boolean; calc?: boolean; validate?: Validate;
-  }) {
-    const [editing, setEditing] = useState(false);
-    const [val, setVal] = useState("");
-    const [err, setErr] = useState<string | null>(null);
-    function commit() {
-      const e = validate && val ? validate(val) : null;
-      if (e) { setErr(e); return; }                 // 오류 → 저장 안 함, 편집 유지
-      setErr(null); setEditing(false);
-      if (val) editField.mutate({ field: field!, value: val });
-    }
-    if (editable && field && editing) {
-      return (
-        <div className="kv"><span className="k">{label}</span>
-          <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-            <input className="input" style={{ maxWidth: 110, padding: "3px 8px", borderColor: err ? "var(--up)" : undefined }} autoFocus value={val}
-              onChange={(e) => { setVal(e.target.value); if (err) setErr(null); }}
-              onBlur={commit}
-              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setErr(null); setEditing(false); } }} />
-            {err && <span style={{ fontSize: 10, color: "var(--up)" }}>{err}</span>}
-          </span>
-        </div>
-      );
-    }
-    return (
-      <div className="kv"><span className="k">{label}</span>
-        <span className="v num" style={{ ...(editable ? { cursor: "pointer" } : {}), ...(calc ? { color: "var(--signal)" } : {}) }}
-          onClick={editable && field ? () => { setVal(String(b[field] ?? "")); setErr(null); setEditing(true); } : undefined}
-          title={editable ? "클릭 = 수정(자동저장)" : undefined}>
-          {value}{u}
-          {editable && field && (
-            <button className="btn" style={{ marginLeft: 6, padding: "0 6px", fontSize: 11 }}
-              onClick={(e) => { e.stopPropagation(); revert.mutate(field); }} title="마스터 원본으로 되돌리기">↺</button>
-          )}
-        </span>
-      </div>
-    );
-  }
+  // 인라인 편집 저장/되돌리기 핸들러(KV는 최상위 컴포넌트 = 리마운트 버그 방지)
+  const onSave = (field: string, value: string) => editField.mutate({ field, value });
+  const onRevert = (field: string) => revert.mutate(field);
 
   const metric = (k: string, v: React.ReactNode) => (
     <div style={{ background: "var(--surface-2)", border: "1px solid var(--line)", borderRadius: 8, padding: "7px 13px", minWidth: 84, textAlign: "right" }}>
@@ -264,8 +271,8 @@ export function BuildingPage() {
                 <KV label="주용도" value={String(b.main_use_name ?? "—")} />
                 <KV label="기타용도" value={String(b.etc_use ?? "—")} />
                 <KV label="구조" value={String(b.structure ?? "—")} />
-                <KV label="건폐율" field="bcr" value={b.bcr ?? "—"} unit="%" editable validate={vRate100} />
-                <KV label="용적률" field="far" value={b.far ?? "—"} unit="%" editable validate={vNonNeg} />
+                <KV label="건폐율" field="bcr" value={b.bcr ?? "—"} unit="%" editable validate={vRate100} current={b.bcr} onSave={onSave} onRevert={onRevert} />
+                <KV label="용적률" field="far" value={b.far ?? "—"} unit="%" editable validate={vNonNeg} current={b.far} onSave={onSave} onRevert={onRevert} />
                 <KV label="사용승인일" value={String(b.approval_ymd ?? "—")} />
                 <KV label="최근 대수선" value={String(b.remodel_ymd ?? "—")} />
               </div>
@@ -314,7 +321,7 @@ export function BuildingPage() {
                 </div>
               </div>
               <div className="kv-grid" style={{ paddingTop: 0 }}>
-                <KV label="유동인구 (수기)" field="float_pop" value={String(b.float_pop ?? "미지정")} editable />
+                <KV label="유동인구 (수기)" field="float_pop" value={String(b.float_pop ?? "미지정")} editable current={b.float_pop} onSave={onSave} onRevert={onRevert} />
               </div>
             </div>
           )}
