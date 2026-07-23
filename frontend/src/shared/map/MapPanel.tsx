@@ -30,6 +30,25 @@ function geoToPaths(naver: any, geo: any): any[] {
   return rings;
 }
 
+/** 두 LatLng 사이 거리(m) — 하버사인. */
+function meters(a: any, b: any): number {
+  const R = 6371000, toR = Math.PI / 180;
+  const dLat = (b.lat() - a.lat()) * toR, dLng = (b.lng() - a.lng()) * toR;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat() * toR) * Math.cos(b.lat() * toR) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+/** 폴리곤 면적(㎡) — 국소 등거리 투영 후 shoelace. */
+function areaM2(pts: any[]): number {
+  if (pts.length < 3) return 0;
+  const R = 6371000, toR = Math.PI / 180, lat0 = pts[0].lat() * toR;
+  const xy = pts.map((p) => [p.lng() * toR * Math.cos(lat0) * R, p.lat() * toR * R]);
+  let s = 0;
+  for (let i = 0; i < xy.length; i++) { const j = (i + 1) % xy.length; s += xy[i][0] * xy[j][1] - xy[j][0] * xy[i][1]; }
+  return Math.abs(s / 2);
+}
+const fmtDist = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(2)}km` : `${Math.round(m)}m`);
+const fmtArea = (a: number) => `${a >= 10000 ? `${(a / 10000).toFixed(2)}ha` : `${Math.round(a).toLocaleString()}㎡`} (${Math.round(a / 3.3058).toLocaleString()}평)`;
+
 /** 로드뷰 시야 부채꼴: 위치+heading(pan°, 북=0 시계방향)+fov로 반경 R(m) 섹터 LatLng 경로. */
 function conePath(naver: any, lat: number, lng: number, pan: number, fov: number, R = 45): any[] {
   const pts = [new naver.maps.LatLng(lat, lng)];
@@ -76,6 +95,8 @@ export function MapPanel({
   const streetRef = useRef<any>(null);                   // StreetLayer(커버리지)
   const rvMarkerRef = useRef<any>(null);                 // 지도 위 로드뷰 위치 마커
   const rvConeRef = useRef<any>(null);                   // 지도 위 시야(POV) 부채꼴
+  const [measure, setMeasure] = useState<"off" | "dist" | "area" | "radius">("off");  // 측정 도구
+  const measureRef = useRef<{ pts: any[]; shapes: any[]; labels: any[] }>({ pts: [], shapes: [], labels: [] });
 
   // 지도 초기화
   useEffect(() => {
@@ -141,9 +162,9 @@ export function MapPanel({
     cadastralRef.current.setMap(cadastre ? mapRef.current : null);
   }, [ready, cadastre]);
 
-  // 지도 클릭 → 그 지점 필지 조회(부동산플래닛식). 그리기·거리뷰 모드 아닐 때만.
+  // 지도 클릭 → 그 지점 필지 조회(부동산플래닛식). 그리기·거리뷰·측정 모드 아닐 때만.
   useEffect(() => {
-    if (!ready || !onParcelClick || drawMode !== "off" || street) return;
+    if (!ready || !onParcelClick || drawMode !== "off" || street || measure !== "off") return;
     const naver = window.naver;
     const map = mapRef.current;
     const listener = naver.maps.Event.addListener(map, "click", async (e: any) => {
@@ -154,7 +175,50 @@ export function MapPanel({
     });
     return () => naver.maps.Event.removeListener(listener);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, drawMode, street]);
+  }, [ready, drawMode, street, measure]);
+
+  // 측정 도구: 거리재기(폴리라인)·면적(폴리곤)·반경(원). 클릭으로 점 추가, 더블클릭 줌 억제.
+  useEffect(() => {
+    if (!ready) return;
+    const naver = window.naver;
+    const map = mapRef.current;
+    const m = measureRef.current;
+    const wipe = () => { m.shapes.forEach((s) => s.setMap(null)); m.labels.forEach((l) => l.setMap(null)); m.shapes = []; m.labels = []; };
+    wipe(); m.pts = [];
+    if (measure === "off") { map.setOptions({ disableDoubleClickZoom: false }); return; }
+    map.setOptions({ disableDoubleClickZoom: true });
+
+    const label = (pos: any, text: string) => new naver.maps.Marker({
+      position: pos, map, zIndex: 100,
+      icon: { content: `<div style="background:#0F1A2E;color:#fff;font:700 11px/1.4 sans-serif;padding:3px 7px;border-radius:5px;white-space:nowrap;transform:translate(-50%,-150%)">${text}</div>`, anchor: new naver.maps.Point(0, 0) },
+    });
+    const centroid = () => { let x = 0, y = 0; m.pts.forEach((p) => { x += p.lng(); y += p.lat(); }); return new naver.maps.LatLng(y / m.pts.length, x / m.pts.length); };
+    const O = "#E8590C";
+    const redraw = () => {
+      wipe();
+      if (!m.pts.length) return;
+      if (measure === "dist") {
+        m.shapes.push(new naver.maps.Polyline({ map, path: m.pts, strokeColor: O, strokeWeight: 3 }));
+        let tot = 0; for (let i = 1; i < m.pts.length; i++) tot += meters(m.pts[i - 1], m.pts[i]);
+        m.labels.push(label(m.pts[m.pts.length - 1], fmtDist(tot)));
+      } else if (measure === "area") {
+        if (m.pts.length >= 3) { m.shapes.push(new naver.maps.Polygon({ map, paths: [m.pts], fillColor: O, fillOpacity: 0.15, strokeColor: O, strokeWeight: 2 })); m.labels.push(label(centroid(), fmtArea(areaM2(m.pts)))); }
+        else m.shapes.push(new naver.maps.Polyline({ map, path: m.pts, strokeColor: O, strokeWeight: 2 }));
+      } else if (measure === "radius" && m.pts.length >= 2) {
+        const r = meters(m.pts[0], m.pts[1]);
+        m.shapes.push(new naver.maps.Circle({ map, center: m.pts[0], radius: r, fillColor: O, fillOpacity: 0.12, strokeColor: O, strokeWeight: 2 }));
+        m.shapes.push(new naver.maps.Polyline({ map, path: [m.pts[0], m.pts[1]], strokeColor: O, strokeWeight: 2 }));
+        m.labels.push(label(m.pts[1], `반경 ${fmtDist(r)} · ${fmtArea(Math.PI * r * r)}`));
+      }
+    };
+    const onClick = naver.maps.Event.addListener(map, "click", (e: any) => {
+      if (measure === "radius" && m.pts.length >= 2) m.pts = [e.coord];  // 새 반경 시작
+      else m.pts.push(e.coord);
+      redraw();
+    });
+    return () => naver.maps.Event.removeListener(onClick);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, measure]);
 
   // 거리뷰 모드: StreetLayer(커버리지) 표시 + 지도 클릭 → 그 지점 로드뷰 열기
   useEffect(() => {
@@ -347,6 +411,20 @@ export function MapPanel({
         <button className="btn" style={layerBtn(drawMode === "magnet")} onClick={() => setDrawMode(drawMode === "magnet" ? "off" : "magnet")}>🧲 자석 올가미</button>
         {polygonActive && <button className="btn" style={{ color: "var(--up)" }} onClick={clearPolygon}>✕ 영역 지우기</button>}
       </div>
+      {/* 측정 도구(거리·면적·반경) */}
+      <div style={{ position: "absolute", top: 52, left: 12, zIndex: 5, display: "flex", gap: 6 }}>
+        {([["dist", "📏 거리재기"], ["area", "⬟ 면적"], ["radius", "◯ 반경"]] as const).map(([k, lbl]) => (
+          <button key={k} className="btn" style={layerBtn(measure === k)}
+            onClick={() => { const on = measure === k; setMeasure(on ? "off" : k); if (!on) { setDrawMode("off"); setStreet(false); } }}>{lbl}</button>
+        ))}
+        {measure !== "off" && <button className="btn" style={{ color: "var(--up)" }} onClick={() => setMeasure("off")}>✕ 측정 종료</button>}
+      </div>
+      {measure !== "off" && (
+        <div style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", zIndex: 5,
+          background: "#E8590C", color: "#fff", fontSize: 12, padding: "7px 14px", borderRadius: 999 }}>
+          {measure === "radius" ? "중심 클릭 → 반경 지점 클릭" : measure === "area" ? "꼭짓점을 클릭해 면적을 잽니다(3점 이상)" : "지점을 순서대로 클릭해 거리를 잽니다"}
+        </div>
+      )}
       {/* 레이어 툴바(§3.6a) */}
       <div style={{ position: "absolute", top: 12, right: 12, zIndex: 5, display: "flex", gap: 6 }}>
         <button className="btn" style={layerBtn(mapType === "normal")} onClick={() => setMapType("normal")}>일반</button>
