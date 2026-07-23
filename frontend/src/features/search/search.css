@@ -7,6 +7,11 @@
 .result-cols.s01 .col-card:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
 .result-cols.s01 .col-card:not(:first-child) { border-left: 0; }
 
+/* 남는 높이 채우기 + 열별 내부 스크롤(접기 시 확장) */
+.result-cols.s01 { flex: 1; min-height: 0; align-items: stretch; }
+.result-cols.s01 .col-card { display: flex; flex-direction: column; min-height: 0; }
+.result-cols.s01 .col-body { flex: 1; min-height: 0; overflow-y: auto; }
+
 /* 행 그리드: ★ 20 · 주소 1fr · 매매가 58 · 수익률 48 (components.css 기본 3열 override) */
 .result-cols.s01 .wf-head, .result-cols.s01 .wf-row { grid-template-columns: 20px 1fr 58px 48px; }
 .wf-head .est { font-size: 10px; color: #aab2bf; font-weight: 600; margin-left: 3px; }
@@ -21,8 +26,8 @@
 .col-pager .pg { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
 /* ── 지도 뷰: 좌 사이드바(선택카드+미니리스트) / 우 지도 (목업 .map-split) ── */
-.map-split { display: grid; grid-template-columns: 360px 1fr; gap: 0; height: calc(100vh - 210px); min-height: 560px;
-  border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+.map-split { display: grid; grid-template-columns: 360px 1fr; gap: 0; flex: 1; min-height: 0;
+  border: 1px solid var(--line); border-top: 0; overflow: hidden; box-shadow: var(--shadow); }
 .map-list { background: #fff; border-right: 1px solid var(--line); overflow-y: auto; display: flex; flex-direction: column; }
 .map-canvas { position: relative; }
 

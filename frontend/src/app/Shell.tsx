@@ -10,7 +10,7 @@ export function Shell() {
   const credits = useQuery({ queryKey: ["credits"], queryFn: creditsApi.balance });
 
   return (
-    <>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       <header className="appbar">
         <div className="logo">빌탐정</div>
         <nav>
@@ -26,9 +26,9 @@ export function Shell() {
           로그아웃
         </button>
       </header>
-      <main style={{ margin: "18px 0 0", padding: 0 }}>
+      <main style={{ flex: 1, minHeight: 0, padding: 0, overflow: "auto" }}>
         <Outlet />
       </main>
-    </>
+    </div>
   );
 }

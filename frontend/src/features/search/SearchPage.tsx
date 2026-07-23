@@ -173,9 +173,9 @@ export function SearchPage() {
   }, [result.data]);
 
   return (
-    <div style={{ display: "grid", gap: 14 }}>
-      {/* 검색바 — 헤더에 밀착(마진 제거) + 접기/펼치기로 공간 절약 */}
-      <div className="panel" style={{ padding: barCollapsed ? 0 : 16, marginTop: -18, borderTopLeftRadius: 0, borderTopRightRadius: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 10 }}>
+      {/* 검색바 — 헤더에 밀착 + 접기/펼치기로 공간 절약 */}
+      <div className="panel" style={{ padding: barCollapsed ? 0 : 16, borderTopLeftRadius: 0, borderTopRightRadius: 0, flex: "0 0 auto" }}>
         {barCollapsed ? (
           /* 접힘: 거의 안 보이는 얇은 띠(펼치기 핸들만) */
           <button onClick={() => setBarCollapsed(false)} title="검색바 펼치기"
@@ -225,7 +225,7 @@ export function SearchPage() {
 
       {/* 결과바 — 건수 + 정렬 (목업 별도 바) */}
       {(bjd || polygon) && (
-        <div className="toolbar" style={{ margin: "-6px 2px 0" }}>
+        <div className="toolbar" style={{ margin: "0 2px", flex: "0 0 auto" }}>
           <span style={{ color: "var(--muted)", fontSize: 13 }}>전체 <b className="num">{total.toLocaleString()}</b>건</span>
           <span style={{ flex: 1 }} />
           <label style={{ color: "var(--muted)", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>정렬
