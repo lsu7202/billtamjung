@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  buildingsApi, overlaysApi, rentsApi, reportsApi, extrasApi, listingsApi, FloorRent,
+  buildingsApi, overlaysApi, rentsApi, reportsApi, extrasApi, listingsApi, creditsApi, FloorRent,
 } from "../../shared/api/endpoints";
 import { PhotoPanel } from "../../shared/map/PhotoPanel";
 import { SeriesBlock } from "./SeriesBlock";
@@ -58,17 +58,24 @@ export function BuildingPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["building", pk] }),
   });
 
+  const credits = useQuery({ queryKey: ["credits"], queryFn: creditsApi.balance });
+  const [genModal, setGenModal] = useState<"briefing" | "analysis" | null>(null);
+  const [incMarket, setIncMarket] = useState(true);
   const [genState, setGenState] = useState<string | null>(null);
+  const [genBusy, setGenBusy] = useState(false);
   async function generate(kind: "briefing" | "analysis") {
+    setGenBusy(true);
     setGenState("생성 중… 완료되면 자동 보관됩니다");
-    const { report_id } = await reportsApi.create(pk, kind);
-    for (let i = 0; i < 40; i++) {
-      const r = await reportsApi.get(report_id);
-      if (r.status === "done") { setGenState(`✓ 완료 — 내 산출물 보관 (크레딧 ${r.credits_spent})`); qc.invalidateQueries({ queryKey: ["credits"] }); return; }
-      if (r.status === "failed") { setGenState(`실패: ${r.failed_reason ?? ""} (미차감)`); return; }
-      await new Promise((res) => setTimeout(res, 500));
-    }
-    setGenState("대기 초과 — 내 산출물에서 확인");
+    try {
+      const { report_id } = await reportsApi.create(pk, kind, { include_market: incMarket });
+      for (let i = 0; i < 40; i++) {
+        const r = await reportsApi.get(report_id);
+        if (r.status === "done") { setGenState(`✓ 완료 — 내 산출물 보관 (크레딧 ${r.credits_spent})`); qc.invalidateQueries({ queryKey: ["credits"] }); return; }
+        if (r.status === "failed") { setGenState(`실패: ${r.failed_reason ?? ""} (미차감)`); return; }
+        await new Promise((res) => setTimeout(res, 500));
+      }
+      setGenState("대기 초과 — 내 산출물에서 확인");
+    } finally { setGenBusy(false); }
   }
 
   // ── 파생값 ──
@@ -173,11 +180,11 @@ export function BuildingPage() {
           {metric("층수", `B${b.floors_below ?? "—"}F/${b.floors_above ?? "—"}F`)}
         </div>
         <div style={{ display: "flex", gap: 10 }}>
-          <button className="btn" onClick={() => generate("briefing")}>브리핑 자료 (10)</button>
-          <button className="btn primary" onClick={() => generate("analysis")}>매물 분석하기 (30)</button>
+          <button className="btn" onClick={() => { setGenModal("briefing"); setGenState(null); }}>브리핑 자료 (10)</button>
+          <button className="btn primary" onClick={() => { setGenModal("analysis"); setGenState(null); }}>매물 분석하기 (30)</button>
         </div>
       </div>
-      {genState && <div className="panel" style={{ padding: "10px 16px", fontSize: 13 }}>{genState}</div>}
+      {genState && !genModal && <div className="panel" style={{ padding: "10px 16px", fontSize: 13 }}>{genState}</div>}
       {saveErr && <div className="panel" style={{ padding: "10px 16px", fontSize: 13, color: "var(--up)", display: "flex", alignItems: "center" }}>{saveErr}<button className="btn" style={{ marginLeft: "auto", padding: "2px 10px" }} onClick={() => setSaveErr(null)}>닫기</button></div>}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 14, alignItems: "start" }}>
@@ -338,6 +345,32 @@ export function BuildingPage() {
           <button className={`btn ${unit === "m2" ? "primary" : ""}`} style={{ borderRadius: "0 6px 6px 0", borderLeft: 0 }} onClick={() => setUnit("m2")}>㎡</button>
         </div>
       </div>
+
+      {/* 보고서 생성 옵션 모달(§R) */}
+      {genModal && (
+        <div className="modal-bg open" onClick={() => !genBusy && setGenModal(null)}>
+          <div className="modal" style={{ width: "min(560px,100%)" }} onClick={(e) => e.stopPropagation()}>
+            <h3>{genModal === "briefing" ? "브리핑 자료" : "매물 분석 보고서"} 생성
+              <small style={{ fontSize: 12, color: "var(--muted)", fontWeight: 400, marginLeft: 8 }}>{String(b.addr ?? "")}</small>
+              <span className="right"><button className="btn" disabled={genBusy} onClick={() => setGenModal(null)}>닫기</button></span>
+            </h3>
+            <div className="kv-grid" style={{ gridTemplateColumns: "1fr" }}>
+              <div className="kv"><span className="k">크레딧</span><span className="v"><b>{genModal === "briefing" ? 10 : 30}</b> 소모 · 잔액 {credits.data?.total ?? "…"}</span></div>
+              <div className="kv"><span className="k">주변 임대시세</span>
+                <span style={{ display: "flex" }}>
+                  <button className={`btn ${incMarket ? "primary" : ""}`} style={{ borderRadius: "6px 0 0 6px" }} onClick={() => setIncMarket(true)}>포함</button>
+                  <button className={`btn ${!incMarket ? "primary" : ""}`} style={{ borderRadius: "0 6px 6px 0", borderLeft: 0 }} onClick={() => setIncMarket(false)}>제외</button>
+                </span>
+              </div>
+            </div>
+            <p style={{ fontSize: 12, color: "var(--muted)", margin: "10px 0" }}>완료되면 자동 다운로드 · 창을 닫아도 생성은 계속되며 <b>내 산출물</b>에서 받을 수 있습니다.</p>
+            {genState && <div style={{ fontSize: 13, padding: "8px 0", color: genState.startsWith("실패") ? "var(--up)" : "var(--ink)" }}>{genState}</div>}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
+              <button className="btn primary" disabled={genBusy} onClick={() => generate(genModal)}>{genBusy ? "생성 중…" : "생성하기"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

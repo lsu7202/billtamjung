@@ -123,8 +123,8 @@ export const marketApi = {
 };
 
 export const reportsApi = {
-  create: (building_pk: string, kind: "briefing" | "analysis") =>
-    api<{ report_id: number }>("/reports", { method: "POST", body: JSON.stringify({ building_pk, kind, options: {} }) }),
+  create: (building_pk: string, kind: "briefing" | "analysis", options: Record<string, unknown> = {}) =>
+    api<{ report_id: number }>("/reports", { method: "POST", body: JSON.stringify({ building_pk, kind, options }) }),
   get: (id: number) => api<Report>(`/reports/${id}`),
   list: () => api<Report[]>("/reports"),
 };
