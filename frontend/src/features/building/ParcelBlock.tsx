@@ -1,37 +1,56 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../shared/api/client";
+import { overlaysApi } from "../../shared/api/endpoints";
 import { SeriesBlock } from "./SeriesBlock";
+import { EnumField } from "./EnumField";
+import { KV, vPos, vNonNeg } from "./KV";
 
 /** 필지 셀렉터(S02 §3.6) — 다필지 탭 전환 · 토지/규제/공시지가가 선택 필지 값으로 · 건물 요약(OR 집계).
- * 규제 2레벨: 건물 요약(전 필지 OR) + 필지 상세.
+ * 편집: 필지 오버레이(target_type='parcel', target_id=pnu). enum(지목·지형·도로접면·지세)+자유값(용도지역·토지이용·면적·공시지가).
  */
 interface Parcel {
-  role: string; pnu: string; area: number | null;
+  role: string; pnu: string; area: number | string | null;
   jimok?: string; land_use?: string; slope?: string; shape?: string; road_frontage?: string;
-  use_zone?: string; legal_bcr?: string; legal_far?: string; gongsi_latest?: number | null;
+  use_zone?: string; legal_bcr?: string; legal_far?: string; gongsi_latest?: number | string | null;
   gongsi_series: [number, number][];
   regs: Record<string, string>;
 }
 interface ParcelsResp { parcels: Parcel[]; reg_summary: Record<string, string>; count: number }
 
 const REG_ALL = ["고도지구", "지구단위계획", "정비구역", "경관지구", "방화지구", "문화재보존"];
-const eok = (n?: number | null) => (n == null ? "—" : `${(n / 1e8).toFixed(1)}억`);
-const man = (n?: number | null) => (n == null ? "—" : `${Math.round(n / 1e4).toLocaleString()}만/㎡`);
+const num = (x: unknown): number | null => (x == null || x === "" ? null : Number(x));
+const eok = (n: number | null) => (n == null ? "—" : `${(n / 1e8).toFixed(1)}억`);
+const man = (n: number | null) => (n == null ? "—" : `${Math.round(n / 1e4).toLocaleString()}만/㎡`);
 
 export function ParcelBlock({ pk }: { pk: string }) {
   const [sel, setSel] = useState(0);
+  const qc = useQueryClient();
   const q = useQuery<ParcelsResp>({
     queryKey: ["parcels", pk],
     queryFn: () => api<ParcelsResp>(`/buildings/${pk}/parcels`),
   });
   const parcels = q.data?.parcels ?? [];
   const p = parcels[sel];
+  const pnu = p?.pnu ?? "";
 
+  const save = useMutation({
+    mutationFn: ({ field, value }: { field: string; value: string }) => overlaysApi.put(pnu, field, value, "parcel"),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["parcels", pk] }),
+  });
+  const revert = useMutation({
+    mutationFn: (field: string) => overlaysApi.revert(pnu, field, "parcel"),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["parcels", pk] }),
+  });
+  const onSave = (field: string, value: string) => save.mutate({ field, value });
+  const onRevert = (field: string) => revert.mutate(field);
+
+  const area = num(p?.area);
+  const gongsiLatest = num(p?.gongsi_latest);
   const totalGongsi = useMemo(() => {
-    if (!p?.gongsi_latest || !p.area) return null;
-    return p.gongsi_latest * p.area;   // 총공시지가 = 단가 × 그 필지 면적(합산 아님)
-  }, [p]);
+    if (!gongsiLatest || !area) return null;
+    return gongsiLatest * area;   // 총공시지가 = 단가 × 그 필지 면적(합산 아님)
+  }, [gongsiLatest, area]);
 
   if (q.isLoading) return null;
   if (parcels.length === 0) return null;
@@ -43,7 +62,7 @@ export function ParcelBlock({ pk }: { pk: string }) {
     <div className="panel">
       <div className="sec-head">토지정보 · 규제
         <small style={{ color: "var(--muted)", fontWeight: 400 }}>
-          {parcels.length > 1 ? `다필지 ${parcels.length}개 · 필지별 값(합산 안 함)` : "단일 필지"}
+          {parcels.length > 1 ? `다필지 ${parcels.length}개 · 필지별 값(합산 안 함)` : "단일 필지"} · 값 클릭 = 수정
         </small>
       </div>
 
@@ -59,16 +78,16 @@ export function ParcelBlock({ pk }: { pk: string }) {
         </div>
       )}
 
-      {/* 토지정보(선택 필지) */}
+      {/* 토지정보(선택 필지) — enum 드롭다운 + 자유값 인라인 편집(필지 오버레이) */}
       <div className="kv-grid">
-        <div className="kv"><span className="k">지목</span><span className="v">{p.jimok ?? "—"}</span></div>
-        <div className="kv"><span className="k">토지면적</span><span className="v num">{p.area ? `${p.area.toLocaleString()}㎡` : "—"}</span></div>
-        <div className="kv"><span className="k">용도지역</span><span className="v">{p.use_zone ?? "—"}</span></div>
-        <div className="kv"><span className="k">토지이용상황</span><span className="v">{p.land_use ?? "—"}</span></div>
-        <div className="kv"><span className="k">지형형상</span><span className="v">{p.shape ?? "—"}</span></div>
-        <div className="kv"><span className="k">도로접면</span><span className="v">{p.road_frontage ?? "—"}</span></div>
+        <EnumField label="지목" enumKey="jimok" value={p.jimok} onSave={(v) => onSave("jimok", v)} />
+        <KV label="토지면적" field="area" value={area ? `${area.toLocaleString()}㎡` : "—"} editable current={area ?? ""} validate={vPos} onSave={onSave} onRevert={onRevert} />
+        <KV label="용도지역" field="use_zone" value={p.use_zone ?? "—"} editable current={p.use_zone ?? ""} onSave={onSave} onRevert={onRevert} />
+        <KV label="토지이용상황" field="land_use" value={p.land_use ?? "—"} editable current={p.land_use ?? ""} onSave={onSave} onRevert={onRevert} />
+        <EnumField label="지형형상" enumKey="shape" value={p.shape} onSave={(v) => onSave("shape", v)} />
+        <EnumField label="도로접면" enumKey="road_frontage" value={p.road_frontage} onSave={(v) => onSave("road_frontage", v)} />
         <div className="kv"><span className="k">법정 건폐/용적</span><span className="v num">{p.legal_bcr ?? "—"} / {p.legal_far ?? "—"}</span></div>
-        <div className="kv"><span className="k">지세</span><span className="v">{p.slope ?? "—"}</span></div>
+        <EnumField label="지세" enumKey="slope" value={p.slope} onSave={(v) => onSave("slope", v)} />
       </div>
 
       {/* 규제 2레벨: 건물 요약(OR 집계) + 필지 상세 */}
@@ -98,8 +117,9 @@ export function ParcelBlock({ pk }: { pk: string }) {
           fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}만`} />
       </div>
       <div className="kv-grid" style={{ paddingTop: 0 }}>
-        <div className="kv"><span className="k">최신 공시지가</span><span className="v num" style={{ color: "var(--signal)" }}>{man(p.gongsi_latest)}</span></div>
-        <div className="kv"><span className="k">총공시지가</span><span className="v num" style={{ color: "var(--signal)" }}>{eok(totalGongsi)} <small style={{ color: "var(--muted)", fontWeight: 400 }}>= 단가 × {p.area ?? "—"}㎡</small></span></div>
+        <KV label="최신 공시지가" field="gongsi_latest" calc
+          value={man(gongsiLatest)} editable current={gongsiLatest ?? ""} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
+        <div className="kv"><span className="k">총공시지가</span><span className="v num" style={{ color: "var(--signal)" }}>{eok(totalGongsi)} <small style={{ color: "var(--muted)", fontWeight: 400 }}>= 단가 × {area ?? "—"}㎡</small></span></div>
       </div>
     </div>
   );

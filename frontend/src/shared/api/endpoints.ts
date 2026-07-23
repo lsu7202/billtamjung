@@ -90,10 +90,10 @@ export const photosApi = {
 };
 
 export const overlaysApi = {
-  put: (target_id: string, field: string, value: string | null) =>
-    api("/overlays", { method: "PUT", body: JSON.stringify({ target_id, field, value }) }),
-  revert: (target_id: string, field: string) =>
-    api("/overlays", { method: "DELETE", body: JSON.stringify({ target_id, field, value: null }) }),
+  put: (target_id: string, field: string, value: string | null, target_type: "building" | "parcel" = "building") =>
+    api("/overlays", { method: "PUT", body: JSON.stringify({ target_type, target_id, field, value }) }),
+  revert: (target_id: string, field: string, target_type: "building" | "parcel" = "building") =>
+    api("/overlays", { method: "DELETE", body: JSON.stringify({ target_type, target_id, field, value: null }) }),
   revertAll: (target_id: string) =>
     api<{ reverted: number }>(`/overlays/all/${target_id}`, { method: "DELETE" }),
   distribution: (target_id: string) =>
