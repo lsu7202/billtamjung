@@ -19,6 +19,11 @@ import { EnumField } from "./EnumField";
 const P = 3.305785;
 type Scope = "all" | "deal" | "land";
 
+/* 인라인 편집 범위검증(§3.4 "타입별 검증") · 면적/날짜는 대장 표시전용이라 편집 필드는 율·금액 */
+type Validate = (v: string) => string | null;
+const vRate100: Validate = (v) => { const n = parseFloat(v); if (Number.isNaN(n)) return "숫자를 입력하세요"; if (n < 0 || n > 100) return "0~100% 범위"; return null; };
+const vNonNeg: Validate = (v) => { const n = parseFloat(v); if (Number.isNaN(n)) return "숫자를 입력하세요"; if (n < 0) return "0 이상 값"; return null; };
+
 export function BuildingPage() {
   const { pk = "" } = useParams();
   const qc = useQueryClient();
@@ -78,25 +83,35 @@ export function BuildingPage() {
 
   const show = (grp: Scope) => scope === "all" || scope === grp;
 
-  function KV({ label, field, value, unit: u, editable, calc }: {
-    label: string; field?: string; value: React.ReactNode; unit?: string; editable?: boolean; calc?: boolean;
+  function KV({ label, field, value, unit: u, editable, calc, validate }: {
+    label: string; field?: string; value: React.ReactNode; unit?: string; editable?: boolean; calc?: boolean; validate?: Validate;
   }) {
     const [editing, setEditing] = useState(false);
     const [val, setVal] = useState("");
+    const [err, setErr] = useState<string | null>(null);
+    function commit() {
+      const e = validate && val ? validate(val) : null;
+      if (e) { setErr(e); return; }                 // 오류 → 저장 안 함, 편집 유지
+      setErr(null); setEditing(false);
+      if (val) editField.mutate({ field: field!, value: val });
+    }
     if (editable && field && editing) {
       return (
         <div className="kv"><span className="k">{label}</span>
-          <input className="input" style={{ maxWidth: 110, padding: "3px 8px" }} autoFocus value={val}
-            onChange={(e) => setVal(e.target.value)}
-            onBlur={() => { setEditing(false); if (val) editField.mutate({ field, value: val }); }}
-            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditing(false); }} />
+          <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+            <input className="input" style={{ maxWidth: 110, padding: "3px 8px", borderColor: err ? "var(--up)" : undefined }} autoFocus value={val}
+              onChange={(e) => { setVal(e.target.value); if (err) setErr(null); }}
+              onBlur={commit}
+              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setErr(null); setEditing(false); } }} />
+            {err && <span style={{ fontSize: 10, color: "var(--up)" }}>{err}</span>}
+          </span>
         </div>
       );
     }
     return (
       <div className="kv"><span className="k">{label}</span>
         <span className="v num" style={{ ...(editable ? { cursor: "pointer" } : {}), ...(calc ? { color: "var(--signal)" } : {}) }}
-          onClick={editable && field ? () => { setVal(String(b[field] ?? "")); setEditing(true); } : undefined}
+          onClick={editable && field ? () => { setVal(String(b[field] ?? "")); setErr(null); setEditing(true); } : undefined}
           title={editable ? "클릭 = 수정(자동저장)" : undefined}>
           {value}{u}
           {editable && field && (
@@ -228,8 +243,8 @@ export function BuildingPage() {
                 <KV label="주용도" value={String(b.main_use_name ?? "—")} />
                 <KV label="기타용도" value={String(b.etc_use ?? "—")} />
                 <KV label="구조" value={String(b.structure ?? "—")} />
-                <KV label="건폐율" field="bcr" value={b.bcr ?? "—"} unit="%" editable />
-                <KV label="용적률" field="far" value={b.far ?? "—"} unit="%" editable />
+                <KV label="건폐율" field="bcr" value={b.bcr ?? "—"} unit="%" editable validate={vRate100} />
+                <KV label="용적률" field="far" value={b.far ?? "—"} unit="%" editable validate={vNonNeg} />
                 <KV label="사용승인일" value={String(b.approval_ymd ?? "—")} />
                 <KV label="최근 대수선" value={String(b.remodel_ymd ?? "—")} />
               </div>
@@ -338,9 +353,15 @@ function RentTable({ pk, items, total, refresh, eok }: {
   eok: (n?: number | null) => string;
 }) {
   const [adding, setAdding] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [f, setF] = useState({ floor: "", unit_no: "", contract_area: "", deposit: "", rent: "", maintenance: "" });
   async function save() {
-    if (!f.floor || !f.unit_no) return;
+    if (!f.floor || !f.unit_no) { setErr("층·호실은 필수입니다"); return; }
+    if (f.contract_area && parseFloat(f.contract_area) <= 0) { setErr("계약면적은 0보다 커야 합니다"); return; }
+    for (const [k, lbl] of [["deposit", "보증금"], ["rent", "임대료"], ["maintenance", "관리비"]] as const) {
+      if (f[k] && parseFloat(f[k]) < 0) { setErr(`${lbl}는 0 이상이어야 합니다`); return; }
+    }
+    setErr(null);
     await rentsApi.upsert(pk, {
       floor: f.floor, unit_no: f.unit_no,
       contract_area: parseFloat(f.contract_area) || null,
@@ -364,7 +385,8 @@ function RentTable({ pk, items, total, refresh, eok }: {
   return (
     <div className="panel">
       <div className="sec-head">층별 임대정보
-        <button className="btn" onClick={() => setAdding(!adding)}>＋ 호실 추가</button>
+        {err && <span style={{ color: "var(--up)", fontSize: 11, fontWeight: 400, marginLeft: 10 }}>{err}</span>}
+        <button className="btn" onClick={() => { setAdding(!adding); setErr(null); }}>＋ 호실 추가</button>
       </div>
       <table className="wf">
         <thead><tr><th>층</th><th>호실</th><th className="num">계약면적</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">관리비</th><th>상태</th></tr></thead>
