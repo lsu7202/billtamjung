@@ -30,8 +30,20 @@ function geoToPaths(naver: any, geo: any): any[] {
   return rings;
 }
 
+/** 로드뷰 시야 부채꼴: 위치+heading(pan°, 북=0 시계방향)+fov로 반경 R(m) 섹터 LatLng 경로. */
+function conePath(naver: any, lat: number, lng: number, pan: number, fov: number, R = 45): any[] {
+  const pts = [new naver.maps.LatLng(lat, lng)];
+  const mLat = R / 111320, mLng = R / (111320 * Math.cos((lat * Math.PI) / 180));
+  const half = Math.min(fov, 120) / 2;
+  for (let a = pan - half; a <= pan + half; a += 6) {
+    const r = (a * Math.PI) / 180;
+    pts.push(new naver.maps.LatLng(lat + Math.cos(r) * mLat, lng + Math.sin(r) * mLng));
+  }
+  return pts;
+}
+
 export function MapPanel({
-  pins, onPick, onPolygon, polygonActive, selectedPk, selectedCol, onParcelClick, centerReq,
+  pins, onPick, onPolygon, polygonActive, selectedPk, selectedCol, onParcelClick, centerReq, roadviewReq,
 }: {
   pins: MapPin[];
   onPick: (pk: string) => void;
@@ -41,6 +53,7 @@ export function MapPanel({
   selectedCol?: "ad" | "mine" | "normal" | null;
   onParcelClick?: (building_pk: string | null, pnu: string) => void;  // 필지 클릭(부동산플래닛식)
   centerReq?: { lng: number; lat: number } | null;  // 지도 중심 이동 요청(사이드바·지도위치 선택 시)
+  roadviewReq?: { lng: number; lat: number } | null;  // 큰 로드뷰 열기 요청(sel-card 확대)
 }) {
   const divRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -55,6 +68,14 @@ export function MapPanel({
   const [cadastre, setCadastre] = useState(false);
   const [drawMode, setDrawMode] = useState<DrawMode>("off");
   const [snapping, setSnapping] = useState(false);       // 자석 스냅 진행 표시
+  const [street, setStreet] = useState(false);           // 거리뷰 모드(StreetLayer + 클릭→로드뷰)
+  const [roadview, setRoadview] = useState<{ lng: number; lat: number } | null>(null);  // 파노라마 위치
+  const [panoBig, setPanoBig] = useState(false);         // 로드뷰 작은/큰 화면
+  const panoDivRef = useRef<HTMLDivElement>(null);
+  const panoRef = useRef<any>(null);
+  const streetRef = useRef<any>(null);                   // StreetLayer(커버리지)
+  const rvMarkerRef = useRef<any>(null);                 // 지도 위 로드뷰 위치 마커
+  const rvConeRef = useRef<any>(null);                   // 지도 위 시야(POV) 부채꼴
 
   // 지도 초기화
   useEffect(() => {
@@ -120,10 +141,9 @@ export function MapPanel({
     cadastralRef.current.setMap(cadastre ? mapRef.current : null);
   }, [ready, cadastre]);
 
-  // 지도 클릭 → 그 지점 필지 조회(부동산플래닛식, 지적도 전체 로드 없이 클릭 시에만).
-  // 그리기 중이 아니고 핀 클릭이 아닐 때만. building_pk 있으면 선택→선택 오버레이가 색칠.
+  // 지도 클릭 → 그 지점 필지 조회(부동산플래닛식). 그리기·거리뷰 모드 아닐 때만.
   useEffect(() => {
-    if (!ready || !onParcelClick || drawMode !== "off") return;
+    if (!ready || !onParcelClick || drawMode !== "off" || street) return;
     const naver = window.naver;
     const map = mapRef.current;
     const listener = naver.maps.Event.addListener(map, "click", async (e: any) => {
@@ -134,7 +154,72 @@ export function MapPanel({
     });
     return () => naver.maps.Event.removeListener(listener);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, drawMode]);
+  }, [ready, drawMode, street]);
+
+  // 거리뷰 모드: StreetLayer(커버리지) 표시 + 지도 클릭 → 그 지점 로드뷰 열기
+  useEffect(() => {
+    if (!ready) return;
+    const naver = window.naver;
+    const map = mapRef.current;
+    if (!streetRef.current) streetRef.current = new naver.maps.StreetLayer();
+    streetRef.current.setMap(street ? map : null);
+    if (!street) return;
+    const listener = naver.maps.Event.addListener(map, "click", (e: any) => {
+      setRoadview({ lng: e.coord.lng(), lat: e.coord.lat() });
+      setPanoBig(false);
+    });
+    return () => naver.maps.Event.removeListener(listener);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, street]);
+
+  // sel-card 확대 요청 → 큰 로드뷰 열기(+ 커버리지 표시)
+  useEffect(() => {
+    if (!ready || !roadviewReq) return;
+    setStreet(true);
+    setRoadview(roadviewReq);
+    setPanoBig(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, roadviewReq]);
+
+  // 파노라마 생성/이동 + 지도 위 위치 마커·시야 부채꼴 동기화
+  useEffect(() => {
+    if (!ready) return;
+    const naver = window.naver;
+    const map = mapRef.current;
+    if (!roadview) {                                      // 닫힘 → 정리
+      panoRef.current?.setVisible?.(false);
+      rvMarkerRef.current?.setMap(null); rvMarkerRef.current = null;
+      rvConeRef.current?.setMap(null); rvConeRef.current = null;
+      return;
+    }
+    const pos = new naver.maps.LatLng(roadview.lat, roadview.lng);
+    const drawPov = () => {
+      if (!panoRef.current) return;
+      const p = panoRef.current.getPosition?.(); if (!p) return;
+      const pov = panoRef.current.getPov?.() ?? { pan: 0, fov: 90 };
+      rvConeRef.current?.setMap(null);
+      rvConeRef.current = new naver.maps.Polygon({
+        map, paths: [conePath(naver, p.lat(), p.lng(), pov.pan, pov.fov)],
+        fillColor: "#1E5AF0", fillOpacity: 0.22, strokeColor: "#1E5AF0", strokeWeight: 1, zIndex: 90,
+      });
+      if (rvMarkerRef.current) rvMarkerRef.current.setPosition(p);
+    };
+    if (!panoRef.current && panoDivRef.current) {
+      panoRef.current = new naver.maps.Panorama(panoDivRef.current, { position: pos, pov: { pan: 0, tilt: 0, fov: 100 } });
+      naver.maps.Event.addListener(panoRef.current, "pano_changed", drawPov);
+      naver.maps.Event.addListener(panoRef.current, "pov_changed", drawPov);
+    } else if (panoRef.current) {
+      panoRef.current.setVisible?.(true);
+      panoRef.current.setPosition(pos);
+    }
+    rvMarkerRef.current?.setMap(null);
+    rvMarkerRef.current = new naver.maps.Marker({
+      position: pos, map, zIndex: 91,
+      icon: { content: `<div style="width:16px;height:16px;border-radius:50%;background:#1E5AF0;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`, anchor: new naver.maps.Point(8, 8) },
+    });
+    setTimeout(drawPov, 400);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, roadview]);
 
   // 선택 건물의 필지에 분류색 오버레이(폴리곤 클릭·사이드바·핀 선택 공통 경로)
   useEffect(() => {
@@ -267,6 +352,28 @@ export function MapPanel({
         <button className="btn" style={layerBtn(mapType === "normal")} onClick={() => setMapType("normal")}>일반</button>
         <button className="btn" style={layerBtn(mapType === "satellite")} onClick={() => setMapType("satellite")}>위성</button>
         <button className="btn" style={layerBtn(cadastre)} onClick={() => setCadastre(!cadastre)}>지적도</button>
+        <button className="btn" style={layerBtn(street)} onClick={() => { setStreet(!street); if (street) setRoadview(null); }}>🧍 거리뷰</button>
+      </div>
+      {street && !roadview && (
+        <div style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", zIndex: 5,
+          background: "var(--ink)", color: "#fff", fontSize: 12, padding: "7px 14px", borderRadius: 999 }}>
+          파란 도로를 클릭하면 그 위치 거리뷰가 열립니다
+        </div>
+      )}
+
+      {/* 로드뷰 파노라마 오버레이(작은/큰 전환) */}
+      <div style={{
+        position: "absolute", zIndex: 20, overflow: "hidden", borderRadius: 10, border: "2px solid #fff",
+        boxShadow: "0 4px 16px rgba(0,0,0,.35)", display: roadview ? "block" : "none",
+        ...(panoBig
+          ? { inset: 12 }
+          : { left: 12, bottom: 12, width: 380, height: 260 }),
+      }}>
+        <div ref={panoDivRef} style={{ position: "absolute", inset: 0, background: "#2a2f36" }} />
+        <div style={{ position: "absolute", top: 8, right: 8, zIndex: 2, display: "flex", gap: 6 }}>
+          <button className="btn" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setPanoBig(!panoBig)}>{panoBig ? "⤡ 작게" : "⤢ 크게"}</button>
+          <button className="btn" style={{ padding: "5px 10px", fontSize: 12, color: "var(--up)" }} onClick={() => setRoadview(null)}>✕ 닫기</button>
+        </div>
       </div>
       {(drawMode !== "off" || snapping) && (
         <div style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", zIndex: 5,
