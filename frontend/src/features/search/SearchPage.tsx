@@ -76,6 +76,7 @@ export function SearchPage() {
   const [view, setView] = useState<"list" | "map">("list");
   const [polygon, setPolygon] = useState<object | null>(null);
   const [picked, setPicked] = useState<MapPin | null>(null);
+  const [centerReq, setCenterReq] = useState<{ lng: number; lat: number } | null>(null);  // 지도 중심 이동 요청
   const [sort, setSort] = useState("price");
   const [favOnly, setFavOnly] = useState(false);
   const [filters, setFilters] = useState<AttrFilters>({});      // 백엔드 쿼리용(모달 산출)
@@ -111,8 +112,9 @@ export function SearchPage() {
     await extrasApi.favToggle(pk);
     qc.invalidateQueries({ queryKey: ["search3"] });
   }
-  function toMap(h: Hit, key: "ad" | "mine" | "normal") {
+  function toMap(h: Hit, key: "ad" | "mine" | "normal") {   // 목록 [지도위치] → 지도뷰 + 그 매물로 중심 이동
     setPicked({ ...h, col: key });
+    if (h.lng && h.lat) setCenterReq({ lng: h.lng, lat: h.lat });
     setView("map");
   }
   // 필지 클릭 → 매물 선택(부동산플래닛식). 검색결과면 그 핀(분류색), 아니면 건물 조회 후 내매물/일반 판정
@@ -239,7 +241,7 @@ export function SearchPage() {
             {picked ? <SelCard picked={picked} bldg={pickedBldg.data} trend={trend} onDetail={() => go(picked.building_pk)} onFav={() => toggleFav(picked.building_pk)} /> : null}
             <div className="ml-head">이 지도 영역 <b className="num">{pins.length}</b>건 · 핀과 동기화</div>
             {pins.map((p) => (
-              <div key={p.building_pk} className={`ml-row ${picked?.building_pk === p.building_pk ? "on" : ""}`} onClick={() => setPicked(p)}>
+              <div key={p.building_pk} className={`ml-row ${picked?.building_pk === p.building_pk ? "on" : ""}`} onClick={() => { setPicked(p); if (p.lng && p.lat) setCenterReq({ lng: p.lng, lat: p.lat }); }}>
                 <span className="ml-a">{p.addr.replace("서울특별시 ", "").replace("번지", "")}
                   <span className={`ml-tag ${p.col}`}>{p.col === "ad" ? "광고" : p.col === "mine" ? "내" : "일반"}</span>
                 </span>
@@ -255,6 +257,7 @@ export function SearchPage() {
               polygonActive={!!polygon}
               selectedPk={picked?.building_pk ?? null}
               selectedCol={picked?.col ?? null}
+              centerReq={centerReq}
               onParcelClick={(pk) => { if (pk) selectBuilding(pk); }}
               onPick={(pk) => setPicked(pins.find((p) => p.building_pk === pk) ?? null)}
               onPolygon={(g) => { setPolygon(g); setPages({ ad: 1, mine: 1, normal: 1 }); }}

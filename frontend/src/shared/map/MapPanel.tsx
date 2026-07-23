@@ -31,7 +31,7 @@ function geoToPaths(naver: any, geo: any): any[] {
 }
 
 export function MapPanel({
-  pins, onPick, onPolygon, polygonActive, selectedPk, selectedCol, onParcelClick,
+  pins, onPick, onPolygon, polygonActive, selectedPk, selectedCol, onParcelClick, centerReq,
 }: {
   pins: MapPin[];
   onPick: (pk: string) => void;
@@ -40,6 +40,7 @@ export function MapPanel({
   selectedPk?: string | null;                 // 선택 건물(필지 분류색 오버레이)
   selectedCol?: "ad" | "mine" | "normal" | null;
   onParcelClick?: (building_pk: string | null, pnu: string) => void;  // 필지 클릭(부동산플래닛식)
+  centerReq?: { lng: number; lat: number } | null;  // 지도 중심 이동 요청(사이드바·지도위치 선택 시)
 }) {
   const divRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -100,6 +101,13 @@ export function MapPanel({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, pins]);
+
+  // 선택 매물 좌표로 지도 중심 이동(줌 유지). 사이드바 목록·지도위치 선택 시 요청됨
+  useEffect(() => {
+    if (!ready || !centerReq) return;
+    const naver = window.naver;
+    mapRef.current.panTo(new naver.maps.LatLng(centerReq.lat, centerReq.lng));
+  }, [ready, centerReq]);
 
   // 레이어 토글
   useEffect(() => {
