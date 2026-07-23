@@ -26,7 +26,7 @@ export function Shell() {
           로그아웃
         </button>
       </header>
-      <main style={{ maxWidth: 1304, margin: "18px auto", padding: "0 18px" }}>
+      <main style={{ margin: "18px 0 0", padding: 0 }}>
         <Outlet />
       </main>
     </>

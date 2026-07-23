@@ -86,6 +86,7 @@ export function SearchPage() {
   const [fValues, setFValues] = useState<Values>({});           // 필터 모달 원본값(칩·재편집용)
   const [fRegions, setFRegions] = useState<RegionPick[]>([]);   // 지역 앵커(필터에서 선택)
   const [showFilter, setShowFilter] = useState(false);
+  const [barCollapsed, setBarCollapsed] = useState(false);      // 검색바 접기(공간 절약)
   const [pages, setPages] = useState({ ad: 1, mine: 1, normal: 1 });
   const bjd = fRegions[0]?.bjd_code ?? "";                       // 단일지역(멀티는 백엔드 확장 예정)
   const filterCount = activeCount(fValues, fRegions);
@@ -173,8 +174,15 @@ export function SearchPage() {
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      {/* 검색바 — 목업 S01: 주소 + 필터 + 검색 + 즐겨찾기 + 매물/지도. 지역은 필터에서 선택→칩 */}
-      <div className="panel" style={{ padding: 16 }}>
+      {/* 검색바 — 헤더에 밀착(마진 제거) + 접기/펼치기로 공간 절약 */}
+      <div className="panel" style={{ padding: barCollapsed ? 0 : 16, marginTop: -18, borderTopLeftRadius: 0, borderTopRightRadius: 0 }}>
+        {barCollapsed ? (
+          /* 접힘: 거의 안 보이는 얇은 띠(펼치기 핸들만) */
+          <button onClick={() => setBarCollapsed(false)} title="검색바 펼치기"
+            style={{ width: "100%", border: 0, background: "transparent", cursor: "pointer", color: "var(--muted)", fontSize: 11, padding: "2px 0", lineHeight: 1, letterSpacing: 4 }}>
+            ▾
+          </button>
+        ) : (<>
         <div className="toolbar">
           <div className="ac-wrap" style={{ flex: "1 1 300px", maxWidth: 420 }}>
             <input className="input" style={{ width: "100%", minWidth: 0 }}
@@ -198,6 +206,7 @@ export function SearchPage() {
             <button className={view === "list" ? "active" : ""} onClick={() => setView("list")}>매물</button>
             <button className={view === "map" ? "active" : ""} onClick={() => setView("map")}>지도</button>
           </div>
+          <button className="btn" onClick={() => setBarCollapsed(true)} title="검색바 접기">▴</button>
         </div>
         {/* 적용된 조건 칩(§3.2) — 지역 + 조건 + 그린영역 */}
         {(fRegions.length > 0 || polygon || filterCount > 0) && (
@@ -211,6 +220,7 @@ export function SearchPage() {
             ))}
           </div>
         )}
+        </>)}
       </div>
 
       {/* 결과바 — 건수 + 정렬 (목업 별도 바) */}
