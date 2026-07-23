@@ -23,13 +23,17 @@ type Scope = "all" | "deal" | "land";
 type Validate = (v: string) => string | null;
 const vRate100: Validate = (v) => { const n = parseFloat(v); if (Number.isNaN(n)) return "숫자를 입력하세요"; if (n < 0 || n > 100) return "0~100% 범위"; return null; };
 const vNonNeg: Validate = (v) => { const n = parseFloat(v); if (Number.isNaN(n)) return "숫자를 입력하세요"; if (n < 0) return "0 이상 값"; return null; };
+const vPos: Validate = (v) => { const n = parseFloat(v); if (Number.isNaN(n)) return "숫자를 입력하세요"; if (n <= 0) return "0보다 커야 함"; return null; };
+const todayYmd = () => new Date().toISOString().slice(0, 10).replace(/-/g, "");
+const vYmd: Validate = (v) => { if (!/^\d{8}$/.test(v.replace(/-/g, ""))) return "YYYYMMDD 형식"; if (v.replace(/-/g, "") > todayYmd()) return "미래 날짜 불가"; return null; };
 
 /* 마스터 표시 + 유저 오버레이 인라인 편집(값 클릭→수정→자동저장·검증·↺되돌리기). 최상위=편집 중 리마운트 방지 */
 interface KVProps {
   label: string; field?: string; value: React.ReactNode; unit?: string; editable?: boolean; calc?: boolean;
-  validate?: Validate; current?: unknown; onSave?: (field: string, value: string) => void; onRevert?: (field: string) => void;
+  validate?: Validate; current?: unknown; parse?: (v: string) => string;   // parse: 입력→저장값 변환(평→㎡·억→원)
+  onSave?: (field: string, value: string) => void; onRevert?: (field: string) => void;
 }
-function KV({ label, field, value, unit: u, editable, calc, validate, current, onSave, onRevert }: KVProps) {
+function KV({ label, field, value, unit: u, editable, calc, validate, current, parse, onSave, onRevert }: KVProps) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -37,7 +41,7 @@ function KV({ label, field, value, unit: u, editable, calc, validate, current, o
     const e = validate && val ? validate(val) : null;
     if (e) { setErr(e); return; }                   // 오류 → 저장 안 함, 편집 유지
     setErr(null); setEditing(false);
-    if (val && field) onSave?.(field, val);
+    if (val && field) onSave?.(field, parse ? parse(val) : val);
   }
   if (editable && field && editing) {
     return (
@@ -127,7 +131,11 @@ export function BuildingPage() {
   const adSeries = useMemo(() => (ads.data ?? []).filter((a) => a.price != null)
     .map((a) => ({ x: a.observed_on, y: a.price as number })).reverse(), [ads.data]);
   const latestAd = adSeries.length ? adSeries[adSeries.length - 1].y : null;
-  const price = latestAd ?? (b.last_sale_price ? Number(b.last_sale_price) : null);   // 매매가 = 광고가 | 최근매각
+  // 매매가 = 사용자 입력(✏️ sale_price 오버레이) 우선. 미입력이면 광고가/실거래 기반 '추정'(실거래가≠매매가)
+  const saleOverlay = b.sale_price != null && b.sale_price !== "" ? Number(b.sale_price) : null;
+  const estPrice = latestAd ?? (b.last_sale_price ? Number(b.last_sale_price) : null);
+  const price = saleOverlay ?? estPrice;               // 수익률·평단가 계산용
+  const priceIsEst = saleOverlay == null;              // 매매가 미입력 → 추정치 표시
   const landP = b.land_area ? Number(b.land_area) / P : null;
   const totalP = b.total_area ? Number(b.total_area) / P : null;
   const yearRent = total ? total.rent * 12 : 0;
@@ -149,6 +157,9 @@ export function BuildingPage() {
   // 인라인 편집 저장/되돌리기 핸들러(KV는 최상위 컴포넌트 = 리마운트 버그 방지)
   const onSave = (field: string, value: string) => editField.mutate({ field, value });
   const onRevert = (field: string) => revert.mutate(field);
+  // 면적: 편집 seed=현재 단위, 저장=㎡
+  const areaSeed = (m2: unknown) => (m2 != null && m2 !== "" ? +(unit === "py" ? Number(m2) / P : Number(m2)).toFixed(1) : "");
+  const areaParse = (v: string) => String(Math.round((unit === "py" ? parseFloat(v) * P : parseFloat(v)) * 100) / 100);
 
   const metric = (k: string, v: React.ReactNode) => (
     <div style={{ background: "var(--surface-2)", border: "1px solid var(--line)", borderRadius: 8, padding: "7px 13px", minWidth: 84, textAlign: "right" }}>
@@ -180,7 +191,7 @@ export function BuildingPage() {
           </div>
         </div>
         <div className="hdr-metrics" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {metric("매매가", price ? eok(price) : "—")}
+          {metric("매매가", price ? <>{eok(price)}{priceIsEst && <small style={{ fontSize: 10, color: "var(--muted)", fontWeight: 600 }}> 추정</small>}</> : "—")}
           {metric("수익률(만실)", roiNow ? `${roiNow.toFixed(1)}%` : "—")}
           {metric("평단가(대지)", pricePerLand ? eok(pricePerLand) : "—")}
           {metric("면적 (평)", `${landP ? landP.toFixed(1) : "—"} / ${totalP ? totalP.toFixed(1) : "—"} / —`)}
@@ -217,7 +228,9 @@ export function BuildingPage() {
             <div className="panel">
               <div className="sec-head">금액정보</div>
               <div className="kv-grid">
-                <KV label="매매가" value={eok(price)} calc={!!latestAd} />
+                <KV label="매매가" field="sale_price" value={price != null ? `${eok(price)}${priceIsEst ? " (추정)" : ""}` : "—"}
+                  editable current={price != null ? +(price / 1e8).toFixed(2) : ""} parse={(v) => String(Math.round(parseFloat(v) * 1e8))} validate={vPos}
+                  onSave={onSave} onRevert={onRevert} />
                 <KV label="수익률(만실)" value={roiNow ? `${roiNow.toFixed(2)}%` : "—"} calc />
                 <KV label="대지 평단가" value={pricePerLand ? eok(pricePerLand) : "—"} calc />
                 <KV label="연면적 평단가" value={price && totalP ? eok(price / totalP) : "—"} calc />
@@ -264,17 +277,18 @@ export function BuildingPage() {
             <div className="panel">
               <div className="sec-head">건물정보 <small style={{ color: "var(--muted)", fontWeight: 400 }}>값 클릭 = 수정 · ↺ = 되돌리기</small></div>
               <div className="kv-grid">
-                <KV label="대지면적" value={area(b.land_area)} />
-                <KV label="연면적" value={area(b.total_area)} />
-                <KV label="건축면적" value="—" />
-                <KV label="층수" value={`지상 ${b.floors_above ?? "—"} · 지하 ${b.floors_below ?? "—"}`} />
+                <KV label="대지면적" field="land_area" value={area(b.land_area)} editable current={areaSeed(b.land_area)} parse={areaParse} validate={vPos} onSave={onSave} onRevert={onRevert} />
+                <KV label="연면적" field="total_area" value={area(b.total_area)} editable current={areaSeed(b.total_area)} parse={areaParse} validate={vPos} onSave={onSave} onRevert={onRevert} />
+                <KV label="건축면적" field="build_area" value={area(b.build_area)} editable current={areaSeed(b.build_area)} parse={areaParse} validate={vPos} onSave={onSave} onRevert={onRevert} />
+                <KV label="지상 층수" field="floors_above" value={b.floors_above ?? "—"} unit="층" editable current={b.floors_above} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
+                <KV label="지하 층수" field="floors_below" value={b.floors_below ?? "—"} unit="층" editable current={b.floors_below} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
                 <KV label="주용도" value={String(b.main_use_name ?? "—")} />
-                <KV label="기타용도" value={String(b.etc_use ?? "—")} />
-                <KV label="구조" value={String(b.structure ?? "—")} />
+                <KV label="기타용도" field="etc_use" value={String(b.etc_use ?? "—")} editable current={b.etc_use} onSave={onSave} onRevert={onRevert} />
+                <KV label="구조" field="structure" value={String(b.structure ?? "—")} editable current={b.structure} onSave={onSave} onRevert={onRevert} />
                 <KV label="건폐율" field="bcr" value={b.bcr ?? "—"} unit="%" editable validate={vRate100} current={b.bcr} onSave={onSave} onRevert={onRevert} />
                 <KV label="용적률" field="far" value={b.far ?? "—"} unit="%" editable validate={vNonNeg} current={b.far} onSave={onSave} onRevert={onRevert} />
-                <KV label="사용승인일" value={String(b.approval_ymd ?? "—")} />
-                <KV label="최근 대수선" value={String(b.remodel_ymd ?? "—")} />
+                <KV label="사용승인일" field="approval_ymd" value={String(b.approval_ymd ?? "—")} editable current={b.approval_ymd} validate={vYmd} onSave={onSave} onRevert={onRevert} />
+                <KV label="최근 대수선" field="remodel_ymd" value={String(b.remodel_ymd ?? "—")} editable current={b.remodel_ymd} validate={vYmd} onSave={onSave} onRevert={onRevert} />
               </div>
             </div>
           )}
