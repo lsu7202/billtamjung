@@ -55,25 +55,34 @@ const BIZ_TEXT: [string, string, string][] = [
 
 function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string, unknown>; refresh: () => void }) {
   const en = useEnums();
-  const registered = listing?.registered === true;
+  const members = useQuery({ queryKey: ["team-members"], queryFn: listingsApi.members });
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api<{ account_id: number }>("/auth/me") });
+  const assignee = listing?.assignee_account_id != null ? Number(listing.assignee_account_id) : null;
   const val = (k: string) => (listing?.[k] != null ? String(listing[k]) : "");
 
   async function save(k: string, v: string) {
     await listingsApi.patchBiz(pk, { [k]: v || null });
     refresh();
   }
-  async function claim(on: boolean) {
-    const me = on ? (await api<{ account_id: number }>("/auth/me")).account_id : null;
-    await listingsApi.claim(pk, me);
+  async function assign(id: number | null) {   // 담당자 지정=등록 · 미지정=해제(claim이 팀권한 검증)
+    await listingsApi.claim(pk, id);
     refresh();
   }
 
   return (
     <div style={{ display: "grid", gap: 8, fontSize: 13 }}>
-      <div className="kv"><span className="k">등록 상태</span><span className="v">{registered ? "내 매물" : "미등록"}</span></div>
-      {registered
-        ? <button className="btn" onClick={() => claim(false)}>등록 해제 (담당자 비우기)</button>
-        : <button className="btn primary" onClick={() => claim(true)}>내 매물로 등록 (담당자 = 나)</button>}
+      <div className="kv" style={{ alignItems: "center" }}>
+        <span className="k">담당자 <small style={{ color: "var(--muted)", fontWeight: 400 }}>지정=등록</small></span>
+        <select className="input" style={{ maxWidth: 150, padding: "4px 8px", fontSize: 13 }}
+          value={assignee ?? ""} onChange={(e) => assign(e.target.value ? Number(e.target.value) : null)}>
+          <option value="">미지정 (등록 해제)</option>
+          {(members.data ?? []).map((m) => (
+            <option key={m.account_id} value={m.account_id}>
+              {m.name}{me.data?.account_id === m.account_id ? " (나)" : ""}{m.role === "owner" ? " · 대표" : ""}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <div style={{ margin: "6px 0 2px", fontWeight: 700 }}>업무 정보 <small style={{ color: "var(--muted)", fontWeight: 400 }}>변경 즉시 저장</small></div>
       {BIZ_ENUM.map(([label, k, ek]) => {
