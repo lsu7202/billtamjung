@@ -24,7 +24,7 @@ export function Sidebar({ pk }: { pk: string }) {
   );
 
   return (
-    <div className="panel" style={{ position: "sticky", top: 70 }}>
+    <div className="panel" style={{ position: "sticky", top: 12 }}>
       <div style={{ display: "flex" }}>
         {tabBtn("biz", "업무")}{tabBtn("wiki", "위키")}{tabBtn("hist", "수정이력")}{tabBtn("memo", "메모")}
       </div>

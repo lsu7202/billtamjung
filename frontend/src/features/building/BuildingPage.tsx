@@ -145,7 +145,7 @@ export function BuildingPage() {
   const area = (m2?: number | string | null) => {
     const v = typeof m2 === "string" ? parseFloat(m2) : m2;
     if (v == null || Number.isNaN(v)) return "—";
-    return unit === "py" ? `${(v / P).toFixed(1)}평` : `${v.toLocaleString()}㎡`;
+    return unit === "py" ? `${(v / P).toFixed(1)}평` : `${v.toLocaleString(undefined, { maximumFractionDigits: 20 })}㎡`;   // ㎡=원값 그대로
   };
   const eok = (n?: number | null) => (n == null ? "—" : n >= 1e8 ? `${(n / 1e8).toFixed(1)}억` : `${Math.round(n / 1e4).toLocaleString()}만`);
 
@@ -159,7 +159,7 @@ export function BuildingPage() {
   const onRevert = (field: string) => revert.mutate(field);
   // 면적: 편집 seed=현재 단위, 저장=㎡
   const areaSeed = (m2: unknown) => (m2 != null && m2 !== "" ? +(unit === "py" ? Number(m2) / P : Number(m2)).toFixed(1) : "");
-  const areaParse = (v: string) => String(Math.round((unit === "py" ? parseFloat(v) * P : parseFloat(v)) * 100) / 100);
+  const areaParse = (v: string) => String(unit === "py" ? parseFloat(v) * P : parseFloat(v));   // ㎡ 저장은 반올림 없이 원값
 
   const metric = (k: string, v: React.ReactNode) => (
     <div style={{ background: "var(--surface-2)", border: "1px solid var(--line)", borderRadius: 8, padding: "7px 13px", minWidth: 84, textAlign: "right" }}>
@@ -177,7 +177,7 @@ export function BuildingPage() {
   return (
     <div style={{ display: "grid", gap: 14 }}>
       {/* ── 헤더(S02 §3.1) ── */}
-      <div className="panel" style={{ padding: "16px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, position: "sticky", top: 56, zIndex: 20 }}>
+      <div className="panel" style={{ padding: "16px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, position: "sticky", top: 0, zIndex: 20 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 20 }}>
             {b.addr}
