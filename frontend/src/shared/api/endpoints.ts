@@ -61,9 +61,8 @@ export const searchApi = {
     }),
   snap: (polygon: object) =>                          // 자석 스냅(후처리): 그린 영역 → 필지 합집합 폴리곤
     api<{ polygon: object | null }>("/search/snap", { method: "POST", body: JSON.stringify({ polygon }) }),
-  parcels: (b: { w: number; s: number; e: number; n: number }) =>   // 뷰포트 필지 레이어
-    api<{ pnu: string; building_pk: string | null; geom: { type: string; coordinates: unknown } }[]>(
-      `/search/parcels?w=${b.w}&s=${b.s}&e=${b.e}&n=${b.n}`),
+  parcelAt: (lng: number, lat: number) =>              // 클릭 지점 필지 → building_pk
+    api<{ building_pk: string | null; pnu: string | null }>(`/search/parcel-at?lng=${lng}&lat=${lat}`),
   parcelFor: (pk: string) =>                           // 건물 필지 합집합(선택 오버레이)
     api<{ polygon: { type: string; coordinates: unknown } | null }>(`/search/parcel/${pk}`),
 };

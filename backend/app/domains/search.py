@@ -123,21 +123,18 @@ async def snap_parcels(body: SnapIn, _: CurrentUser = Depends(current_user)):
     return {"polygon": json.loads(gj) if gj else None}
 
 
-@router.get("/parcels")
-async def parcels_in_view(w: float, s: float, e: float, n: float,
-                          _: CurrentUser = Depends(current_user)):
-    """뷰포트 내 필지 폴리곤(부동산플래닛식 클릭 레이어). bbox && GiST + 단순화 + 상한.
-    building_pk 없는 필지(나대지·도로)도 포함(표시만, 클릭 시 매물 없음)."""
-    rows = await pool().fetch(
-        """SELECT pnu, building_pk,
-                  ST_AsGeoJSON(ST_SimplifyPreserveTopology(geom, 0.000012)) AS geom
-           FROM master.parcels
-           WHERE geom && ST_MakeEnvelope($1, $2, $3, $4, 4326)
-           LIMIT 1500""",
-        w, s, e, n,
+@router.get("/parcel-at")
+async def parcel_at_point(lng: float, lat: float, _: CurrentUser = Depends(current_user)):
+    """클릭 지점을 포함하는 필지 1건 → building_pk. 지적도 전체 로드 없이 클릭 시에만 조회.
+    ST_Contains(&& GiST 선행). 색칠은 building_pk로 /parcel/{pk} 조회."""
+    row = await pool().fetchrow(
+        """SELECT building_pk, pnu FROM master.parcels
+           WHERE geom && ST_SetSRID(ST_MakePoint($1, $2), 4326)
+             AND ST_Contains(geom, ST_SetSRID(ST_MakePoint($1, $2), 4326))
+           LIMIT 1""",
+        lng, lat,
     )
-    return [{"pnu": r["pnu"], "building_pk": r["building_pk"], "geom": json.loads(r["geom"])}
-            for r in rows if r["geom"]]
+    return {"building_pk": row["building_pk"], "pnu": row["pnu"]} if row else {"building_pk": None, "pnu": None}
 
 
 @router.get("/parcel/{building_pk}")
