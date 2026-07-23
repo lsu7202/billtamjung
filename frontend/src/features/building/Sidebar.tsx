@@ -116,19 +116,35 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
 
 function WikiTab({ pk, items, refresh }: { pk: string; items: Record<string, unknown>[]; refresh: () => void }) {
   const [body, setBody] = useState("");
+  const [showAll, setShowAll] = useState(false);
+  async function vote(id: number) { await extrasApi.wikiVote(id); refresh(); }
+  const row = (w: Record<string, unknown>, full: boolean) => (
+    <div key={String(w.id)} style={{ borderBottom: "1px solid var(--line)", padding: "6px 0", display: "flex", gap: 8, alignItems: "flex-start" }}>
+      <div style={{ flex: 1 }}>
+        <b style={{ color: "var(--signal)" }}>{String(w.category ?? "일반")}</b> {String(w.body)}
+        {full && w.author_name != null && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{String(w.author_name)}</div>}
+      </div>
+      <button className="btn" style={{ padding: "2px 8px", fontSize: 12, flex: "0 0 auto" }} onClick={() => vote(Number(w.id))} title="동의(다시 누르면 취소)">👍 {String(w.votes)}</button>
+    </div>
+  );
   return (
     <div style={{ display: "grid", gap: 8, fontSize: 13 }}>
-      {items.map((w) => (
-        <div key={String(w.id)} style={{ borderBottom: "1px solid var(--line)", paddingBottom: 8 }}>
-          <b style={{ color: "var(--signal)" }}>{String(w.category ?? "일반")}</b> {String(w.body)}
-          <span style={{ color: "var(--muted)", marginLeft: 6 }}>👍 {String(w.votes)}</span>
-        </div>
-      ))}
+      {items.slice(0, 3).map((w) => row(w, false))}
       {items.length === 0 && <p style={{ color: "var(--muted)" }}>등록된 특이사항이 없습니다</p>}
+      {items.length > 3 && <button className="btn" onClick={() => setShowAll(true)}>전체보기 {items.length}</button>}
       <div style={{ display: "flex", gap: 6 }}>
         <input className="input" placeholder="특이사항 (전체 공유)" value={body} onChange={(e) => setBody(e.target.value)} />
         <button className="btn" onClick={async () => { if (!body.trim()) return; await extrasApi.wikiPost(pk, body.trim()); setBody(""); refresh(); }}>등록</button>
       </div>
+      {showAll && (
+        <div className="modal-bg open" onClick={() => setShowAll(false)}>
+          <div className="modal" style={{ width: "min(680px,100%)" }} onClick={(e) => e.stopPropagation()}>
+            <h3>위키 · 집단지성 특이사항 <small style={{ fontSize: 12, color: "var(--muted)", fontWeight: 400, marginLeft: 8 }}>{items.length}건</small>
+              <span className="right"><button className="btn" onClick={() => setShowAll(false)}>닫기</button></span></h3>
+            <div style={{ display: "grid", gap: 2, maxHeight: "60vh", overflow: "auto", fontSize: 13 }}>{items.map((w) => row(w, true))}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -144,6 +144,7 @@ export const extrasApi = {
   wikiList: (pk: string) => api<Record<string, unknown>[]>(`/buildings/${pk}/wiki`),
   wikiPost: (pk: string, body: string, category?: string) =>
     api(`/buildings/${pk}/wiki`, { method: "POST", body: JSON.stringify({ body, category }) }),
+  wikiVote: (postId: number) => api<{ voted: boolean }>(`/wiki/${postId}/vote`, { method: "PUT" }),
   memoList: (pk: string) => api<Record<string, unknown>[]>(`/buildings/${pk}/memos`),
   memoAdd: (pk: string, kind: "team" | "secret", body: string) =>
     api(`/buildings/${pk}/memos`, { method: "PUT", body: JSON.stringify({ kind, body }) }),
