@@ -28,7 +28,7 @@
 
 /* 선택 매물 요약 카드 (S02 헤더 축약 + 시계열) */
 .sel-card { border-bottom: 8px solid var(--surface-2); }
-.sel-road { height: 130px; position: relative; background: linear-gradient(150deg, #8a97a6, #5f6b7a); }
+.sel-road { height: 260px; position: relative; background: linear-gradient(150deg, #8a97a6, #5f6b7a); }
 .sel-road::after { content: "로드뷰"; position: absolute; left: 10px; bottom: 8px; font-size: 10px; font-weight: 700; color: #fff; background: rgba(15,26,46,.55); padding: 2px 8px; border-radius: 5px; }
 .sel-body { padding: 13px 15px; }
 .sel-addr { font-size: 15px; font-weight: 800; letter-spacing: -.02em; display: flex; align-items: center; gap: 7px; }
