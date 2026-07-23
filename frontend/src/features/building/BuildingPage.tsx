@@ -63,7 +63,7 @@ export function BuildingPage() {
   const landP = b.land_area ? Number(b.land_area) / P : null;
   const totalP = b.total_area ? Number(b.total_area) / P : null;
   const yearRent = total ? total.rent * 12 : 0;
-  const roiNow = price && yearRent ? (yearRent / price) * 100 : null;                 // 현재 수익률(F-10 단순형)
+  const roiNow = price && yearRent ? (yearRent / price) * 100 : null;                 // 수익률(만실) F-10 단순형(베타=공실데이터 없어 현재≈만실). 공실제외는 데이터 연동 후
   const pricePerLand = price && landP ? price / landP : null;
 
   const area = (m2?: number | string | null) => {
@@ -139,7 +139,7 @@ export function BuildingPage() {
         </div>
         <div className="hdr-metrics" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {metric("매매가", price ? eok(price) : "—")}
-          {metric("수익률(만실/현재)", roiNow ? `${roiNow.toFixed(1)}%` : "—")}
+          {metric("수익률(만실)", roiNow ? `${roiNow.toFixed(1)}%` : "—")}
           {metric("평단가(대지)", pricePerLand ? eok(pricePerLand) : "—")}
           {metric("면적 (평)", `${landP ? landP.toFixed(1) : "—"} / ${totalP ? totalP.toFixed(1) : "—"} / —`)}
           {metric("층수", `B${b.floors_below ?? "—"}F/${b.floors_above ?? "—"}F`)}
@@ -175,7 +175,7 @@ export function BuildingPage() {
               <div className="sec-head">금액정보</div>
               <div className="kv-grid">
                 <KV label="매매가" value={eok(price)} calc={!!latestAd} />
-                <KV label="수익률(현재)" value={roiNow ? `${roiNow.toFixed(2)}%` : "—"} calc />
+                <KV label="수익률(만실)" value={roiNow ? `${roiNow.toFixed(2)}%` : "—"} calc />
                 <KV label="대지 평단가" value={pricePerLand ? eok(pricePerLand) : "—"} calc />
                 <KV label="연면적 평단가" value={price && totalP ? eok(price / totalP) : "—"} calc />
                 <KV label="총보증금" value={total ? eok(total.deposit) : "—"} />

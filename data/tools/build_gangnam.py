@@ -62,6 +62,22 @@ def main():
     transit=load_jsonl_by_pnu("data/tools/_transit_ALL.jsonl",['역과의거리','주변지하철','주변버스'])
     legal=json.load(open(f"data/tools/_legal_{SGG}.json"))
     reg=json.load(open(f"data/tools/_regulations_{SGG}.json"))
+    annex=json.load(open(f"data/tools/_annex_{SGG}.json"))   # PK → {대표,부속,전체}
+
+    REG_KEYS=['고도지구','지구단위계획','정비구역','경관지구','방화지구','문화재보존']
+    def reg_or(pk, rep_pnu):
+        """건물 규제 = 그 건물이 앉은 전 필지의 OR 집계 (2026-07-19).
+        건물이 여러 필지에 걸치면 어느 필지든 규제에 걸릴 때 건물이 영향을 받는다.
+        기존엔 대표필지만 봐서 부속필지 규제가 누락됐다(강남 27동 확인)."""
+        pnus = (annex.get(pk) or {}).get('전체') or [rep_pnu]
+        out={}
+        for k in REG_KEYS:
+            vals=[reg.get(p,{}).get(k) for p in pnus]
+            vals=[v for v in vals if v]
+            if not vals: continue
+            uniq=list(dict.fromkeys(vals))          # 값 보존, 중복 제거
+            out[k]=uniq[0] if len(uniq)==1 else " / ".join(uniq)
+        return out
     aplus=json.load(open("data/tools/_sales_est.json"))
 
     def yongdo(pnu):
@@ -87,7 +103,8 @@ def main():
         b=json.loads(line); pnu=b['PNU']
         if not pnu or not pnu.startswith(SGG): continue
         n+=1
-        L=land.get(pnu,{}); Tr=transit.get(pnu,{}); lg=legal.get(pnu,{}); rg=reg.get(pnu,{})
+        L=land.get(pnu,{}); Tr=transit.get(pnu,{}); lg=legal.get(pnu,{})
+        rg=reg_or(b['PK'], pnu)     # ← 전 필지 OR (구: reg.get(pnu,{}) = 대표만)
         gj=L.get('공시지가') or {}
         # 공시지가 상승률
         latest=gj.get('2026'); p5=gj.get('2021'); p10=gj.get('2016')

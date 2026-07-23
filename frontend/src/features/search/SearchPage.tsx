@@ -51,7 +51,7 @@ function SelCard({ picked, bldg, trend, onDetail, onFav }: {
         </div>
         <div className="sel-metrics">
           <div className="m"><div className="mk">매매가</div><div className="mv">{won(picked.price)}</div></div>
-          <div className="m"><div className="mk">수익률(현재)</div><div className="mv">{picked.roi == null ? "—" : `${picked.roi}%`}</div></div>
+          <div className="m"><div className="mk">수익률(만실)</div><div className="mv">{picked.roi == null ? "—" : `${picked.roi}%`}</div></div>
           <div className="m"><div className="mk">평단가(대지)</div><div className="mv">{ppy}</div></div>
           <div className="m"><div className="mk">층수</div><div className="mv">{fb ? `B${fb}` : ""}{fb ? "/" : ""}{fa != null ? `${fa}F` : "—"}</div></div>
           <div className="m wide"><div className="mk">면적 (평)</div>

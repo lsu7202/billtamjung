@@ -81,7 +81,7 @@ export const GROUPS: Group[] = [
   { t: "금액정보",
     reps: [
       S("매매가", { min: 0, max: 200, unit: "억", inf: true, ticks: "0,50,100,150", chips: [["~50억", 0, 50], ["50~100", 50, 100], ["100억~", 100, ""]] }),
-      S("수익률(현재)", { min: 0, max: 8, step: 0.1, unit: "%", inf: true, handle: "left", ticks: "0,2,4,6", chips: [["3%↑", 3, ""], ["4%↑", 4, ""], ["5%↑", 5, ""]] }),
+      S("수익률(만실)", { min: 0, max: 8, step: 0.1, unit: "%", inf: true, handle: "left", ticks: "0,2,4,6", chips: [["3%↑", 3, ""], ["4%↑", 4, ""], ["5%↑", 5, ""]] }),
     ],
     body: [
       S("평단가(대지)", { min: 0, max: 30000, unit: "만원", inf: true, ticks: "0,5000,10000,20000" }),
@@ -89,7 +89,6 @@ export const GROUPS: Group[] = [
       S("총보증금", { min: 0, max: 100000, unit: "만원", inf: true, ticks: "0,10000,30000,50000" }),
       S("총임대료", { min: 0, max: 10000, unit: "만원", inf: true, ticks: "0,2000,5000" }),
       S("총관리비", { min: 0, max: 5000, unit: "만원", inf: true, ticks: "0,1000,3000" }),
-      S("수익률(만실)", { min: 0, max: 8, step: 0.1, unit: "%", inf: true, handle: "left", ticks: "0,2,4,6" }),
       S("수익률(공실제외)", { min: 0, max: 8, step: 0.1, unit: "%", inf: true, handle: "left", ticks: "0,3,6" }),
       T("총공실", ["있음", "없음"]),
     ] },
