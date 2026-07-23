@@ -172,6 +172,11 @@ export function SearchPage() {
     );
   }, [result.data]);
 
+  // 지도 미니리스트 페이징 — 3열 페이지를 함께 이동(초과 열은 빈 결과)
+  const mapPages = result.data ? Math.max(result.data.ad.pages, result.data.mine.pages, result.data.normal.pages, 1) : 1;
+  const mapPage = Math.min(Math.max(pages.ad, pages.mine, pages.normal), mapPages);
+  const goMapPage = (p: number) => { const np = Math.min(Math.max(1, p), mapPages); setPages({ ad: np, mine: np, normal: np }); };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 10 }}>
       {/* 검색바 — 헤더에 밀착 + 접기/펼치기로 공간 절약 */}
@@ -252,7 +257,16 @@ export function SearchPage() {
           {/* 좌: 선택 매물 요약 + 미니리스트(핀 동기) */}
           <div className="map-list">
             {picked ? <SelCard picked={picked} bldg={pickedBldg.data} trend={trend} onDetail={() => go(picked.building_pk)} onFav={() => toggleFav(picked.building_pk)} /> : null}
-            <div className="ml-head">이 지도 영역 <b className="num">{pins.length}</b>건 · 핀과 동기화</div>
+            <div className="ml-head">
+              <span>이 지도 영역 <b className="num">{pins.length}</b>건 · 핀과 동기화</span>
+              {mapPages > 1 && (
+                <span className="ml-pager">
+                  <button disabled={mapPage <= 1} onClick={() => goMapPage(mapPage - 1)}>‹</button>
+                  <span className="pg">{mapPage} / {mapPages}</span>
+                  <button disabled={mapPage >= mapPages} onClick={() => goMapPage(mapPage + 1)}>›</button>
+                </span>
+              )}
+            </div>
             {pins.map((p) => (
               <div key={p.building_pk} className={`ml-row ${picked?.building_pk === p.building_pk ? "on" : ""}`} onClick={() => { setPicked(p); if (p.lng && p.lat) setCenterReq({ lng: p.lng, lat: p.lat }); }}>
                 <span className="ml-a">{p.addr.replace("서울특별시 ", "").replace("번지", "")}
