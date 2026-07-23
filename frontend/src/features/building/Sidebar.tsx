@@ -88,6 +88,19 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
       {BIZ_ENUM.map(([label, k, ek]) => {
         const opts = en.options(ek);
         const cur = val(k) || "미지정";
+        if (k === "status") {                        // 진행상태 = segmented(목업 정합)
+          return (
+            <div className="kv" key={k} style={{ alignItems: "flex-start" }}>
+              <span className="k">{label}</span>
+              <span style={{ display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "flex-end" }}>
+                {opts.map((o) => (
+                  <button key={o.code} className={`btn ${cur === o.code ? "primary" : ""}`}
+                    style={{ padding: "3px 8px", fontSize: 12 }} onClick={() => save(k, o.code)}>{o.label}</button>
+                ))}
+              </span>
+            </div>
+          );
+        }
         return (
           <div className="kv" key={k} style={{ alignItems: "center" }}>
             <span className="k">{label}</span>
