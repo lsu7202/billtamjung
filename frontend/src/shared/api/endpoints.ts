@@ -104,6 +104,7 @@ export const listingsApi = {
   patchBiz: (building_pk: string, fields: Record<string, string | null>) =>
     api("/listings/biz", { method: "PATCH", body: JSON.stringify({ building_pk, fields }) }),
   mine: () => api<Record<string, unknown>[]>("/listings"),
+  members: () => api<{ account_id: number; name: string; role: string }[]>("/listings/members"),
 };
 
 export const rentsApi = {

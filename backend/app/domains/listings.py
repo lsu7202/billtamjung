@@ -36,6 +36,19 @@ def _mask_phone(row: dict, user: CurrentUser, owner_id: int | None) -> dict:
     return row
 
 
+@router.get("/members")
+async def team_members(user: CurrentUser = Depends(current_user)):
+    """내 팀 멤버 목록(담당자 드롭다운·필터용). 대표 우선·이름순. §S02 §4.1 · S01b 담당자 필터."""
+    rows = await pool().fetch(
+        """SELECT a.id AS account_id, a.name, tm.role
+           FROM app.team_members tm JOIN app.accounts a ON a.id = tm.account_id
+           WHERE tm.team_id = $1 AND tm.left_at IS NULL AND a.deleted_at IS NULL
+           ORDER BY (tm.role = 'owner') DESC, a.name""",
+        user.team_id,
+    )
+    return [{"account_id": r["account_id"], "name": r["name"], "role": r["role"]} for r in rows]
+
+
 @router.get("/{building_pk}")
 async def get_listing(building_pk: str, user: CurrentUser = Depends(current_user)):
     row = await pool().fetchrow(

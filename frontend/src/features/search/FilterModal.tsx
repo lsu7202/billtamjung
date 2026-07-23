@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { searchApi, savedApi, type AttrFilters } from "../../shared/api/endpoints";
-import { GROUPS, type Field } from "./filterConfig";
+import { searchApi, savedApi, listingsApi, type AttrFilters } from "../../shared/api/endpoints";
+import { GROUPS, type Field, type Group } from "./filterConfig";
 import "./filter.css";
 
 /* S01b 상세검색 필터 — 목업 S01b.html 정본. 7카테고리·60필드·컨트롤 8종·vchip/팝오버·지역 캐스케이드·저장/불러오기. */
@@ -245,6 +245,13 @@ export function FilterModal({
 }) {
   const regionsQ = useQuery({ queryKey: ["regions"], queryFn: searchApi.regions });
   const saved = useQuery({ queryKey: ["saved"], queryFn: savedApi.list });
+  const membersQ = useQuery({ queryKey: ["team-members"], queryFn: listingsApi.members });
+  // 담당자 옵션 = 내 팀 멤버(런타임 주입). 하드코딩 대체.
+  const groups = useMemo<Group[]>(() => {
+    const names = (membersQ.data ?? []).map((m) => m.name);
+    const inject = (f: Field) => (f.label === "담당자" ? { ...f, opts: names } : f);
+    return GROUPS.map((g) => ({ ...g, reps: g.reps.map(inject), body: g.body.map(inject) }));
+  }, [membersQ.data]);
   const [unit, setUnit] = useState<"평" | "㎡">("평");
   const [tab, setTab] = useState<"all" | number>("all");
   const [values, setValues] = useState<Values>(initialValues ?? {});
@@ -325,7 +332,7 @@ export function FilterModal({
               <span className="albl">적용된 조건</span>
               {count === 0 && <span className="empty">아직 없음 — 카테고리에서 조건을 지정하세요</span>}
               {regions.map((r) => <span key={r.bjd_code} className="achip"><span className="k">지역</span>{r.label}<span className="x" onClick={() => setRegions(regions.filter((x) => x.bjd_code !== r.bjd_code))}>×</span></span>)}
-              {GROUPS.flatMap((g) => [...g.reps, ...g.body]).filter((f) => !isEmpty(f, values[f.label])).map((f) => (
+              {groups.flatMap((g) => [...g.reps, ...g.body]).filter((f) => !isEmpty(f, values[f.label])).map((f) => (
                 <span key={f.label} className="achip"><span className="k">{f.label}</span>{summary(f, values[f.label], unit)}<span className="x" onClick={() => clearVal(f.label)}>×</span></span>
               ))}
             </div>
@@ -335,7 +342,7 @@ export function FilterModal({
             <div className="sb">
               <div className="idx">
                 <button className={`idx-item ${tab === "all" ? "on" : ""}`} onClick={() => setTab("all")}><span className="il">⭐ 자주 찾는 조건</span><span className="badge zero">{count}</span></button>
-                {GROUPS.map((g, i) => {
+                {groups.map((g, i) => {
                   const c = [...g.reps, ...g.body].filter((f) => !isEmpty(f, values[f.label])).length;
                   return <button key={g.t} className={`idx-item ${tab === i ? "on" : ""}`} onClick={() => setTab(i)}><span className="il">{g.t}</span><span className={`badge ${c ? "" : "zero"}`}>{c}</span></button>;
                 })}
@@ -343,16 +350,16 @@ export function FilterModal({
               <div className="pane">
                 {tab === "all" && (
                   <div className="fpanel on"><div className="p-hint">자주 쓰는 조건 — 칩을 눌러 바로 편집하세요. 세부조건은 왼쪽 카테고리에서 설정합니다.</div>
-                    <div className="fav-wrap">{GROUPS.flatMap((g) => g.reps).map(chip)}</div>
+                    <div className="fav-wrap">{groups.flatMap((g) => g.reps).map(chip)}</div>
                   </div>
                 )}
                 {typeof tab === "number" && (
                   <div className="fpanel on">
-                    <div className="p-head">{GROUPS[tab].t}<button className="sec-reset" onClick={() => [...GROUPS[tab].reps, ...GROUPS[tab].body].forEach((f) => clearVal(f.label))}>초기화</button></div>
+                    <div className="p-head">{groups[tab].t}<button className="sec-reset" onClick={() => [...groups[tab].reps, ...groups[tab].body].forEach((f) => clearVal(f.label))}>초기화</button></div>
                     <div className="bodylbl">대표조건</div>
-                    <div className="fav-wrap rep-grid">{GROUPS[tab].reps.map(chip)}</div>
-                    <div className="bodylbl">세부조건 {GROUPS[tab].body.length}개</div>
-                    <div className="fav-wrap">{GROUPS[tab].body.map(chip)}</div>
+                    <div className="fav-wrap rep-grid">{groups[tab].reps.map(chip)}</div>
+                    <div className="bodylbl">세부조건 {groups[tab].body.length}개</div>
+                    <div className="fav-wrap">{groups[tab].body.map(chip)}</div>
                   </div>
                 )}
               </div>
