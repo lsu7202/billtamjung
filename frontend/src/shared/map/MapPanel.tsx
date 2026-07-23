@@ -21,19 +21,33 @@ export interface MapPin {
 
 type DrawMode = "off" | "free" | "poly" | "magnet";
 
+/** GeoJSON(Polygon/MultiPolygon) → naver paths(링 배열). 좌표 [lng,lat]→LatLng(lat,lng). */
+function geoToPaths(naver: any, geo: any): any[] {
+  const rings: any[] = [];
+  const add = (poly: number[][][]) => poly.forEach((r) => rings.push(r.map(([lng, lat]) => new naver.maps.LatLng(lat, lng))));
+  if (geo?.type === "Polygon") add(geo.coordinates);
+  else if (geo?.type === "MultiPolygon") geo.coordinates.forEach(add);
+  return rings;
+}
+
 export function MapPanel({
-  pins, onPick, onPolygon, polygonActive,
+  pins, onPick, onPolygon, polygonActive, selectedPk, selectedCol, onParcelClick,
 }: {
   pins: MapPin[];
   onPick: (pk: string) => void;
   onPolygon: (geojson: object | null) => void;
   polygonActive: boolean;
+  selectedPk?: string | null;                 // 선택 건물(필지 분류색 오버레이)
+  selectedCol?: "ad" | "mine" | "normal" | null;
+  onParcelClick?: (building_pk: string | null, pnu: string) => void;  // 필지 클릭(부동산플래닛식)
 }) {
   const divRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const cadastralRef = useRef<any>(null);
   const overlayRef = useRef<any>(null);       // 그린 영역 폴리곤 표시
+  const parcelsRef = useRef<any[]>([]);       // 뷰포트 필지 레이어(클릭용 중립 폴리곤)
+  const selParcelRef = useRef<any>(null);     // 선택 필지(분류색 오버레이)
   const drawingRef = useRef<{ mode: DrawMode; pts: any[]; temp: any | null }>({ mode: "off", pts: [], temp: null });
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -98,6 +112,70 @@ export function MapPanel({
     if (!ready || !cadastralRef.current) return;
     cadastralRef.current.setMap(cadastre ? mapRef.current : null);
   }, [ready, cadastre]);
+
+  // 필지 레이어(부동산플래닛식): 뷰포트 이동 시 필지 폴리곤 로드·클릭. 줌 16+에서만(과다 렌더 방지)
+  useEffect(() => {
+    if (!ready || !onParcelClick) return;
+    const naver = window.naver;
+    const map = mapRef.current;
+    let dead = false;
+
+    const clear = () => { parcelsRef.current.forEach((p) => p.setMap(null)); parcelsRef.current = []; };
+    const load = async () => {
+      if (map.getZoom() < 16) { clear(); return; }
+      const b = map.getBounds();
+      const sw = b.getSW ? b.getSW() : b.getMin();     // naver 버전차 방어
+      const ne = b.getNE ? b.getNE() : b.getMax();
+      try {
+        const rows = await searchApi.parcels({
+          w: sw.lng(), s: sw.lat(), e: ne.lng(), n: ne.lat(),
+        });
+        if (dead) return;
+        clear();
+        parcelsRef.current = rows.map((r) => {
+          const poly = new naver.maps.Polygon({
+            map, paths: geoToPaths(naver, r.geom), clickable: true,
+            fillColor: "#4d6ba8", fillOpacity: 0.06,
+            strokeColor: "#3d6bc4", strokeWeight: 1.2, strokeOpacity: 0.9,
+          });
+          naver.maps.Event.addListener(poly, "click", () => onParcelClick(r.building_pk, r.pnu));
+          return poly;
+        });
+      } catch { /* 뷰포트 밖·상한 무시 */ }
+    };
+
+    const idle = naver.maps.Event.addListener(map, "idle", load);
+    load();
+    return () => { dead = true; naver.maps.Event.removeListener(idle); clear(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+
+  // 선택 건물의 필지에 분류색 오버레이(폴리곤 클릭·사이드바·핀 선택 공통 경로)
+  useEffect(() => {
+    if (!ready) return;
+    const naver = window.naver;
+    selParcelRef.current?.setMap(null);
+    selParcelRef.current = null;
+    if (!selectedPk) return;
+    let dead = false;
+    searchApi.parcelFor(selectedPk).then(({ polygon }) => {
+      if (dead || !polygon) return;
+      const c = PIN_COLORS[selectedCol ?? "normal"];
+      const paths = geoToPaths(naver, polygon);
+      selParcelRef.current = new naver.maps.Polygon({
+        map: mapRef.current, paths, clickable: false,
+        fillColor: c, fillOpacity: 0.35, strokeColor: c, strokeWeight: 2.2, zIndex: 60,
+      });
+      // 선택 매물이 보이도록 그 필지로 이동(+ 필지 레이어 뜨는 줌 보장). 이미 가까우면 줌 유지
+      const b = new naver.maps.LatLngBounds();
+      paths.forEach((ring: any[]) => ring.forEach((ll) => b.extend(ll)));
+      const map = mapRef.current;
+      map.panTo(b.getCenter());
+      if (map.getZoom() < 16) map.setZoom(17);
+    }).catch(() => { /* 필지 없음 무시 */ });
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, selectedPk, selectedCol]);
 
   // 영역 그리기(자유곡선/자석: 드래그 / 다각형: 클릭+더블클릭 닫기)
   useEffect(() => {

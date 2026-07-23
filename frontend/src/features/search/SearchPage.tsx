@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { searchApi, buildingsApi, extrasApi, type AttrFilters } from "../../shared/api/endpoints";
+import { searchApi, buildingsApi, extrasApi, listingsApi, type AttrFilters } from "../../shared/api/endpoints";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
 import { FilterModal, activeCount, conditionChips, type Values, type RegionPick } from "./FilterModal";
 import { PriceTrendChart, buildTrendSeries } from "../../shared/ui/PriceTrendChart";
@@ -114,6 +114,26 @@ export function SearchPage() {
   function toMap(h: Hit, key: "ad" | "mine" | "normal") {
     setPicked({ ...h, col: key });
     setView("map");
+  }
+  // 필지 클릭 → 매물 선택(부동산플래닛식). 검색결과면 그 핀(분류색), 아니면 건물 조회 후 내매물/일반 판정
+  async function selectBuilding(pk: string) {
+    const inPin = pins.find((p) => p.building_pk === pk);
+    if (inPin) { setPicked(inPin); return; }
+    try {
+      const [b, listing] = await Promise.all([
+        buildingsApi.get(pk),
+        listingsApi.get(pk).catch(() => null),
+      ]);
+      setPicked({
+        building_pk: pk, addr: String(b.addr ?? ""),
+        lng: Number(b.lng), lat: Number(b.lat),
+        col: listing?.registered ? "mine" : "normal",
+        price: null, roi: null,
+        land_area: b.land_area != null ? Number(b.land_area) : null,
+        floors_above: b.floors_above != null ? Number(b.floors_above) : null,
+        floors_below: b.floors_below != null ? Number(b.floors_below) : null,
+      });
+    } catch { /* 조회 실패 무시 */ }
   }
 
   function onKey(e: React.KeyboardEvent) {
@@ -233,6 +253,9 @@ export function SearchPage() {
             <MapPanel
               pins={pins}
               polygonActive={!!polygon}
+              selectedPk={picked?.building_pk ?? null}
+              selectedCol={picked?.col ?? null}
+              onParcelClick={(pk) => { if (pk) selectBuilding(pk); }}
               onPick={(pk) => setPicked(pins.find((p) => p.building_pk === pk) ?? null)}
               onPolygon={(g) => { setPolygon(g); setPages({ ad: 1, mine: 1, normal: 1 }); }}
             />

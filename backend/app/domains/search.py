@@ -123,6 +123,33 @@ async def snap_parcels(body: SnapIn, _: CurrentUser = Depends(current_user)):
     return {"polygon": json.loads(gj) if gj else None}
 
 
+@router.get("/parcels")
+async def parcels_in_view(w: float, s: float, e: float, n: float,
+                          _: CurrentUser = Depends(current_user)):
+    """뷰포트 내 필지 폴리곤(부동산플래닛식 클릭 레이어). bbox && GiST + 단순화 + 상한.
+    building_pk 없는 필지(나대지·도로)도 포함(표시만, 클릭 시 매물 없음)."""
+    rows = await pool().fetch(
+        """SELECT pnu, building_pk,
+                  ST_AsGeoJSON(ST_SimplifyPreserveTopology(geom, 0.000012)) AS geom
+           FROM master.parcels
+           WHERE geom && ST_MakeEnvelope($1, $2, $3, $4, 4326)
+           LIMIT 1500""",
+        w, s, e, n,
+    )
+    return [{"pnu": r["pnu"], "building_pk": r["building_pk"], "geom": json.loads(r["geom"])}
+            for r in rows if r["geom"]]
+
+
+@router.get("/parcel/{building_pk}")
+async def parcel_for_building(building_pk: str, _: CurrentUser = Depends(current_user)):
+    """한 건물의 필지 합집합(선택 시 분류색 오버레이용). 멀티필지는 union."""
+    gj = await pool().fetchval(
+        "SELECT ST_AsGeoJSON(ST_Union(geom)) FROM master.parcels WHERE building_pk=$1",
+        building_pk,
+    )
+    return {"polygon": json.loads(gj) if gj else None}
+
+
 def _filter_sql(f: Filters, args: list) -> str:
     """속성 필터 → WHERE 절. args에 파라미터 추가."""
     conds = []
