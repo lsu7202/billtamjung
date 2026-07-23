@@ -90,7 +90,7 @@ export const GROUPS: Group[] = [
       S("총임대료", { min: 0, max: 10000, unit: "만원", inf: true, ticks: "0,2000,5000" }),
       S("총관리비", { min: 0, max: 5000, unit: "만원", inf: true, ticks: "0,1000,3000" }),
       S("수익률(만실)", { min: 0, max: 8, step: 0.1, unit: "%", inf: true, handle: "left", ticks: "0,2,4,6" }),
-      S("공실제외수익률", { min: 0, max: 8, step: 0.1, unit: "%", inf: true, handle: "left", ticks: "0,3,6" }),
+      S("수익률(공실제외)", { min: 0, max: 8, step: 0.1, unit: "%", inf: true, handle: "left", ticks: "0,3,6" }),
       T("총공실", ["있음", "없음"]),
     ] },
   { t: "상세정보",
