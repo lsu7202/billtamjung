@@ -17,7 +17,8 @@ export function RoadviewMini({ lng, lat, className, onExpand }: {
       const pos = new naver.maps.LatLng(lat, lng);
       if (!panoRef.current) {
         panoRef.current = new naver.maps.Panorama(divRef.current, {
-          position: pos, pov: { pan: 0, tilt: 0, fov: 100 }, aroundControl: false,
+          position: pos, pov: { pan: 0, tilt: 0, fov: 100 },
+          flightSpot: false, aroundControl: false, zoomControl: false,
         });
         naver.maps.Event.addListener(panoRef.current, "pano_status", (s: any) => {
           setNone(String(s) !== "OK");

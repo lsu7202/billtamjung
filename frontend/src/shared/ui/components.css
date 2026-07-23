@@ -122,3 +122,6 @@
 .info-i .info-pop{display:none; position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%); width:220px; background:var(--ink); color:#fff; font-size:11px; font-weight:400; line-height:1.55; text-align:left; padding:9px 11px; border-radius:7px; box-shadow:var(--shadow-lg); z-index:9; white-space:normal}
 .info-i .info-pop::after{content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:5px solid transparent; border-top-color:var(--ink)}
 .info-i:hover .info-pop{display:block}
+
+/* 네이버 로드뷰(파노라마) 동서남북 이동 화살표 숨김 — 더블클릭/지도드래그 이동 사용 */
+[class^="arrow_container"], .arrow_image { display: none !important; }

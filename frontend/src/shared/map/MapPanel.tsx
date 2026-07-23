@@ -258,38 +258,42 @@ export function MapPanel({
     });
     panoRef.current = pano;
 
+    // 지도(중앙 마크 위치) 기준 시야 부채꼴 갱신. 지도가 위치의 소스.
     const sync = () => {
-      const p = pano.getPosition?.(); if (!p) return;
-      const pov = pano.getPov?.() ?? { pan: 0, fov: 90 };
-      rvKeepRef.current = { pos: p, pov };               // 현재 상태 보존(전체화면 전환 대비)
-      map.setCenter(p);                                  // 위치를 지도 중앙에 → CSS 중앙 마크 밑에 오게(지도가 이동)
+      const p = pano.getPosition?.(); const pov = pano.getPov?.() ?? { pan: 0, fov: 90 };
+      if (p) rvKeepRef.current = { pos: p, pov };         // 전체화면 전환 대비 보존
+      const c = map.getCenter();
       rvConeRef.current?.setMap(null);
       rvConeRef.current = new naver.maps.Polygon({
-        map, paths: [conePath(naver, p.lat(), p.lng(), pov.pan, pov.fov)],
+        map, paths: [conePath(naver, c.lat(), c.lng(), pov.pan, pov.fov)],
         fillColor: "#1E5AF0", fillOpacity: 0.25, strokeColor: "#1E5AF0", strokeWeight: 1, zIndex: 90,
       });
     };
     naver.maps.Event.addListener(pano, "pano_changed", sync);
     naver.maps.Event.addListener(pano, "pov_changed", sync);
 
-    // 화면 더블클릭 → 클릭 방향·거리로 이동(화살표 대체). 좌우=heading 보정, 상하=전진거리
+    // ★ 지도 드래그/이동(마크는 항상 중앙) → 그 중앙 좌표로 로드뷰 갱신. 지도가 소스, 마크 고정
+    const onIdle = () => { if (panoRef.current) { panoRef.current.setPosition(map.getCenter()); sync(); } };
+    const idleL = naver.maps.Event.addListener(map, "idle", onIdle);
+
+    // 화면 더블클릭 → 그 방향·거리로 '지도'를 전진(지도가 소스 → 로드뷰 자동 갱신). 화살표 대체
     const el = panoDivRef.current;
     const onDbl = (ev: MouseEvent) => {
       const r = el.getBoundingClientRect();
-      const fx = (ev.clientX - r.left) / r.width - 0.5;   // -0.5(좌)~0.5(우)
-      const fy = (ev.clientY - r.top) / r.height;         // 0(위/멀리)~1(아래/가까이)
+      const fx = (ev.clientX - r.left) / r.width - 0.5;   // 좌우 → heading 보정
+      const fy = (ev.clientY - r.top) / r.height;         // 상하 → 전진거리(위=멀리)
       const pov = pano.getPov?.() ?? { pan: 0, fov: 90 };
       const heading = pov.pan + fx * (pov.fov ?? 90);
       const dist = 8 + (1 - fy) * 30;                     // 8~38m
-      const cur = pano.getPosition(); const rad = heading * Math.PI / 180;
+      const c = map.getCenter(); const rad = heading * Math.PI / 180;
       const dLat = (dist * Math.cos(rad)) / 111320;
-      const dLng = (dist * Math.sin(rad)) / (111320 * Math.cos(cur.lat() * Math.PI / 180));
-      pano.setPosition(new naver.maps.LatLng(cur.lat() + dLat, cur.lng() + dLng));  // naver가 최근접 파노라마로 스냅
+      const dLng = (dist * Math.sin(rad)) / (111320 * Math.cos(c.lat() * Math.PI / 180));
+      map.panTo(new naver.maps.LatLng(c.lat() + dLat, c.lng() + dLng));  // 지도 이동 → idle → 로드뷰 갱신
     };
     el.addEventListener("dblclick", onDbl);
 
     setTimeout(sync, 500);
-    return () => el.removeEventListener("dblclick", onDbl);
+    return () => { el.removeEventListener("dblclick", onDbl); naver.maps.Event.removeListener(idleL); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, roadview, panoBig]);   // panoBig 포함 → 전체화면 전환 시 파노라마 재생성(크기 반영·위치 보존)
 
@@ -439,7 +443,7 @@ export function MapPanel({
         display: rvOpen ? "block" : "none", background: "#2a2f36",
         ...(panoBig
           ? { position: "absolute", inset: 0, zIndex: 15 }
-          : { position: "absolute", left: 12, bottom: 12, width: 440, height: 300, zIndex: 20, ...pip }),
+          : { position: "absolute", left: 12, bottom: 12, width: 340, height: 230, zIndex: 20, ...pip }),
       }}>
         <div ref={panoDivRef} style={{ position: "absolute", inset: 0 }} />
         <div style={{ position: "absolute", top: 8, right: 8, zIndex: 2, display: "flex", gap: 6 }}>
