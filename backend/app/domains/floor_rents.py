@@ -11,8 +11,8 @@ class RentIn(BaseModel):
     floor: str
     unit_no: str
     use: str | None = None
-    exclusive_area: float | None = None
-    contract_area: float | None = None
+    exclusive_area: float | None = None    # ㎡ (전용면적, 대장 프리필)
+    contract_area: float | None = None     # ㎡ 저장(§5.3) — 프론트가 평↔㎡ 변환해 항상 ㎡로 전송
     deposit: int = 0          # 원 정수
     rent: int = 0
     maintenance: int = 0

@@ -227,7 +227,7 @@ export function BuildingPage() {
 
           {/* 층별 임대정보(§3.5) + 호실 추가 */}
           {show("deal") && (
-            <RentTable pk={pk} items={rents.data?.items ?? []} total={total}
+            <RentTable pk={pk} items={rents.data?.items ?? []} total={total} unit={unit}
               refresh={() => qc.invalidateQueries({ queryKey: ["rents", pk] })} eok={eok} />
           )}
 
@@ -362,10 +362,12 @@ function InvestCalc({ price, yearRent }: { price: number | null; yearRent: numbe
 }
 
 /* 층별임대 표 + 호실 추가·공실 토글 */
-function RentTable({ pk, items, total, refresh, eok }: {
-  pk: string; items: FloorRent[]; total?: Record<string, number>; refresh: () => void;
+function RentTable({ pk, items, total, unit, refresh, eok }: {
+  pk: string; items: FloorRent[]; total?: Record<string, number>; unit: "py" | "m2"; refresh: () => void;
   eok: (n?: number | null) => string;
 }) {
+  const toM2 = (v: number) => (unit === "py" ? v * P : v);           // 입력(현재단위) → 저장 ㎡
+  const fromM2 = (m2: number) => (unit === "py" ? `${(m2 / P).toFixed(1)}평` : `${m2.toLocaleString()}㎡`);
   const [adding, setAdding] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [f, setF] = useState({ floor: "", unit_no: "", contract_area: "", deposit: "", rent: "", maintenance: "" });
@@ -378,7 +380,7 @@ function RentTable({ pk, items, total, refresh, eok }: {
     setErr(null);
     await rentsApi.upsert(pk, {
       floor: f.floor, unit_no: f.unit_no,
-      contract_area: parseFloat(f.contract_area) || null,
+      contract_area: f.contract_area ? toM2(parseFloat(f.contract_area)) : null,   // 저장은 ㎡(§5.3)
       deposit: Math.round((parseFloat(f.deposit) || 0) * 1e4),
       rent: Math.round((parseFloat(f.rent) || 0) * 1e4),
       maintenance: Math.round((parseFloat(f.maintenance) || 0) * 1e4),
@@ -403,12 +405,12 @@ function RentTable({ pk, items, total, refresh, eok }: {
         <button className="btn" onClick={() => { setAdding(!adding); setErr(null); }}>＋ 호실 추가</button>
       </div>
       <table className="wf">
-        <thead><tr><th>층</th><th>호실</th><th className="num">계약면적</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">관리비</th><th>상태</th></tr></thead>
+        <thead><tr><th>층</th><th>호실</th><th className="num">계약면적({unit === "py" ? "평" : "㎡"})</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">관리비</th><th>상태</th></tr></thead>
         <tbody>
           {items.map((r) => (
             <tr key={`${r.floor}-${r.unit_no}`}>
               <td>{r.floor}</td><td>{r.unit_no}</td>
-              <td className="num">{r.contract_area ?? "—"}평</td>
+              <td className="num">{r.contract_area != null ? fromM2(r.contract_area) : "—"}</td>
               <td className="num">{eok(r.deposit)}</td>
               <td className="num">{eok(r.rent)}</td>
               <td className="num">{eok(r.maintenance)}</td>
@@ -419,7 +421,7 @@ function RentTable({ pk, items, total, refresh, eok }: {
           {adding && (
             <tr style={{ background: "var(--signal-bg)" }}>
               <td>{In("floor", "1F", 50)}</td><td>{In("unit_no", "101", 50)}</td>
-              <td className="num">{In("contract_area", "평")}</td>
+              <td className="num">{In("contract_area", unit === "py" ? "평" : "㎡")}</td>
               <td className="num">{In("deposit", "만원")}</td>
               <td className="num">{In("rent", "만원")}</td>
               <td className="num">{In("maintenance", "만원")}</td>
