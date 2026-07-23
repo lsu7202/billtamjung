@@ -481,7 +481,15 @@ export function MapPanel({
         <button className="btn" style={layerBtn(mapType === "normal")} onClick={() => setMapType("normal")}>일반</button>
         <button className="btn" style={layerBtn(mapType === "satellite")} onClick={() => setMapType("satellite")}>위성</button>
         <button className="btn" style={layerBtn(cadastre)} onClick={() => setCadastre(!cadastre)}>지적도</button>
-        <button className="btn" style={layerBtn(street)} onClick={() => { const on = street; setStreet(!on); if (on) setRoadview(null); else { setDrawMode("off"); setMeasure("off"); } }}>🧍 로드뷰</button>
+        <button className="btn" style={layerBtn(street)} onClick={() => {
+          const on = street; setStreet(!on);
+          if (on) setRoadview(null);
+          else {
+            setDrawMode("off"); setMeasure("off");
+            const c = mapRef.current?.getCenter();       // 도로 클릭 없이 현재 지도 중앙에 바로 로드뷰
+            if (c) setRoadview({ lng: c.lng(), lat: c.lat() });
+          }
+        }}>🧍 로드뷰</button>
       </div>
       {street && !roadview && (
         <div style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", zIndex: 5,
