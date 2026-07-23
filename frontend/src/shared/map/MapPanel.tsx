@@ -87,7 +87,7 @@ export function MapPanel({
   const [cadastre, setCadastre] = useState(false);
   const [drawMode, setDrawMode] = useState<DrawMode>("off");
   const [snapping, setSnapping] = useState(false);       // 자석 스냅 진행 표시
-  const [street, setStreet] = useState(false);           // 거리뷰 모드(StreetLayer + 클릭→로드뷰)
+  const [street, setStreet] = useState(false);           // 로드뷰 모드(StreetLayer + 클릭→로드뷰)
   const [roadview, setRoadview] = useState<{ lng: number; lat: number } | null>(null);  // 파노라마 위치
   const [panoBig, setPanoBig] = useState(false);         // 로드뷰 작은/큰 화면
   const panoDivRef = useRef<HTMLDivElement>(null);
@@ -162,7 +162,7 @@ export function MapPanel({
     cadastralRef.current.setMap(cadastre ? mapRef.current : null);
   }, [ready, cadastre]);
 
-  // 지도 클릭 → 그 지점 필지 조회(부동산플래닛식). 그리기·거리뷰·측정 모드 아닐 때만.
+  // 지도 클릭 → 그 지점 필지 조회(부동산플래닛식). 그리기·로드뷰·측정 모드 아닐 때만.
   useEffect(() => {
     if (!ready || !onParcelClick || drawMode !== "off" || street || measure !== "off") return;
     const naver = window.naver;
@@ -220,7 +220,7 @@ export function MapPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, measure]);
 
-  // 거리뷰 모드: StreetLayer(커버리지) 표시 + 지도 클릭 → 그 지점 로드뷰 열기
+  // 로드뷰 모드: StreetLayer(커버리지) 표시 + 지도 클릭 → 그 지점 로드뷰 열기
   useEffect(() => {
     if (!ready) return;
     const naver = window.naver;
@@ -245,45 +245,52 @@ export function MapPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, roadviewReq]);
 
-  // 파노라마 생성/이동 + 지도 위 위치 마커·시야 부채꼴 동기화
+  // 파노라마 생성 + 지도 위 위치 마커·시야 부채꼴 동기화. 열 때마다 새로 생성(크기 불일치 방지)
   useEffect(() => {
     if (!ready) return;
     const naver = window.naver;
     const map = mapRef.current;
-    if (!roadview) {                                      // 닫힘 → 정리
-      panoRef.current?.setVisible?.(false);
-      rvMarkerRef.current?.setMap(null); rvMarkerRef.current = null;
-      rvConeRef.current?.setMap(null); rvConeRef.current = null;
-      return;
-    }
+    // 이전 파노라마·마커·부채꼴 정리
+    rvMarkerRef.current?.setMap(null); rvMarkerRef.current = null;
+    rvConeRef.current?.setMap(null); rvConeRef.current = null;
+    panoRef.current = null;
+    if (panoDivRef.current) panoDivRef.current.innerHTML = "";
+    if (!roadview || !panoDivRef.current) return;
+
     const pos = new naver.maps.LatLng(roadview.lat, roadview.lng);
+    const pano = new naver.maps.Panorama(panoDivRef.current, { position: pos, pov: { pan: 0, tilt: 0, fov: 100 } });
+    panoRef.current = pano;
+
     const drawPov = () => {
-      if (!panoRef.current) return;
-      const p = panoRef.current.getPosition?.(); if (!p) return;
-      const pov = panoRef.current.getPov?.() ?? { pan: 0, fov: 90 };
+      const p = pano.getPosition?.(); if (!p) return;
+      const pov = pano.getPov?.() ?? { pan: 0, fov: 90 };
       rvConeRef.current?.setMap(null);
       rvConeRef.current = new naver.maps.Polygon({
         map, paths: [conePath(naver, p.lat(), p.lng(), pov.pan, pov.fov)],
         fillColor: "#1E5AF0", fillOpacity: 0.22, strokeColor: "#1E5AF0", strokeWeight: 1, zIndex: 90,
       });
-      if (rvMarkerRef.current) rvMarkerRef.current.setPosition(p);
+      rvMarkerRef.current?.setPosition(p);
     };
-    if (!panoRef.current && panoDivRef.current) {
-      panoRef.current = new naver.maps.Panorama(panoDivRef.current, { position: pos, pov: { pan: 0, tilt: 0, fov: 100 } });
-      naver.maps.Event.addListener(panoRef.current, "pano_changed", drawPov);
-      naver.maps.Event.addListener(panoRef.current, "pov_changed", drawPov);
-    } else if (panoRef.current) {
-      panoRef.current.setVisible?.(true);
-      panoRef.current.setPosition(pos);
-    }
-    rvMarkerRef.current?.setMap(null);
+    naver.maps.Event.addListener(pano, "pano_changed", drawPov);
+    naver.maps.Event.addListener(pano, "pov_changed", drawPov);
+
     rvMarkerRef.current = new naver.maps.Marker({
       position: pos, map, zIndex: 91,
       icon: { content: `<div style="width:16px;height:16px;border-radius:50%;background:#1E5AF0;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`, anchor: new naver.maps.Point(8, 8) },
     });
-    setTimeout(drawPov, 400);
+    setTimeout(drawPov, 500);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, roadview]);
+
+  // 로드뷰 작은/큰 전환 시 파노라마 캔버스 리사이즈(컨테이너 크기 변경 반영)
+  useEffect(() => {
+    if (!ready || !panoRef.current || !panoDivRef.current) return;
+    const naver = window.naver;
+    const { width, height } = panoDivRef.current.getBoundingClientRect();
+    if (!width || !height) return;
+    if (panoRef.current.setSize) panoRef.current.setSize(new naver.maps.Size(width, height));
+    else naver.maps.Event.trigger(panoRef.current, "resize");
+  }, [panoBig, ready]);
 
   // 선택 건물의 필지에 분류색 오버레이(폴리곤 클릭·사이드바·핀 선택 공통 경로)
   useEffect(() => {
@@ -406,9 +413,9 @@ export function MapPanel({
       <div ref={divRef} style={{ position: "absolute", inset: 0 }} />
       {/* 영역 그리기 도구(S01 §3.6c) */}
       <div style={{ position: "absolute", top: 12, left: 12, zIndex: 5, display: "flex", gap: 6 }}>
-        <button className="btn" style={layerBtn(drawMode === "free")} onClick={() => setDrawMode(drawMode === "free" ? "off" : "free")}>✎ 자유곡선</button>
-        <button className="btn" style={layerBtn(drawMode === "poly")} onClick={() => setDrawMode(drawMode === "poly" ? "off" : "poly")}>▱ 다각형</button>
-        <button className="btn" style={layerBtn(drawMode === "magnet")} onClick={() => setDrawMode(drawMode === "magnet" ? "off" : "magnet")}>🧲 자석 올가미</button>
+        <button className="btn" style={layerBtn(drawMode === "free")} onClick={() => { const on = drawMode === "free"; setDrawMode(on ? "off" : "free"); if (!on) { setStreet(false); setMeasure("off"); } }}>✎ 자유곡선</button>
+        <button className="btn" style={layerBtn(drawMode === "poly")} onClick={() => { const on = drawMode === "poly"; setDrawMode(on ? "off" : "poly"); if (!on) { setStreet(false); setMeasure("off"); } }}>▱ 다각형</button>
+        <button className="btn" style={layerBtn(drawMode === "magnet")} onClick={() => { const on = drawMode === "magnet"; setDrawMode(on ? "off" : "magnet"); if (!on) { setStreet(false); setMeasure("off"); } }}>🧲 자석 올가미</button>
         {polygonActive && <button className="btn" style={{ color: "var(--up)" }} onClick={clearPolygon}>✕ 영역 지우기</button>}
       </div>
       {/* 측정 도구(거리·면적·반경) */}
@@ -430,12 +437,12 @@ export function MapPanel({
         <button className="btn" style={layerBtn(mapType === "normal")} onClick={() => setMapType("normal")}>일반</button>
         <button className="btn" style={layerBtn(mapType === "satellite")} onClick={() => setMapType("satellite")}>위성</button>
         <button className="btn" style={layerBtn(cadastre)} onClick={() => setCadastre(!cadastre)}>지적도</button>
-        <button className="btn" style={layerBtn(street)} onClick={() => { setStreet(!street); if (street) setRoadview(null); }}>🧍 거리뷰</button>
+        <button className="btn" style={layerBtn(street)} onClick={() => { const on = street; setStreet(!on); if (on) setRoadview(null); else { setDrawMode("off"); setMeasure("off"); } }}>🧍 로드뷰</button>
       </div>
       {street && !roadview && (
         <div style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", zIndex: 5,
           background: "var(--ink)", color: "#fff", fontSize: 12, padding: "7px 14px", borderRadius: 999 }}>
-          파란 도로를 클릭하면 그 위치 거리뷰가 열립니다
+          파란 도로를 클릭하면 그 위치 로드뷰가 열립니다
         </div>
       )}
 

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { loadNaver } from "./naver";
 
-/** 네이버 파노라마(거리뷰) 미니 뷰어. 사이드바 sel-card용. 좌표 최근접 파노라마 로드.
- * 커버리지 없으면 안내. specs 네이버지도-연동(거리뷰). */
+/** 네이버 파노라마(로드뷰) 미니 뷰어. 사이드바 sel-card용. 좌표 최근접 파노라마 로드.
+ * 커버리지 없으면 안내. specs 네이버지도-연동(로드뷰). */
 export function RoadviewMini({ lng, lat, className, onExpand }: {
   lng: number; lat: number; className?: string; onExpand?: () => void;
 }) {
@@ -34,7 +34,7 @@ export function RoadviewMini({ lng, lat, className, onExpand }: {
       <div ref={divRef} style={{ position: "absolute", inset: 0 }} />
       {none && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
         background: "linear-gradient(150deg,#8a97a6,#5f6b7a)", color: "#e7ecf2", fontSize: 12, fontWeight: 600 }}>
-        이 위치 거리뷰 없음
+        이 위치 로드뷰 없음
       </div>}
     </div>
   );
