@@ -36,9 +36,22 @@ export function BuildingPage() {
   const ads = useQuery({ queryKey: ["ads", pk], queryFn: () => extrasApi.adPrices(pk) });
   const listing = useQuery({ queryKey: ["listing", pk], queryFn: () => listingsApi.get(pk) });
 
+  const [saveErr, setSaveErr] = useState<string | null>(null);
   const editField = useMutation({
     mutationFn: ({ field, value }: { field: string; value: string }) => overlaysApi.put(pk, field, value),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["building", pk] }); qc.invalidateQueries({ queryKey: ["dist", pk] }); },
+    retry: 2, retryDelay: (n) => 400 * (n + 1),        // 일시적 실패 자동 재시도(#6)
+    onMutate: async ({ field, value }) => {            // 낙관적 반영: 즉시 화면 갱신
+      await qc.cancelQueries({ queryKey: ["building", pk] });
+      const prev = qc.getQueryData<Record<string, any>>(["building", pk]);
+      qc.setQueryData(["building", pk], (old: Record<string, any> | undefined) => (old ? { ...old, [field]: value } : old));
+      setSaveErr(null);
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {                        // 재시도 끝내 실패 → 롤백 + 알림
+      if (ctx?.prev) qc.setQueryData(["building", pk], ctx.prev);
+      setSaveErr("저장 실패 — 이전 값으로 되돌렸습니다. 잠시 후 다시 시도하세요.");
+    },
+    onSettled: () => { qc.invalidateQueries({ queryKey: ["building", pk] }); qc.invalidateQueries({ queryKey: ["dist", pk] }); },
   });
   const revert = useMutation({
     mutationFn: (field: string) => overlaysApi.revert(pk, field),
@@ -165,6 +178,7 @@ export function BuildingPage() {
         </div>
       </div>
       {genState && <div className="panel" style={{ padding: "10px 16px", fontSize: 13 }}>{genState}</div>}
+      {saveErr && <div className="panel" style={{ padding: "10px 16px", fontSize: 13, color: "var(--up)", display: "flex", alignItems: "center" }}>{saveErr}<button className="btn" style={{ marginLeft: "auto", padding: "2px 10px" }} onClick={() => setSaveErr(null)}>닫기</button></div>}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 14, alignItems: "start" }}>
         <div style={{ display: "grid", gap: 14 }}>
