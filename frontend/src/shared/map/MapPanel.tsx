@@ -62,7 +62,7 @@ function conePath(naver: any, lat: number, lng: number, pan: number, fov: number
 }
 
 export function MapPanel({
-  pins, onPick, onPolygon, polygonActive, selectedPk, selectedCol, onParcelClick, centerReq, roadviewReq,
+  pins, onPick, onPolygon, polygonActive, selectedPk, selectedCol, onParcelClick, centerReq,
 }: {
   pins: MapPin[];
   onPick: (pk: string) => void;
@@ -72,7 +72,6 @@ export function MapPanel({
   selectedCol?: "ad" | "mine" | "normal" | null;
   onParcelClick?: (building_pk: string | null, pnu: string) => void;  // 필지 클릭(부동산플래닛식)
   centerReq?: { lng: number; lat: number } | null;  // 지도 중심 이동 요청(사이드바·지도위치 선택 시)
-  roadviewReq?: { lng: number; lat: number } | null;  // 큰 로드뷰 열기 요청(sel-card 확대)
 }) {
   const divRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -236,21 +235,12 @@ export function MapPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, street]);
 
-  // sel-card 확대 요청 → 큰 로드뷰 열기(+ 커버리지 표시)
-  useEffect(() => {
-    if (!ready || !roadviewReq) return;
-    setStreet(true);
-    setRoadview(roadviewReq);
-    setPanoBig(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, roadviewReq]);
-
-  // 파노라마 생성 + 지도 위 위치 마커·시야 부채꼴 동기화. 열 때마다 새로 생성(크기 불일치 방지)
+  // 파노라마 생성 + 지도 동기화. 위치 마크는 지도 중앙 고정 → 로드뷰 조작 시 지도가 이동(마크 아님).
+  // 화살표 숨김 + 화면 더블클릭으로 그 방향 이동(네이버식).
   useEffect(() => {
     if (!ready) return;
     const naver = window.naver;
     const map = mapRef.current;
-    // 이전 파노라마·마커·부채꼴 정리
     rvMarkerRef.current?.setMap(null); rvMarkerRef.current = null;
     rvConeRef.current?.setMap(null); rvConeRef.current = null;
     panoRef.current = null;
@@ -258,39 +248,65 @@ export function MapPanel({
     if (!roadview || !panoDivRef.current) return;
 
     const pos = new naver.maps.LatLng(roadview.lat, roadview.lng);
-    const pano = new naver.maps.Panorama(panoDivRef.current, { position: pos, pov: { pan: 0, tilt: 0, fov: 100 } });
+    const pano = new naver.maps.Panorama(panoDivRef.current, {
+      position: pos, pov: { pan: 0, tilt: 0, fov: 100 },
+      flightSpot: false, aroundControl: false, zoomControl: false,  // 기본 화살표·컨트롤 숨김
+    });
     panoRef.current = pano;
 
-    const drawPov = () => {
+    const sync = () => {
       const p = pano.getPosition?.(); if (!p) return;
       const pov = pano.getPov?.() ?? { pan: 0, fov: 90 };
+      map.setCenter(p);                                  // 마크(=위치)를 지도 중앙에 고정 → 지도가 따라 이동
+      rvMarkerRef.current?.setPosition(p);
       rvConeRef.current?.setMap(null);
       rvConeRef.current = new naver.maps.Polygon({
         map, paths: [conePath(naver, p.lat(), p.lng(), pov.pan, pov.fov)],
-        fillColor: "#1E5AF0", fillOpacity: 0.22, strokeColor: "#1E5AF0", strokeWeight: 1, zIndex: 90,
+        fillColor: "#1E5AF0", fillOpacity: 0.25, strokeColor: "#1E5AF0", strokeWeight: 1, zIndex: 90,
       });
-      rvMarkerRef.current?.setPosition(p);
     };
-    naver.maps.Event.addListener(pano, "pano_changed", drawPov);
-    naver.maps.Event.addListener(pano, "pov_changed", drawPov);
+    naver.maps.Event.addListener(pano, "pano_changed", sync);
+    naver.maps.Event.addListener(pano, "pov_changed", sync);
+
+    // 화면 더블클릭 → 클릭 방향·거리로 이동(화살표 대체). 좌우=heading 보정, 상하=전진거리
+    const el = panoDivRef.current;
+    const onDbl = (ev: MouseEvent) => {
+      const r = el.getBoundingClientRect();
+      const fx = (ev.clientX - r.left) / r.width - 0.5;   // -0.5(좌)~0.5(우)
+      const fy = (ev.clientY - r.top) / r.height;         // 0(위/멀리)~1(아래/가까이)
+      const pov = pano.getPov?.() ?? { pan: 0, fov: 90 };
+      const heading = pov.pan + fx * (pov.fov ?? 90);
+      const dist = 8 + (1 - fy) * 30;                     // 8~38m
+      const cur = pano.getPosition(); const rad = heading * Math.PI / 180;
+      const dLat = (dist * Math.cos(rad)) / 111320;
+      const dLng = (dist * Math.sin(rad)) / (111320 * Math.cos(cur.lat() * Math.PI / 180));
+      pano.setPosition(new naver.maps.LatLng(cur.lat() + dLat, cur.lng() + dLng));  // naver가 최근접 파노라마로 스냅
+    };
+    el.addEventListener("dblclick", onDbl);
 
     rvMarkerRef.current = new naver.maps.Marker({
       position: pos, map, zIndex: 91,
       icon: { content: `<div style="width:16px;height:16px;border-radius:50%;background:#1E5AF0;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`, anchor: new naver.maps.Point(8, 8) },
     });
-    setTimeout(drawPov, 500);
+    setTimeout(sync, 500);
+    return () => el.removeEventListener("dblclick", onDbl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, roadview]);
 
-  // 로드뷰 작은/큰 전환 시 파노라마 캔버스 리사이즈(컨테이너 크기 변경 반영)
+  // 전체화면 전환 시 지도·파노라마 캔버스 리사이즈(컨테이너 크기 교체 반영)
   useEffect(() => {
-    if (!ready || !panoRef.current || !panoDivRef.current) return;
+    if (!ready) return;
     const naver = window.naver;
-    const { width, height } = panoDivRef.current.getBoundingClientRect();
-    if (!width || !height) return;
-    if (panoRef.current.setSize) panoRef.current.setSize(new naver.maps.Size(width, height));
-    else naver.maps.Event.trigger(panoRef.current, "resize");
-  }, [panoBig, ready]);
+    const t = setTimeout(() => {
+      naver.maps.Event.trigger(mapRef.current, "resize");
+      const el = panoDivRef.current;
+      if (panoRef.current && el) {
+        const { width, height } = el.getBoundingClientRect();
+        if (width && height && panoRef.current.setSize) panoRef.current.setSize(new naver.maps.Size(width, height));
+      }
+    }, 60);
+    return () => clearTimeout(t);
+  }, [panoBig, roadview, ready]);
 
   // 선택 건물의 필지에 분류색 오버레이(폴리곤 클릭·사이드바·핀 선택 공통 경로)
   useEffect(() => {
@@ -408,9 +424,34 @@ export function MapPanel({
     borderColor: on ? "var(--signal)" : "var(--line-2)",
   });
 
+  const rvOpen = !!roadview;
+  const pip: React.CSSProperties = { borderRadius: 10, overflow: "hidden", border: "2px solid #fff", boxShadow: "0 4px 16px rgba(0,0,0,.35)" };
+  // 전체화면 = 지도↔로드뷰 크기 교체: 기본(지도 큼+로드뷰 PiP) / 전체화면(로드뷰 큼+지도 PiP)
+  const mapStyle: React.CSSProperties = rvOpen && panoBig
+    ? { position: "absolute", right: 12, bottom: 12, width: 320, height: 220, zIndex: 25, ...pip }
+    : { position: "absolute", inset: 0 };
+
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-      <div ref={divRef} style={{ position: "absolute", inset: 0 }} />
+      <div ref={divRef} style={mapStyle} />
+
+      {/* 로드뷰 파노라마 — 전체화면 시 지도와 크기 교체 */}
+      <div style={{
+        display: rvOpen ? "block" : "none", background: "#2a2f36",
+        ...(panoBig
+          ? { position: "absolute", inset: 0, zIndex: 15 }
+          : { position: "absolute", left: 12, bottom: 12, width: 440, height: 300, zIndex: 20, ...pip }),
+      }}>
+        <div ref={panoDivRef} style={{ position: "absolute", inset: 0 }} />
+        <div style={{ position: "absolute", top: 8, right: 8, zIndex: 2, display: "flex", gap: 6 }}>
+          <button className="btn" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setPanoBig(!panoBig)}>{panoBig ? "⤡ 지도로" : "⤢ 전체화면"}</button>
+          <button className="btn" style={{ padding: "5px 10px", fontSize: 12, color: "var(--up)" }} onClick={() => setRoadview(null)}>✕ 닫기</button>
+        </div>
+        {rvOpen && <div style={{ position: "absolute", bottom: 8, left: "50%", transform: "translateX(-50%)", zIndex: 2, background: "rgba(15,26,46,.72)", color: "#fff", fontSize: 11, padding: "4px 10px", borderRadius: 999, whiteSpace: "nowrap" }}>화면을 더블클릭해 이동</div>}
+      </div>
+
+      {/* 지도 도구 — 로드뷰 전체화면일 땐 숨김 */}
+      {!panoBig && <>
       {/* 영역 그리기 도구(S01 §3.6c) */}
       <div style={{ position: "absolute", top: 12, left: 12, zIndex: 5, display: "flex", gap: 6 }}>
         <button className="btn" style={layerBtn(drawMode === "free")} onClick={() => { const on = drawMode === "free"; setDrawMode(on ? "off" : "free"); if (!on) { setStreet(false); setMeasure("off"); } }}>✎ 자유곡선</button>
@@ -446,20 +487,6 @@ export function MapPanel({
         </div>
       )}
 
-      {/* 로드뷰 파노라마 오버레이(작은/큰 전환) */}
-      <div style={{
-        position: "absolute", zIndex: 20, overflow: "hidden", borderRadius: 10, border: "2px solid #fff",
-        boxShadow: "0 4px 16px rgba(0,0,0,.35)", display: roadview ? "block" : "none",
-        ...(panoBig
-          ? { inset: 12 }
-          : { left: 12, bottom: 12, width: 380, height: 260 }),
-      }}>
-        <div ref={panoDivRef} style={{ position: "absolute", inset: 0, background: "#2a2f36" }} />
-        <div style={{ position: "absolute", top: 8, right: 8, zIndex: 2, display: "flex", gap: 6 }}>
-          <button className="btn" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setPanoBig(!panoBig)}>{panoBig ? "⤡ 작게" : "⤢ 크게"}</button>
-          <button className="btn" style={{ padding: "5px 10px", fontSize: 12, color: "var(--up)" }} onClick={() => setRoadview(null)}>✕ 닫기</button>
-        </div>
-      </div>
       {(drawMode !== "off" || snapping) && (
         <div style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", zIndex: 5,
           background: "var(--ink)", color: "#fff", fontSize: 12, padding: "7px 14px", borderRadius: 999 }}>
@@ -469,6 +496,7 @@ export function MapPanel({
             : "드래그로 영역을 그리세요"}
         </div>
       )}
+      </>}
     </div>
   );
 }

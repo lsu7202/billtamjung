@@ -31,9 +31,9 @@ const PY = 3.3058;                                    // ㎡→평
 const py = (m2?: number | null) => (m2 == null ? "—" : (m2 / PY).toFixed(m2 / PY < 100 ? 1 : 0));
 
 /** 지도 선택 매물 요약 카드 — 목업 .sel-card(로드뷰 스트립·계기판·시계열·상세보기) */
-function SelCard({ picked, bldg, trend, onDetail, onFav, onRoadview }: {
+function SelCard({ picked, bldg, trend, onDetail, onFav }: {
   picked: MapPin; bldg?: Record<string, unknown>; trend: Parameters<typeof PriceTrendChart>[0]["series"];
-  onDetail: () => void; onFav: () => void; onRoadview?: () => void;
+  onDetail: () => void; onFav: () => void;
 }) {
   const num = (k: string) => (bldg && bldg[k] != null ? Number(bldg[k]) : null);
   const land = num("land_area") ?? picked.land_area ?? null;
@@ -45,7 +45,7 @@ function SelCard({ picked, bldg, trend, onDetail, onFav, onRoadview }: {
   return (
     <div className="sel-card">
       {picked.lng && picked.lat
-        ? <RoadviewMini lng={picked.lng} lat={picked.lat} className="sel-road" onExpand={onRoadview} />
+        ? <RoadviewMini lng={picked.lng} lat={picked.lat} className="sel-road" />
         : <div className="sel-road" />}
       <div className="sel-body">
         <div className="sel-addr">{picked.addr.replace("서울특별시 ", "").replace("번지", "")}
@@ -80,7 +80,6 @@ export function SearchPage() {
   const [polygon, setPolygon] = useState<object | null>(null);
   const [picked, setPicked] = useState<MapPin | null>(null);
   const [centerReq, setCenterReq] = useState<{ lng: number; lat: number } | null>(null);  // 지도 중심 이동 요청
-  const [roadviewReq, setRoadviewReq] = useState<{ lng: number; lat: number } | null>(null);  // 큰 로드뷰 열기 요청
   const [sort, setSort] = useState("price");
   const [favOnly, setFavOnly] = useState(false);
   const [filters, setFilters] = useState<AttrFilters>({});      // 백엔드 쿼리용(모달 산출)
@@ -242,7 +241,7 @@ export function SearchPage() {
         <div className="map-split">
           {/* 좌: 선택 매물 요약 + 미니리스트(핀 동기) */}
           <div className="map-list">
-            {picked ? <SelCard picked={picked} bldg={pickedBldg.data} trend={trend} onDetail={() => go(picked.building_pk)} onFav={() => toggleFav(picked.building_pk)} onRoadview={() => picked.lng && picked.lat && setRoadviewReq({ lng: picked.lng, lat: picked.lat })} /> : null}
+            {picked ? <SelCard picked={picked} bldg={pickedBldg.data} trend={trend} onDetail={() => go(picked.building_pk)} onFav={() => toggleFav(picked.building_pk)} /> : null}
             <div className="ml-head">이 지도 영역 <b className="num">{pins.length}</b>건 · 핀과 동기화</div>
             {pins.map((p) => (
               <div key={p.building_pk} className={`ml-row ${picked?.building_pk === p.building_pk ? "on" : ""}`} onClick={() => { setPicked(p); if (p.lng && p.lat) setCenterReq({ lng: p.lng, lat: p.lat }); }}>
@@ -262,7 +261,6 @@ export function SearchPage() {
               selectedPk={picked?.building_pk ?? null}
               selectedCol={picked?.col ?? null}
               centerReq={centerReq}
-              roadviewReq={roadviewReq}
               onParcelClick={(pk) => { if (pk) selectBuilding(pk); }}
               onPick={(pk) => setPicked(pins.find((p) => p.building_pk === pk) ?? null)}
               onPolygon={(g) => { setPolygon(g); setPages({ ad: 1, mine: 1, normal: 1 }); }}
