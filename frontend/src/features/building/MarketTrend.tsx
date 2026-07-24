@@ -15,6 +15,12 @@ const toTime = (x: string): number => {
   return m ? +m[1] + (m[2] ? (+m[2] - 1) / 12 : 0) + (m[3] ? +m[3] / 365 : 0) : 0;
 };
 const validX = (x: string) => /^\d{4}([/-]\d{1,2}([/-]\d{1,2})?)?$/.test(x.trim());
+const fmtDate = (s: string): string => {   // 숫자만 입력 → 슬래시 자동삽입: 20000404 → 2000/04/04
+  const d = s.replace(/\D/g, "").slice(0, 8);
+  if (d.length <= 4) return d;
+  if (d.length <= 6) return `${d.slice(0, 4)}/${d.slice(4)}`;
+  return `${d.slice(0, 4)}/${d.slice(4, 6)}/${d.slice(6)}`;
+};
 const perPyFmt = (y: number, areaPy?: number) => (areaPy ? `${Math.round(y / areaPy / 1e4).toLocaleString()}만/평` : "");
 
 export function MarketTrend({ pk, data, fmt, refresh, areaPy }: {
@@ -158,7 +164,7 @@ function SeriesRow({ p, fmt, perPy, areaPy, onSave, onDel, hidden }: {
       style={{ ...(hidden ? { display: "none" } : {}), ...(draft ? { background: "var(--surface-2)" } : {}) }}>
       <td>{draft
         ? <input className="input" style={{ width: 96, padding: "3px 6px", fontSize: 12, borderColor: xErr ? "var(--up)" : undefined }}
-            placeholder="YYYY/MM" value={xv} onChange={(e) => { setXv(e.target.value); if (xErr) setXErr(false); }}
+            placeholder="YYYYMMDD" value={xv} onChange={(e) => { setXv(fmtDate(e.target.value)); if (xErr) setXErr(false); }}
             onBlur={() => trySave(xv, yv)} title={xErr ? "형식: YYYY · YYYY/MM · YYYY/MM/DD" : undefined} />
         : p!.x}</td>
       <td className="num">
