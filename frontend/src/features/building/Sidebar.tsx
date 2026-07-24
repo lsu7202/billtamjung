@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { listingsApi, extrasApi, overlaysApi } from "../../shared/api/endpoints";
+import { listingsApi, extrasApi, overlaysApi, seriesApi } from "../../shared/api/endpoints";
 import { api } from "../../shared/api/client";
 import { useEnums } from "../../shared/hooks/useEnums";
 import { Chips } from "./EnumField";
@@ -56,11 +56,12 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
   const en = useEnums();
   const members = useQuery({ queryKey: ["team-members"], queryFn: listingsApi.members });
   const me = useQuery({ queryKey: ["me"], queryFn: () => api<{ account_id: number }>("/auth/me") });
-  const ads = useQuery({ queryKey: ["ads", pk], queryFn: () => extrasApi.adPrices(pk) });
+  const series = useQuery({ queryKey: ["series", pk], queryFn: () => seriesApi.get(pk) });
   const assignee = listing?.assignee_account_id != null ? Number(listing.assignee_account_id) : null;
   const val = (k: string) => (listing?.[k] != null ? String(listing[k]) : "");
   const status = val("status") || "미지정";
-  const myAd = (ads.data ?? []).find((a) => a.is_mine && a.price != null);   // 내 광고(최신 관측)
+  const adPts = series.data?.ad ?? [];
+  const myAd = adPts.length ? adPts[adPts.length - 1] : null;   // 내 광고(최신 팀 오버레이 점)
 
   async function save(k: string, v: string) {
     await listingsApi.patchBiz(pk, { [k]: v || null });
@@ -85,7 +86,7 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
       </div>
       <div className="kv" style={{ alignItems: "center" }}>
         <span className="k">내 광고</span>
-        {myAd ? <span className="tag" style={{ background: "var(--green)", color: "#fff", fontWeight: 700 }}>{(Number(myAd.price) / 1e8).toFixed(1)}억</span>
+        {myAd ? <span className="tag" style={{ background: "var(--green)", color: "#fff", fontWeight: 700 }}>{(Number(myAd.y) / 1e8).toFixed(1)}억</span>
               : <span style={{ color: "var(--muted)" }}>없음</span>}
       </div>
 

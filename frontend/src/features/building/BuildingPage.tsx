@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  buildingsApi, overlaysApi, rentsApi, reportsApi, extrasApi, listingsApi, creditsApi, FloorRent,
+  buildingsApi, overlaysApi, rentsApi, reportsApi, extrasApi, listingsApi, creditsApi, seriesApi, FloorRent,
 } from "../../shared/api/endpoints";
 import { PhotoPanel } from "../../shared/map/PhotoPanel";
 import { MarketTrend } from "./MarketTrend";
@@ -29,7 +29,7 @@ export function BuildingPage() {
 
   const building = useQuery({ queryKey: ["building", pk], queryFn: () => buildingsApi.get(pk) });
   const rents = useQuery({ queryKey: ["rents", pk], queryFn: () => rentsApi.list(pk) });
-  const ads = useQuery({ queryKey: ["ads", pk], queryFn: () => extrasApi.adPrices(pk) });
+  const series = useQuery({ queryKey: ["series", pk], queryFn: () => seriesApi.get(pk) });
   const listing = useQuery({ queryKey: ["listing", pk], queryFn: () => listingsApi.get(pk) });
 
   const [saveErr, setSaveErr] = useState<string | null>(null);
@@ -77,8 +77,6 @@ export function BuildingPage() {
   // ── 파생값 ──
   const b = (building.data ?? {}) as Record<string, any>;
   const total = rents.data?.total;
-  const adSeries = useMemo(() => (ads.data ?? []).filter((a) => a.price != null)
-    .map((a) => ({ x: a.observed_on, y: a.price as number })).reverse(), [ads.data]);
   // 매매가 = ✏️ sale_price 오버레이(수기)뿐. 기본값 미지정=0 → 추정 안 함(실거래≠매매가, data-overview.md:174).
   // 실거래·광고가는 각자 시계열 섹션에 별도 표시. 매매가 미입력 시 수익률·평단가는 계산 불가(—).
   const price = b.sale_price != null && b.sale_price !== "" ? Number(b.sale_price) : null;
@@ -279,20 +277,12 @@ export function BuildingPage() {
           {/* 토지정보 · 규제 · 공시지가 = 필지 셀렉터(§3.6 · 다필지·규제 2레벨) */}
           {show("land") && <ParcelBlock pk={pk} useZoneMix={b.use_zone_mix} unit={unit} />}
 
-          {/* 시세 추이 통합(§3.7): 총공시지가·실거래·광고 겹쳐 비교(전부 원). 공시지가=원/㎡×대표필지면적 */}
-          {show("deal") && (() => {
-            const pArea = b.parcel_area ? Number(b.parcel_area) : (b.land_area ? Number(b.land_area) : 0);
-            const gongsi = pArea ? (b.gongsi_series ?? []).map(([y, v]: [number, number]) => ({ x: String(y), y: v * pArea })) : [];
-            return (
-              <MarketTrend fmt={(v) => eok(v)}
-                extra={<AdInput pk={pk} refresh={() => qc.invalidateQueries({ queryKey: ["ads", pk] })} />}
-                series={[
-                  { key: "gongsi", name: "총공시지가", color: "#1E5AF0", pts: gongsi },
-                  { key: "real", name: "실거래가", color: "var(--c-real)", pts: (b.sales_history ?? []).map((s: { ym: string; price: number }) => ({ x: `${s.ym.slice(0, 4)}/${s.ym.slice(4)}`, y: s.price })) },
-                  { key: "ad", name: "광고가", color: "var(--c-ad)", dashed: true, pts: adSeries },
-                ]} />
-            );
-          })()}
+          {/* 시세 추이 통합(§3.7): 총공시지가·실거래·광고 팀 오버레이 · 겹쳐 비교(전부 원) · 표에서 행추가·수정 */}
+          {show("deal") && (
+            <MarketTrend pk={pk} fmt={(v) => eok(v)}
+              data={series.data ?? { gongsi: [], real: [], ad: [] }}
+              refresh={() => qc.invalidateQueries({ queryKey: ["series", pk] })} />
+          )}
 
           {/* 입지정보(§3.8) — 실적재 지하철·버스 */}
           {show("land") && (
@@ -512,27 +502,3 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
 }
 
 /* 광고 정보 입력(집단지성 §3.7) */
-function AdInput({ pk, refresh }: { pk: string; refresh: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [price, setPrice] = useState("");
-  const [mine, setMine] = useState(false);
-  return (
-    <span style={{ position: "relative" }}>
-      <button className="btn" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setOpen(!open)}>광고 정보 입력</button>
-      {open && (
-        <span style={{ position: "absolute", right: 0, top: "110%", zIndex: 30, background: "#fff", border: "1px solid var(--line-2)", borderRadius: 8, boxShadow: "var(--shadow-lg)", padding: 12, display: "grid", gap: 8, width: 210 }}>
-          <input className="input" placeholder="광고가 (억)" value={price} onChange={(e) => setPrice(e.target.value)} />
-          <label style={{ fontSize: 12, display: "flex", gap: 6, alignItems: "center" }}>
-            <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> 내가 낸 광고
-          </label>
-          <button className="btn primary" style={{ fontSize: 12 }} onClick={async () => {
-            const v = parseFloat(price);
-            if (!v) return;
-            await extrasApi.adPriceAdd(pk, new Date().toISOString().slice(0, 10), Math.round(v * 1e8), mine);
-            setPrice(""); setOpen(false); refresh();
-          }}>등록 (시장 공개 정보)</button>
-        </span>
-      )}
-    </span>
-  );
-}

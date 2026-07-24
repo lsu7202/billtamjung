@@ -119,6 +119,15 @@ export const rentsApi = {
     api(`/buildings/${pk}/floor-rents/${id}`, { method: "DELETE" }),
 };
 
+export interface SeriesPt { x: string; y: number; ov: boolean }
+export const seriesApi = {
+  get: (pk: string) => api<Record<"gongsi" | "real" | "ad", SeriesPt[]>>(`/buildings/${pk}/series`),
+  upsert: (pk: string, kind: string, x: string, y: number) =>
+    api(`/buildings/${pk}/series`, { method: "PUT", body: JSON.stringify({ kind, x, y }) }),
+  del: (pk: string, kind: string, x: string) =>
+    api(`/buildings/${pk}/series/${kind}/${encodeURIComponent(x)}`, { method: "DELETE" }),
+};
+
 export const marketApi = {
   nearby: (b: { center_lat: number; center_lng: number; radius_m: number }) =>
     api<Record<string, unknown>>("/market/nearby", { method: "POST", body: JSON.stringify(b) }),

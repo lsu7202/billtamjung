@@ -1,44 +1,42 @@
 import { useState } from "react";
+import { seriesApi, type SeriesPt } from "../../shared/api/endpoints";
 
-/** 시세 추이 통합 카드 — 공시지가(총)·실거래가·광고가를 한 그래프에 겹쳐 비교(전부 원 단위).
- * 표 모드는 계열별 최신 3개만, 더보기로 펼침. specs S02 §3.7(통합).
+/** 시세 추이 통합 카드 — 공시지가(총)·실거래·광고를 한 그래프에 겹쳐 비교(전부 원).
+ * 세 계열 모두 팀 오버레이: 표 모드에서 행 추가·수정·삭제. 마스터 점(ov=false)은 값만 override, 오버레이 점(ov=true)은 삭제 가능.
  */
-export interface Series { key: string; name: string; color: string; dashed?: boolean; pts: { x: string; y: number }[] }
+const META: { kind: "gongsi" | "real" | "ad"; name: string; color: string; dashed?: boolean }[] = [
+  { kind: "gongsi", name: "총공시지가", color: "#1E5AF0" },
+  { kind: "real", name: "실거래가", color: "var(--c-real)" },
+  { kind: "ad", name: "광고가", color: "var(--c-ad)", dashed: true },
+];
 
-const toTime = (x: string): number => {   // "2026" | "2026/07" | "2026-07-21" → 분수 연도
+const toTime = (x: string): number => {
   const m = x.match(/(\d{4})\D?(\d{2})?\D?(\d{2})?/);
-  if (!m) return 0;
-  return +m[1] + (m[2] ? (+m[2] - 1) / 12 : 0) + (m[3] ? +m[3] / 365 : 0);
+  return m ? +m[1] + (m[2] ? (+m[2] - 1) / 12 : 0) + (m[3] ? +m[3] / 365 : 0) : 0;
 };
 
-export function MarketTrend({ series, extra, fmt }: { series: Series[]; extra?: React.ReactNode; fmt: (n: number) => string }) {
+export function MarketTrend({ pk, data, fmt, refresh }: {
+  pk: string; data: Record<"gongsi" | "real" | "ad", SeriesPt[]>; fmt: (n: number) => string; refresh: () => void;
+}) {
   const [mode, setMode] = useState<"c" | "t">("c");
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const series = META.map((m) => ({ ...m, pts: data[m.kind] ?? [] }));
   const live = series.filter((s) => s.pts.length > 0);
 
-  if (live.length === 0) {
-    return (
-      <div className="panel">
-        <div className="sec-head">시세 추이 <span style={{ marginLeft: "auto" }}>{extra}</span></div>
-        <p style={{ color: "var(--muted)", fontSize: 13, padding: "0 14px 14px" }}>데이터가 없습니다</p>
-      </div>
-    );
-  }
-
-  // 공통 축(시간·값)
+  // 차트 축
   const W = 860, H = 240, L = 74, R = 24, T = 26, B = 34;
-  const times = live.flatMap((s) => s.pts.map((p) => toTime(p.x)));
+  const allPts = live.flatMap((s) => s.pts);
+  const times = allPts.map((p) => toTime(p.x));
   const tmin = Math.min(...times), tmax = Math.max(...times), tspan = tmax - tmin || 1;
-  const ys = live.flatMap((s) => s.pts.map((p) => p.y));
+  const ys = allPts.map((p) => p.y);
   const ymin = Math.min(...ys), ymax = Math.max(...ys), yspan = ymax - ymin || ymax || 1;
   const X = (x: string) => L + ((toTime(x) - tmin) / tspan) * (W - L - R);
   const Y = (v: number) => T + (H - T - B) * (1 - (v - ymin) / yspan);
 
   return (
     <div className="panel">
-      <div className="sec-head">시세 추이 <small style={{ color: "var(--muted)", fontWeight: 400 }}>공시지가(총)·실거래·광고 · 원 단위 비교</small>
+      <div className="sec-head">시세 추이
         <span style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: "auto" }}>
-          {extra}
           <span style={{ display: "flex" }}>
             <button className={`btn ${mode === "c" ? "primary" : ""}`} style={{ padding: "4px 10px", fontSize: 12, borderRadius: "6px 0 0 6px" }} onClick={() => setMode("c")}>그래프</button>
             <button className={`btn ${mode === "t" ? "primary" : ""}`} style={{ padding: "4px 10px", fontSize: 12, borderRadius: "0 6px 6px 0", borderLeft: 0 }} onClick={() => setMode("t")}>표</button>
@@ -48,60 +46,109 @@ export function MarketTrend({ series, extra, fmt }: { series: Series[]; extra?: 
 
       {/* 범례 */}
       <div style={{ display: "flex", gap: 16, padding: "0 14px 8px", fontSize: 12, flexWrap: "wrap" }}>
-        {live.map((s) => (
-          <span key={s.key} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 600 }}>
+        {series.map((s) => (
+          <span key={s.kind} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 600, opacity: s.pts.length ? 1 : .4 }}>
             <span style={{ width: 14, height: 0, borderTop: `3px ${s.dashed ? "dashed" : "solid"} ${s.color}`, display: "inline-block" }} />{s.name}
           </span>
         ))}
       </div>
 
       {mode === "c" ? (
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", background: "var(--surface-2)", display: "block" }}>
-          <line x1={L} y1={T - 6} x2={L} y2={H - B} stroke="var(--line-2)" />
-          <line x1={L} y1={H - B} x2={W - R} y2={H - B} stroke="var(--line-2)" />
-          <text x={L - 8} y={T + 4} textAnchor="end" fontSize="11" fill="var(--muted)" fontFamily="monospace">{fmt(ymax)}</text>
-          <text x={L - 8} y={H - B + 4} textAnchor="end" fontSize="11" fill="var(--muted)" fontFamily="monospace">{fmt(ymin)}</text>
-          {[tmin, (tmin + tmax) / 2, tmax].map((t) => (
-            <text key={t} x={L + ((t - tmin) / tspan) * (W - L - R)} y={H - B + 18} textAnchor="middle" fontSize="10" fill="var(--muted)" fontFamily="monospace">{Math.round(t)}</text>
-          ))}
-          {live.map((s) => (
-            <g key={s.key}>
-              {s.pts.length > 1 && <polyline fill="none" stroke={s.color} strokeWidth={2.5} strokeDasharray={s.dashed ? "5 4" : undefined}
-                points={s.pts.map((p) => `${X(p.x)},${Y(p.y)}`).join(" ")} />}
-              {s.pts.map((p) => (
-                <circle key={p.x} cx={X(p.x)} cy={Y(p.y)} r={3.5} fill={s.color} stroke="#fff" strokeWidth={1.5}>
-                  <title>{s.name} · {p.x} · {fmt(p.y)}</title>
-                </circle>
+        live.length === 0
+          ? <p style={{ color: "var(--muted)", fontSize: 13, padding: "0 14px 14px" }}>데이터가 없습니다 — 표에서 시점을 추가하세요</p>
+          : (
+            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", background: "var(--surface-2)", display: "block" }}>
+              <line x1={L} y1={T - 6} x2={L} y2={H - B} stroke="var(--line-2)" />
+              <line x1={L} y1={H - B} x2={W - R} y2={H - B} stroke="var(--line-2)" />
+              <text x={L - 8} y={T + 4} textAnchor="end" fontSize="11" fill="var(--muted)" fontFamily="monospace">{fmt(ymax)}</text>
+              <text x={L - 8} y={H - B + 4} textAnchor="end" fontSize="11" fill="var(--muted)" fontFamily="monospace">{fmt(ymin)}</text>
+              {[tmin, (tmin + tmax) / 2, tmax].map((t) => (
+                <text key={t} x={L + ((t - tmin) / tspan) * (W - L - R)} y={H - B + 18} textAnchor="middle" fontSize="10" fill="var(--muted)" fontFamily="monospace">{Math.round(t)}</text>
               ))}
-            </g>
-          ))}
-        </svg>
+              {live.map((s) => (
+                <g key={s.kind}>
+                  {s.pts.length > 1 && <polyline fill="none" stroke={s.color} strokeWidth={2.5} strokeDasharray={s.dashed ? "5 4" : undefined}
+                    points={s.pts.map((p) => `${X(p.x)},${Y(p.y)}`).join(" ")} />}
+                  {s.pts.map((p) => (
+                    <circle key={p.x} cx={X(p.x)} cy={Y(p.y)} r={3.5} fill={s.color} stroke="#fff" strokeWidth={1.5}>
+                      <title>{s.name} · {p.x} · {fmt(p.y)}</title>
+                    </circle>
+                  ))}
+                </g>
+              ))}
+            </svg>
+          )
       ) : (
-        <div style={{ display: "grid", gap: 14, padding: "0 14px 14px" }}>
-          {live.map((s) => {
-            const rows = [...s.pts].reverse();
-            const shown = open[s.key] ? rows : rows.slice(0, 3);
-            return (
-              <div key={s.key}>
-                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 2, background: s.color, display: "inline-block" }} />{s.name}
-                </div>
-                <table className="wf">
-                  <tbody>
-                    {shown.map((p) => <tr key={p.x}><td>{p.x}</td><td className="num">{fmt(p.y)}</td></tr>)}
-                  </tbody>
-                </table>
-                {rows.length > 3 && (
-                  <button className="btn" style={{ marginTop: 6, padding: "3px 10px", fontSize: 12 }}
-                    onClick={() => setOpen((o) => ({ ...o, [s.key]: !o[s.key] }))}>
-                    {open[s.key] ? "접기" : `더보기 (${rows.length - 3})`}
-                  </button>
-                )}
-              </div>
-            );
-          })}
+        <div style={{ display: "grid", gap: 16, padding: "0 14px 14px" }}>
+          {series.map((s) => (
+            <SeriesTable key={s.kind} pk={pk} kind={s.kind} name={s.name} color={s.color}
+              pts={s.pts} fmt={fmt} refresh={refresh} expanded={!!open[s.kind]} toggle={() => setOpen((o) => ({ ...o, [s.kind]: !o[s.kind] }))} />
+          ))}
         </div>
       )}
     </div>
+  );
+}
+
+/* 계열별 표 — 최신 3개(+더보기) · 값 클릭=수정(억) · ×삭제(오버레이) · 하단 빈 행에 시점+값=추가 */
+function SeriesTable({ pk, kind, name, color, pts, fmt, refresh, expanded, toggle }: {
+  pk: string; kind: string; name: string; color: string; pts: SeriesPt[];
+  fmt: (n: number) => string; refresh: () => void; expanded: boolean; toggle: () => void;
+}) {
+  const rows = [...pts].reverse();
+  const shown = expanded ? rows : rows.slice(0, 3);
+  const save = async (x: string, eok: string) => { const y = Math.round(parseFloat(eok) * 1e8); if (x.trim() && !Number.isNaN(y)) { await seriesApi.upsert(pk, kind, x.trim(), y); refresh(); } };
+  const del = async (x: string) => { await seriesApi.del(pk, kind, x); refresh(); };
+  return (
+    <div>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 10, height: 10, borderRadius: 2, background: color, display: "inline-block" }} />{name}
+      </div>
+      <table className="wf">
+        <tbody>
+          {shown.map((p) => <SeriesRow key={p.x} kind={kind} p={p} fmt={fmt} onSave={save} onDel={del} />)}
+          <SeriesRow key="draft" kind={kind} p={null} fmt={fmt} onSave={save} onDel={del} />
+        </tbody>
+      </table>
+      {rows.length > 3 && (
+        <button className="btn" style={{ marginTop: 6, padding: "3px 10px", fontSize: 12 }} onClick={toggle}>
+          {expanded ? "접기" : `더보기 (${rows.length - 3})`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SeriesRow({ p, fmt, onSave, onDel }: {
+  kind: string; p: SeriesPt | null; fmt: (n: number) => string;
+  onSave: (x: string, eok: string) => void; onDel: (x: string) => void;
+}) {
+  const draft = p == null;
+  const [hover, setHover] = useState(false);
+  const [xv, setXv] = useState(p?.x ?? "");
+  const [yEdit, setYEdit] = useState(false);
+  const [yv, setYv] = useState("");
+  const commitY = () => { setYEdit(false); if (yv) onSave(draft ? xv : p!.x, yv); };
+  return (
+    <tr onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} style={draft ? { background: "var(--surface-2)" } : undefined}>
+      <td>{draft
+        ? <input className="input" style={{ width: 90, padding: "3px 6px", fontSize: 12 }} placeholder="시점" value={xv}
+            onChange={(e) => setXv(e.target.value)} onBlur={() => { if (xv && yv) onSave(xv, yv); }} />
+        : p!.x}</td>
+      <td className="num">
+        {yEdit
+          ? <input className="input" style={{ width: 80, padding: "3px 6px", fontSize: 12 }} autoFocus placeholder="억" value={yv}
+              onChange={(e) => setYv(e.target.value.replace(/[^\d.]/g, ""))} onBlur={commitY}
+              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setYEdit(false); }} />
+          : <span style={{ cursor: "pointer", display: "inline-block", minWidth: 40, minHeight: 15 }} title="클릭 = 수정(억)"
+              onClick={() => { setYv(p ? String(+(p.y / 1e8).toFixed(2)) : ""); setYEdit(true); }}>{p ? fmt(p.y) : ""}</span>}
+      </td>
+      <td style={{ width: 30 }}>
+        {!draft && p!.ov && (
+          <button className="btn" style={{ padding: "1px 6px", fontSize: 12, color: "var(--up)", visibility: hover ? "visible" : "hidden" }}
+            onClick={() => onDel(p!.x)} title="삭제">×</button>
+        )}
+      </td>
+    </tr>
   );
 }
