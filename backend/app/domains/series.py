@@ -11,10 +11,12 @@ KINDS = ("gongsi", "real", "ad")
 
 
 def _merge(master: list[dict], overlay: list[dict]) -> list[dict]:
-    """x 매칭 시 오버레이가 마스터 override. ov=True면 팀 오버레이(수정·삭제 가능)."""
-    m = {p["x"]: {"x": p["x"], "y": p["y"], "ov": False} for p in master}
+    """x 매칭 시 오버레이가 마스터 override. ov=팀 오버레이 · master=마스터 점 존재.
+    override(ov&master)=삭제 시 마스터 복원(되돌리기) · 순수 오버레이(ov&!master)=완전 삭제."""
+    mkeys = {p["x"] for p in master}
+    m = {p["x"]: {"x": p["x"], "y": p["y"], "ov": False, "master": True} for p in master}
     for o in overlay:
-        m[o["x"]] = {"x": o["x"], "y": int(o["y"]), "ov": True}
+        m[o["x"]] = {"x": o["x"], "y": int(o["y"]), "ov": True, "master": o["x"] in mkeys}
     return sorted(m.values(), key=lambda p: p["x"])
 
 

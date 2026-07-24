@@ -115,7 +115,7 @@ function SeriesTable({ pk, kind, name, color, perPy, areaPy, pts, fmt, refresh, 
   const [hover, setHover] = useState(false);
   const rows = [...pts].reverse();
   const shown = expanded ? rows : rows.slice(0, 3);
-  const save = async (x: string, eok: string) => { const y = Math.round(parseFloat(eok) * 1e8); if (validX(x) && !Number.isNaN(y)) { await seriesApi.upsert(pk, kind, x.trim(), y); refresh(); } };
+  const save = async (x: string, won: string) => { const y = parseInt(won, 10); if (validX(x) && y > 0) { await seriesApi.upsert(pk, kind, x.trim(), y); refresh(); } };   // 원 단위 입력(정밀)
   const del = async (x: string) => { await seriesApi.del(pk, kind, x); refresh(); };
   return (
     <div>
@@ -162,18 +162,21 @@ function SeriesRow({ p, fmt, perPy, areaPy, onSave, onDel, hidden }: {
         : p!.x}</td>
       <td className="num">
         {yEdit
-          ? <input className="input" style={{ width: 80, padding: "3px 6px", fontSize: 12 }} autoFocus placeholder="억" value={yv}
-              onChange={(e) => setYv(e.target.value.replace(/[^\d.]/g, ""))}
-              onBlur={() => { setYEdit(false); if (yv) trySave(draft ? xv : p!.x, yv); }}
-              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setYEdit(false); }} />
-          : <span style={{ cursor: "pointer", display: "inline-block", minWidth: 40, minHeight: 15 }} title="클릭 = 수정(억, 소수 가능)"
-              onClick={() => { setYv(p ? String(+(p.y / 1e8).toFixed(4)) : ""); setYEdit(true); }}>{p ? fmt(p.y) : ""}</span>}
+          ? <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+              <input className="input" style={{ width: 120, padding: "3px 6px", fontSize: 12 }} autoFocus placeholder="원" value={yv}
+                onChange={(e) => setYv(e.target.value.replace(/[^\d]/g, ""))}
+                onBlur={() => { setYEdit(false); if (yv) trySave(draft ? xv : p!.x, yv); }}
+                onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setYEdit(false); }} />
+              {yv && <span style={{ fontSize: 10, color: "var(--muted)" }}>{fmt(parseInt(yv, 10))}</span>}
+            </span>
+          : <span style={{ cursor: "pointer", display: "inline-block", minWidth: 40, minHeight: 15 }} title="클릭 = 수정(원 단위)"
+              onClick={() => { setYv(p ? String(p.y) : ""); setYEdit(true); }}>{p ? fmt(p.y) : ""}</span>}
       </td>
       {perPy && <td className="num" style={{ color: "var(--muted)", fontSize: 12 }}>{p ? perPyFmt(p.y, areaPy) : ""}</td>}
       <td style={{ width: 30 }}>
         {!draft && p!.ov && (
-          <button className="btn" style={{ padding: "1px 6px", fontSize: 12, color: "var(--up)", visibility: hover ? "visible" : "hidden" }}
-            onClick={() => onDel(p!.x)} title="삭제">×</button>
+          <button className="btn" style={{ padding: "1px 6px", fontSize: 12, color: p!.master ? "var(--ink-2)" : "var(--up)", visibility: hover ? "visible" : "hidden" }}
+            onClick={() => onDel(p!.x)} title={p!.master ? "마스터 원본으로 되돌리기" : "삭제"}>{p!.master ? "↺" : "×"}</button>
         )}
       </td>
     </tr>

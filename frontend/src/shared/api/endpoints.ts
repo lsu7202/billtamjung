@@ -119,7 +119,7 @@ export const rentsApi = {
     api(`/buildings/${pk}/floor-rents/${id}`, { method: "DELETE" }),
 };
 
-export interface SeriesPt { x: string; y: number; ov: boolean }
+export interface SeriesPt { x: string; y: number; ov: boolean; master: boolean }
 export const seriesApi = {
   get: (pk: string) => api<Record<"gongsi" | "real" | "ad", SeriesPt[]>>(`/buildings/${pk}/series`),
   upsert: (pk: string, kind: string, x: string, y: number) =>
