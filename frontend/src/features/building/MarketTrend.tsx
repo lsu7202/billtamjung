@@ -95,6 +95,7 @@ function SeriesTable({ pk, kind, name, color, pts, fmt, refresh, expanded, toggl
   pk: string; kind: string; name: string; color: string; pts: SeriesPt[];
   fmt: (n: number) => string; refresh: () => void; expanded: boolean; toggle: () => void;
 }) {
+  const [hover, setHover] = useState(false);
   const rows = [...pts].reverse();
   const shown = expanded ? rows : rows.slice(0, 3);
   const save = async (x: string, eok: string) => { const y = Math.round(parseFloat(eok) * 1e8); if (x.trim() && !Number.isNaN(y)) { await seriesApi.upsert(pk, kind, x.trim(), y); refresh(); } };
@@ -104,10 +105,10 @@ function SeriesTable({ pk, kind, name, color, pts, fmt, refresh, expanded, toggl
       <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ width: 10, height: 10, borderRadius: 2, background: color, display: "inline-block" }} />{name}
       </div>
-      <table className="wf">
+      <table className="wf" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
         <tbody>
           {shown.map((p) => <SeriesRow key={p.x} kind={kind} p={p} fmt={fmt} onSave={save} onDel={del} />)}
-          <SeriesRow key="draft" kind={kind} p={null} fmt={fmt} onSave={save} onDel={del} />
+          <SeriesRow key="draft" kind={kind} p={null} fmt={fmt} onSave={save} onDel={del} hidden={!hover} />
         </tbody>
       </table>
       {rows.length > 3 && (
@@ -119,9 +120,9 @@ function SeriesTable({ pk, kind, name, color, pts, fmt, refresh, expanded, toggl
   );
 }
 
-function SeriesRow({ p, fmt, onSave, onDel }: {
+function SeriesRow({ p, fmt, onSave, onDel, hidden }: {
   kind: string; p: SeriesPt | null; fmt: (n: number) => string;
-  onSave: (x: string, eok: string) => void; onDel: (x: string) => void;
+  onSave: (x: string, eok: string) => void; onDel: (x: string) => void; hidden?: boolean;
 }) {
   const draft = p == null;
   const [hover, setHover] = useState(false);
@@ -130,7 +131,8 @@ function SeriesRow({ p, fmt, onSave, onDel }: {
   const [yv, setYv] = useState("");
   const commitY = () => { setYEdit(false); if (yv) onSave(draft ? xv : p!.x, yv); };
   return (
-    <tr onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} style={draft ? { background: "var(--surface-2)" } : undefined}>
+    <tr onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      style={{ ...(hidden ? { display: "none" } : {}), ...(draft ? { background: "var(--surface-2)" } : {}) }}>
       <td>{draft
         ? <input className="input" style={{ width: 90, padding: "3px 6px", fontSize: 12 }} placeholder="시점" value={xv}
             onChange={(e) => setXv(e.target.value)} onBlur={() => { if (xv && yv) onSave(xv, yv); }} />

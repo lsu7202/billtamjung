@@ -418,9 +418,9 @@ const toForm = (r: FloorRent, unit: "py" | "m2"): RentForm => ({
   maintenance: r.maintenance ? String(Math.round(r.maintenance / 1e4)) : "",
   is_vacant: r.is_vacant ?? false,
 });
-function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved }: {
+function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden }: {
   pk: string; r: FloorRent; unit: "py" | "m2"; eok: (n?: number | null) => string;
-  refresh: () => void; isDraft?: boolean; onSaved?: () => void;
+  refresh: () => void; isDraft?: boolean; onSaved?: () => void; hidden?: boolean;
 }) {
   const [f, setF] = useState<RentForm>(toForm(r, unit));
   const [hover, setHover] = useState(false);
@@ -450,7 +450,8 @@ function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved }: {
   }
 
   return (
-    <tr onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} style={isDraft ? { background: "var(--surface-2)" } : undefined}>
+    <tr onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      style={{ ...(hidden ? { display: "none" } : {}), ...(isDraft ? { background: "var(--surface-2)" } : {}) }}>
       <td><RentCell edit={f.floor} render={f.floor} ph="1F" width={46} onSave={set("floor")} /></td>
       <td><RentCell edit={f.unit_no} render={f.unit_no} ph="101" width={46} onSave={set("unit_no")} /></td>
       <td><RentCell edit={f.use} render={f.use} ph="용도" width={72} onSave={set("use")} /></td>
@@ -477,15 +478,16 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
   eok: (n?: number | null) => string;
 }) {
   const [draftKey, setDraftKey] = useState(0);
+  const [hover, setHover] = useState(false);
   const blank: FloorRent = { floor: "", unit_no: "", deposit: 0, rent: 0, maintenance: 0, is_vacant: false };
   return (
     <div className="panel">
       <div className="sec-head">층별 임대정보</div>
-      <table className="wf">
+      <table className="wf" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
         <thead><tr><th>층</th><th>호실</th><th>용도</th><th className="num">전용({unit === "py" ? "평" : "㎡"})</th><th className="num">계약({unit === "py" ? "평" : "㎡"})</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">관리비</th><th>상태</th></tr></thead>
         <tbody>
           {items.map((r) => <RentRow key={r.id ?? `${r.floor}-${r.unit_no}`} pk={pk} r={r} unit={unit} eok={eok} refresh={refresh} />)}
-          <RentRow key={`draft-${draftKey}`} pk={pk} r={blank} unit={unit} eok={eok} refresh={refresh} isDraft onSaved={() => setDraftKey((k) => k + 1)} />
+          <RentRow key={`draft-${draftKey}`} pk={pk} r={blank} unit={unit} eok={eok} refresh={refresh} isDraft hidden={!hover} onSaved={() => setDraftKey((k) => k + 1)} />
           {total && items.length > 0 && (
             <tr style={{ background: "var(--surface-2)", fontWeight: 700 }}>
               <td colSpan={5}>합계</td>
