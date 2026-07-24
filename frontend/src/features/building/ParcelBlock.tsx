@@ -3,8 +3,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../shared/api/client";
 import { overlaysApi } from "../../shared/api/endpoints";
 import { SeriesBlock } from "./SeriesBlock";
-import { EnumField } from "./EnumField";
 import { KV, NumCell, vPos, vNonNeg } from "./KV";
+import { EnumField, ChipsMulti } from "./EnumField";
+
+/* 용도지역 전체(걸침 다중선택). code=label=풀네임(use_zone_mix 명과 일치). */
+const ZONE_OPTS = ["제1종전용주거지역", "제2종전용주거지역", "제1종일반주거지역", "제2종일반주거지역", "제3종일반주거지역",
+  "준주거지역", "중심상업지역", "일반상업지역", "근린상업지역", "유통상업지역", "전용공업지역", "일반공업지역", "준공업지역",
+  "보전녹지지역", "생산녹지지역", "자연녹지지역", "보전관리지역", "생산관리지역", "계획관리지역", "농림지역", "자연환경보전지역", "미지정",
+].map((z) => ({ code: z, label: z }));
+type ZoneMix = { 명: string; 비중: number; 코드?: string }[];
 
 /** 필지 셀렉터(S02 §3.6) — 다필지 탭 전환 · 토지/규제/공시지가가 선택 필지 값으로 · 건물 요약(OR 집계).
  * 편집: 필지 오버레이(target_type='parcel', target_id=pnu). enum(지목·지형·도로접면·지세)+자유값(용도지역·토지이용·면적·공시지가).
@@ -28,7 +35,7 @@ const pct = (x: unknown): string | null => (x == null || x === "" ? null : Strin
 const eok = (n: number | null) => (n == null || n === 0 ? "" : `${(n / 1e8).toFixed(1)}억`);   // 0=빈칸(null 통일)
 const man = (n: number | null) => (n == null || n === 0 ? "" : `${Math.round(n / 1e4).toLocaleString()}만/㎡`);
 
-export function ParcelBlock({ pk }: { pk: string }) {
+export function ParcelBlock({ pk, useZoneMix }: { pk: string; useZoneMix?: unknown }) {
   const [sel, setSel] = useState(0);
   const qc = useQueryClient();
   const q = useQuery<ParcelsResp>({
@@ -87,7 +94,23 @@ export function ParcelBlock({ pk }: { pk: string }) {
       <div className="kv-grid">
         <KV label="토지면적" field="area" value={area ? `${area.toLocaleString()}㎡` : ""} editable current={area ?? ""} validate={vPos} onSave={onSave} onRevert={onRevert} />
         <EnumField label="지목" enumKey="jimok" value={p.jimok} onSave={(v) => onSave("jimok", v)} />
-        <KV label="용도지역" field="use_zone" value={p.use_zone ?? ""} editable current={p.use_zone ?? ""} onSave={onSave} onRevert={onRevert} />
+        {/* 용도지역 = 걸침(다지역) 가능 → 다중선택. 오버라이드 없으면 건물 use_zone_mix(비중) 표시 */}
+        {(() => {
+          const mix: ZoneMix = Array.isArray(useZoneMix) ? useZoneMix : (typeof useZoneMix === "string" ? JSON.parse(useZoneMix || "[]") : []);
+          const overridden = typeof p.use_zone === "string" && p.use_zone.includes(",");
+          const selected = overridden ? p.use_zone!.split(",") : (mix.length ? mix.map((m) => m.명) : p.use_zone ? [p.use_zone] : []);
+          const summary = overridden
+            ? selected.join(" · ")
+            : mix.length
+              ? mix.map((m) => (m.비중 < 0.999 ? `${m.명} ${Math.round(m.비중 * 100)}%` : m.명)).join(" · ")
+              : (p.use_zone ?? "");
+          return (
+            <div className="kv" style={{ alignItems: "center" }}><span className="k">용도지역</span>
+              <ChipsMulti opts={ZONE_OPTS} selected={selected} summary={summary}
+                onChange={(v) => onSave("use_zone", v.join(","))} />
+            </div>
+          );
+        })()}
         <KV label="이용상황" field="land_use" value={p.land_use ?? ""} editable current={p.land_use ?? ""} onSave={onSave} onRevert={onRevert} />
         <EnumField label="지형/형상" enumKey="shape" value={p.shape} onSave={(v) => onSave("shape", v)} />
         <EnumField label="도로접면" enumKey="road_frontage" value={p.road_frontage} onSave={(v) => onSave("road_frontage", v)} />

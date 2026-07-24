@@ -270,7 +270,7 @@ export function BuildingPage() {
           )}
 
           {/* 토지정보 · 규제 · 공시지가 = 필지 셀렉터(§3.6 · 다필지·규제 2레벨) */}
-          {show("land") && <ParcelBlock pk={pk} />}
+          {show("land") && <ParcelBlock pk={pk} useZoneMix={b.use_zone_mix} />}
 
           {/* 매각·광고 시계열(§3.7) */}
           {show("deal") && (
