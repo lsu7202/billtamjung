@@ -15,11 +15,9 @@ const toTime = (x: string): number => {
   return m ? +m[1] + (m[2] ? (+m[2] - 1) / 12 : 0) + (m[3] ? +m[3] / 365 : 0) : 0;
 };
 const validX = (x: string) => /^\d{4}([/-]\d{1,2}([/-]\d{1,2})?)?$/.test(x.trim());
-const fmtDate = (s: string): string => {   // 숫자만 입력 → 슬래시 자동삽입: 20000404 → 2000/04/04
-  const d = s.replace(/\D/g, "").slice(0, 8);
-  if (d.length <= 4) return d;
-  if (d.length <= 6) return `${d.slice(0, 4)}/${d.slice(4)}`;
-  return `${d.slice(0, 4)}/${d.slice(4, 6)}/${d.slice(6)}`;
+const fmtDate = (s: string): string => {   // 숫자만 입력 → 연/월까지만 자동 슬래시: 20000404 → 2000/04
+  const d = s.replace(/\D/g, "").slice(0, 6);
+  return d.length <= 4 ? d : `${d.slice(0, 4)}/${d.slice(4)}`;
 };
 const perPyFmt = (y: number, areaPy?: number) => (areaPy ? `${Math.round(y / areaPy / 1e4).toLocaleString()}만/평` : "");
 
@@ -119,9 +117,14 @@ function SeriesTable({ pk, kind, name, color, perPy, areaPy, pts, fmt, refresh, 
   pts: SeriesPt[]; fmt: (n: number) => string; refresh: () => void; expanded: boolean; toggle: () => void;
 }) {
   const [hover, setHover] = useState(false);
+  const [draftKey, setDraftKey] = useState(0);
   const rows = [...pts].reverse();
   const shown = expanded ? rows : rows.slice(0, 3);
-  const save = async (x: string, won: string) => { const y = parseInt(won, 10); if (validX(x) && y > 0) { await seriesApi.upsert(pk, kind, x.trim(), y); refresh(); } };   // 원 단위 입력(정밀)
+  const save = async (x: string, won: string): Promise<boolean> => {   // 원 단위 입력(정밀)
+    const y = parseInt(won, 10);
+    if (!validX(x) || !(y > 0)) return false;
+    await seriesApi.upsert(pk, kind, x.trim(), y); refresh(); return true;
+  };
   const del = async (x: string) => { await seriesApi.del(pk, kind, x); refresh(); };
   return (
     <div>
@@ -131,8 +134,9 @@ function SeriesTable({ pk, kind, name, color, perPy, areaPy, pts, fmt, refresh, 
       <table className="wf" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
         <tbody>
           {shown.map((p) => <SeriesRow key={p.x} p={p} fmt={fmt} perPy={perPy} areaPy={areaPy} onSave={save} onDel={del} />)}
-          {/* 빈 계열(광고 등)은 호버할 행이 없으니 draft 항상 노출, 행 있으면 호버 시만 */}
-          <SeriesRow key="draft" p={null} fmt={fmt} perPy={perPy} areaPy={areaPy} onSave={save} onDel={del} hidden={!hover && pts.length > 0} />
+          {/* 빈 계열(광고 등)은 호버할 행이 없으니 draft 항상 노출. 저장되면 draftKey++로 리셋(날짜 잔존 방지) */}
+          <SeriesRow key={`draft-${draftKey}`} p={null} fmt={fmt} perPy={perPy} areaPy={areaPy}
+            onSave={async (x, y) => { if (await save(x, y)) setDraftKey((k) => k + 1); }} onDel={del} hidden={!hover && pts.length > 0} />
         </tbody>
       </table>
       {rows.length > 3 && (
@@ -164,13 +168,13 @@ function SeriesRow({ p, fmt, perPy, areaPy, onSave, onDel, hidden }: {
       style={{ ...(hidden ? { display: "none" } : {}), ...(draft ? { background: "var(--surface-2)" } : {}) }}>
       <td>{draft
         ? <input className="input" style={{ width: 96, padding: "3px 6px", fontSize: 12, borderColor: xErr ? "var(--up)" : undefined }}
-            placeholder="YYYYMMDD" value={xv} onChange={(e) => { setXv(fmtDate(e.target.value)); if (xErr) setXErr(false); }}
-            onBlur={() => trySave(xv, yv)} title={xErr ? "형식: YYYY · YYYY/MM · YYYY/MM/DD" : undefined} />
+            value={xv} onChange={(e) => { setXv(fmtDate(e.target.value)); if (xErr) setXErr(false); }}
+            onBlur={() => trySave(xv, yv)} title={xErr ? "형식: YYYY 또는 YYYY/MM" : undefined} />
         : p!.x}</td>
       <td className="num">
         {yEdit
           ? <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
-              <input className="input" style={{ width: 120, padding: "3px 6px", fontSize: 12 }} autoFocus placeholder="원(비우면 삭제)" value={yv}
+              <input className="input" style={{ width: 120, padding: "3px 6px", fontSize: 12 }} autoFocus value={yv}
                 onChange={(e) => setYv(e.target.value.replace(/[^\d]/g, ""))}
                 onBlur={() => { setYEdit(false); if (yv) trySave(draft ? xv : p!.x, yv); else if (!draft && p!.ov) onDel(p!.x); }}
                 onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setYEdit(false); }} />
