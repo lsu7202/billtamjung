@@ -4,7 +4,7 @@ import { api } from "../../shared/api/client";
 import { overlaysApi } from "../../shared/api/endpoints";
 import { SeriesBlock } from "./SeriesBlock";
 import { EnumField } from "./EnumField";
-import { KV, vPos, vNonNeg } from "./KV";
+import { KV, NumCell, vPos, vNonNeg } from "./KV";
 
 /** 필지 셀렉터(S02 §3.6) — 다필지 탭 전환 · 토지/규제/공시지가가 선택 필지 값으로 · 건물 요약(OR 집계).
  * 편집: 필지 오버레이(target_type='parcel', target_id=pnu). enum(지목·지형·도로접면·지세)+자유값(용도지역·토지이용·면적·공시지가).
@@ -18,8 +18,13 @@ interface Parcel {
 }
 interface ParcelsResp { parcels: Parcel[]; reg_summary: Record<string, string>; count: number }
 
-const REG_ALL = ["고도지구", "지구단위계획", "정비구역", "경관지구", "방화지구", "문화재보존"];
+const REG_ALL = ["지구단위계획", "정비구역", "고도지구", "경관지구", "방화지구", "문화재보존"];   // 목업 순서(개발제한=마스터 컬럼 없음, 제외)
+const REG_FIELD: Record<string, string> = {   // 규제 라벨 → 필지 오버레이 필드(백엔드 REG_LABELS 역매핑)
+  "고도지구": "reg_godo", "지구단위계획": "reg_district", "정비구역": "reg_jeongbi",
+  "경관지구": "reg_gyeong", "방화지구": "reg_banghwa", "문화재보존": "reg_munhwa",
+};
 const num = (x: unknown): number | null => (x == null || x === "" ? null : Number(x));
+const pct = (x: unknown): string | null => (x == null || x === "" ? null : String(x).replace("%", ""));   // 법정건폐/용적: 마스터 "50%" → 숫자부만(중복 % 방지)
 const eok = (n: number | null) => (n == null ? "—" : `${(n / 1e8).toFixed(1)}억`);
 const man = (n: number | null) => (n == null ? "—" : `${Math.round(n / 1e4).toLocaleString()}만/㎡`);
 
@@ -78,19 +83,24 @@ export function ParcelBlock({ pk }: { pk: string }) {
         </div>
       )}
 
-      {/* 토지정보(선택 필지) — enum 드롭다운 + 자유값 인라인 편집(필지 오버레이) */}
+      {/* 토지정보(선택 필지) — 목업 순서: 토지면적·지목·용도지역·이용상황·지형/형상·도로접면·지세·법정건폐/용적 */}
       <div className="kv-grid">
-        <EnumField label="지목" enumKey="jimok" value={p.jimok} onSave={(v) => onSave("jimok", v)} />
         <KV label="토지면적" field="area" value={area ? `${area.toLocaleString()}㎡` : "—"} editable current={area ?? ""} validate={vPos} onSave={onSave} onRevert={onRevert} />
+        <EnumField label="지목" enumKey="jimok" value={p.jimok} onSave={(v) => onSave("jimok", v)} />
         <KV label="용도지역" field="use_zone" value={p.use_zone ?? "—"} editable current={p.use_zone ?? ""} onSave={onSave} onRevert={onRevert} />
-        <KV label="토지이용상황" field="land_use" value={p.land_use ?? "—"} editable current={p.land_use ?? ""} onSave={onSave} onRevert={onRevert} />
-        <EnumField label="지형형상" enumKey="shape" value={p.shape} onSave={(v) => onSave("shape", v)} />
+        <KV label="이용상황" field="land_use" value={p.land_use ?? "—"} editable current={p.land_use ?? ""} onSave={onSave} onRevert={onRevert} />
+        <EnumField label="지형/형상" enumKey="shape" value={p.shape} onSave={(v) => onSave("shape", v)} />
         <EnumField label="도로접면" enumKey="road_frontage" value={p.road_frontage} onSave={(v) => onSave("road_frontage", v)} />
-        <div className="kv"><span className="k">법정 건폐/용적</span><span className="v num">{p.legal_bcr ?? "—"} / {p.legal_far ?? "—"}</span></div>
         <EnumField label="지세" enumKey="slope" value={p.slope} onSave={(v) => onSave("slope", v)} />
+        {/* 법정 건폐/용적 = 🔀 조례파생, override 가능(한 줄 두 값 인라인 편집) */}
+        <div className="kv"><span className="k">법정 건폐/용적</span>
+          <span className="v num" style={{ display: "flex", gap: 5, alignItems: "center", justifyContent: "flex-end" }}>
+            <NumCell v={pct(p.legal_bcr)} suffix="%" onSave={(x) => onSave("legal_bcr", x)} /> / <NumCell v={pct(p.legal_far)} suffix="%" onSave={(x) => onSave("legal_far", x)} />
+          </span>
+        </div>
       </div>
 
-      {/* 규제 2레벨: 건물 요약(OR 집계) + 필지 상세 */}
+      {/* 규제 2레벨: 건물 요약(OR 집계) + 필지 상세(값 클릭=수정 · 구역명 자유입력·"해당 없음"=미해당) */}
       <div className="sec-head" style={{ fontSize: 13 }}>규제·특례</div>
       <div style={{ padding: "0 14px 8px", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
         <span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 700, marginRight: 2 }}>건물 요약</span>
@@ -103,10 +113,8 @@ export function ParcelBlock({ pk }: { pk: string }) {
       </div>
       <div className="kv-grid" style={{ paddingTop: 0 }}>
         {REG_ALL.map((r) => (
-          <div key={r} className="kv"><span className="k">{r}</span>
-            <span className="v" style={p.regs[r] ? { color: "var(--up)" } : { color: "var(--muted)" }}>
-              {p.regs[r] ?? "해당 없음"}
-            </span></div>
+          <KV key={r} label={r} field={REG_FIELD[r]} value={p.regs[r] ?? "해당 없음"} editable
+            current={p.regs[r] ?? ""} onSave={onSave} onRevert={onRevert} />
         ))}
       </div>
 

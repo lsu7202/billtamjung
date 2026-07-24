@@ -10,7 +10,7 @@ import { MarketBlock } from "./MarketBlock";
 import { Sidebar } from "./Sidebar";
 import { ParcelBlock } from "./ParcelBlock";
 import { EnumField } from "./EnumField";
-import { KV, vRate100, vNonNeg, vPos, vYmd } from "./KV";
+import { KV, FloorsRow, vRate100, vNonNeg, vPos, vYmd, vInt } from "./KV";
 
 /** S02 매물 상세 — 목업 전체 구조:
  * 헤더지표 · 사진(지도/로드뷰) · 표시범위 · 금액 · 투자분석 · 층별임대 · 상세정보
@@ -84,6 +84,7 @@ export function BuildingPage() {
   const price = b.sale_price != null && b.sale_price !== "" ? Number(b.sale_price) : null;
   const landP = b.land_area ? Number(b.land_area) / P : null;
   const totalP = b.total_area ? Number(b.total_area) / P : null;
+  const buildP = b.build_area ? Number(b.build_area) / P : null;
   const yearRent = total ? total.rent * 12 : 0;
   const roiNow = price && yearRent ? (yearRent / price) * 100 : null;                 // 수익률(만실) F-10 단순형(베타=공실데이터 없어 현재≈만실). 공실제외는 데이터 연동 후
   const pricePerLand = price && landP ? price / landP : null;
@@ -140,7 +141,7 @@ export function BuildingPage() {
           {metric("매매가", price ? eok(price) : "미지정")}
           {metric("수익률(만실)", roiNow ? `${roiNow.toFixed(1)}%` : "—")}
           {metric("평단가(대지)", pricePerLand ? eok(pricePerLand) : "—")}
-          {metric("면적 (평)", `${landP ? landP.toFixed(1) : "—"} / ${totalP ? totalP.toFixed(1) : "—"} / —`)}
+          {metric("면적 (평)", `${landP ? landP.toFixed(1) : "—"} / ${totalP ? totalP.toFixed(1) : "—"} / ${buildP ? buildP.toFixed(1) : "—"}`)}
           {metric("층수", `B${b.floors_below ?? "—"}F/${b.floors_above ?? "—"}F`)}
         </div>
         <div style={{ display: "flex", gap: 10 }}>
@@ -222,20 +223,23 @@ export function BuildingPage() {
           {show("land") && (
             <div className="panel">
               <div className="sec-head">건물정보 <small style={{ color: "var(--muted)", fontWeight: 400 }}>값 클릭 = 수정 · ↺ = 되돌리기</small></div>
+              {/* 목업 순서: 대지·연·건축면적 → 층수 → 용적산정연면적 → 주차·엘베 → 승인/대수선 → 주용도 → 건폐·용적 (검증=데이터타입) */}
               <div className="kv-grid">
                 <KV label="대지면적" field="land_area" value={area(b.land_area)} editable current={areaSeed(b.land_area)} parse={areaParse} validate={vPos} onSave={onSave} onRevert={onRevert} />
                 <KV label="연면적" field="total_area" value={area(b.total_area)} editable current={areaSeed(b.total_area)} parse={areaParse} validate={vPos} onSave={onSave} onRevert={onRevert} />
                 <KV label="건축면적" field="build_area" value={area(b.build_area)} editable current={areaSeed(b.build_area)} parse={areaParse} validate={vPos} onSave={onSave} onRevert={onRevert} />
-                <KV label="지상 층수" field="floors_above" value={b.floors_above ?? "—"} unit="층" editable current={b.floors_above} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
-                <KV label="지하 층수" field="floors_below" value={b.floors_below ?? "—"} unit="층" editable current={b.floors_below} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
+                <FloorsRow above={b.floors_above} below={b.floors_below} onSave={onSave} />
+                <KV label="용적률 산정용 연면적" field="far_area" value={area(b.far_area)} editable current={areaSeed(b.far_area)} parse={areaParse} validate={vPos} onSave={onSave} onRevert={onRevert} />
+                <KV label="주차" field="parking" value={b.parking ?? "—"} unit="대" editable current={b.parking} validate={vInt} onSave={onSave} onRevert={onRevert} />
+                <KV label="엘리베이터" field="elevator" value={b.elevator ?? "—"} unit="대" editable current={b.elevator} validate={vInt} onSave={onSave} onRevert={onRevert} />
+                <KV label="사용승인일" field="approval_ymd" value={String(b.approval_ymd ?? "—")} editable current={b.approval_ymd} validate={vYmd} onSave={onSave} onRevert={onRevert} />
+                <KV label="대수선 및 리모델링" field="remodel_ymd" value={String(b.remodel_ymd ?? "—")} editable current={b.remodel_ymd} validate={vYmd} onSave={onSave} onRevert={onRevert} />
                 <EnumField label="주용도" enumKey="main_use" value={b.main_use as string}
                   onSave={(v) => editField.mutate({ field: "main_use", value: v })} />
-                <KV label="기타용도" field="etc_use" value={String(b.etc_use ?? "—")} editable current={b.etc_use} onSave={onSave} onRevert={onRevert} />
-                <KV label="구조" field="structure" value={String(b.structure ?? "—")} editable current={b.structure} onSave={onSave} onRevert={onRevert} />
                 <KV label="건폐율" field="bcr" value={b.bcr ?? "—"} unit="%" editable validate={vRate100} current={b.bcr} onSave={onSave} onRevert={onRevert} />
                 <KV label="용적률" field="far" value={b.far ?? "—"} unit="%" editable validate={vNonNeg} current={b.far} onSave={onSave} onRevert={onRevert} />
-                <KV label="사용승인일" field="approval_ymd" value={String(b.approval_ymd ?? "—")} editable current={b.approval_ymd} validate={vYmd} onSave={onSave} onRevert={onRevert} />
-                <KV label="최근 대수선" field="remodel_ymd" value={String(b.remodel_ymd ?? "—")} editable current={b.remodel_ymd} validate={vYmd} onSave={onSave} onRevert={onRevert} />
+                <KV label="기타용도" field="etc_use" value={String(b.etc_use ?? "—")} editable current={b.etc_use} onSave={onSave} onRevert={onRevert} />
+                <KV label="구조" field="structure" value={String(b.structure ?? "—")} editable current={b.structure} onSave={onSave} onRevert={onRevert} />
               </div>
             </div>
           )}
