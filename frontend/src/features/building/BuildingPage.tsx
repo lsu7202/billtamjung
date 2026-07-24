@@ -240,7 +240,7 @@ export function BuildingPage() {
           {/* 상세정보(§3.4b — 사적 enum, 드롭다운) */}
           {show("deal") && (
             <div className="panel">
-              <div className="sec-head">상세정보 <small style={{ color: "var(--muted)", fontWeight: 400 }}>사적 판단 태그 · 선택 즉시 저장</small></div>
+              <div className="sec-head">상세정보</div>
               <div className="kv-grid">
                 {([["명도", "meongdo"], ["입지", "ipji"], ["용도변경", "use_change"],
                    ["등급", "grade"], ["멸실", "myeolsil"], ["노후도", "nohudo"], ["건물용도", "building_use"]] as const).map(([lbl, f]) => (
@@ -254,7 +254,7 @@ export function BuildingPage() {
           {/* 건물정보(§3.6) */}
           {show("land") && (
             <div className="panel">
-              <div className="sec-head">건물정보 <small style={{ color: "var(--muted)", fontWeight: 400 }}>값 클릭 = 수정 · ↺ = 되돌리기</small></div>
+              <div className="sec-head">건물정보</div>
               {/* 목업 순서: 대지·연·건축면적 → 층수 → 용적산정연면적 → 주차·엘베 → 승인/대수선 → 주용도 → 건폐·용적 (검증=데이터타입) */}
               <div className="kv-grid">
                 <KV label="대지면적" field="land_area" value={area(b.land_area)} editable current={areaSeed(b.land_area)} parse={areaParse} validate={vPos} onSave={onSave} onRevert={onRevert} />
@@ -393,9 +393,9 @@ function InvestCalc({ price, yearRent }: { price: number | null; yearRent: numbe
   return (
     <div className="kv-grid">
       <div className="kv"><span className="k">자기자본</span>
-        <span><input className="input" style={{ maxWidth: 100, padding: "3px 8px", textAlign: "right" }} placeholder="50" value={equity} onChange={(e) => setEquity(e.target.value)} /> 억</span></div>
+        <span><input className="input" style={{ maxWidth: 100, padding: "3px 8px", textAlign: "right" }} value={equity} onChange={(e) => setEquity(e.target.value)} /> 억</span></div>
       <div className="kv"><span className="k">대출 이자(월)</span>
-        <span><input className="input" style={{ maxWidth: 100, padding: "3px 8px", textAlign: "right" }} placeholder="1,600" value={interest} onChange={(e) => setInterest(e.target.value)} /> 만</span></div>
+        <span><input className="input" style={{ maxWidth: 100, padding: "3px 8px", textAlign: "right" }} value={interest} onChange={(e) => setInterest(e.target.value)} /> 만</span></div>
       <div className="kv"><span className="k">자기자본 수익률</span>
         <span className="v num" style={{ color: "var(--signal)" }}>{roe != null && price ? `${roe.toFixed(1)}%` : ""}</span></div>
     </div>
@@ -414,8 +414,8 @@ function RentCell({ edit, render, ph, num, width = 66, onSave }: {
       onBlur={() => { setOn(false); if (val !== edit) onSave(val); }}
       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setOn(false); }} />
   );
-  return <span style={{ cursor: "pointer", display: "inline-block", minWidth: 20, minHeight: 15 }} title="클릭 = 수정(자동저장)"
-    onClick={() => { setVal(edit); setOn(true); }}>{render || <span style={{ color: "var(--line-2)" }}>{ph}</span>}</span>;
+  return <span style={{ cursor: "pointer", display: "inline-block", minWidth: 28, minHeight: 15 }} title="클릭 = 수정(자동저장)"
+    onClick={() => { setVal(edit); setOn(true); }}>{render}</span>;
 }
 
 /* 층별임대 행 — 셀 클릭=인라인 자동저장 · 호버 ×=삭제 · 빈(draft) 행에 입력=추가. 모듈 스코프(리마운트 방지). */
@@ -490,7 +490,7 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
   const blank: FloorRent = { floor: "", unit_no: "", deposit: 0, rent: 0, maintenance: 0, is_vacant: false };
   return (
     <div className="panel">
-      <div className="sec-head">층별 임대정보 <small style={{ color: "var(--muted)", fontWeight: 400 }}>셀 클릭=수정(자동저장) · 맨 아래 빈 행에 입력=추가 · 행 호버 ×=삭제</small></div>
+      <div className="sec-head">층별 임대정보</div>
       <table className="wf">
         <thead><tr><th>층</th><th>호실</th><th>용도</th><th className="num">전용({unit === "py" ? "평" : "㎡"})</th><th className="num">계약({unit === "py" ? "평" : "㎡"})</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">관리비</th><th>상태</th></tr></thead>
         <tbody>

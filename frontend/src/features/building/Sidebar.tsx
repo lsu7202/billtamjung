@@ -89,9 +89,9 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
               : <span style={{ color: "var(--muted)" }}>없음</span>}
       </div>
 
-      <div style={{ margin: "6px 0 2px", fontWeight: 700 }}>업무 정보 <small style={{ color: "var(--muted)", fontWeight: 400 }}>변경 즉시 저장</small></div>
+      <div style={{ margin: "6px 0 2px", fontWeight: 700 }}>업무 정보</div>
       <div className="kv" style={{ alignItems: "center" }}>
-        <span className="k">담당자 <small style={{ color: "var(--muted)", fontWeight: 400 }}>지정=등록</small></span>
+        <span className="k">담당자</span>
         <select className="input" style={{ maxWidth: 150, padding: "4px 8px", fontSize: 13 }}
           value={assignee ?? ""} onChange={(e) => assign(e.target.value ? Number(e.target.value) : null)}>
           <option value="">미지정 (등록 해제)</option>
@@ -109,7 +109,7 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
             <div className="kv" key={r.k} style={{ alignItems: "center" }}>
               <span className="k">{r.label}</span>
               <input className="input" style={{ maxWidth: 150, padding: "4px 8px", fontSize: 13, textAlign: "right" }}
-                defaultValue={val(r.k)} placeholder={r.extra} key={val(r.k)}
+                defaultValue={val(r.k)} key={val(r.k)}
                 onBlur={(e) => { if (e.target.value !== val(r.k)) save(r.k, e.target.value); }} />
             </div>
           );
@@ -123,7 +123,6 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
           </div>
         );
       })}
-      <p style={{ color: "var(--muted)", fontSize: 11 }}>전화번호는 담당자 본인·대표만 원문 조회(그 외 마스킹).</p>
     </div>
   );
 }

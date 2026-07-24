@@ -77,9 +77,7 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZo
   return (
     <div className="panel">
       <div className="sec-head">토지정보 · 규제
-        <small style={{ color: "var(--muted)", fontWeight: 400 }}>
-          {parcels.length > 1 ? `다필지 ${parcels.length}개 · 필지별 값(합산 안 함)` : "단일 필지"} · 값 클릭 = 수정
-        </small>
+        {parcels.length > 1 && <small style={{ color: "var(--muted)", fontWeight: 400 }}>다필지 {parcels.length}개 · 필지별 값</small>}
       </div>
 
       {/* 필지 탭(다필지) */}
@@ -145,7 +143,7 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZo
       </div>
 
       {/* 공시지가(선택 필지) — 시계열 그래프는 상단 '시세 추이' 통합 카드로 이동 */}
-      <div className="sec-head" style={{ fontSize: 13, borderTop: "1px solid var(--line)" }}>공시지가 <small style={{ color: "var(--muted)", fontWeight: 400 }}>추이는 시세 추이 카드 참조</small></div>
+      <div className="sec-head" style={{ fontSize: 13, borderTop: "1px solid var(--line)" }}>공시지가</div>
       <div className="kv-grid" style={{ paddingTop: 0 }}>
         <KV label="최신 공시지가" field="gongsi_latest" calc
           value={man(gongsiLatest)} editable current={gongsiLatest != null ? Math.round(gongsiLatest / 1e4) : ""}
