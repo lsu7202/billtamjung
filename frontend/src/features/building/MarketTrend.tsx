@@ -7,7 +7,7 @@ import { seriesApi, type SeriesPt } from "../../shared/api/endpoints";
 const META: { kind: "gongsi" | "real" | "ad"; name: string; color: string; dashed?: boolean; perPy?: boolean }[] = [
   { kind: "gongsi", name: "총공시지가", color: "#1E5AF0", perPy: true },
   { kind: "real", name: "실거래가", color: "var(--c-real)", perPy: true },
-  { kind: "ad", name: "광고가", color: "var(--c-ad)", dashed: true },
+  { kind: "ad", name: "광고가", color: "var(--c-ad)", dashed: true, perPy: true },
 ];
 
 const toTime = (x: string): number => {
@@ -164,9 +164,9 @@ function SeriesRow({ p, fmt, perPy, areaPy, onSave, onDel, hidden }: {
       <td className="num">
         {yEdit
           ? <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
-              <input className="input" style={{ width: 120, padding: "3px 6px", fontSize: 12 }} autoFocus placeholder="원" value={yv}
+              <input className="input" style={{ width: 120, padding: "3px 6px", fontSize: 12 }} autoFocus placeholder="원(비우면 삭제)" value={yv}
                 onChange={(e) => setYv(e.target.value.replace(/[^\d]/g, ""))}
-                onBlur={() => { setYEdit(false); if (yv) trySave(draft ? xv : p!.x, yv); }}
+                onBlur={() => { setYEdit(false); if (yv) trySave(draft ? xv : p!.x, yv); else if (!draft && p!.ov) onDel(p!.x); }}
                 onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setYEdit(false); }} />
               {yv && <span style={{ fontSize: 10, color: "var(--muted)" }}>{fmt(parseInt(yv, 10))}</span>}
             </span>
