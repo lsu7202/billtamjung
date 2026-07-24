@@ -39,7 +39,7 @@ export interface KVProps {
   validate?: Validate; current?: unknown; parse?: (v: string) => string;   // parse: 입력→저장값 변환(평→㎡·억→원)
   onSave?: (field: string, value: string) => void; onRevert?: (field: string) => void;
 }
-export function KV({ label, field, value, unit: u, editable, calc, validate, current, parse, onSave, onRevert }: KVProps) {
+export function KV({ label, field, value, unit: u, editable, validate, current, parse, onSave, onRevert }: KVProps) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -74,7 +74,6 @@ export function KV({ label, field, value, unit: u, editable, calc, validate, cur
     <div className="kv"><span className="k">{label}</span>
       <span className="v num" style={{
         ...(canEdit ? { cursor: "pointer", display: "inline-block", minWidth: empty ? 44 : undefined, minHeight: "1.1em" } : {}),
-        ...(calc ? { color: "var(--signal)" } : {}),
       }}
         onClick={canEdit ? () => { setVal(String(current ?? "")); setErr(null); setEditing(true); } : undefined}
         title={editable ? "클릭 = 수정(자동저장)" : undefined}>

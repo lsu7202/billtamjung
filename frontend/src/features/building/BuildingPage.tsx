@@ -444,11 +444,7 @@ function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden, isPrefil
     if (isDraft) onSaved?.();   // 저장되면 새 빈 draft 행으로 리셋
   }
   const set = (k: keyof RentForm) => (v: string) => commit({ ...f, [k]: v });
-  async function del() { if (r.id != null) { await rentsApi.del(pk, r.id); refresh(); } else onSaved?.(); }
-  function toggleVacant() {
-    const nv = !f.is_vacant;
-    commit({ ...f, is_vacant: nv, deposit: nv ? "" : f.deposit, rent: nv ? "" : f.rent });   // 공실=보증금·임대료 0
-  }
+  async function del() { if (r.id != null) { await rentsApi.del(pk, r.id); refresh(); } else onSaved?.(); }   // 되돌리기=팀행 삭제(대장 프리필 복원/제거)
 
   return (
     <tr onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
@@ -461,16 +457,10 @@ function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden, isPrefil
       <td className="num"><RentCell edit={f.deposit} render={man(f.deposit)} ph="만원" num onSave={set("deposit")} /></td>
       <td className="num"><RentCell edit={f.rent} render={man(f.rent)} ph="만원" num onSave={set("rent")} /></td>
       <td className="num"><RentCell edit={f.maintenance} render={man(f.maintenance)} ph="만원" num onSave={set("maintenance")} /></td>
-      <td style={{ whiteSpace: "nowrap" }}>
-        {isPrefill ? <span style={{ fontSize: 11, color: "var(--line-2)" }}>대장</span> : (
-          <>
-            {!isDraft && (
-              <button className="btn" style={{ padding: "2px 9px", fontSize: 12, color: f.is_vacant ? "var(--up)" : "var(--green)" }}
-                onClick={toggleVacant}>{f.is_vacant ? "공실" : "임대중"}</button>
-            )}
-            <button className="btn" style={{ padding: "2px 7px", fontSize: 12, marginLeft: 6, color: "var(--up)", visibility: hover || isDraft ? "visible" : "hidden" }}
-              onClick={del} title={isDraft ? "입력 지우기" : "삭제"}>×</button>
-          </>
+      <td style={{ whiteSpace: "nowrap", width: 30 }}>
+        {(isDraft || (!isPrefill && r.id != null)) && (
+          <button className="btn" style={{ padding: "2px 7px", fontSize: 12, color: "var(--up)", visibility: hover || isDraft ? "visible" : "hidden" }}
+            onClick={del} title={isDraft ? "입력 지우기" : "이 행 삭제"}>×</button>
         )}
       </td>
     </tr>
@@ -490,9 +480,14 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
   const blank: FloorRent = { floor: "", unit_no: "", deposit: 0, rent: 0, maintenance: 0, is_vacant: false };
   return (
     <div className="panel">
-      <div className="sec-head">층별 임대정보</div>
+      <div className="sec-head">층별 임대정보
+        {items.length > 0 && (
+          <button className="btn" style={{ marginLeft: "auto", padding: "3px 10px", fontSize: 12 }}
+            onClick={async () => { if (confirm("입력한 층별 임대정보를 모두 되돌릴까요? (대장 프리필로 복원)")) { await Promise.all(items.filter((i) => i.id != null).map((i) => rentsApi.del(pk, i.id!))); refresh(); } }}>↺ 되돌리기</button>
+        )}
+      </div>
       <table className="wf" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-        <thead><tr><th>층</th><th>호실</th><th>용도</th><th className="num">전용({unit === "py" ? "평" : "㎡"})</th><th className="num">계약({unit === "py" ? "평" : "㎡"})</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">관리비</th><th>상태</th></tr></thead>
+        <thead><tr><th>층</th><th>호실</th><th>용도</th><th className="num">전용({unit === "py" ? "평" : "㎡"})</th><th className="num">계약({unit === "py" ? "평" : "㎡"})</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">관리비</th><th /></tr></thead>
         <tbody>
           {items.map((r) => <RentRow key={r.id ?? `${r.floor}-${r.unit_no}`} pk={pk} r={r} unit={unit} eok={eok} refresh={refresh} />)}
           {/* 대장 층별개요 프리필(팀 미입력 층) — 금액 입력 시 팀 데이터로 전환 */}
@@ -505,7 +500,7 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
               <td className="num">{eok(total.deposit)}</td>
               <td className="num">{eok(total.rent)}</td>
               <td className="num">{eok(total.maintenance)}</td>
-              <td>공실 {total.vacant_count}</td>
+              <td />
             </tr>
           )}
         </tbody>
