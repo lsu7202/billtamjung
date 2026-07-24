@@ -418,9 +418,9 @@ const toForm = (r: FloorRent, unit: "py" | "m2"): RentForm => ({
   maintenance: r.maintenance ? String(Math.round(r.maintenance / 1e4)) : "",
   is_vacant: r.is_vacant ?? false,
 });
-function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden }: {
+function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden, isPrefill }: {
   pk: string; r: FloorRent; unit: "py" | "m2"; eok: (n?: number | null) => string;
-  refresh: () => void; isDraft?: boolean; onSaved?: () => void; hidden?: boolean;
+  refresh: () => void; isDraft?: boolean; onSaved?: () => void; hidden?: boolean; isPrefill?: boolean;
 }) {
   const [f, setF] = useState<RentForm>(toForm(r, unit));
   const [hover, setHover] = useState(false);
@@ -429,10 +429,11 @@ function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden }: {
 
   async function commit(nf: RentForm) {
     setF(nf);
-    if (!nf.floor.trim() || !nf.unit_no.trim()) return;   // 키(층·호실) 미완 = 자동저장 보류(draft 유지)
+    if (!nf.floor.trim()) return;   // 층은 필수(호실은 선택 — 프리필은 호실 없음). 미완 시 저장 보류
     if (!isDraft && r.id != null && (nf.floor !== r.floor || nf.unit_no !== r.unit_no)) await rentsApi.del(pk, r.id);
     await rentsApi.upsert(pk, {
       floor: nf.floor.trim(), unit_no: nf.unit_no.trim(), use: nf.use || null,
+      exclusive_area: r.exclusive_area ?? null,   // 대장 프리필 전용면적 보존
       contract_area: nf.area ? (unit === "py" ? parseFloat(nf.area) * P : parseFloat(nf.area)) : null,
       deposit: Math.round((parseFloat(nf.deposit) || 0) * 1e4),
       rent: Math.round((parseFloat(nf.rent) || 0) * 1e4),
@@ -451,7 +452,7 @@ function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden }: {
 
   return (
     <tr onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-      style={{ ...(hidden ? { display: "none" } : {}), ...(isDraft ? { background: "var(--surface-2)" } : {}) }}>
+      style={{ ...(hidden ? { display: "none" } : {}), ...(isDraft ? { background: "var(--surface-2)" } : {}), ...(isPrefill ? { color: "var(--muted)" } : {}) }}>
       <td><RentCell edit={f.floor} render={f.floor} ph="1F" width={46} onSave={set("floor")} /></td>
       <td><RentCell edit={f.unit_no} render={f.unit_no} ph="101" width={46} onSave={set("unit_no")} /></td>
       <td><RentCell edit={f.use} render={f.use} ph="용도" width={72} onSave={set("use")} /></td>
@@ -461,12 +462,16 @@ function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden }: {
       <td className="num"><RentCell edit={f.rent} render={man(f.rent)} ph="만원" num onSave={set("rent")} /></td>
       <td className="num"><RentCell edit={f.maintenance} render={man(f.maintenance)} ph="만원" num onSave={set("maintenance")} /></td>
       <td style={{ whiteSpace: "nowrap" }}>
-        {!isDraft && (
-          <button className="btn" style={{ padding: "2px 9px", fontSize: 12, color: f.is_vacant ? "var(--up)" : "var(--green)" }}
-            onClick={toggleVacant}>{f.is_vacant ? "공실" : "임대중"}</button>
+        {isPrefill ? <span style={{ fontSize: 11, color: "var(--line-2)" }}>대장</span> : (
+          <>
+            {!isDraft && (
+              <button className="btn" style={{ padding: "2px 9px", fontSize: 12, color: f.is_vacant ? "var(--up)" : "var(--green)" }}
+                onClick={toggleVacant}>{f.is_vacant ? "공실" : "임대중"}</button>
+            )}
+            <button className="btn" style={{ padding: "2px 7px", fontSize: 12, marginLeft: 6, color: "var(--up)", visibility: hover || isDraft ? "visible" : "hidden" }}
+              onClick={del} title={isDraft ? "입력 지우기" : "삭제"}>×</button>
+          </>
         )}
-        <button className="btn" style={{ padding: "2px 7px", fontSize: 12, marginLeft: 6, color: "var(--up)", visibility: hover || isDraft ? "visible" : "hidden" }}
-          onClick={del} title={isDraft ? "입력 지우기" : "삭제"}>×</button>
       </td>
     </tr>
   );
@@ -479,6 +484,9 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
 }) {
   const [draftKey, setDraftKey] = useState(0);
   const [hover, setHover] = useState(false);
+  const outline = useQuery({ queryKey: ["floor-outline", pk], queryFn: () => rentsApi.outline(pk) });
+  const teamFloors = new Set(items.map((i) => i.floor));   // 팀이 이미 입력한 층 제외
+  const prefill = (outline.data ?? []).filter((o) => o.floor && !teamFloors.has(o.floor));
   const blank: FloorRent = { floor: "", unit_no: "", deposit: 0, rent: 0, maintenance: 0, is_vacant: false };
   return (
     <div className="panel">
@@ -487,6 +495,9 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
         <thead><tr><th>층</th><th>호실</th><th>용도</th><th className="num">전용({unit === "py" ? "평" : "㎡"})</th><th className="num">계약({unit === "py" ? "평" : "㎡"})</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">관리비</th><th>상태</th></tr></thead>
         <tbody>
           {items.map((r) => <RentRow key={r.id ?? `${r.floor}-${r.unit_no}`} pk={pk} r={r} unit={unit} eok={eok} refresh={refresh} />)}
+          {/* 대장 층별개요 프리필(팀 미입력 층) — 금액 입력 시 팀 데이터로 전환 */}
+          {prefill.map((o, i) => <RentRow key={`pf-${o.floor}-${i}`} pk={pk} unit={unit} eok={eok} refresh={refresh} isPrefill
+            r={{ floor: o.floor ?? "", unit_no: "", use: o.use ?? undefined, exclusive_area: o.exclusive_area ?? undefined, deposit: 0, rent: 0, maintenance: 0, is_vacant: false }} />)}
           <RentRow key={`draft-${draftKey}`} pk={pk} r={blank} unit={unit} eok={eok} refresh={refresh} isDraft hidden={!hover && items.length > 0} onSaved={() => setDraftKey((k) => k + 1)} />
           {total && items.length > 0 && (
             <tr style={{ background: "var(--surface-2)", fontWeight: 700 }}>

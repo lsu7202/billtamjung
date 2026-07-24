@@ -117,6 +117,8 @@ export const rentsApi = {
     api(`/buildings/${pk}/floor-rents`, { method: "PUT", body: JSON.stringify(r) }),
   del: (pk: string, id: number) =>
     api(`/buildings/${pk}/floor-rents/${id}`, { method: "DELETE" }),
+  outline: (pk: string) =>
+    api<{ floor: string | null; use: string | null; exclusive_area: number | null }[]>(`/buildings/${pk}/floor-outline`),
 };
 
 export interface SeriesPt { x: string; y: number; ov: boolean; master: boolean }

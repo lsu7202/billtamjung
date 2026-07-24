@@ -41,6 +41,17 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
     return data
 
 
+@router.get("/{building_pk}/floor-outline")
+async def floor_outline(building_pk: str, _: CurrentUser = Depends(current_user)):
+    """층별개요(대장) 프리필 — 층·용도·전용면적. 층별임대정보 최초 입력 시 시드용(S02 §3.5)."""
+    rows = await pool().fetch(
+        "SELECT floor, use, exclusive_area FROM master.floor_outline WHERE building_pk=$1 ORDER BY seq",
+        building_pk)
+    return [{"floor": r["floor"], "use": r["use"],
+             "exclusive_area": float(r["exclusive_area"]) if r["exclusive_area"] is not None else None}
+            for r in rows]
+
+
 REG_LABELS = {
     "reg_godo": "고도지구", "reg_district": "지구단위계획", "reg_jeongbi": "정비구역",
     "reg_gyeong": "경관지구", "reg_banghwa": "방화지구", "reg_munhwa": "문화재보존",
