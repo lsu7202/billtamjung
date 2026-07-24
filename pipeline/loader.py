@@ -168,7 +168,7 @@ async def main() -> int:
                    NULLIF(station_dist,'')::int, NULLIF(subway_json,'')::jsonb, NULLIF(bus_json,'')::jsonb,
                    NULLIF(gongsi_latest,'')::bigint, NULLIF(last_sale_ym,''), NULLIF(last_sale_price,'')::bigint,
                    NULLIF(build_area,'')::numeric, NULLIF(far_area,'')::numeric,
-                   NULLIF(elevator,'')::int, NULLIF(parking,'')::int
+                   NULLIF(NULLIF(elevator,''),'0')::int, NULLIF(NULLIF(parking,''),'0')::int
             FROM {tmp}""")
         await conn.execute(f"DROP TABLE {tmp}")
 

@@ -103,8 +103,8 @@ def main():
                 '대지건폐용적_출처':s,'건폐용적_클린':clean,
                 '연면적':fnum(p[28]), '주용도코드':p[34],'주용도':p[35],'기타용도':p[36],
                 '구조':p[32], '지상층수':int(fnum(p[43])),'지하층수':int(fnum(p[44])),
-                '엘리베이터':int(fnum(p[45])),
-                '주차':int(fnum(p[50])+fnum(p[52])+fnum(p[54])+fnum(p[56])),
+                '엘리베이터':int(fnum(p[45])) or None,           # 0·빈값(fnum→0) = 없음/미지정 = NULL 통일
+                '주차':int(fnum(p[50])+fnum(p[52])+fnum(p[54])+fnum(p[56])) or None,
                 '용적률산정연면적':round(용적산정,2) if 용적산정>0 else None,
                 '사용승인일':sd,
                 '최근대수선일': (ds.get(pnu) or {}).get('최근대수선일') if pnu else None,
