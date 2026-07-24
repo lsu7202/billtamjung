@@ -70,8 +70,9 @@ async def upsert_point(building_pk: str, body: PointIn, user: CurrentUser = Depe
     return {"ok": True}
 
 
-@router.delete("/{kind}/{x}")
+@router.delete("")
 async def delete_point(building_pk: str, kind: str, x: str, user: CurrentUser = Depends(current_user)):
+    """x에 '/'(예: 2026/07)가 있어 path param 대신 쿼리 파라미터(?kind=&x=) 사용."""
     await pool().execute(
         "DELETE FROM app.series_points WHERE team_id=$1 AND building_pk=$2 AND kind=$3 AND x=$4",
         user.team_id, building_pk, kind, x)

@@ -125,7 +125,7 @@ export const seriesApi = {
   upsert: (pk: string, kind: string, x: string, y: number) =>
     api(`/buildings/${pk}/series`, { method: "PUT", body: JSON.stringify({ kind, x, y }) }),
   del: (pk: string, kind: string, x: string) =>
-    api(`/buildings/${pk}/series/${kind}/${encodeURIComponent(x)}`, { method: "DELETE" }),
+    api(`/buildings/${pk}/series?kind=${kind}&x=${encodeURIComponent(x)}`, { method: "DELETE" }),
 };
 
 export const marketApi = {

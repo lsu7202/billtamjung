@@ -1,29 +1,31 @@
 import { useState } from "react";
 import { seriesApi, type SeriesPt } from "../../shared/api/endpoints";
 
-/** 시세 추이 통합 카드 — 공시지가(총)·실거래·광고를 한 그래프에 겹쳐 비교(전부 원).
- * 세 계열 모두 팀 오버레이: 표 모드에서 행 추가·수정·삭제. 마스터 점(ov=false)은 값만 override, 오버레이 점(ov=true)은 삭제 가능.
+/** 시세 추이 통합 카드 — 공시지가(총)·실거래·광고 팀 오버레이. 겹친 그래프(원) + 그래프 호버 툴팁 + 평단가.
+ * 표 모드: 계열별 행 추가(호버 시 draft)·수정(억)·삭제(오버레이). specs S02 §3.7.
  */
-const META: { kind: "gongsi" | "real" | "ad"; name: string; color: string; dashed?: boolean }[] = [
-  { kind: "gongsi", name: "총공시지가", color: "#1E5AF0" },
-  { kind: "real", name: "실거래가", color: "var(--c-real)" },
+const META: { kind: "gongsi" | "real" | "ad"; name: string; color: string; dashed?: boolean; perPy?: boolean }[] = [
+  { kind: "gongsi", name: "총공시지가", color: "#1E5AF0", perPy: true },
+  { kind: "real", name: "실거래가", color: "var(--c-real)", perPy: true },
   { kind: "ad", name: "광고가", color: "var(--c-ad)", dashed: true },
 ];
 
 const toTime = (x: string): number => {
-  const m = x.match(/(\d{4})\D?(\d{2})?\D?(\d{2})?/);
+  const m = x.match(/(\d{4})\D?(\d{1,2})?\D?(\d{1,2})?/);
   return m ? +m[1] + (m[2] ? (+m[2] - 1) / 12 : 0) + (m[3] ? +m[3] / 365 : 0) : 0;
 };
+const validX = (x: string) => /^\d{4}([/-]\d{1,2}([/-]\d{1,2})?)?$/.test(x.trim());
+const perPyFmt = (y: number, areaPy?: number) => (areaPy ? `${Math.round(y / areaPy / 1e4).toLocaleString()}만/평` : "");
 
-export function MarketTrend({ pk, data, fmt, refresh }: {
-  pk: string; data: Record<"gongsi" | "real" | "ad", SeriesPt[]>; fmt: (n: number) => string; refresh: () => void;
+export function MarketTrend({ pk, data, fmt, refresh, areaPy }: {
+  pk: string; data: Record<"gongsi" | "real" | "ad", SeriesPt[]>; fmt: (n: number) => string; refresh: () => void; areaPy?: number | null;
 }) {
   const [mode, setMode] = useState<"c" | "t">("c");
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [hovPt, setHovPt] = useState<{ kind: string; name: string; color: string; x: string; y: number; cx: number; cy: number } | null>(null);
   const series = META.map((m) => ({ ...m, pts: data[m.kind] ?? [] }));
   const live = series.filter((s) => s.pts.length > 0);
 
-  // 차트 축
   const W = 860, H = 240, L = 74, R = 24, T = 26, B = 34;
   const allPts = live.flatMap((s) => s.pts);
   const times = allPts.map((p) => toTime(p.x));
@@ -44,7 +46,6 @@ export function MarketTrend({ pk, data, fmt, refresh }: {
         </span>
       </div>
 
-      {/* 범례 */}
       <div style={{ display: "flex", gap: 16, padding: "0 14px 8px", fontSize: 12, flexWrap: "wrap" }}>
         {series.map((s) => (
           <span key={s.kind} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 600, opacity: s.pts.length ? 1 : .4 }}>
@@ -57,7 +58,8 @@ export function MarketTrend({ pk, data, fmt, refresh }: {
         live.length === 0
           ? <p style={{ color: "var(--muted)", fontSize: 13, padding: "0 14px 14px" }}>데이터가 없습니다 — 표에서 시점을 추가하세요</p>
           : (
-            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", background: "var(--surface-2)", display: "block" }}>
+            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", background: "var(--surface-2)", display: "block" }}
+              onMouseLeave={() => setHovPt(null)}>
               <line x1={L} y1={T - 6} x2={L} y2={H - B} stroke="var(--line-2)" />
               <line x1={L} y1={H - B} x2={W - R} y2={H - B} stroke="var(--line-2)" />
               <text x={L - 8} y={T + 4} textAnchor="end" fontSize="11" fill="var(--muted)" fontFamily="monospace">{fmt(ymax)}</text>
@@ -70,18 +72,34 @@ export function MarketTrend({ pk, data, fmt, refresh }: {
                   {s.pts.length > 1 && <polyline fill="none" stroke={s.color} strokeWidth={2.5} strokeDasharray={s.dashed ? "5 4" : undefined}
                     points={s.pts.map((p) => `${X(p.x)},${Y(p.y)}`).join(" ")} />}
                   {s.pts.map((p) => (
-                    <circle key={p.x} cx={X(p.x)} cy={Y(p.y)} r={3.5} fill={s.color} stroke="#fff" strokeWidth={1.5}>
-                      <title>{s.name} · {p.x} · {fmt(p.y)}</title>
-                    </circle>
+                    <circle key={p.x} cx={X(p.x)} cy={Y(p.y)} r={hovPt?.kind === s.kind && hovPt?.x === p.x ? 5.5 : 3.5} fill={s.color} stroke="#fff" strokeWidth={1.5}
+                      style={{ cursor: "pointer" }}
+                      onMouseEnter={() => setHovPt({ kind: s.kind, name: s.name, color: s.color, x: p.x, y: p.y, cx: X(p.x), cy: Y(p.y) })} />
                   ))}
                 </g>
               ))}
+              {/* 호버 툴팁(표 정보): 시점·값·평단가 */}
+              {hovPt && (() => {
+                const meta = META.find((m) => m.kind === hovPt.kind);
+                const l3 = meta?.perPy ? perPyFmt(hovPt.y, areaPy ?? undefined) : "";
+                const bw = 150, bh = l3 ? 58 : 44;
+                const bx = Math.min(Math.max(hovPt.cx - bw / 2, L), W - R - bw);
+                const by = hovPt.cy - bh - 12 < T ? hovPt.cy + 12 : hovPt.cy - bh - 12;
+                return (
+                  <g pointerEvents="none">
+                    <rect x={bx} y={by} width={bw} height={bh} rx={6} fill="#0F1A2E" opacity={0.95} />
+                    <text x={bx + 10} y={by + 17} fontSize="11" fill={hovPt.color} fontWeight="700">{hovPt.name}</text>
+                    <text x={bx + 10} y={by + 33} fontSize="12" fill="#fff" fontFamily="monospace">{hovPt.x} · {fmt(hovPt.y)}</text>
+                    {l3 && <text x={bx + 10} y={by + 49} fontSize="11" fill="#aab2bf" fontFamily="monospace">평단가 {l3}</text>}
+                  </g>
+                );
+              })()}
             </svg>
           )
       ) : (
         <div style={{ display: "grid", gap: 16, padding: "0 14px 14px" }}>
           {series.map((s) => (
-            <SeriesTable key={s.kind} pk={pk} kind={s.kind} name={s.name} color={s.color}
+            <SeriesTable key={s.kind} pk={pk} kind={s.kind} name={s.name} color={s.color} perPy={!!s.perPy} areaPy={areaPy ?? undefined}
               pts={s.pts} fmt={fmt} refresh={refresh} expanded={!!open[s.kind]} toggle={() => setOpen((o) => ({ ...o, [s.kind]: !o[s.kind] }))} />
           ))}
         </div>
@@ -90,15 +108,14 @@ export function MarketTrend({ pk, data, fmt, refresh }: {
   );
 }
 
-/* 계열별 표 — 최신 3개(+더보기) · 값 클릭=수정(억) · ×삭제(오버레이) · 하단 빈 행에 시점+값=추가 */
-function SeriesTable({ pk, kind, name, color, pts, fmt, refresh, expanded, toggle }: {
-  pk: string; kind: string; name: string; color: string; pts: SeriesPt[];
-  fmt: (n: number) => string; refresh: () => void; expanded: boolean; toggle: () => void;
+function SeriesTable({ pk, kind, name, color, perPy, areaPy, pts, fmt, refresh, expanded, toggle }: {
+  pk: string; kind: string; name: string; color: string; perPy: boolean; areaPy?: number;
+  pts: SeriesPt[]; fmt: (n: number) => string; refresh: () => void; expanded: boolean; toggle: () => void;
 }) {
   const [hover, setHover] = useState(false);
   const rows = [...pts].reverse();
   const shown = expanded ? rows : rows.slice(0, 3);
-  const save = async (x: string, eok: string) => { const y = Math.round(parseFloat(eok) * 1e8); if (x.trim() && !Number.isNaN(y)) { await seriesApi.upsert(pk, kind, x.trim(), y); refresh(); } };
+  const save = async (x: string, eok: string) => { const y = Math.round(parseFloat(eok) * 1e8); if (validX(x) && !Number.isNaN(y)) { await seriesApi.upsert(pk, kind, x.trim(), y); refresh(); } };
   const del = async (x: string) => { await seriesApi.del(pk, kind, x); refresh(); };
   return (
     <div>
@@ -107,8 +124,8 @@ function SeriesTable({ pk, kind, name, color, pts, fmt, refresh, expanded, toggl
       </div>
       <table className="wf" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
         <tbody>
-          {shown.map((p) => <SeriesRow key={p.x} kind={kind} p={p} fmt={fmt} onSave={save} onDel={del} />)}
-          <SeriesRow key="draft" kind={kind} p={null} fmt={fmt} onSave={save} onDel={del} hidden={!hover} />
+          {shown.map((p) => <SeriesRow key={p.x} p={p} fmt={fmt} perPy={perPy} areaPy={areaPy} onSave={save} onDel={del} />)}
+          <SeriesRow key="draft" p={null} fmt={fmt} perPy={perPy} areaPy={areaPy} onSave={save} onDel={del} hidden={!hover} />
         </tbody>
       </table>
       {rows.length > 3 && (
@@ -120,31 +137,39 @@ function SeriesTable({ pk, kind, name, color, pts, fmt, refresh, expanded, toggl
   );
 }
 
-function SeriesRow({ p, fmt, onSave, onDel, hidden }: {
-  kind: string; p: SeriesPt | null; fmt: (n: number) => string;
+function SeriesRow({ p, fmt, perPy, areaPy, onSave, onDel, hidden }: {
+  p: SeriesPt | null; fmt: (n: number) => string; perPy: boolean; areaPy?: number;
   onSave: (x: string, eok: string) => void; onDel: (x: string) => void; hidden?: boolean;
 }) {
   const draft = p == null;
   const [hover, setHover] = useState(false);
   const [xv, setXv] = useState(p?.x ?? "");
+  const [xErr, setXErr] = useState(false);
   const [yEdit, setYEdit] = useState(false);
   const [yv, setYv] = useState("");
-  const commitY = () => { setYEdit(false); if (yv) onSave(draft ? xv : p!.x, yv); };
+  const trySave = (x: string, y: string) => {
+    if (!x.trim() || !y) return;
+    if (!validX(x)) { setXErr(true); return; }
+    setXErr(false); onSave(x, y);
+  };
   return (
     <tr onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{ ...(hidden ? { display: "none" } : {}), ...(draft ? { background: "var(--surface-2)" } : {}) }}>
       <td>{draft
-        ? <input className="input" style={{ width: 90, padding: "3px 6px", fontSize: 12 }} placeholder="시점" value={xv}
-            onChange={(e) => setXv(e.target.value)} onBlur={() => { if (xv && yv) onSave(xv, yv); }} />
+        ? <input className="input" style={{ width: 96, padding: "3px 6px", fontSize: 12, borderColor: xErr ? "var(--up)" : undefined }}
+            placeholder="YYYY/MM" value={xv} onChange={(e) => { setXv(e.target.value); if (xErr) setXErr(false); }}
+            onBlur={() => trySave(xv, yv)} title={xErr ? "형식: YYYY · YYYY/MM · YYYY/MM/DD" : undefined} />
         : p!.x}</td>
       <td className="num">
         {yEdit
           ? <input className="input" style={{ width: 80, padding: "3px 6px", fontSize: 12 }} autoFocus placeholder="억" value={yv}
-              onChange={(e) => setYv(e.target.value.replace(/[^\d.]/g, ""))} onBlur={commitY}
+              onChange={(e) => setYv(e.target.value.replace(/[^\d.]/g, ""))}
+              onBlur={() => { setYEdit(false); if (yv) trySave(draft ? xv : p!.x, yv); }}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setYEdit(false); }} />
-          : <span style={{ cursor: "pointer", display: "inline-block", minWidth: 40, minHeight: 15 }} title="클릭 = 수정(억)"
-              onClick={() => { setYv(p ? String(+(p.y / 1e8).toFixed(2)) : ""); setYEdit(true); }}>{p ? fmt(p.y) : ""}</span>}
+          : <span style={{ cursor: "pointer", display: "inline-block", minWidth: 40, minHeight: 15 }} title="클릭 = 수정(억, 소수 가능)"
+              onClick={() => { setYv(p ? String(+(p.y / 1e8).toFixed(4)) : ""); setYEdit(true); }}>{p ? fmt(p.y) : ""}</span>}
       </td>
+      {perPy && <td className="num" style={{ color: "var(--muted)", fontSize: 12 }}>{p ? perPyFmt(p.y, areaPy) : ""}</td>}
       <td style={{ width: 30 }}>
         {!draft && p!.ov && (
           <button className="btn" style={{ padding: "1px 6px", fontSize: 12, color: "var(--up)", visibility: hover ? "visible" : "hidden" }}

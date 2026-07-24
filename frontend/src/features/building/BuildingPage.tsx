@@ -279,7 +279,7 @@ export function BuildingPage() {
 
           {/* 시세 추이 통합(§3.7): 총공시지가·실거래·광고 팀 오버레이 · 겹쳐 비교(전부 원) · 표에서 행추가·수정 */}
           {show("deal") && (
-            <MarketTrend pk={pk} fmt={(v) => eok(v)}
+            <MarketTrend pk={pk} fmt={(v) => eok(v)} areaPy={totalP}
               data={series.data ?? { gongsi: [], real: [], ad: [] }}
               refresh={() => qc.invalidateQueries({ queryKey: ["series", pk] })} />
           )}
