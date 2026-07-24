@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listingsApi, extrasApi, overlaysApi } from "../../shared/api/endpoints";
 import { api } from "../../shared/api/client";
 import { useEnums } from "../../shared/hooks/useEnums";
+import { Chips } from "./EnumField";
 
 /** S02 우측 고정 사이드바 — 업무 / 위키 / 수정이력 / 메모 4탭(§4). enum=enums.md 정본. */
 
@@ -116,13 +117,9 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
         const opts = en.options(r.extra);
         const cur = val(r.k) || "미지정";
         return (
-          <div className="kv" key={r.k} style={{ alignItems: "center" }}>
+          <div className="kv" key={r.k} style={{ alignItems: "flex-start" }}>
             <span className="k">{r.label}</span>
-            <select className="input" style={{ maxWidth: 140, padding: "4px 8px", fontSize: 13 }}
-              value={cur} onChange={(e) => save(r.k, e.target.value)}>
-              {opts.length === 0 && <option>{cur}</option>}
-              {opts.map((o) => <option key={o.code} value={o.code}>{o.label}</option>)}
-            </select>
+            <Chips opts={opts} cur={cur} onSelect={(v) => save(r.k, v)} />
           </div>
         );
       })}

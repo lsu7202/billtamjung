@@ -115,6 +115,8 @@ export const rentsApi = {
   list: (pk: string) => api<{ items: FloorRent[]; total: Record<string, number> }>(`/buildings/${pk}/floor-rents`),
   upsert: (pk: string, r: FloorRent) =>
     api(`/buildings/${pk}/floor-rents`, { method: "PUT", body: JSON.stringify(r) }),
+  del: (pk: string, id: number) =>
+    api(`/buildings/${pk}/floor-rents/${id}`, { method: "DELETE" }),
 };
 
 export const marketApi = {

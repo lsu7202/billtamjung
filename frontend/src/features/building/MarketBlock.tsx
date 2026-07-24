@@ -15,8 +15,8 @@ interface SaleComp {
 }
 interface Nearby { rents: RentComp[]; sales: SaleComp[]; radius_m: number; count: number }
 
-const man = (n?: number | null) => (n == null ? "—" : `${Math.round(n / 1e4).toLocaleString()}만`);
-const eok = (n?: number | null) => (n == null ? "—" : `${(n / 1e8).toFixed(1)}억`);
+const man = (n?: number | null) => (n == null || Number(n) === 0 ? "" : `${Math.round(n / 1e4).toLocaleString()}만`);   // 0·null=빈칸 통일
+const eok = (n?: number | null) => (n == null || Number(n) === 0 ? "" : `${(n / 1e8).toFixed(1)}억`);
 
 export function MarketBlock({ lng, lat }: { lng: number; lat: number }) {
   const [radius, setRadius] = useState(500);
@@ -84,10 +84,10 @@ export function MarketBlock({ lng, lat }: { lng: number; lat: number }) {
             <tr key={keyOf(r)} style={r.is_outlier ? { opacity: .6 } : undefined}>
               <td><input type="checkbox" checked={effChecked(r)} onChange={() => toggle(r)} /></td>
               <td>{r.floor}{r.is_outlier && <span className="tag stale" style={{ marginLeft: 5 }}>이상치</span>}</td>
-              <td className="num">{r.contract_area ?? "—"}평</td>
+              <td className="num">{r.contract_area != null ? `${r.contract_area}평` : ""}</td>
               <td className="num">{man(r.deposit)}</td>
               <td className="num">{man(r.rent)}</td>
-              <td className="num">{r.per_rent ? man(r.per_rent) : "—"}</td>
+              <td className="num">{man(r.per_rent)}</td>
               <td style={{ fontSize: 12 }}>{r.addr.replace("서울특별시 ", "").replace("번지", "")}</td>
             </tr>
           ))}
@@ -126,7 +126,7 @@ export function MarketBlock({ lng, lat }: { lng: number; lat: number }) {
               <td className="num">{s.dist_m}m</td>
               <td className="num">{s.contract_ym.slice(0, 4)}/{s.contract_ym.slice(4)}</td>
               <td className="num">{eok(s.price)}</td>
-              <td className="num">{s.per_area ? man(s.per_area) : "—"}</td>
+              <td className="num">{man(s.per_area)}</td>
             </tr>
           ))}
           {sales.length === 0 && <tr><td colSpan={5} style={{ color: "var(--muted)", textAlign: "center", padding: 16 }}>반경 내 최근 5년 실거래가 없습니다 — 반경을 넓혀보세요</td></tr>}
