@@ -85,16 +85,32 @@ export function BuildingPage() {
   const landP = b.land_area ? Number(b.land_area) / P : null;
   const totalP = b.total_area ? Number(b.total_area) / P : null;
   const buildP = b.build_area ? Number(b.build_area) / P : null;
-  const yearRent = total ? total.rent * 12 : 0;
-  const roiNow = price && yearRent ? (yearRent / price) * 100 : null;                 // 수익률(만실) F-10 단순형(베타=공실데이터 없어 현재≈만실). 공실제외는 데이터 연동 후
-  const pricePerLand = price && landP ? price / landP : null;
+  // 🔀 파생값(data-overview §수정모드): 오버레이 직접입력이 있으면 그 값, 없으면 자동집계.
+  const ovr = (field: string, computed: number | null): number | null => {
+    const o = b[field];
+    return o != null && o !== "" ? Number(o) : computed;
+  };
+  const tDeposit = ovr("total_deposit", total ? total.deposit : null);
+  const tRent = ovr("total_rent", total ? total.rent : null);
+  const tMaint = ovr("total_maintenance", total ? total.maintenance : null);
+  const yearRent = tRent != null ? tRent * 12 : 0;                                   // 수익률·투자분석에 override 반영
+  const roiComputed = price && yearRent ? (yearRent / price) * 100 : null;           // F-10 만실 단순형
+  const roiFull = ovr("roi_full", roiComputed);
+  const roiExVac = ovr("roi_exvac", null);   // 공실제외 F-14: 베타는 공실데이터 없어 자동계산 보류 → 직접입력만
+  const ppLand = ovr("price_per_land", price && landP ? price / landP : null);
+  const ppTotal = ovr("price_per_total", price && totalP ? price / totalP : null);
 
   const area = (m2?: number | string | null) => {
     const v = typeof m2 === "string" ? parseFloat(m2) : m2;
     if (v == null || Number.isNaN(v)) return "";
     return unit === "py" ? `${(v / P).toFixed(1)}평` : `${v.toLocaleString(undefined, { maximumFractionDigits: 20 })}㎡`;   // ㎡=원값 그대로
   };
-  const eok = (n?: number | null) => (n == null ? "" : n >= 1e8 ? `${(n / 1e8).toFixed(1)}억` : `${Math.round(n / 1e4).toLocaleString()}만`);
+  const eok = (n?: number | null) => (n == null || Number(n) === 0 ? "" : n >= 1e8 ? `${(n / 1e8).toFixed(1)}억` : `${Math.round(n / 1e4).toLocaleString()}만`);   // 0 = 빈칸(null 통일)
+  // 🔀 직접입력 단위: 금액=억(저장 원), 집계금액=만원(저장 원), 율=% 그대로
+  const seedEok = (n: number | null) => (n != null ? +(n / 1e8).toFixed(2) : "");
+  const parseEok = (v: string) => String(Math.round(parseFloat(v) * 1e8));
+  const seedMan = (n: number | null) => (n != null ? Math.round(n / 1e4) : "");
+  const parseMan = (v: string) => String(Math.round(parseFloat(v) * 1e4));
 
   if (building.isLoading) return <p>불러오는 중…</p>;
   if (building.isError) return <p>건물을 찾을 수 없습니다</p>;
@@ -139,8 +155,8 @@ export function BuildingPage() {
         </div>
         <div className="hdr-metrics" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {metric("매매가", price ? eok(price) : "")}
-          {metric("수익률(만실)", roiNow ? `${roiNow.toFixed(1)}%` : "")}
-          {metric("평단가(대지)", pricePerLand ? eok(pricePerLand) : "")}
+          {metric("수익률(만실)", roiFull != null ? `${roiFull.toFixed(1)}%` : "")}
+          {metric("평단가(대지)", ppLand ? eok(ppLand) : "")}
           {metric("면적 (평)", `${landP ? landP.toFixed(1) : ""} / ${totalP ? totalP.toFixed(1) : ""} / ${buildP ? buildP.toFixed(1) : ""}`)}
           {metric("층수", `B${b.floors_below ?? ""}F/${b.floors_above ?? ""}F`)}
         </div>
@@ -175,15 +191,24 @@ export function BuildingPage() {
             <div className="panel">
               <div className="sec-head">금액정보</div>
               <div className="kv-grid">
+                {/* 🔀 파생값: 자동집계 표시 + 직접입력 override 가능(data-overview §수정모드). ↺=집계값 복원 */}
                 <KV label="매매가" field="sale_price" value={price != null ? eok(price) : ""}
-                  editable current={price != null ? +(price / 1e8).toFixed(2) : ""} parse={(v) => String(Math.round(parseFloat(v) * 1e8))} validate={vPos}
+                  editable current={seedEok(price)} parse={parseEok} validate={vPos}
                   onSave={onSave} onRevert={onRevert} />
-                <KV label="수익률(만실)" value={roiNow ? `${roiNow.toFixed(2)}%` : ""} calc />
-                <KV label="대지 평단가" value={pricePerLand ? eok(pricePerLand) : ""} calc />
-                <KV label="연면적 평단가" value={price && totalP ? eok(price / totalP) : ""} calc />
-                <KV label="총보증금" value={total ? eok(total.deposit) : ""} />
-                <KV label="총임대료" value={total ? eok(total.rent) : ""} />
-                <KV label="총관리비" value={total ? eok(total.maintenance) : ""} />
+                <KV label="수익률(만실)" field="roi_full" value={roiFull != null ? `${roiFull.toFixed(2)}%` : ""} calc
+                  editable current={roiFull ?? ""} parse={(v) => v} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
+                <KV label="수익률(공실제외)" field="roi_exvac" value={roiExVac != null ? `${roiExVac.toFixed(2)}%` : ""} calc
+                  editable current={roiExVac ?? ""} parse={(v) => v} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
+                <KV label="대지 평단가" field="price_per_land" value={eok(ppLand)} calc
+                  editable current={seedEok(ppLand)} parse={parseEok} validate={vPos} onSave={onSave} onRevert={onRevert} />
+                <KV label="연면적 평단가" field="price_per_total" value={eok(ppTotal)} calc
+                  editable current={seedEok(ppTotal)} parse={parseEok} validate={vPos} onSave={onSave} onRevert={onRevert} />
+                <KV label="총보증금" field="total_deposit" value={eok(tDeposit)} calc
+                  editable current={seedMan(tDeposit)} parse={parseMan} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
+                <KV label="총임대료" field="total_rent" value={eok(tRent)} calc
+                  editable current={seedMan(tRent)} parse={parseMan} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
+                <KV label="총관리비" field="total_maintenance" value={eok(tMaint)} calc
+                  editable current={seedMan(tMaint)} parse={parseMan} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
                 <KV label="총공실" value={total ? (total.vacant_count > 0 ? `${total.vacant_count}실` : "없음") : ""} />
               </div>
             </div>

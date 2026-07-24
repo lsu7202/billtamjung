@@ -12,7 +12,7 @@ import { KV, NumCell, vPos, vNonNeg } from "./KV";
 interface Parcel {
   role: string; pnu: string; area: number | string | null;
   jimok?: string; land_use?: string; slope?: string; shape?: string; road_frontage?: string;
-  use_zone?: string; legal_bcr?: string; legal_far?: string; gongsi_latest?: number | string | null;
+  use_zone?: string; legal_bcr?: string; legal_far?: string; gongsi_latest?: number | string | null; total_gongsi?: number | string | null;
   gongsi_series: [number, number][];
   regs: Record<string, string>;
 }
@@ -25,8 +25,8 @@ const REG_FIELD: Record<string, string> = {   // 규제 라벨 → 필지 오버
 };
 const num = (x: unknown): number | null => (x == null || x === "" ? null : Number(x));
 const pct = (x: unknown): string | null => (x == null || x === "" ? null : String(x).replace("%", ""));   // 법정건폐/용적: 마스터 "50%" → 숫자부만(중복 % 방지)
-const eok = (n: number | null) => (n == null ? "" : `${(n / 1e8).toFixed(1)}억`);
-const man = (n: number | null) => (n == null ? "" : `${Math.round(n / 1e4).toLocaleString()}만/㎡`);
+const eok = (n: number | null) => (n == null || n === 0 ? "" : `${(n / 1e8).toFixed(1)}억`);   // 0=빈칸(null 통일)
+const man = (n: number | null) => (n == null || n === 0 ? "" : `${Math.round(n / 1e4).toLocaleString()}만/㎡`);
 
 export function ParcelBlock({ pk }: { pk: string }) {
   const [sel, setSel] = useState(0);
@@ -127,7 +127,11 @@ export function ParcelBlock({ pk }: { pk: string }) {
       <div className="kv-grid" style={{ paddingTop: 0 }}>
         <KV label="최신 공시지가" field="gongsi_latest" calc
           value={man(gongsiLatest)} editable current={gongsiLatest ?? ""} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
-        <div className="kv"><span className="k">총공시지가</span><span className="v num" style={{ color: "var(--signal)" }}>{eok(totalGongsi)} <small style={{ color: "var(--muted)", fontWeight: 400 }}>= 단가 × {area ?? ""}㎡</small></span></div>
+        {/* 총공시지가 = 🔀 자동(단가×면적) or 직접입력(억) */}
+        <KV label="총공시지가" field="total_gongsi" calc
+          value={eok(num(p.total_gongsi) ?? totalGongsi)} editable
+          current={(num(p.total_gongsi) ?? totalGongsi) != null ? +(((num(p.total_gongsi) ?? totalGongsi) as number) / 1e8).toFixed(2) : ""}
+          parse={(v) => String(Math.round(parseFloat(v) * 1e8))} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
       </div>
     </div>
   );
