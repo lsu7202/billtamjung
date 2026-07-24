@@ -53,10 +53,16 @@ export function KV({ label, field, value, unit: u, editable, calc, validate, cur
     return (
       <div className="kv"><span className="k">{label}</span>
         <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-          <input className="input" style={{ maxWidth: 110, padding: "3px 8px", borderColor: err ? "var(--up)" : undefined }} autoFocus value={val}
-            onChange={(e) => { setVal(e.target.value); if (err) setErr(null); }}
-            onBlur={commit}
-            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setErr(null); setEditing(false); } }} />
+          <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <input className="input" style={{ maxWidth: 110, padding: "3px 8px", borderColor: err ? "var(--up)" : undefined }} autoFocus value={val}
+              onChange={(e) => { setVal(e.target.value); if (err) setErr(null); }}
+              onBlur={commit}
+              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setErr(null); setEditing(false); } }} />
+            {/* ↺ = 편집 중에만 노출. mousedown preventDefault로 blur-commit 차단 후 되돌리기 */}
+            <button className="btn" style={{ padding: "0 6px", fontSize: 11 }}
+              onMouseDown={(e) => { e.preventDefault(); setErr(null); setEditing(false); onRevert?.(field); }}
+              title="마스터 원본으로 되돌리기">↺</button>
+          </span>
           {err && <span style={{ fontSize: 10, color: "var(--up)" }}>{err}</span>}
         </span>
       </div>
@@ -68,10 +74,6 @@ export function KV({ label, field, value, unit: u, editable, calc, validate, cur
         onClick={editable && field ? () => { setVal(String(current ?? "")); setErr(null); setEditing(true); } : undefined}
         title={editable ? "클릭 = 수정(자동저장)" : undefined}>
         {value}{value ? u : ""}
-        {editable && field && (
-          <button className="btn" style={{ marginLeft: 6, padding: "0 6px", fontSize: 11 }}
-            onClick={(e) => { e.stopPropagation(); onRevert?.(field); }} title="마스터 원본으로 되돌리기">↺</button>
-        )}
       </span>
     </div>
   );
