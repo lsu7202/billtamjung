@@ -8,24 +8,16 @@
 import argparse
 import csv
 import json
+import os
 import sqlite3
 import sys
 import time
 
+sys.path.insert(0, os.path.dirname(__file__))
+from schema_buildings import COLUMNS   # SSOT — loader와 동일 목록 공유
+
 DB = "data/빌탐정.db"
 SHP = "data/raw/LSMD_CONT_LDREG_5174_서울/LSMD_CONT_LDREG_5174_11_202606"
-
-COLUMNS = [
-    "building_pk", "addr", "jibun_norm", "lng", "lat",
-    "road_addr", "pnu", "sgg_code", "bjd_code",
-    "land_area", "total_area", "floors_above", "floors_below", "bcr", "far",
-    "main_use", "main_use_name", "etc_use", "structure",
-    "approval_ymd", "remodel_ymd",
-    "jimok", "parcel_area", "land_use", "use_zone", "use_zone_mix",
-    "slope", "shape", "road_frontage", "station_dist", "subway_json", "bus_json",
-    "gongsi_latest", "last_sale_ym", "last_sale_price",
-    "build_area", "far_area", "elevator", "parking",
-]
 
 
 def load_centroids() -> dict:
@@ -104,7 +96,7 @@ def main() -> int:
             pk = row[ci["pk"]]
             addr = row[ci["주소"]] or ""
             sale = last_sale.get(pk, ("", ""))
-            w.writerow([
+            rowvals = [
                 pk, addr, addr.replace("서울특별시 ", "").replace(" ", "").replace("번지", ""),
                 xy[0], xy[1],
                 row[ci["도로명주소"]] or "", pnu,
@@ -125,7 +117,10 @@ def main() -> int:
                 row[ci["건축면적"]] or "", row[ci["용적률산정연면적"]] or "",
                 row[ci["엘리베이터"]] if row[ci["엘리베이터"]] is not None else "",
                 row[ci["주차"]] if row[ci["주차"]] is not None else "",
-            ])
+            ]
+            if len(rowvals) != len(COLUMNS):   # SSOT와 값 개수 불일치 = 컬럼 추가 시 writerow 누락
+                sys.exit(f"열 개수 불일치: writerow {len(rowvals)} ≠ COLUMNS {len(COLUMNS)}")
+            w.writerow(rowvals)
             n_out += 1
             if n_out % 100_000 == 0:
                 print(f"  {n_out:,}행…")

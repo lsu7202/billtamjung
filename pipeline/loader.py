@@ -13,18 +13,13 @@ import sys
 import uuid
 import asyncpg
 
+sys.path.insert(0, os.path.dirname(__file__))
+from schema_buildings import COLUMNS as BLD_COLUMNS, EXPECT_DATA   # SSOT — export_seoul와 공유
+
 # 소스별 정의: staging 테이블·컬럼·검증 쿼리 (0006 확장 스키마)
 SOURCES = {
     "buildings": {
-        "columns": ["building_pk", "addr", "jibun_norm", "lng", "lat",
-                    "road_addr", "pnu", "sgg_code", "bjd_code",
-                    "land_area", "total_area", "floors_above", "floors_below", "bcr", "far",
-                    "main_use", "main_use_name", "etc_use", "structure",
-                    "approval_ymd", "remodel_ymd",
-                    "jimok", "parcel_area", "land_use", "use_zone", "use_zone_mix",
-                    "slope", "shape", "road_frontage", "station_dist", "subway_json", "bus_json",
-                    "gongsi_latest", "last_sale_ym", "last_sale_price",
-                    "build_area", "far_area", "elevator", "parking"],
+        "columns": BLD_COLUMNS,   # 단일 출처(schema_buildings) — export CSV 헤더와 동일 보장
         "table": "buildings",
     },
     "gongsi_series": {   # 공시지가 연도별(0007)
@@ -181,6 +176,11 @@ async def main() -> int:
                 "not_empty": rows_new > 0,
             }
         else:                  # buildings 전체 검증
+            # 빈 컬럼 게이트: EXPECT_DATA 중 전 행 NULL = 파이프라인 어딘가서 필드 조용히 누락 → 실패
+            empty_cols = [
+                c for c in EXPECT_DATA
+                if await conn.fetchval(f"SELECT count(*) FILTER (WHERE {c} IS NOT NULL)=0 FROM {new_tbl}")
+            ]
             checks = {
                 "row_floor": rows_new >= rows_live * ROW_FLOOR_RATIO,
                 "pk_not_null": await conn.fetchval(
@@ -192,7 +192,10 @@ async def main() -> int:
                 "seoul_bbox": await conn.fetchval(
                     f"""SELECT count(*)=0 FROM {new_tbl}
                         WHERE NOT ST_Within(geom, ST_MakeEnvelope(126.7,37.4,127.2,37.7,4326))"""),
+                "no_empty_columns": not empty_cols,
             }
+            if empty_cols:
+                print(f"⚠️ 전 행 NULL 컬럼(silent drop 의심): {empty_cols}")
         import json
         failed = [k for k, ok in checks.items() if not ok]
         if failed:
