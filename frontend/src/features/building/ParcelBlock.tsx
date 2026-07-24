@@ -25,8 +25,8 @@ const REG_FIELD: Record<string, string> = {   // 규제 라벨 → 필지 오버
 };
 const num = (x: unknown): number | null => (x == null || x === "" ? null : Number(x));
 const pct = (x: unknown): string | null => (x == null || x === "" ? null : String(x).replace("%", ""));   // 법정건폐/용적: 마스터 "50%" → 숫자부만(중복 % 방지)
-const eok = (n: number | null) => (n == null ? "—" : `${(n / 1e8).toFixed(1)}억`);
-const man = (n: number | null) => (n == null ? "—" : `${Math.round(n / 1e4).toLocaleString()}만/㎡`);
+const eok = (n: number | null) => (n == null ? "" : `${(n / 1e8).toFixed(1)}억`);
+const man = (n: number | null) => (n == null ? "" : `${Math.round(n / 1e4).toLocaleString()}만/㎡`);
 
 export function ParcelBlock({ pk }: { pk: string }) {
   const [sel, setSel] = useState(0);
@@ -85,10 +85,10 @@ export function ParcelBlock({ pk }: { pk: string }) {
 
       {/* 토지정보(선택 필지) — 목업 순서: 토지면적·지목·용도지역·이용상황·지형/형상·도로접면·지세·법정건폐/용적 */}
       <div className="kv-grid">
-        <KV label="토지면적" field="area" value={area ? `${area.toLocaleString()}㎡` : "—"} editable current={area ?? ""} validate={vPos} onSave={onSave} onRevert={onRevert} />
+        <KV label="토지면적" field="area" value={area ? `${area.toLocaleString()}㎡` : ""} editable current={area ?? ""} validate={vPos} onSave={onSave} onRevert={onRevert} />
         <EnumField label="지목" enumKey="jimok" value={p.jimok} onSave={(v) => onSave("jimok", v)} />
-        <KV label="용도지역" field="use_zone" value={p.use_zone ?? "—"} editable current={p.use_zone ?? ""} onSave={onSave} onRevert={onRevert} />
-        <KV label="이용상황" field="land_use" value={p.land_use ?? "—"} editable current={p.land_use ?? ""} onSave={onSave} onRevert={onRevert} />
+        <KV label="용도지역" field="use_zone" value={p.use_zone ?? ""} editable current={p.use_zone ?? ""} onSave={onSave} onRevert={onRevert} />
+        <KV label="이용상황" field="land_use" value={p.land_use ?? ""} editable current={p.land_use ?? ""} onSave={onSave} onRevert={onRevert} />
         <EnumField label="지형/형상" enumKey="shape" value={p.shape} onSave={(v) => onSave("shape", v)} />
         <EnumField label="도로접면" enumKey="road_frontage" value={p.road_frontage} onSave={(v) => onSave("road_frontage", v)} />
         <EnumField label="지세" enumKey="slope" value={p.slope} onSave={(v) => onSave("slope", v)} />
@@ -113,7 +113,7 @@ export function ParcelBlock({ pk }: { pk: string }) {
       </div>
       <div className="kv-grid" style={{ paddingTop: 0 }}>
         {REG_ALL.map((r) => (
-          <KV key={r} label={r} field={REG_FIELD[r]} value={p.regs[r] ?? "해당 없음"} editable
+          <KV key={r} label={r} field={REG_FIELD[r]} value={p.regs[r] ?? ""} editable
             current={p.regs[r] ?? ""} onSave={onSave} onRevert={onRevert} />
         ))}
       </div>
@@ -127,7 +127,7 @@ export function ParcelBlock({ pk }: { pk: string }) {
       <div className="kv-grid" style={{ paddingTop: 0 }}>
         <KV label="최신 공시지가" field="gongsi_latest" calc
           value={man(gongsiLatest)} editable current={gongsiLatest ?? ""} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
-        <div className="kv"><span className="k">총공시지가</span><span className="v num" style={{ color: "var(--signal)" }}>{eok(totalGongsi)} <small style={{ color: "var(--muted)", fontWeight: 400 }}>= 단가 × {area ?? "—"}㎡</small></span></div>
+        <div className="kv"><span className="k">총공시지가</span><span className="v num" style={{ color: "var(--signal)" }}>{eok(totalGongsi)} <small style={{ color: "var(--muted)", fontWeight: 400 }}>= 단가 × {area ?? ""}㎡</small></span></div>
       </div>
     </div>
   );

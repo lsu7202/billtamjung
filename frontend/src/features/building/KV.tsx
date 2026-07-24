@@ -67,7 +67,7 @@ export function KV({ label, field, value, unit: u, editable, calc, validate, cur
       <span className="v num" style={{ ...(editable ? { cursor: "pointer" } : {}), ...(calc ? { color: "var(--signal)" } : {}) }}
         onClick={editable && field ? () => { setVal(String(current ?? "")); setErr(null); setEditing(true); } : undefined}
         title={editable ? "클릭 = 수정(자동저장)" : undefined}>
-        {value}{u}
+        {value}{value ? u : ""}
         {editable && field && (
           <button className="btn" style={{ marginLeft: 6, padding: "0 6px", fontSize: 11 }}
             onClick={(e) => { e.stopPropagation(); onRevert?.(field); }} title="마스터 원본으로 되돌리기">↺</button>

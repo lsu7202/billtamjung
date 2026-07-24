@@ -91,10 +91,10 @@ export function BuildingPage() {
 
   const area = (m2?: number | string | null) => {
     const v = typeof m2 === "string" ? parseFloat(m2) : m2;
-    if (v == null || Number.isNaN(v)) return "—";
+    if (v == null || Number.isNaN(v)) return "";
     return unit === "py" ? `${(v / P).toFixed(1)}평` : `${v.toLocaleString(undefined, { maximumFractionDigits: 20 })}㎡`;   // ㎡=원값 그대로
   };
-  const eok = (n?: number | null) => (n == null ? "—" : n >= 1e8 ? `${(n / 1e8).toFixed(1)}억` : `${Math.round(n / 1e4).toLocaleString()}만`);
+  const eok = (n?: number | null) => (n == null ? "" : n >= 1e8 ? `${(n / 1e8).toFixed(1)}억` : `${Math.round(n / 1e4).toLocaleString()}만`);
 
   if (building.isLoading) return <p>불러오는 중…</p>;
   if (building.isError) return <p>건물을 찾을 수 없습니다</p>;
@@ -138,11 +138,11 @@ export function BuildingPage() {
           </div>
         </div>
         <div className="hdr-metrics" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {metric("매매가", price ? eok(price) : "미지정")}
-          {metric("수익률(만실)", roiNow ? `${roiNow.toFixed(1)}%` : "—")}
-          {metric("평단가(대지)", pricePerLand ? eok(pricePerLand) : "—")}
-          {metric("면적 (평)", `${landP ? landP.toFixed(1) : "—"} / ${totalP ? totalP.toFixed(1) : "—"} / ${buildP ? buildP.toFixed(1) : "—"}`)}
-          {metric("층수", `B${b.floors_below ?? "—"}F/${b.floors_above ?? "—"}F`)}
+          {metric("매매가", price ? eok(price) : "")}
+          {metric("수익률(만실)", roiNow ? `${roiNow.toFixed(1)}%` : "")}
+          {metric("평단가(대지)", pricePerLand ? eok(pricePerLand) : "")}
+          {metric("면적 (평)", `${landP ? landP.toFixed(1) : ""} / ${totalP ? totalP.toFixed(1) : ""} / ${buildP ? buildP.toFixed(1) : ""}`)}
+          {metric("층수", `B${b.floors_below ?? ""}F/${b.floors_above ?? ""}F`)}
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <button className="btn" onClick={() => { setGenModal("briefing"); setGenState(null); }}>브리핑 자료 (10)</button>
@@ -175,16 +175,16 @@ export function BuildingPage() {
             <div className="panel">
               <div className="sec-head">금액정보</div>
               <div className="kv-grid">
-                <KV label="매매가" field="sale_price" value={price != null ? eok(price) : "미지정"}
+                <KV label="매매가" field="sale_price" value={price != null ? eok(price) : ""}
                   editable current={price != null ? +(price / 1e8).toFixed(2) : ""} parse={(v) => String(Math.round(parseFloat(v) * 1e8))} validate={vPos}
                   onSave={onSave} onRevert={onRevert} />
-                <KV label="수익률(만실)" value={roiNow ? `${roiNow.toFixed(2)}%` : "—"} calc />
-                <KV label="대지 평단가" value={pricePerLand ? eok(pricePerLand) : "—"} calc />
-                <KV label="연면적 평단가" value={price && totalP ? eok(price / totalP) : "—"} calc />
-                <KV label="총보증금" value={total ? eok(total.deposit) : "—"} />
-                <KV label="총임대료" value={total ? eok(total.rent) : "—"} />
-                <KV label="총관리비" value={total ? eok(total.maintenance) : "—"} />
-                <KV label="총공실" value={total ? (total.vacant_count > 0 ? `${total.vacant_count}실` : "없음") : "—"} />
+                <KV label="수익률(만실)" value={roiNow ? `${roiNow.toFixed(2)}%` : ""} calc />
+                <KV label="대지 평단가" value={pricePerLand ? eok(pricePerLand) : ""} calc />
+                <KV label="연면적 평단가" value={price && totalP ? eok(price / totalP) : ""} calc />
+                <KV label="총보증금" value={total ? eok(total.deposit) : ""} />
+                <KV label="총임대료" value={total ? eok(total.rent) : ""} />
+                <KV label="총관리비" value={total ? eok(total.maintenance) : ""} />
+                <KV label="총공실" value={total ? (total.vacant_count > 0 ? `${total.vacant_count}실` : "없음") : ""} />
               </div>
             </div>
           )}
@@ -230,16 +230,16 @@ export function BuildingPage() {
                 <KV label="건축면적" field="build_area" value={area(b.build_area)} editable current={areaSeed(b.build_area)} parse={areaParse} validate={vPos} onSave={onSave} onRevert={onRevert} />
                 <FloorsRow above={b.floors_above} below={b.floors_below} onSave={onSave} />
                 <KV label="용적률 산정용 연면적" field="far_area" value={area(b.far_area)} editable current={areaSeed(b.far_area)} parse={areaParse} validate={vPos} onSave={onSave} onRevert={onRevert} />
-                <KV label="주차" field="parking" value={b.parking ?? "—"} unit="대" editable current={b.parking} validate={vInt} onSave={onSave} onRevert={onRevert} />
-                <KV label="엘리베이터" field="elevator" value={b.elevator ?? "—"} unit="대" editable current={b.elevator} validate={vInt} onSave={onSave} onRevert={onRevert} />
-                <KV label="사용승인일" field="approval_ymd" value={String(b.approval_ymd ?? "—")} editable current={b.approval_ymd} validate={vYmd} onSave={onSave} onRevert={onRevert} />
-                <KV label="대수선 및 리모델링" field="remodel_ymd" value={String(b.remodel_ymd ?? "—")} editable current={b.remodel_ymd} validate={vYmd} onSave={onSave} onRevert={onRevert} />
+                <KV label="주차" field="parking" value={b.parking ?? ""} unit="대" editable current={b.parking} validate={vInt} onSave={onSave} onRevert={onRevert} />
+                <KV label="엘리베이터" field="elevator" value={b.elevator ?? ""} unit="대" editable current={b.elevator} validate={vInt} onSave={onSave} onRevert={onRevert} />
+                <KV label="사용승인일" field="approval_ymd" value={String(b.approval_ymd ?? "")} editable current={b.approval_ymd} validate={vYmd} onSave={onSave} onRevert={onRevert} />
+                <KV label="대수선 및 리모델링" field="remodel_ymd" value={String(b.remodel_ymd ?? "")} editable current={b.remodel_ymd} validate={vYmd} onSave={onSave} onRevert={onRevert} />
                 <EnumField label="주용도" enumKey="main_use" value={b.main_use as string}
                   onSave={(v) => editField.mutate({ field: "main_use", value: v })} />
-                <KV label="건폐율" field="bcr" value={b.bcr ?? "—"} unit="%" editable validate={vRate100} current={b.bcr} onSave={onSave} onRevert={onRevert} />
-                <KV label="용적률" field="far" value={b.far ?? "—"} unit="%" editable validate={vNonNeg} current={b.far} onSave={onSave} onRevert={onRevert} />
-                <KV label="기타용도" field="etc_use" value={String(b.etc_use ?? "—")} editable current={b.etc_use} onSave={onSave} onRevert={onRevert} />
-                <KV label="구조" field="structure" value={String(b.structure ?? "—")} editable current={b.structure} onSave={onSave} onRevert={onRevert} />
+                <KV label="건폐율" field="bcr" value={b.bcr ?? ""} unit="%" editable validate={vRate100} current={b.bcr} onSave={onSave} onRevert={onRevert} />
+                <KV label="용적률" field="far" value={b.far ?? ""} unit="%" editable validate={vNonNeg} current={b.far} onSave={onSave} onRevert={onRevert} />
+                <KV label="기타용도" field="etc_use" value={String(b.etc_use ?? "")} editable current={b.etc_use} onSave={onSave} onRevert={onRevert} />
+                <KV label="구조" field="structure" value={String(b.structure ?? "")} editable current={b.structure} onSave={onSave} onRevert={onRevert} />
               </div>
             </div>
           )}
@@ -286,7 +286,8 @@ export function BuildingPage() {
                 </div>
               </div>
               <div className="kv-grid" style={{ paddingTop: 0 }}>
-                <KV label="유동인구 (수기)" field="float_pop" value={String(b.float_pop ?? "미지정")} editable current={b.float_pop} onSave={onSave} onRevert={onRevert} />
+                <EnumField label="유동인구 (수기)" enumKey="float_pop" value={b.float_pop as string}
+                  onSave={(v) => editField.mutate({ field: "float_pop", value: v })} />
               </div>
             </div>
           )}
@@ -361,7 +362,7 @@ function InvestCalc({ price, yearRent }: { price: number | null; yearRent: numbe
       <div className="kv"><span className="k">대출 이자(월)</span>
         <span><input className="input" style={{ maxWidth: 100, padding: "3px 8px", textAlign: "right" }} placeholder="1,600" value={interest} onChange={(e) => setInterest(e.target.value)} /> 만</span></div>
       <div className="kv"><span className="k">자기자본 수익률</span>
-        <span className="v num" style={{ color: "var(--signal)" }}>{roe != null && price ? `${roe.toFixed(1)}%` : "—"}</span></div>
+        <span className="v num" style={{ color: "var(--signal)" }}>{roe != null && price ? `${roe.toFixed(1)}%` : ""}</span></div>
     </div>
   );
 }
@@ -415,7 +416,7 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
           {items.map((r) => (
             <tr key={`${r.floor}-${r.unit_no}`}>
               <td>{r.floor}</td><td>{r.unit_no}</td>
-              <td className="num">{r.contract_area != null ? fromM2(r.contract_area) : "—"}</td>
+              <td className="num">{r.contract_area != null ? fromM2(r.contract_area) : ""}</td>
               <td className="num">{eok(r.deposit)}</td>
               <td className="num">{eok(r.rent)}</td>
               <td className="num">{eok(r.maintenance)}</td>
