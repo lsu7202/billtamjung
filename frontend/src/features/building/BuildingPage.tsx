@@ -444,7 +444,11 @@ function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden, isPrefil
     if (isDraft) onSaved?.();   // 저장되면 새 빈 draft 행으로 리셋
   }
   const set = (k: keyof RentForm) => (v: string) => commit({ ...f, [k]: v });
-  async function del() { if (r.id != null) { await rentsApi.del(pk, r.id); refresh(); } else onSaved?.(); }   // 되돌리기=팀행 삭제(대장 프리필 복원/제거)
+  async function del() { if (r.id != null) { await rentsApi.del(pk, r.id); refresh(); } else onSaved?.(); }
+  function toggleVacant() {   // 공실=보증금·임대료 0 (총공실 파생 근거, data-overview §G4)
+    const nv = !f.is_vacant;
+    commit({ ...f, is_vacant: nv, deposit: nv ? "" : f.deposit, rent: nv ? "" : f.rent });
+  }
 
   return (
     <tr onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
@@ -457,9 +461,13 @@ function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden, isPrefil
       <td className="num"><RentCell edit={f.deposit} render={man(f.deposit)} ph="만원" num onSave={set("deposit")} /></td>
       <td className="num"><RentCell edit={f.rent} render={man(f.rent)} ph="만원" num onSave={set("rent")} /></td>
       <td className="num"><RentCell edit={f.maintenance} render={man(f.maintenance)} ph="만원" num onSave={set("maintenance")} /></td>
-      <td style={{ whiteSpace: "nowrap", width: 30 }}>
+      <td style={{ whiteSpace: "nowrap" }}>
+        {!isDraft && !isPrefill && r.id != null && (
+          <button className="btn" style={{ padding: "2px 9px", fontSize: 12, color: f.is_vacant ? "var(--up)" : "var(--green)" }}
+            onClick={toggleVacant}>{f.is_vacant ? "공실" : "임대중"}</button>
+        )}
         {(isDraft || (!isPrefill && r.id != null)) && (
-          <button className="btn" style={{ padding: "2px 7px", fontSize: 12, color: "var(--up)", visibility: hover || isDraft ? "visible" : "hidden" }}
+          <button className="btn" style={{ padding: "2px 7px", fontSize: 12, marginLeft: 6, color: "var(--up)", visibility: hover || isDraft ? "visible" : "hidden" }}
             onClick={del} title={isDraft ? "입력 지우기" : "이 행 삭제"}>×</button>
         )}
       </td>
@@ -487,7 +495,7 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
         )}
       </div>
       <table className="wf" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-        <thead><tr><th>층</th><th>호실</th><th>용도</th><th className="num">전용({unit === "py" ? "평" : "㎡"})</th><th className="num">계약({unit === "py" ? "평" : "㎡"})</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">관리비</th><th /></tr></thead>
+        <thead><tr><th>층</th><th>호실</th><th>용도</th><th className="num">전용({unit === "py" ? "평" : "㎡"})</th><th className="num">계약({unit === "py" ? "평" : "㎡"})</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">관리비</th><th>상태</th></tr></thead>
         <tbody>
           {items.map((r) => <RentRow key={r.id ?? `${r.floor}-${r.unit_no}`} pk={pk} r={r} unit={unit} eok={eok} refresh={refresh} />)}
           {/* 대장 층별개요 프리필(팀 미입력 층) — 금액 입력 시 팀 데이터로 전환 */}
@@ -500,7 +508,7 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
               <td className="num">{eok(total.deposit)}</td>
               <td className="num">{eok(total.rent)}</td>
               <td className="num">{eok(total.maintenance)}</td>
-              <td />
+              <td>공실 {total.vacant_count}</td>
             </tr>
           )}
         </tbody>

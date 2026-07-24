@@ -4,15 +4,16 @@ import { useEnums } from "../../shared/hooks/useEnums";
 type Opt = { code: string; label: string };
 
 const chipStyle = (on: boolean): React.CSSProperties => ({
-  padding: "4px 11px", fontSize: 12, fontWeight: 600, borderRadius: 999, cursor: "pointer",
+  padding: "4px 11px", fontSize: 12, fontWeight: on ? 700 : 600, borderRadius: 999, cursor: "pointer",   // 선택=굵게
   border: `1px solid ${on ? "var(--signal)" : "var(--line-2)"}`,
-  background: on ? "var(--signal-bg)" : "#fff", color: on ? "var(--signal)" : "var(--ink-2)",   // 선택=연한 강조(파란 채움 아님)
+  background: on ? "var(--signal-bg)" : "#fff", color: on ? "var(--signal)" : "var(--ink-2)",
 });
-const triggerStyle: React.CSSProperties = {   // 트리거는 항상 중립(값 강조 없음)
-  padding: "4px 11px", fontSize: 12, fontWeight: 600, borderRadius: 999, cursor: "pointer",
-  border: "1px solid var(--line-2)", background: "#fff", color: "var(--ink-2)",
+// 트리거: 값 선택 시 굵고 진하게(값=굵게 통일) · 미지정은 흐리게(지금대로)
+const triggerStyle = (has: boolean): React.CSSProperties => ({
+  padding: "4px 11px", fontSize: 12, fontWeight: has ? 700 : 500, borderRadius: 999, cursor: "pointer",
+  border: "1px solid var(--line-2)", background: "#fff", color: has ? "var(--ink)" : "var(--muted)",
   display: "inline-flex", alignItems: "center", gap: 5,
-};
+});
 const popStyle = (big: boolean): React.CSSProperties => ({
   position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 41, background: "#fff",
   border: "1px solid var(--line)", borderRadius: 10, boxShadow: "var(--shadow)", padding: 8,
@@ -37,7 +38,7 @@ export function Chips({ opts, cur, onSelect, onRevert }: { opts: Opt[]; cur: str
   const shown = q ? opts.filter((o) => o.label.includes(q)) : opts;
   return (
     <span style={{ position: "relative", display: "inline-flex" }}>
-      <button style={triggerStyle} onClick={() => { setOpen((v) => !v); setQ(""); }}>
+      <button style={triggerStyle(cur !== "미지정")} onClick={() => { setOpen((v) => !v); setQ(""); }}>
         {curLabel}<span style={{ fontSize: 9, opacity: .65 }}>▾</span>
       </button>
       {open && (
@@ -70,7 +71,7 @@ export function ChipsMulti({ opts, selected, onChange, summary, onRevert }: {
   const toggle = (code: string) => onChange(selected.includes(code) ? selected.filter((x) => x !== code) : [...selected, code]);
   return (
     <span style={{ position: "relative", display: "inline-flex" }}>
-      <button style={triggerStyle} onClick={() => { setOpen((v) => !v); setQ(""); }}>
+      <button style={triggerStyle(selected.length > 0)} onClick={() => { setOpen((v) => !v); setQ(""); }}>
         {summary || "미지정"}<span style={{ fontSize: 9, opacity: .65 }}>▾</span>
       </button>
       {open && (
