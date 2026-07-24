@@ -119,7 +119,7 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
         return (
           <div className="kv" key={r.k} style={{ alignItems: "center" }}>
             <span className="k">{r.label}</span>
-            <Chips opts={opts} cur={cur} onSelect={(v) => save(r.k, v)} />
+            <Chips opts={opts} cur={cur} onSelect={(v) => save(r.k, v)} onRevert={() => save(r.k, "")} />
           </div>
         );
       })}

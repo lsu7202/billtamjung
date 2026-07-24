@@ -245,7 +245,7 @@ export function BuildingPage() {
                 {([["명도", "meongdo"], ["입지", "ipji"], ["용도변경", "use_change"],
                    ["등급", "grade"], ["멸실", "myeolsil"], ["노후도", "nohudo"], ["건물용도", "building_use"]] as const).map(([lbl, f]) => (
                   <EnumField key={f} label={lbl} enumKey={f} value={b[f] as string}
-                    onSave={(v) => editField.mutate({ field: f, value: v })} />
+                    onSave={(v) => editField.mutate({ field: f, value: v })} onRevert={() => onRevert(f)} />
                 ))}
               </div>
             </div>
@@ -267,7 +267,7 @@ export function BuildingPage() {
                 <KV label="사용승인일" field="approval_ymd" value={ymdDisp(b.approval_ymd)} editable current={b.approval_ymd} parse={parseYmd} validate={vYmd} onSave={onSave} onRevert={onRevert} />
                 <KV label="대수선 및 리모델링" field="remodel_ymd" value={ymdDisp(b.remodel_ymd)} editable current={b.remodel_ymd} parse={parseYmd} validate={vYmd} onSave={onSave} onRevert={onRevert} />
                 <EnumField label="주용도" enumKey="main_use" value={b.main_use as string}
-                  onSave={(v) => editField.mutate({ field: "main_use", value: v })} />
+                  onSave={(v) => editField.mutate({ field: "main_use", value: v })} onRevert={() => onRevert("main_use")} />
                 <KV label="건폐율" field="bcr" value={b.bcr ?? ""} unit="%" editable validate={vRate100} current={b.bcr} onSave={onSave} onRevert={onRevert} />
                 <KV label="용적률" field="far" value={b.far ?? ""} unit="%" editable validate={vNonNeg} current={b.far} onSave={onSave} onRevert={onRevert} />
                 <KV label="기타용도" field="etc_use" value={String(b.etc_use ?? "")} editable current={b.etc_use} onSave={onSave} onRevert={onRevert} />
@@ -319,7 +319,7 @@ export function BuildingPage() {
               </div>
               <div className="kv-grid" style={{ paddingTop: 0 }}>
                 <EnumField label="유동인구 (수기)" enumKey="float_pop" value={b.float_pop as string}
-                  onSave={(v) => editField.mutate({ field: "float_pop", value: v })} />
+                  onSave={(v) => editField.mutate({ field: "float_pop", value: v })} onRevert={() => onRevert("float_pop")} />
               </div>
             </div>
           )}

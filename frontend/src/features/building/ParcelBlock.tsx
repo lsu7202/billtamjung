@@ -100,28 +100,25 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZo
         <KV label="토지면적" field="area" value={area != null ? (unit === "py" ? `${(area / PY).toFixed(1)}평` : `${area.toLocaleString()}㎡`) : ""}
           editable current={area != null ? (unit === "py" ? +(area / PY).toFixed(1) : area) : ""}
           parse={(v) => String(unit === "py" ? parseFloat(v) * PY : parseFloat(v))} validate={vPos} onSave={onSave} onRevert={onRevert} />
-        <EnumField label="지목" enumKey="jimok" value={p.jimok} onSave={(v) => onSave("jimok", v)} />
+        <EnumField label="지목" enumKey="jimok" value={p.jimok} onSave={(v) => onSave("jimok", v)} onRevert={() => onRevert("jimok")} />
         {/* 용도지역 = 걸침(다지역) 가능 → 다중선택. 오버라이드 없으면 건물 use_zone_mix(비중) 표시 */}
         {(() => {
           const mix: ZoneMix = Array.isArray(useZoneMix) ? useZoneMix : (typeof useZoneMix === "string" ? JSON.parse(useZoneMix || "[]") : []);
           const overridden = typeof p.use_zone === "string" && p.use_zone.includes(",");
           const selected = overridden ? p.use_zone!.split(",") : (mix.length ? mix.map((m) => m.명) : p.use_zone ? [p.use_zone] : []);
-          const summary = overridden
-            ? selected.join(" · ")
-            : mix.length
-              ? mix.map((m) => (m.비중 < 0.999 ? `${m.명} ${Math.round(m.비중 * 100)}%` : m.명)).join(" · ")
-              : (p.use_zone ?? "");
+          // 비중(%)은 데이터엔 유지하되 화면 미표시(편집 시 사라지는 혼란 방지) — 명칭만 병기
+          const summary = overridden ? selected.join(" · ") : (mix.length ? mix.map((m) => m.명).join(" · ") : (p.use_zone ?? ""));
           return (
             <div className="kv" style={{ alignItems: "center" }}><span className="k">용도지역</span>
               <ChipsMulti opts={ZONE_OPTS} selected={selected} summary={summary}
-                onChange={(v) => onSave("use_zone", v.join(","))} />
+                onChange={(v) => onSave("use_zone", v.join(","))} onRevert={() => onRevert("use_zone")} />
             </div>
           );
         })()}
         <KV label="이용상황" field="land_use" value={p.land_use ?? ""} editable current={p.land_use ?? ""} onSave={onSave} onRevert={onRevert} />
-        <EnumField label="지형/형상" enumKey="shape" value={p.shape} onSave={(v) => onSave("shape", v)} />
-        <EnumField label="도로접면" enumKey="road_frontage" value={p.road_frontage} onSave={(v) => onSave("road_frontage", v)} />
-        <EnumField label="지세" enumKey="slope" value={p.slope} onSave={(v) => onSave("slope", v)} />
+        <EnumField label="지형/형상" enumKey="shape" value={p.shape} onSave={(v) => onSave("shape", v)} onRevert={() => onRevert("shape")} />
+        <EnumField label="도로접면" enumKey="road_frontage" value={p.road_frontage} onSave={(v) => onSave("road_frontage", v)} onRevert={() => onRevert("road_frontage")} />
+        <EnumField label="지세" enumKey="slope" value={p.slope} onSave={(v) => onSave("slope", v)} onRevert={() => onRevert("slope")} />
         {/* 법정 건폐/용적 = 🔀 조례파생, override 가능(한 줄 두 값 인라인 편집) */}
         <div className="kv"><span className="k">법정 건폐/용적</span>
           <span className="v num" style={{ display: "flex", gap: 5, alignItems: "center", justifyContent: "flex-end" }}>

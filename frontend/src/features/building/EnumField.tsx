@@ -23,8 +23,13 @@ const searchStyle: React.CSSProperties = {
   border: "1px solid var(--line-2)", borderRadius: 8,
 };
 
-/** 단일선택 칩 — 현재값 트리거(중립), 클릭 시 옵션 칩 드롭다운. 옵션 많으면 검색+스크롤. */
-export function Chips({ opts, cur, onSelect }: { opts: Opt[]; cur: string; onSelect: (code: string) => void }) {
+const revertLink: React.CSSProperties = {
+  display: "block", width: "100%", marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--line)",
+  background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "var(--muted)", textAlign: "left",
+};
+
+/** 단일선택 칩 — 현재값 트리거(중립), 클릭 시 옵션 칩 드롭다운. 옵션 많으면 검색+스크롤. onRevert=마스터 원본. */
+export function Chips({ opts, cur, onSelect, onRevert }: { opts: Opt[]; cur: string; onSelect: (code: string) => void; onRevert?: () => void }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const curLabel = opts.find((o) => o.code === cur)?.label ?? cur;
@@ -46,6 +51,7 @@ export function Chips({ opts, cur, onSelect }: { opts: Opt[]; cur: string; onSel
                   onClick={() => { onSelect(o.code); setOpen(false); }}>{o.label}</button>
               ))}
             </div>
+            {onRevert && <button style={revertLink} onClick={() => { onRevert(); setOpen(false); }}>↺ 마스터 원본으로 되돌리기</button>}
           </div>
         </>
       )}
@@ -54,8 +60,8 @@ export function Chips({ opts, cur, onSelect }: { opts: Opt[]; cur: string; onSel
 }
 
 /** 다중선택 칩 — 용도지역 걸침 등. 선택값 여러 개 유지(팝오버 안 닫힘), 검색+스크롤. */
-export function ChipsMulti({ opts, selected, onChange, summary }: {
-  opts: Opt[]; selected: string[]; onChange: (v: string[]) => void; summary: string;
+export function ChipsMulti({ opts, selected, onChange, summary, onRevert }: {
+  opts: Opt[]; selected: string[]; onChange: (v: string[]) => void; summary: string; onRevert?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -77,6 +83,7 @@ export function ChipsMulti({ opts, selected, onChange, summary }: {
                 <button key={o.code} style={chipStyle(selected.includes(o.code))} onClick={() => toggle(o.code)}>{o.label}</button>
               ))}
             </div>
+            {onRevert && <button style={revertLink} onClick={() => { onRevert(); setOpen(false); }}>↺ 마스터 원본으로 되돌리기</button>}
           </div>
         </>
       )}
@@ -84,9 +91,9 @@ export function ChipsMulti({ opts, selected, onChange, summary }: {
   );
 }
 
-/** enum 오버레이 필드 — 선택 즉시 자동저장. 전부 칩 드롭다운(대형은 검색). */
-export function EnumField({ label, enumKey, value, onSave }: {
-  label: string; enumKey: string; value?: string | null; onSave: (v: string) => void;
+/** enum 오버레이 필드 — 선택 즉시 자동저장. 전부 칩 드롭다운(대형은 검색). onRevert=마스터 원본. */
+export function EnumField({ label, enumKey, value, onSave, onRevert }: {
+  label: string; enumKey: string; value?: string | null; onSave: (v: string) => void; onRevert?: () => void;
 }) {
   const en = useEnums();
   const opts = en.options(enumKey);
@@ -94,7 +101,7 @@ export function EnumField({ label, enumKey, value, onSave }: {
   return (
     <div className="kv" style={{ alignItems: "center" }}>
       <span className="k">{label}</span>
-      <Chips opts={opts} cur={cur} onSelect={onSave} />
+      <Chips opts={opts} cur={cur} onSelect={onSave} onRevert={onRevert} />
     </div>
   );
 }
