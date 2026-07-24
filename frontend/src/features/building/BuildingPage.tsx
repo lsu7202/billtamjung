@@ -163,7 +163,7 @@ export function BuildingPage() {
           {metric("수익률(만실/공실제외)", roiFull != null ? `${roiFull.toFixed(1)}%${roiExVac != null ? ` / ${roiExVac.toFixed(1)}%` : ""}` : "")}
           {metric("평단가(대지)", ppLand ? eok(ppLand) : "")}
           {metric("면적 (평)", `${landP ? landP.toFixed(1) : ""} / ${totalP ? totalP.toFixed(1) : ""} / ${buildP ? buildP.toFixed(1) : ""}`)}
-          {metric("층수", `B${b.floors_below ?? ""}F/${b.floors_above ?? ""}F`)}
+          {metric("층수", `${Number(b.floors_below) > 0 ? `B${b.floors_below}F/` : ""}${b.floors_above != null ? `${b.floors_above}F` : ""}`)}
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <button className="btn" onClick={() => { setGenModal("briefing"); setGenState(null); }}>브리핑 자료 (10)</button>
