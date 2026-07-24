@@ -125,7 +125,8 @@ function SeriesTable({ pk, kind, name, color, perPy, areaPy, pts, fmt, refresh, 
       <table className="wf" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
         <tbody>
           {shown.map((p) => <SeriesRow key={p.x} p={p} fmt={fmt} perPy={perPy} areaPy={areaPy} onSave={save} onDel={del} />)}
-          <SeriesRow key="draft" p={null} fmt={fmt} perPy={perPy} areaPy={areaPy} onSave={save} onDel={del} hidden={!hover} />
+          {/* 빈 계열(광고 등)은 호버할 행이 없으니 draft 항상 노출, 행 있으면 호버 시만 */}
+          <SeriesRow key="draft" p={null} fmt={fmt} perPy={perPy} areaPy={areaPy} onSave={save} onDel={del} hidden={!hover && pts.length > 0} />
         </tbody>
       </table>
       {rows.length > 3 && (

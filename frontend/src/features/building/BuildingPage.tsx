@@ -487,7 +487,7 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
         <thead><tr><th>층</th><th>호실</th><th>용도</th><th className="num">전용({unit === "py" ? "평" : "㎡"})</th><th className="num">계약({unit === "py" ? "평" : "㎡"})</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">관리비</th><th>상태</th></tr></thead>
         <tbody>
           {items.map((r) => <RentRow key={r.id ?? `${r.floor}-${r.unit_no}`} pk={pk} r={r} unit={unit} eok={eok} refresh={refresh} />)}
-          <RentRow key={`draft-${draftKey}`} pk={pk} r={blank} unit={unit} eok={eok} refresh={refresh} isDraft hidden={!hover} onSaved={() => setDraftKey((k) => k + 1)} />
+          <RentRow key={`draft-${draftKey}`} pk={pk} r={blank} unit={unit} eok={eok} refresh={refresh} isDraft hidden={!hover && items.length > 0} onSaved={() => setDraftKey((k) => k + 1)} />
           {total && items.length > 0 && (
             <tr style={{ background: "var(--surface-2)", fontWeight: 700 }}>
               <td colSpan={5}>합계</td>
