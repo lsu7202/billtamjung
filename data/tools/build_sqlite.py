@@ -18,8 +18,9 @@ def main():
       pk TEXT PRIMARY KEY, 주소 TEXT, 도로명주소 TEXT, 대장구분 TEXT, pnu TEXT,
       시군구코드 TEXT, 법정동코드 TEXT,
       대지면적 REAL, 건폐율 REAL, 용적률 REAL, 연면적 REAL,
+      건축면적 REAL, 용적률산정연면적 REAL,
       주용도코드 TEXT, 주용도 TEXT, 기타용도 TEXT, 구조 TEXT,
-      지상층수 INT, 지하층수 INT, 사용승인일 TEXT,
+      지상층수 INT, 지하층수 INT, 엘리베이터 INT, 주차 INT, 사용승인일 TEXT,
       최근대수선일 TEXT, 대수선건수 INT, 대지건폐용적_출처 TEXT,
       지목 TEXT, 토지면적 REAL, 토지이용상황 TEXT,
       용도지역 TEXT, 용도지역_걸침 TEXT, 개발제한비중 REAL,
@@ -40,8 +41,9 @@ def main():
             r['PK'], r['주소'], r['도로명주소'], r['대장구분'], pnu,
             pnu[:5] if pnu else None, pnu[:10] if pnu else None,
             r['대지면적'], r['건폐율'], r['용적률'], r['연면적'],
+            r.get('건축면적'), r.get('용적률산정연면적'),
             r['주용도코드'], r['주용도'], r['기타용도'], r['구조'],
-            r['지상층수'], r['지하층수'], r['사용승인일'],
+            r['지상층수'], r['지하층수'], r.get('엘리베이터'), r.get('주차'), r['사용승인일'],
             r.get('최근대수선일'), r.get('대수선건수',0), r['대지건폐용적_출처'],
             r['지목'], r['토지면적'], r['토지이용상황'],
             r['용도지역'], json.dumps(r['용도지역_걸침'],ensure_ascii=False) if r['용도지역_걸침'] else None,
@@ -59,10 +61,10 @@ def main():
             for s in r['매각이력_추정']:
                 srow.append((r['PK'],s['계약년월'],s['금액'],s['연면적'],s['대지'],s['단가_연면적']))
         if len(brow)>=20000:
-            cur.executemany("INSERT OR IGNORE INTO buildings VALUES(%s)"%(','.join('?'*35)),brow); brow=[]
+            cur.executemany("INSERT OR IGNORE INTO buildings VALUES(%s)"%(','.join('?'*39)),brow); brow=[]
             cur.executemany("INSERT INTO prices VALUES(?,?,?)",prow); prow=[]
             cur.executemany("INSERT INTO sales VALUES(?,?,?,?,?,?)",srow); srow=[]
-    cur.executemany("INSERT OR IGNORE INTO buildings VALUES(%s)"%(','.join('?'*35)),brow)
+    cur.executemany("INSERT OR IGNORE INTO buildings VALUES(%s)"%(','.join('?'*39)),brow)
     cur.executemany("INSERT INTO prices VALUES(?,?,?)",prow)
     cur.executemany("INSERT INTO sales VALUES(?,?,?,?,?,?)",srow)
     for code,a in json.load(open("data/tools/_sales_area.json")).items():

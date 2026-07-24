@@ -23,7 +23,8 @@ SOURCES = {
                     "approval_ymd", "remodel_ymd",
                     "jimok", "parcel_area", "land_use", "use_zone", "use_zone_mix",
                     "slope", "shape", "road_frontage", "station_dist", "subway_json", "bus_json",
-                    "gongsi_latest", "last_sale_ym", "last_sale_price"],
+                    "gongsi_latest", "last_sale_ym", "last_sale_price",
+                    "build_area", "far_area", "elevator", "parking"],
         "table": "buildings",
     },
     "gongsi_series": {   # 공시지가 연도별(0007)
@@ -46,9 +47,11 @@ SOURCES = {
                         reg_godo, reg_district, reg_jeongbi, reg_gyeong, reg_banghwa, reg_munhwa, uqa)
                      SELECT pnu, NULLIF(building_pk,''), is_rep::boolean,
                             ST_Multi(ST_MakeValid(ST_GeomFromText(wkt, 4326))),
-                            NULLIF(area,'')::numeric, NULLIF(jimok,''), NULLIF(land_use,''),
-                            NULLIF(slope,''), NULLIF(shape,''), NULLIF(road_frontage,''),
-                            NULLIF(use_zone,''), NULLIF(legal_bcr,''), NULLIF(legal_far,''),
+                            NULLIF(area,'')::numeric, NULLIF(NULLIF(jimok,''),'지정되지않음'),
+                            NULLIF(NULLIF(land_use,''),'지정되지않음'),
+                            NULLIF(NULLIF(slope,''),'지정되지않음'), NULLIF(NULLIF(shape,''),'지정되지않음'),
+                            NULLIF(NULLIF(road_frontage,''),'지정되지않음'),
+                            NULLIF(NULLIF(use_zone,''),'미지정'), NULLIF(legal_bcr,''), NULLIF(legal_far,''),
                             NULLIF(gongsi_latest,'')::bigint,
                             NULLIF(reg_godo,''), NULLIF(reg_district,''), NULLIF(reg_jeongbi,''),
                             NULLIF(reg_gyeong,''), NULLIF(reg_banghwa,''), NULLIF(reg_munhwa,''),
@@ -147,7 +150,8 @@ async def main() -> int:
                approval_ymd, remodel_ymd,
                jimok, parcel_area, land_use, use_zone, use_zone_mix,
                slope, shape, road_frontage, station_dist, subway_json, bus_json,
-               gongsi_latest, last_sale_ym, last_sale_price)
+               gongsi_latest, last_sale_ym, last_sale_price,
+               build_area, far_area, elevator, parking)
             SELECT building_pk, addr, jibun_norm,
                    ST_SetSRID(ST_MakePoint(lng::float, lat::float), 4326),
                    NULLIF(road_addr,''), NULLIF(pnu,''), NULLIF(sgg_code,''), NULLIF(bjd_code,''),
@@ -156,11 +160,15 @@ async def main() -> int:
                    NULLIF(bcr,'')::numeric, NULLIF(far,'')::numeric,
                    NULLIF(main_use,''), NULLIF(main_use_name,''), NULLIF(etc_use,''), NULLIF(structure,''),
                    pg_temp.safe_date(NULLIF(approval_ymd,'')), pg_temp.safe_date(NULLIF(remodel_ymd,'')),
-                   NULLIF(jimok,''), NULLIF(parcel_area,'')::numeric,
-                   NULLIF(land_use,''), NULLIF(use_zone,''), NULLIF(use_zone_mix,'')::jsonb,
-                   NULLIF(slope,''), NULLIF(shape,''), NULLIF(road_frontage,''),
+                   NULLIF(NULLIF(jimok,''),'지정되지않음'), NULLIF(parcel_area,'')::numeric,
+                   NULLIF(NULLIF(land_use,''),'지정되지않음'),
+                   NULLIF(NULLIF(use_zone,''),'미지정'), NULLIF(use_zone_mix,'')::jsonb,
+                   NULLIF(NULLIF(slope,''),'지정되지않음'), NULLIF(NULLIF(shape,''),'지정되지않음'),
+                   NULLIF(NULLIF(road_frontage,''),'지정되지않음'),
                    NULLIF(station_dist,'')::int, NULLIF(subway_json,'')::jsonb, NULLIF(bus_json,'')::jsonb,
-                   NULLIF(gongsi_latest,'')::bigint, NULLIF(last_sale_ym,''), NULLIF(last_sale_price,'')::bigint
+                   NULLIF(gongsi_latest,'')::bigint, NULLIF(last_sale_ym,''), NULLIF(last_sale_price,'')::bigint,
+                   NULLIF(build_area,'')::numeric, NULLIF(far_area,'')::numeric,
+                   NULLIF(elevator,'')::int, NULLIF(parking,'')::int
             FROM {tmp}""")
         await conn.execute(f"DROP TABLE {tmp}")
 

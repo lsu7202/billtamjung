@@ -24,6 +24,7 @@ COLUMNS = [
     "jimok", "parcel_area", "land_use", "use_zone", "use_zone_mix",
     "slope", "shape", "road_frontage", "station_dist", "subway_json", "bus_json",
     "gongsi_latest", "last_sale_ym", "last_sale_price",
+    "build_area", "far_area", "elevator", "parking",
 ]
 
 
@@ -121,6 +122,9 @@ def main() -> int:
                 row[ci["도로접면"]] or "", row[ci["역과의거리"]] or "",
                 row[ci["주변지하철"]] or "", row[ci["주변버스"]] or "",
                 gongsi.get(pnu, ""), sale[0], sale[1],
+                row[ci["건축면적"]] or "", row[ci["용적률산정연면적"]] or "",
+                row[ci["엘리베이터"]] if row[ci["엘리베이터"]] is not None else "",
+                row[ci["주차"]] if row[ci["주차"]] is not None else "",
             ])
             n_out += 1
             if n_out % 100_000 == 0:
