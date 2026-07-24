@@ -43,6 +43,7 @@ export function KV({ label, field, value, unit: u, editable, calc, validate, cur
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [hover, setHover] = useState(false);
   function commit() {
     const e = validate && val ? validate(val) : null;
     if (e) { setErr(e); return; }                   // 오류 → 저장 안 함, 편집 유지
@@ -68,12 +69,20 @@ export function KV({ label, field, value, unit: u, editable, calc, validate, cur
       </div>
     );
   }
+  const empty = value == null || value === "";
+  const canEdit = !!(editable && field);
   return (
     <div className="kv"><span className="k">{label}</span>
-      <span className="v num" style={{ ...(editable ? { cursor: "pointer" } : {}), ...(calc ? { color: "var(--signal)" } : {}) }}
-        onClick={editable && field ? () => { setVal(String(current ?? "")); setErr(null); setEditing(true); } : undefined}
+      <span className="v num" style={{
+        ...(canEdit ? { cursor: "pointer", display: "inline-block", minWidth: empty ? 44 : undefined, minHeight: "1.1em" } : {}),
+        ...(calc ? { color: "var(--signal)" } : {}),
+      }}
+        onMouseEnter={() => canEdit && empty && setHover(true)} onMouseLeave={() => setHover(false)}
+        onClick={canEdit ? () => { setVal(String(current ?? "")); setErr(null); setEditing(true); } : undefined}
         title={editable ? "클릭 = 수정(자동저장)" : undefined}>
-        {value}{value ? u : ""}
+        {empty
+          ? (canEdit && hover ? <span style={{ color: "var(--line-2)", fontWeight: 400, fontSize: 12 }}>입력</span> : "")
+          : <>{value}{u}</>}
       </span>
     </div>
   );
