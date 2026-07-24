@@ -32,10 +32,15 @@ const REG_FIELD: Record<string, string> = {   // 규제 라벨 → 필지 오버
 };
 const num = (x: unknown): number | null => (x == null || x === "" ? null : Number(x));
 const pct = (x: unknown): string | null => (x == null || x === "" ? null : String(x).replace("%", ""));   // 법정건폐/용적: 마스터 "50%" → 숫자부만(중복 % 방지)
-const eok = (n: number | null) => (n == null || n === 0 ? "" : `${(n / 1e8).toFixed(1)}억`);   // 0=빈칸(null 통일)
+const eok = (n: number | null) => {   // 억+만 정밀표기 · 0=빈칸
+  if (n == null || n === 0) return "";
+  const m = Math.round(n / 1e4) * 1e4, e = Math.floor(m / 1e8), man = Math.round((m % 1e8) / 1e4);
+  return e && man ? `${e}억 ${man.toLocaleString()}만` : e ? `${e}억` : `${man.toLocaleString()}만`;
+};
 const man = (n: number | null) => (n == null || n === 0 ? "" : `${Math.round(n / 1e4).toLocaleString()}만/㎡`);
 
-export function ParcelBlock({ pk, useZoneMix }: { pk: string; useZoneMix?: unknown }) {
+const PY = 3.305785;
+export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZoneMix?: unknown; unit?: "py" | "m2" }) {
   const [sel, setSel] = useState(0);
   const qc = useQueryClient();
   const q = useQuery<ParcelsResp>({
@@ -92,7 +97,9 @@ export function ParcelBlock({ pk, useZoneMix }: { pk: string; useZoneMix?: unkno
 
       {/* 토지정보(선택 필지) — 목업 순서: 토지면적·지목·용도지역·이용상황·지형/형상·도로접면·지세·법정건폐/용적 */}
       <div className="kv-grid">
-        <KV label="토지면적" field="area" value={area ? `${area.toLocaleString()}㎡` : ""} editable current={area ?? ""} validate={vPos} onSave={onSave} onRevert={onRevert} />
+        <KV label="토지면적" field="area" value={area != null ? (unit === "py" ? `${(area / PY).toFixed(1)}평` : `${area.toLocaleString()}㎡`) : ""}
+          editable current={area != null ? (unit === "py" ? +(area / PY).toFixed(1) : area) : ""}
+          parse={(v) => String(unit === "py" ? parseFloat(v) * PY : parseFloat(v))} validate={vPos} onSave={onSave} onRevert={onRevert} />
         <EnumField label="지목" enumKey="jimok" value={p.jimok} onSave={(v) => onSave("jimok", v)} />
         {/* 용도지역 = 걸침(다지역) 가능 → 다중선택. 오버라이드 없으면 건물 use_zone_mix(비중) 표시 */}
         {(() => {
@@ -149,7 +156,8 @@ export function ParcelBlock({ pk, useZoneMix }: { pk: string; useZoneMix?: unkno
       </div>
       <div className="kv-grid" style={{ paddingTop: 0 }}>
         <KV label="최신 공시지가" field="gongsi_latest" calc
-          value={man(gongsiLatest)} editable current={gongsiLatest ?? ""} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
+          value={man(gongsiLatest)} editable current={gongsiLatest != null ? Math.round(gongsiLatest / 1e4) : ""}
+          parse={(v) => String(Math.round(parseFloat(v) * 1e4))} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
         {/* 총공시지가 = 🔀 자동(단가×면적) or 직접입력(억) */}
         <KV label="총공시지가" field="total_gongsi" calc
           value={eok(num(p.total_gongsi) ?? totalGongsi)} editable

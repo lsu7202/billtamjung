@@ -105,12 +105,19 @@ export function BuildingPage() {
     if (v == null || Number.isNaN(v)) return "";
     return unit === "py" ? `${(v / P).toFixed(1)}평` : `${v.toLocaleString(undefined, { maximumFractionDigits: 20 })}㎡`;   // ㎡=원값 그대로
   };
-  const eok = (n?: number | null) => (n == null || Number(n) === 0 ? "" : n >= 1e8 ? `${(n / 1e8).toFixed(1)}억` : `${Math.round(n / 1e4).toLocaleString()}만`);   // 0 = 빈칸(null 통일)
+  const eok = (n?: number | null) => {   // 억+만 정밀표기(목업 "1억 8,400만") · 0=빈칸
+    if (n == null || Number(n) === 0) return "";
+    const m = Math.round(Number(n) / 1e4) * 1e4;   // 만 단위 반올림
+    const e = Math.floor(m / 1e8), man = Math.round((m % 1e8) / 1e4);
+    return e && man ? `${e}억 ${man.toLocaleString()}만` : e ? `${e}억` : `${man.toLocaleString()}만`;
+  };
   // 🔀 직접입력 단위: 금액=억(저장 원), 집계금액=만원(저장 원), 율=% 그대로
   const seedEok = (n: number | null) => (n != null ? +(n / 1e8).toFixed(2) : "");
   const parseEok = (v: string) => String(Math.round(parseFloat(v) * 1e8));
   const seedMan = (n: number | null) => (n != null ? Math.round(n / 1e4) : "");
   const parseMan = (v: string) => String(Math.round(parseFloat(v) * 1e4));
+  const ymdDisp = (v: unknown) => (v ? String(v).replace(/-/g, "/") : "");                    // 저장 YYYY-MM-DD → 표시 YYYY/MM/DD
+  const parseYmd = (v: string) => { const d = v.replace(/\D/g, ""); return d.length === 8 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}` : v; };   // 입력 → 저장 ISO
 
   if (building.isLoading) return <p>불러오는 중…</p>;
   if (building.isError) return <p>건물을 찾을 수 없습니다</p>;
@@ -155,7 +162,7 @@ export function BuildingPage() {
         </div>
         <div className="hdr-metrics" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {metric("매매가", price ? eok(price) : "")}
-          {metric("수익률(만실)", roiFull != null ? `${roiFull.toFixed(1)}%` : "")}
+          {metric("수익률(만실/공실제외)", roiFull != null ? `${roiFull.toFixed(1)}%${roiExVac != null ? ` / ${roiExVac.toFixed(1)}%` : ""}` : "")}
           {metric("평단가(대지)", ppLand ? eok(ppLand) : "")}
           {metric("면적 (평)", `${landP ? landP.toFixed(1) : ""} / ${totalP ? totalP.toFixed(1) : ""} / ${buildP ? buildP.toFixed(1) : ""}`)}
           {metric("층수", `B${b.floors_below ?? ""}F/${b.floors_above ?? ""}F`)}
@@ -209,7 +216,7 @@ export function BuildingPage() {
                   editable current={seedMan(tRent)} parse={parseMan} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
                 <KV label="총관리비" field="total_maintenance" value={eok(tMaint)} calc
                   editable current={seedMan(tMaint)} parse={parseMan} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
-                <KV label="총공실" value={total ? (total.vacant_count > 0 ? `${total.vacant_count}실` : "없음") : ""} />
+                <KV label="총공실" value={total ? (total.vacant_count > 0 ? `있음 (${total.vacant_count}실)` : "없음") : "미지정"} />
               </div>
             </div>
           )}
@@ -257,8 +264,8 @@ export function BuildingPage() {
                 <KV label="용적률 산정용 연면적" field="far_area" value={area(b.far_area)} editable current={areaSeed(b.far_area)} parse={areaParse} validate={vPos} onSave={onSave} onRevert={onRevert} />
                 <KV label="주차" field="parking" value={b.parking ?? ""} unit="대" editable current={b.parking} validate={vInt} onSave={onSave} onRevert={onRevert} />
                 <KV label="엘리베이터" field="elevator" value={b.elevator ?? ""} unit="대" editable current={b.elevator} validate={vInt} onSave={onSave} onRevert={onRevert} />
-                <KV label="사용승인일" field="approval_ymd" value={String(b.approval_ymd ?? "")} editable current={b.approval_ymd} validate={vYmd} onSave={onSave} onRevert={onRevert} />
-                <KV label="대수선 및 리모델링" field="remodel_ymd" value={String(b.remodel_ymd ?? "")} editable current={b.remodel_ymd} validate={vYmd} onSave={onSave} onRevert={onRevert} />
+                <KV label="사용승인일" field="approval_ymd" value={ymdDisp(b.approval_ymd)} editable current={b.approval_ymd} parse={parseYmd} validate={vYmd} onSave={onSave} onRevert={onRevert} />
+                <KV label="대수선 및 리모델링" field="remodel_ymd" value={ymdDisp(b.remodel_ymd)} editable current={b.remodel_ymd} parse={parseYmd} validate={vYmd} onSave={onSave} onRevert={onRevert} />
                 <EnumField label="주용도" enumKey="main_use" value={b.main_use as string}
                   onSave={(v) => editField.mutate({ field: "main_use", value: v })} />
                 <KV label="건폐율" field="bcr" value={b.bcr ?? ""} unit="%" editable validate={vRate100} current={b.bcr} onSave={onSave} onRevert={onRevert} />
@@ -270,7 +277,7 @@ export function BuildingPage() {
           )}
 
           {/* 토지정보 · 규제 · 공시지가 = 필지 셀렉터(§3.6 · 다필지·규제 2레벨) */}
-          {show("land") && <ParcelBlock pk={pk} useZoneMix={b.use_zone_mix} />}
+          {show("land") && <ParcelBlock pk={pk} useZoneMix={b.use_zone_mix} unit={unit} />}
 
           {/* 매각·광고 시계열(§3.7) */}
           {show("deal") && (
@@ -453,6 +460,8 @@ function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved }: {
     <tr onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} style={isDraft ? { background: "var(--surface-2)" } : undefined}>
       <td><RentCell edit={f.floor} render={f.floor} ph="1F" width={46} onSave={set("floor")} /></td>
       <td><RentCell edit={f.unit_no} render={f.unit_no} ph="101" width={46} onSave={set("unit_no")} /></td>
+      <td><RentCell edit={f.use} render={f.use} ph="용도" width={72} onSave={set("use")} /></td>
+      <td className="num">{r.exclusive_area != null ? (unit === "py" ? `${(r.exclusive_area / P).toFixed(1)}평` : `${r.exclusive_area}㎡`) : ""}</td>
       <td className="num"><RentCell edit={f.area} render={dispArea} ph={unit === "py" ? "평" : "㎡"} num onSave={set("area")} /></td>
       <td className="num"><RentCell edit={f.deposit} render={man(f.deposit)} ph="만원" num onSave={set("deposit")} /></td>
       <td className="num"><RentCell edit={f.rent} render={man(f.rent)} ph="만원" num onSave={set("rent")} /></td>
@@ -480,13 +489,13 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
     <div className="panel">
       <div className="sec-head">층별 임대정보 <small style={{ color: "var(--muted)", fontWeight: 400 }}>셀 클릭=수정(자동저장) · 맨 아래 빈 행에 입력=추가 · 행 호버 ×=삭제</small></div>
       <table className="wf">
-        <thead><tr><th>층</th><th>호실</th><th className="num">계약면적({unit === "py" ? "평" : "㎡"})</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">관리비</th><th>상태</th></tr></thead>
+        <thead><tr><th>층</th><th>호실</th><th>용도</th><th className="num">전용({unit === "py" ? "평" : "㎡"})</th><th className="num">계약({unit === "py" ? "평" : "㎡"})</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">관리비</th><th>상태</th></tr></thead>
         <tbody>
           {items.map((r) => <RentRow key={r.id ?? `${r.floor}-${r.unit_no}`} pk={pk} r={r} unit={unit} eok={eok} refresh={refresh} />)}
           <RentRow key={`draft-${draftKey}`} pk={pk} r={blank} unit={unit} eok={eok} refresh={refresh} isDraft onSaved={() => setDraftKey((k) => k + 1)} />
           {total && items.length > 0 && (
             <tr style={{ background: "var(--surface-2)", fontWeight: 700 }}>
-              <td colSpan={3}>합계</td>
+              <td colSpan={5}>합계</td>
               <td className="num">{eok(total.deposit)}</td>
               <td className="num">{eok(total.rent)}</td>
               <td className="num">{eok(total.maintenance)}</td>
