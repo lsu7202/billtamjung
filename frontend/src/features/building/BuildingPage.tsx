@@ -392,111 +392,98 @@ function InvestCalc({ price, yearRent }: { price: number | null; yearRent: numbe
   );
 }
 
-/* 층별임대 행 — 표시(호버 시 수정·삭제) ↔ 인라인 편집. 모듈 스코프(리마운트 방지). */
-type RentForm = { floor: string; unit_no: string; use: string; area: string; deposit: string; rent: string; maintenance: string };
+/* 층별임대 셀 — 클릭 시 인라인 입력, blur=자동저장. 표시값(render)과 편집값(edit) 분리. */
+function RentCell({ edit, render, ph, num, width = 66, onSave }: {
+  edit: string; render: React.ReactNode; ph?: string; num?: boolean; width?: number; onSave: (v: string) => void;
+}) {
+  const [on, setOn] = useState(false);
+  const [val, setVal] = useState("");
+  if (on) return (
+    <input className="input" style={{ width, padding: "3px 6px", fontSize: 12 }} autoFocus placeholder={ph} value={val}
+      onChange={(e) => setVal(num ? e.target.value.replace(/[^\d.]/g, "") : e.target.value)}
+      onBlur={() => { setOn(false); if (val !== edit) onSave(val); }}
+      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setOn(false); }} />
+  );
+  return <span style={{ cursor: "pointer", display: "inline-block", minWidth: 20, minHeight: 15 }} title="클릭 = 수정(자동저장)"
+    onClick={() => { setVal(edit); setOn(true); }}>{render || <span style={{ color: "var(--line-2)" }}>{ph}</span>}</span>;
+}
+
+/* 층별임대 행 — 셀 클릭=인라인 자동저장 · 호버 ×=삭제 · 빈(draft) 행에 입력=추가. 모듈 스코프(리마운트 방지). */
+type RentForm = { floor: string; unit_no: string; use: string; area: string; deposit: string; rent: string; maintenance: string; is_vacant: boolean };
 const toForm = (r: FloorRent, unit: "py" | "m2"): RentForm => ({
   floor: r.floor, unit_no: r.unit_no, use: r.use ?? "",
   area: r.contract_area != null ? String(+(unit === "py" ? r.contract_area / P : r.contract_area).toFixed(1)) : "",
   deposit: r.deposit ? String(Math.round(r.deposit / 1e4)) : "",
   rent: r.rent ? String(Math.round(r.rent / 1e4)) : "",
   maintenance: r.maintenance ? String(Math.round(r.maintenance / 1e4)) : "",
+  is_vacant: r.is_vacant ?? false,
 });
-function RentRow({ pk, r, unit, eok, refresh, startEdit, onDone }: {
+function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved }: {
   pk: string; r: FloorRent; unit: "py" | "m2"; eok: (n?: number | null) => string;
-  refresh: () => void; startEdit?: boolean; onDone?: () => void;
+  refresh: () => void; isDraft?: boolean; onSaved?: () => void;
 }) {
-  const [edit, setEdit] = useState(!!startEdit);
-  const [hover, setHover] = useState(false);
   const [f, setF] = useState<RentForm>(toForm(r, unit));
-  const [err, setErr] = useState<string | null>(null);
-  const isNew = r.id == null;
-  const fromM2 = (m2: number) => (unit === "py" ? `${(m2 / P).toFixed(1)}평` : `${m2.toLocaleString()}㎡`);
+  const [hover, setHover] = useState(false);
+  const man = (s: string) => eok(Math.round((parseFloat(s) || 0) * 1e4));   // 만원문자열 → 표시(0=빈칸)
+  const dispArea = f.area ? `${f.area}${unit === "py" ? "평" : "㎡"}` : "";
 
-  async function save() {
-    if (!f.floor || !f.unit_no) { setErr("층·호실 필수"); return; }
-    if (f.area && parseFloat(f.area) <= 0) { setErr("계약면적>0"); return; }
-    for (const [k, lbl] of [["deposit", "보증금"], ["rent", "임대료"], ["maintenance", "관리비"]] as const)
-      if (f[k] && parseFloat(f[k]) < 0) { setErr(`${lbl}≥0`); return; }
-    setErr(null);
-    // 키(층·호실) 변경 시 기존 행 삭제 후 새로 upsert(upsert 매칭키=층·호실이라 rename=중복 방지)
-    if (!isNew && r.id != null && (f.floor !== r.floor || f.unit_no !== r.unit_no)) await rentsApi.del(pk, r.id);
+  async function commit(nf: RentForm) {
+    setF(nf);
+    if (!nf.floor.trim() || !nf.unit_no.trim()) return;   // 키(층·호실) 미완 = 자동저장 보류(draft 유지)
+    if (!isDraft && r.id != null && (nf.floor !== r.floor || nf.unit_no !== r.unit_no)) await rentsApi.del(pk, r.id);
     await rentsApi.upsert(pk, {
-      floor: f.floor, unit_no: f.unit_no, use: f.use || null,
-      contract_area: f.area ? (unit === "py" ? parseFloat(f.area) * P : parseFloat(f.area)) : null,
-      deposit: Math.round((parseFloat(f.deposit) || 0) * 1e4),
-      rent: Math.round((parseFloat(f.rent) || 0) * 1e4),
-      maintenance: Math.round((parseFloat(f.maintenance) || 0) * 1e4),
-      is_vacant: r.is_vacant ?? false,
+      floor: nf.floor.trim(), unit_no: nf.unit_no.trim(), use: nf.use || null,
+      contract_area: nf.area ? (unit === "py" ? parseFloat(nf.area) * P : parseFloat(nf.area)) : null,
+      deposit: Math.round((parseFloat(nf.deposit) || 0) * 1e4),
+      rent: Math.round((parseFloat(nf.rent) || 0) * 1e4),
+      maintenance: Math.round((parseFloat(nf.maintenance) || 0) * 1e4),
+      is_vacant: nf.is_vacant,
     } as FloorRent);
-    setEdit(false); onDone?.(); refresh();
-  }
-  async function del() {
-    if (r.id == null || !confirm(`${r.floor} ${r.unit_no} 호실을 삭제할까요?`)) return;
-    await rentsApi.del(pk, r.id); refresh();
-  }
-  async function toggleVacant() {
-    await rentsApi.upsert(pk, { ...r, is_vacant: !r.is_vacant, deposit: r.is_vacant ? r.deposit : 0, rent: r.is_vacant ? r.rent : 0 });
     refresh();
+    if (isDraft) onSaved?.();   // 저장되면 새 빈 draft 행으로 리셋
   }
-  const In = (k: keyof RentForm, ph: string, w = 64) => (
-    <input className="input" style={{ width: w, padding: "3px 6px", fontSize: 12 }} placeholder={ph}
-      value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
-  );
+  const set = (k: keyof RentForm) => (v: string) => commit({ ...f, [k]: v });
+  async function del() { if (r.id != null) { await rentsApi.del(pk, r.id); refresh(); } else onSaved?.(); }
+  function toggleVacant() {
+    const nv = !f.is_vacant;
+    commit({ ...f, is_vacant: nv, deposit: nv ? "" : f.deposit, rent: nv ? "" : f.rent });   // 공실=보증금·임대료 0
+  }
 
-  if (edit) return (
-    <tr style={{ background: "var(--signal-bg)" }}>
-      <td>{In("floor", "1F", 46)}</td><td>{In("unit_no", "101", 46)}</td>
-      <td className="num">{In("area", unit === "py" ? "평" : "㎡")}</td>
-      <td className="num">{In("deposit", "만원")}</td>
-      <td className="num">{In("rent", "만원")}</td>
-      <td className="num">{In("maintenance", "만원")}</td>
-      <td>
-        {err && <span style={{ color: "var(--up)", fontSize: 10, marginRight: 6 }}>{err}</span>}
-        <button className="btn primary" style={{ padding: "3px 9px", fontSize: 12 }} onClick={save}>저장</button>
-        <button className="btn" style={{ padding: "3px 7px", fontSize: 12, marginLeft: 4 }}
-          onClick={() => { if (isNew) onDone?.(); else { setF(toForm(r, unit)); setEdit(false); } }}>취소</button>
-      </td>
-    </tr>
-  );
   return (
-    <tr onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-      <td>{r.floor}</td><td>{r.unit_no}</td>
-      <td className="num">{r.contract_area != null ? fromM2(r.contract_area) : ""}</td>
-      <td className="num">{eok(r.deposit)}</td>
-      <td className="num">{eok(r.rent)}</td>
-      <td className="num">{eok(r.maintenance)}</td>
+    <tr onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} style={isDraft ? { background: "var(--surface-2)" } : undefined}>
+      <td><RentCell edit={f.floor} render={f.floor} ph="1F" width={46} onSave={set("floor")} /></td>
+      <td><RentCell edit={f.unit_no} render={f.unit_no} ph="101" width={46} onSave={set("unit_no")} /></td>
+      <td className="num"><RentCell edit={f.area} render={dispArea} ph={unit === "py" ? "평" : "㎡"} num onSave={set("area")} /></td>
+      <td className="num"><RentCell edit={f.deposit} render={man(f.deposit)} ph="만원" num onSave={set("deposit")} /></td>
+      <td className="num"><RentCell edit={f.rent} render={man(f.rent)} ph="만원" num onSave={set("rent")} /></td>
+      <td className="num"><RentCell edit={f.maintenance} render={man(f.maintenance)} ph="만원" num onSave={set("maintenance")} /></td>
       <td style={{ whiteSpace: "nowrap" }}>
-        <button className="btn" style={{ padding: "2px 9px", fontSize: 12, color: r.is_vacant ? "var(--up)" : "var(--green)" }}
-          onClick={toggleVacant}>{r.is_vacant ? "공실" : "임대중"}</button>
-        <span style={{ marginLeft: 6, visibility: hover ? "visible" : "hidden" }}>
-          <button className="btn" style={{ padding: "2px 7px", fontSize: 12 }} onClick={() => setEdit(true)} title="수정">✏️</button>
-          <button className="btn" style={{ padding: "2px 7px", fontSize: 12, marginLeft: 3, color: "var(--up)" }} onClick={del} title="삭제">×</button>
-        </span>
+        {!isDraft && (
+          <button className="btn" style={{ padding: "2px 9px", fontSize: 12, color: f.is_vacant ? "var(--up)" : "var(--green)" }}
+            onClick={toggleVacant}>{f.is_vacant ? "공실" : "임대중"}</button>
+        )}
+        <button className="btn" style={{ padding: "2px 7px", fontSize: 12, marginLeft: 6, color: "var(--up)", visibility: hover || isDraft ? "visible" : "hidden" }}
+          onClick={del} title={isDraft ? "입력 지우기" : "삭제"}>×</button>
       </td>
     </tr>
   );
 }
 
-/* 층별임대 표 + 호실 추가(하단 편집행) */
+/* 층별임대 표 — 저장버튼 없음(자동저장) · 하단 빈 행에 입력=추가 · 행 호버 ×=삭제 */
 function RentTable({ pk, items, total, unit, refresh, eok }: {
   pk: string; items: FloorRent[]; total?: Record<string, number>; unit: "py" | "m2"; refresh: () => void;
   eok: (n?: number | null) => string;
 }) {
-  const [adding, setAdding] = useState(false);
+  const [draftKey, setDraftKey] = useState(0);
   const blank: FloorRent = { floor: "", unit_no: "", deposit: 0, rent: 0, maintenance: 0, is_vacant: false };
   return (
     <div className="panel">
-      <div className="sec-head">층별 임대정보 <small style={{ color: "var(--muted)", fontWeight: 400 }}>행에 마우스 = 수정·삭제</small>
-        <button className="btn" onClick={() => setAdding(true)}>＋ 호실 추가</button>
-      </div>
+      <div className="sec-head">층별 임대정보 <small style={{ color: "var(--muted)", fontWeight: 400 }}>셀 클릭=수정(자동저장) · 맨 아래 빈 행에 입력=추가 · 행 호버 ×=삭제</small></div>
       <table className="wf">
         <thead><tr><th>층</th><th>호실</th><th className="num">계약면적({unit === "py" ? "평" : "㎡"})</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">관리비</th><th>상태</th></tr></thead>
         <tbody>
           {items.map((r) => <RentRow key={r.id ?? `${r.floor}-${r.unit_no}`} pk={pk} r={r} unit={unit} eok={eok} refresh={refresh} />)}
-          {adding && <RentRow pk={pk} r={blank} unit={unit} eok={eok} refresh={refresh} startEdit onDone={() => setAdding(false)} />}
-          {items.length === 0 && !adding && (
-            <tr><td colSpan={7} style={{ color: "var(--muted)", textAlign: "center", padding: 18 }}>임대 정보가 없습니다 — ＋ 호실 추가로 입력</td></tr>
-          )}
+          <RentRow key={`draft-${draftKey}`} pk={pk} r={blank} unit={unit} eok={eok} refresh={refresh} isDraft onSaved={() => setDraftKey((k) => k + 1)} />
           {total && items.length > 0 && (
             <tr style={{ background: "var(--surface-2)", fontWeight: 700 }}>
               <td colSpan={3}>합계</td>

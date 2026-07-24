@@ -117,7 +117,7 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
         const opts = en.options(r.extra);
         const cur = val(r.k) || "미지정";
         return (
-          <div className="kv" key={r.k} style={{ alignItems: "flex-start" }}>
+          <div className="kv" key={r.k} style={{ alignItems: "center" }}>
             <span className="k">{r.label}</span>
             <Chips opts={opts} cur={cur} onSelect={(v) => save(r.k, v)} />
           </div>
