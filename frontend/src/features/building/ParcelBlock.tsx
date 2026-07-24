@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../shared/api/client";
 import { overlaysApi } from "../../shared/api/endpoints";
-import { SeriesBlock } from "./SeriesBlock";
 import { KV, NumCell, vPos, vNonNeg } from "./KV";
 import { EnumField, ChipsMulti } from "./EnumField";
 
@@ -145,12 +144,8 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZo
         ))}
       </div>
 
-      {/* 공시지가(선택 필지) 시계열 + 총공시지가 */}
-      <div style={{ borderTop: "1px solid var(--line)" }}>
-        <SeriesBlock title="공시지가" color="#1E5AF0" unitLabel="원/㎡"
-          points={p.gongsi_series.map(([y, v]) => ({ x: String(y), y: v }))}
-          fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}만`} />
-      </div>
+      {/* 공시지가(선택 필지) — 시계열 그래프는 상단 '시세 추이' 통합 카드로 이동 */}
+      <div className="sec-head" style={{ fontSize: 13, borderTop: "1px solid var(--line)" }}>공시지가 <small style={{ color: "var(--muted)", fontWeight: 400 }}>추이는 시세 추이 카드 참조</small></div>
       <div className="kv-grid" style={{ paddingTop: 0 }}>
         <KV label="최신 공시지가" field="gongsi_latest" calc
           value={man(gongsiLatest)} editable current={gongsiLatest != null ? Math.round(gongsiLatest / 1e4) : ""}

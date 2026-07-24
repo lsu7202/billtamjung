@@ -5,7 +5,7 @@ import {
   buildingsApi, overlaysApi, rentsApi, reportsApi, extrasApi, listingsApi, creditsApi, FloorRent,
 } from "../../shared/api/endpoints";
 import { PhotoPanel } from "../../shared/map/PhotoPanel";
-import { SeriesBlock } from "./SeriesBlock";
+import { MarketTrend } from "./MarketTrend";
 import { MarketBlock } from "./MarketBlock";
 import { Sidebar } from "./Sidebar";
 import { ParcelBlock } from "./ParcelBlock";
@@ -279,17 +279,20 @@ export function BuildingPage() {
           {/* 토지정보 · 규제 · 공시지가 = 필지 셀렉터(§3.6 · 다필지·규제 2레벨) */}
           {show("land") && <ParcelBlock pk={pk} useZoneMix={b.use_zone_mix} unit={unit} />}
 
-          {/* 매각·광고 시계열(§3.7) */}
-          {show("deal") && (
-            <SeriesBlock title="실거래가" color="var(--c-real)" unitLabel="실거래가"
-              points={(b.sales_history ?? []).map((s: { ym: string; price: number }) => ({ x: `${s.ym.slice(0, 4)}/${s.ym.slice(4)}`, y: s.price }))}
-              fmt={(v) => eok(v)} />
-          )}
-          {show("deal") && (
-            <SeriesBlock title="광고" color="var(--c-ad)" dashed unitLabel="광고가"
-              points={adSeries} fmt={(v) => eok(v)}
-              extra={<AdInput pk={pk} refresh={() => qc.invalidateQueries({ queryKey: ["ads", pk] })} />} />
-          )}
+          {/* 시세 추이 통합(§3.7): 총공시지가·실거래·광고 겹쳐 비교(전부 원). 공시지가=원/㎡×대표필지면적 */}
+          {show("deal") && (() => {
+            const pArea = b.parcel_area ? Number(b.parcel_area) : (b.land_area ? Number(b.land_area) : 0);
+            const gongsi = pArea ? (b.gongsi_series ?? []).map(([y, v]: [number, number]) => ({ x: String(y), y: v * pArea })) : [];
+            return (
+              <MarketTrend fmt={(v) => eok(v)}
+                extra={<AdInput pk={pk} refresh={() => qc.invalidateQueries({ queryKey: ["ads", pk] })} />}
+                series={[
+                  { key: "gongsi", name: "총공시지가", color: "#1E5AF0", pts: gongsi },
+                  { key: "real", name: "실거래가", color: "var(--c-real)", pts: (b.sales_history ?? []).map((s: { ym: string; price: number }) => ({ x: `${s.ym.slice(0, 4)}/${s.ym.slice(4)}`, y: s.price })) },
+                  { key: "ad", name: "광고가", color: "var(--c-ad)", dashed: true, pts: adSeries },
+                ]} />
+            );
+          })()}
 
           {/* 입지정보(§3.8) — 실적재 지하철·버스 */}
           {show("land") && (
