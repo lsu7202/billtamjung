@@ -413,35 +413,31 @@ export function ReportPage() {
           </div>
         </div>
       </Slide>,
-      <Slide key={6} n="07" foot="최종 분석 요약" rno={rno} date={date}
-        title="최종 분석 요약" desc="적정매매가 및 수익성 종합 결론">
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.4cqw", width: "100%" }}>
-          <div style={{ display: "flex", alignItems: "stretch", gap: "1cqw" }}>
-            <div className="rs-sc" style={{ flex: 1 }}><div className="lab" style={{ fontSize: "1.3cqw", fontWeight: 700, color: "var(--navy)" }}>매도희망가</div><div style={{ fontSize: ".95cqw", color: "var(--rmuted)" }}>건물주 희망 매도가</div><div className="v" style={{ marginTop: ".5cqw" }}>{eok(ask)}<u>억원</u></div></div>
-            <span className="rs-op" style={{ alignSelf: "center", color: "var(--blue)" }}>▶</span>
-            <div className="rs-sc blue" style={{ flex: 1 }}><div style={{ fontSize: "1.3cqw", fontWeight: 700, color: "var(--navy)" }}>매매가</div><div style={{ fontSize: ".95cqw", color: "var(--rmuted)" }}>빌탐정 적정가 {eok(fair)}억 {brokerAdj ? "대비 조정" : "기준"}</div><div className="v" style={{ marginTop: ".5cqw", color: "var(--green)" }}>{eok(broker)}<u>억원</u></div></div>
-            <span className="rs-op" style={{ alignSelf: "center", color: "var(--blue)" }}>▶</span>
-            <div className="rs-sc hl" style={{ flex: 1 }}><div style={{ fontSize: "1.3cqw", fontWeight: 700, color: "var(--navy)" }}>협의 필요금액</div><div style={{ fontSize: ".95cqw", color: "var(--rmuted)" }}>매도희망가 − 매매가</div><div className="v" style={{ marginTop: ".5cqw", color: "var(--blue)" }}>{gap != null ? eok(Math.abs(gap)) : "—"}<u>억원</u></div></div>
+      <Slide key={6} n="07" foot="적정가 종합" rno={rno} date={date}
+        title="적정가 종합" desc="여러 관점의 분석을 종합해 본 매물의 빌탐정 적정가를 산정했습니다.">
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.6cqw", width: "100%", height: "100%", justifyContent: "center" }}>
+          <div style={{ display: "flex", gap: "2cqw", alignItems: "stretch" }}>
+            {([
+              ["주변 실거래 시세", compMin && compMax ? `평당 ${compMin.toLocaleString()}~${compMax.toLocaleString()}만` : "인근 거래 기준", "인근 유사 거래의 연면적당 평단가"],
+              ["공시지가 기준", "공시배율 환산", "실거래가가 공시가의 몇 배인지"],
+              ["주변 월세 수익가치", "임대수익 반영", "월세 기반 수익환원 가치 가미"],
+            ] as [string, string, string][]).map(([k, v, d]) => (
+              <div key={k} style={{ flex: 1, borderTop: "2px solid var(--navy)", paddingTop: ".7cqw" }}>
+                <div style={{ fontSize: "1.15cqw", fontWeight: 800, color: "var(--navy)" }}>{k}</div>
+                <div style={{ fontSize: "1.4cqw", fontWeight: 800, color: "var(--blue)", margin: ".25cqw 0" }}>{v}</div>
+                <div style={{ fontSize: ".9cqw", color: "var(--rmuted)", lineHeight: 1.4 }}>{d}</div>
+              </div>
+            ))}
           </div>
-          <div style={{ display: "flex", gap: "1.4cqw" }}>
-            <div className="rs-concl navy" style={{ flex: 1 }}><h4>최종 분석 결론</h4>
-              <li>유사 실거래 사례 분석 결과 <b style={{ color: "var(--blue)" }}>빌탐정 적정가</b>는 약 <b style={{ color: "var(--blue)" }}>{eok(fair)}억 원</b> 수준입니다.</li>
-              {gap != null && gap > 0 && <li>매도희망가 {eok(ask)}억 원은 매매가 대비 약 {eok(gap)}억 원 높은 수준입니다.</li>}
-              <li>매수 검토 시 <b>매매가 {eok(broker)}억 원</b> 내외 기준 가격 협의가 필요합니다.</li>
-              <li>가치점수 {grade}등급({score}점) · 매매가 기준 예상수익률 {roi != null ? `${roi.toFixed(2)}%` : "—"}.</li>
-            </div>
-            <div className="rs-concl peach" style={{ flex: 1 }}><h4>매수 검토 포인트</h4>
-              <li>매매가(적정가) 기준 접근 필요</li>
-              <li>매도희망가 기준 수익률 제한 ({roiAsk != null ? `${roiAsk.toFixed(2)}%` : "—"})</li>
-              <li>주변월세시세 적용 시 수익성 개선 가능</li>
-              <li>가격 협의 여부가 투자 판단의 핵심</li>
-            </div>
+          <div style={{ textAlign: "center", fontSize: "1cqw", color: "var(--rmuted)" }}>세 관점을 건물 특성(연면적·용적)에 맞게 <b style={{ color: "var(--navy)" }}>종합</b> ↓</div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "1.2cqw", color: "var(--rmuted)", fontWeight: 700 }}>빌탐정 적정가</div>
+            <div style={{ fontSize: "4cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.08 }}>{eok(fair)}<span style={{ fontSize: "2cqw" }}>억 원</span></div>
+            <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)" }}>평당 약 {avgPer ? Math.round(avgPer / 1e4).toLocaleString() : "—"}만원 · 연면적 {py(totalArea)}평</div>
           </div>
-          <div className="rs-grid" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
-            <div className="rs-sc"><div className="k">예상보증금</div><div className="v" style={{ fontSize: "1.7cqw" }}>{dep ? (dep / 1e8).toFixed(1) : "—"} 억원</div></div>
-            <div className="rs-sc"><div className="k">예상월임대료</div><div className="v" style={{ fontSize: "1.7cqw" }}>{man(rent)} 만원</div></div>
-            <div className="rs-sc"><div className="k">예상 연임대수익</div><div className="v" style={{ fontSize: "1.7cqw" }}>{rent ? eok(rent * 12) : "—"} 억</div></div>
-            <div className="rs-sc hl"><div className="k">매매가 기준 예상수익률</div><div className="v" style={{ fontSize: "1.7cqw", color: "var(--peach-tx)" }}>{roi != null ? roi.toFixed(2) : "—"} %</div></div>
+          <div style={{ fontSize: "1cqw", lineHeight: 1.6, color: "var(--rmuted)", textAlign: "center", maxWidth: "82%", margin: "0 auto" }}>
+            인근 실거래를 공시지가 배율·대지 평단가·연면적 평단가로 교차 분석하고, 주변 월세 기반 수익가치를 더해 산정했습니다.
+            가치 분석(입지·건물 매력도)은 미래가치·임대여력을 보는 <b style={{ color: "var(--navy)" }}>별도 지표</b>로, 적정가에는 직접 반영하지 않습니다.
           </div>
         </div>
       </Slide>,
