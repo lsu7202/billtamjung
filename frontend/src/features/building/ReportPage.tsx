@@ -150,20 +150,14 @@ export function ReportPage() {
   // 빌탐정 적정가 = 시스템 산정(sale_est 정본, 스냅샷은 생성시점 fair 고정)
   const saleEst = num(b.sale_est);
   const fair = reportId == null ? (saleEst ?? pv?.fair_price ?? null) : (pv?.fair_price ?? saleEst ?? null);
-  // 매매가 = 중개인 판단(오버레이 sale_price), 없으면 빌탐정 적정가로 자동
-  const broker = num(b.sale_price) ?? num(sub?.sale_price) ?? fair;
-  // 매도희망가 = 건물주 원하는 값(오버레이 ask_price)
+  // 매도희망가 = 건물주 호가(기본정보 필드로만 표시). 매매가·협의(중개인 판단)는 브리핑 소관 — 본 보고서 제외
   const ask = pv?.ask_price ?? num(b.ask_price) ?? null;
-  // 협의 필요금액 = 매도희망가 − 매매가
-  const gap = (ask != null && broker != null) ? ask - broker : null;
-  const brokerAdj = broker != null && fair != null && Math.abs(broker - fair) > 1e6;   // 중개인이 적정가에서 조정했나
   const rent = pv?.applied_rent ?? sub?.total_rent ?? null;
   const curRent = sub?.total_rent ?? null;
   const totalArea = sub?.total_area ?? num(b.total_area);
   const landArea = num(b.land_area);
   const totalP = totalArea ? totalArea / P : null;
   const avgPer = fair && totalP ? Math.round(fair / totalP) : (pv?.avg_per_pyeong ?? null);   // 산정요약 = 빌탐정 적정가와 일치
-  const roi = broker && rent ? Math.round((rent * 12 / broker) * 10000) / 100 : (pv?.expected_roi ?? null);  // 수익률=매매가 기준
   const comps = ((pv?.comps_used ?? []) as CompUsed[]).slice(0, 7);
   const gseries = (b.gongsi_series ?? []) as [number, number][];   // 공시지가 시계열 [연도, 원/㎡]
   const gLatest = num(b.gongsi_latest);                            // 본매물 공시지가(원/㎡)
@@ -226,16 +220,16 @@ export function ReportPage() {
         </div>
       </div>,
       <Slide key={0} n="01" foot="핵심 요약" rno={rno} date={date}
-        title="핵심 요약" desc="매물의 가치점수·가격·수익성을 한눈에 확인하세요.">
+        title="핵심 요약" desc="본 매물의 빌탐정 적정가·수익성과 미래가치를 한눈에 확인하세요.">
         <div style={{ display: "flex", gap: "3cqw", width: "100%", alignItems: "stretch" }}>
           <div className="rs-fade" style={{ flex: "0 0 33%", borderRadius: "1.2cqw", background: "linear-gradient(135deg,#dfe4ec,#c3cbd8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7688", fontSize: "1.3cqw", fontWeight: 700 }}>건물 사진</div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "1.8cqw" }}>
             <div className="rs-fade" style={{ display: "flex", alignItems: "center", gap: "2.6cqw" }}>
               <ScoreRing score={score} grade={grade} gradeColor={gradeCol} size={13.5} />
               <div style={{ flex: 1 }}>
-                {[{ k: "빌탐정 적정가", s: "시스템 산정 · 참고", v: fair ? `${eok(fair)}억원` : "—", c: "var(--green)" },
-                  { k: "매매가", s: brokerAdj ? "적정가에서 조정" : "적정가 기준", v: broker ? `${eok(broker)}억원` : "—", c: "var(--blue)" },
-                  { k: "예상수익률", s: "매매가 기준", v: roi != null ? `${roi.toFixed(2)}%` : "—", c: "var(--purple)" }].map((r, i) => (
+                {[{ k: "빌탐정 적정가", s: "시스템 산정", v: fair ? `${eok(fair)}억원` : "—", c: "var(--navy)" },
+                  { k: "적정가 기준 예상수익률", s: "연 임대수익 기준", v: roiFair != null ? `${roiFair.toFixed(2)}%` : "—", c: "var(--purple)" },
+                  { k: "미래가치 등급", s: "입지·건물 매력도 (적정가와 별개)", v: `${grade}등급`, c: "var(--blue)" }].map((r, i) => (
                   <div key={r.k} className="rs-fade" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: ".9cqw .2cqw", borderBottom: i < 2 ? "1px solid var(--rl)" : "none", ["--d" as string]: `${(i + 1) * 90}ms` }}>
                     <div><div style={{ fontSize: "1.55cqw", fontWeight: 700, color: "var(--navy)" }}>{r.k}</div><div style={{ fontSize: ".9cqw", color: "var(--rmuted)" }}>{r.s}</div></div>
                     <div className="num" style={{ fontSize: "2.8cqw", fontWeight: 800, color: r.c, lineHeight: 1 }}>{r.v}</div>
@@ -244,9 +238,9 @@ export function ReportPage() {
               </div>
             </div>
             <div className="rs-fade" style={{ display: "flex", gap: "3.5cqw", paddingTop: "1.3cqw", borderTop: "1px solid var(--rl)", fontSize: "1.1cqw", color: "var(--rmuted)", ["--d" as string]: "360ms" }}>
-              <span>매도희망가 <b style={{ color: "var(--navy)" }}>{ask ? `${eok(ask)}억` : "—"}</b></span>
-              <span>협의 필요금액 <b style={{ color: "var(--peach-tx)" }}>{gap != null ? `${eok(Math.abs(gap))}억` : "—"}</b></span>
-              <span>주변시세 총월세 <b style={{ color: "var(--navy)" }}>{rent ? `${man(rent)}만원` : "—"}</b></span>
+              <span>평당 적정가 <b style={{ color: "var(--navy)" }}>{avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만원` : "—"}</b></span>
+              <span>연면적 <b style={{ color: "var(--navy)" }}>{py(totalArea)}평</b></span>
+              {rent ? <span>주변시세 총월세 <b style={{ color: "var(--navy)" }}>{man(rent)}만원</b></span> : null}
             </div>
           </div>
         </div>
@@ -272,8 +266,8 @@ export function ReportPage() {
           <ReportMap lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom} />
         </div>
       </Slide>,
-      <Slide key={2} n="03" foot="가치 분석" rno={rno} date={date}
-        title="가치 분석" desc="입지·교통·물리적 조건 등 주요 항목을 종합 평가한 본 매물의 가치 점수입니다.">
+      <Slide key={2} n="03" foot="미래가치 분석" rno={rno} date={date}
+        title="미래가치 분석" desc="입지·교통·건물 등 매력도를 종합한 미래가치·임대여력 지표입니다. 적정가 산정과는 별개로, 향후 성장 잠재력을 봅니다.">
         <div style={{ display: "flex", gap: "2.5cqw", width: "100%" }}>
           <table className="rs-tbl" style={{ flex: "0 0 52%", alignSelf: "flex-start" }}>
             <thead><tr><th>평가 항목</th><th>평가 결과</th><th>분석 의견</th></tr></thead>
@@ -290,7 +284,7 @@ export function ReportPage() {
           </table>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "1cqw" }}>
             <div className="rs-sc blue" style={{ display: "flex", alignItems: "center" }}>
-              <div><div className="k">가치점수 총평</div><div className="v">{score}<u>/100점</u></div></div>
+              <div><div className="k">미래가치 점수</div><div className="v">{score}<u>/100점</u></div></div>
               <span className="rs-pill blue" style={{ marginLeft: "auto", fontSize: "1.6cqw", padding: ".7cqw 1.3cqw" }}>{grade}등급</span>
             </div>
             {sub?.items && <ScoreRadar axes={AXIS.map(([k, l]) => ({ label: l, score: sub.items![k] ?? 0 }))} color="var(--navy)" size={210} showValues />}
