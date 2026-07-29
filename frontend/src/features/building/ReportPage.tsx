@@ -292,8 +292,8 @@ export function ReportPage() {
           </div>
         </div>
       </Slide>,
-      <Slide key={3} n="04" foot="실거래 사례 시세분석" rno={rno} date={date}
-        title="실거래 사례 시세분석" desc={`${shortAddr} 인근 유사 실거래 사례로 연면적당 평단가를 산정하고 적정매매가를 도출했습니다.`}>
+      <Slide key={3} n="04" foot="주변 실거래 분석" rno={rno} date={date}
+        title="주변 실거래 분석" desc={`${shortAddr} 인근 유사 실거래 사례로 연면적당 평단가를 산정하고 적정매매가를 도출했습니다.`}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%" }}>
           <table className="rs-tbl">
             <thead><tr><th>사례</th><th>주소</th><th className="r">거리</th><th>거래일</th><th className="r">매매가</th><th className="r">연면적</th><th className="r">평단가</th><th className="r">시점보정</th></tr></thead>
