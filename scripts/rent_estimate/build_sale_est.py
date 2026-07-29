@@ -1,8 +1,10 @@
 """master.building_sale_est 적재 — 전 서울 상업 건물 F-17 v2 적정가(매매가 마스터 기본값).
 
-★ 라이브(리포트)와 **동일한 report_calc.appraise + blend_income** 호출 = 단일 산식 소스.
-  배치는 comp를 그리드 버킷팅으로 빠르게 모아서(기본 500m) 그 함수에 넘길 뿐 — 수학 중복 없음.
-  라이브와 값이 다르면 그건 comp 영역 차이(팀 커스텀 상권 등)이지 산식 차이 아님.
+★ 라이브(리포트) 기본값과 **완전 통일**. 오버레이(상권·comp제외) 없으면 검색·상세·리포트 동일 값.
+  - 산식: report_calc.appraise + blend_income (동일 함수)
+  - comp 수집: 500m 반경(geodesic) + 상업·주상 성격 + building_pk 제외 + per_area IQR 이상치 제외
+    → 라이브 _fetch_comps 규칙과 정합(거리는 equirectangular ~0.1%, 경계 1건 이내 오차).
+  값이 달라지는 건 오직 유저 오버레이(상권 반경/폴리곤·comp 제외) 반영분뿐 — 산식·규칙 차이 아님.
     python scripts/rent_estimate/build_sale_est.py
 """
 import os
@@ -10,6 +12,7 @@ import sys
 import json
 import math
 import asyncio
+import statistics
 
 import asyncpg
 
@@ -18,11 +21,33 @@ import report_calc  # noqa: E402  (fastapi 의존 없음)
 
 DSN = os.environ.get("RENT_DSN", "postgresql://postgres:test@localhost:55432/billtamjung")
 SECT = ('상업용', '업무용', '상업기타', '주상용', '주상기타')
-CELL = 500.0
+CELL = 500.0      # 그리드 버킷 크기(m) — 후보 수집용
+RADIUS = 500.0    # comp 반경(m) — 라이브 _market_spatial 기본과 동일
 
 
-def _mx(lng): return lng * 88000.0
+def _mx(lng): return lng * 88000.0   # 그리드 버킷팅용 근사(500m 셀 인덱싱만)
 def _my(lat): return lat * 111000.0
+
+_R = 6371008.8   # 지구 평균반경(m) — geodesic 거리(라이브 ST_Distance geography와 정합)
+
+
+def _dist_m(lat1, lng1, lat2, lng2):
+    """equirectangular geodesic(<1km 정확) — 라이브 PostGIS ST_Distance(geography)와 ~0.1% 이내."""
+    x = math.radians(lng2 - lng1) * math.cos(math.radians((lat1 + lat2) * 0.5))
+    y = math.radians(lat2 - lat1)
+    return _R * math.hypot(x, y)
+
+
+def _iqr_keep(cd):
+    """per_area(=매매가/연면적, 원/㎡) IQR 1.5 이상치 제외 — 라이브 _flag_comp_outliers와 동일. 3건 미만이면 유지."""
+    if len(cd) < 3:
+        return cd
+    vals = [c["price"] / c["total_area"] for c in cd]
+    q1, q3 = statistics.quantiles(vals, n=4)[0], statistics.quantiles(vals, n=4)[2]
+    iqr = q3 - q1
+    lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+    kept = [c for c in cd if lo <= (c["price"] / c["total_area"]) <= hi]
+    return kept if len(kept) >= 3 else cd
 
 
 async def main():
@@ -39,7 +64,7 @@ async def main():
 
     # comp 풀: 서울 상업 매각(5년). 공시총액 = gongsi_latest × sh.land_area
     comps = await c.fetch(
-        f"""SELECT DISTINCT ON (sh.building_pk) ST_X(b.geom) lng, ST_Y(b.geom) lat,
+        f"""SELECT DISTINCT ON (sh.building_pk) sh.building_pk pk, ST_X(b.geom) lng, ST_Y(b.geom) lat,
               sh.price::float pr, sh.land_area::float la, sh.total_area::float ta,
               b.gongsi_latest::float*sh.land_area gt, sh.contract_ym
             FROM master.sales_history sh JOIN master.buildings b USING(building_pk)
@@ -51,7 +76,8 @@ async def main():
     for r in comps:
         x, y = _mx(float(r['lng'])), _my(float(r['lat']))
         grid.setdefault((int(x // CELL), int(y // CELL)), []).append(
-            (x, y, float(r['pr']), float(r['gt']), float(r['la']), float(r['ta']), r['contract_ym']))
+            (r['pk'], float(r['lng']), float(r['lat']), float(r['pr']),
+             float(r['gt']), float(r['la']), float(r['ta']), r['contract_ym']))
     print(f"comp 풀 {len(comps)}건 · 그리드셀 {len(grid)}")
 
     subs = await c.fetch(
@@ -71,19 +97,22 @@ async def main():
           updated timestamptz DEFAULT now())""")
     ins = []
     for s in subs:
-        sx, sy = _mx(float(s['lng'])), _my(float(s['lat']))
-        cx, cy = int(sx // CELL), int(sy // CELL)
+        slng, slat = float(s['lng']), float(s['lat'])
+        cx, cy = int(_mx(slng) // CELL), int(_my(slat) // CELL)
         cd = []
         for dx in (-1, 0, 1):
             for dy in (-1, 0, 1):
-                for (x, y, pr, gt, la, ta, ym) in grid.get((cx + dx, cy + dy), []):
-                    d = math.hypot(x - sx, y - sy)
-                    if d > CELL or (abs(x - sx) < 1e-6 and abs(y - sy) < 1e-6):
+                for (pk, clng, clat, pr, gt, la, ta, ym) in grid.get((cx + dx, cy + dy), []):
+                    if pk == s['pk']:                      # 본매물 제외 — 라이브(building_pk 기준)와 동일
+                        continue
+                    d = _dist_m(slat, slng, clat, clng)    # geodesic — 라이브와 정합
+                    if d > RADIUS:                          # 500m 반경(라이브 기본과 동일)
                         continue
                     cd.append({"price": pr, "total_area": ta, "land_area": la,
                                "gongsi_total": gt, "dist_m": d, "contract_ym": ym})
         if len(cd) < 3:
             continue
+        cd = _iqr_keep(cd)   # 이상치 제외 — 라이브와 동일(검색·상세 값 통일)
         subj = {"total_area": s['ta'], "land_area": s['la'], "gongsi_latest": s['g']}
         ap = report_calc.appraise(0, subj, cd, params, time_adjust)   # ← 라이브와 동일 함수
         fair = ap.get("fair_price")
