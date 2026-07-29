@@ -30,3 +30,21 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
+
+/** 인증 헤더 실은 파일 다운로드(Bearer는 <a href>로 못 실어서 blob으로). */
+export async function apiBlob(path: string, retry = true): Promise<Blob> {
+  const access = useAuth.getState().access;
+  const headers = new Headers();
+  if (access) headers.set("Authorization", `Bearer ${access}`);
+  const res = await fetch(`${BASE}${path}`, { headers, credentials: "include" });
+  if (res.status === 401 && retry) {
+    const t = await refresh();
+    if (t) return apiBlob(path, false);
+    useAuth.getState().clear();
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail ?? res.statusText);
+  }
+  return res.blob();
+}

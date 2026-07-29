@@ -27,7 +27,7 @@
 
 /* S01 3열 결과 */
 .result-cols{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px}
-.col-card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow)}
+.col-card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden}
 .col-head{padding:11px 14px; font-weight:700; color:#fff; text-align:center; font-size:13px; letter-spacing:-.01em}
 .col-head.ad{background:var(--green)}
 .col-head.mine{background:var(--blue)}
@@ -125,3 +125,17 @@
 
 /* 네이버 로드뷰(파노라마) 동서남북 이동 화살표 숨김 — 더블클릭/지도드래그 이동 사용 */
 [class^="arrow_container"], .arrow_image { display: none !important; }
+
+/* 지도 그리기/측정 모드 커서 — naver 내부 pane까지 덮어씀 */
+.map-crosshair, .map-crosshair * { cursor: crosshair !important; }
+
+/* 지도 도구 아이콘 버튼 — 무테 · 호버 배경 · 활성 시그널 (세련된 툴바) */
+.tool-btn { display:inline-flex; align-items:center; justify-content:center; gap:5px; height:32px; min-width:32px; padding:0 8px; border:none; border-radius:8px; background:transparent; color:var(--ink-2); font-size:15px; line-height:1; cursor:pointer; transition:background .12s, color .12s, transform .06s; }
+.tool-btn:hover { background:var(--surface-2); color:var(--ink); }
+.tool-btn:active { transform:scale(.92); }
+.tool-btn.on { background:var(--signal-bg); color:var(--signal); }
+.tool-sep { width:1px; height:20px; background:var(--line); margin:0 5px; flex:0 0 auto; }
+
+/* 지도 매물 태그(핀) — 호버 시 확대·부양(애니메이션). 앵커=좌하단 꼬리 기준 */
+.map-pin { transition: transform .16s cubic-bezier(.34,1.56,.64,1), box-shadow .16s ease; transform-origin: 0 100%; cursor: pointer; }
+.map-pin:hover { transform: scale(1.22); box-shadow: 0 8px 20px rgba(15,26,46,.5); position: relative; z-index: 20; }

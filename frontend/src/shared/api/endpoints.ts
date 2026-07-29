@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api, apiBlob } from "./client";
 
 export interface TokenOut { access_token: string; tier: string }
 export interface Suggestion { building_pk: string; addr: string }
@@ -6,7 +6,7 @@ export interface Balance { total: number; monthly: number; earned: number; purch
 export interface FloorRent {
   id?: number; floor: string; unit_no: string; use?: string | null;
   exclusive_area?: number | null; contract_area?: number | null;
-  deposit: number; rent: number; maintenance: number; is_vacant: boolean;
+  deposit: number; rent: number; maintenance: number; is_vacant: boolean | null;   // null=미지정·false=임대중·true=공실
 }
 export interface Report {
   id: number; building_pk: string; kind: "briefing" | "analysis";
@@ -29,6 +29,7 @@ export interface AttrFilters {
   road_frontages?: string[] | null;
   shapes?: string[] | null;
   slopes?: string[] | null;
+  land_uses?: string[] | null;
   main_uses?: string[] | null;
   etc_use?: string | null;
   land_area_min?: number | null; land_area_max?: number | null;
@@ -42,8 +43,15 @@ export interface AttrFilters {
   parking_min?: number | null; parking_max?: number | null;
   station_dist_max?: number | null;
   last_sale_min?: number | null; last_sale_max?: number | null;
+  last_sale_years_min?: number | null; last_sale_years_max?: number | null;
   gongsi_min?: number | null; gongsi_max?: number | null;
   age_min?: number | null; age_max?: number | null;
+}
+
+export interface MapPinDTO {
+  building_pk: string; addr: string; lng: number; lat: number;
+  col: "ad" | "mine" | "normal"; price: number | null;
+  roi: number | null; last_sale_price: number | null; is_fav: boolean;
 }
 
 export const searchApi = {
@@ -57,6 +65,15 @@ export const searchApi = {
         filters: { bjd_code: p.bjd_code ?? null, ...(p.filters ?? {}) },
         sort: p.sort ?? "price", fav_only: p.fav_only ?? false,
         page_ad: p.page_ad ?? 1, page_mine: p.page_mine ?? 1, page_normal: p.page_normal ?? 1,
+      }),
+    }),
+  pins: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string; fav_only?: boolean }) =>
+    api<MapPinDTO[]>("/search/pins", {                // 지도 핀: 페이징 없이 전체 매물(경량)
+      method: "POST",
+      body: JSON.stringify({
+        polygon: p.polygon ?? null,
+        filters: { bjd_code: p.bjd_code ?? null, ...(p.filters ?? {}) },
+        sort: p.sort ?? "price", fav_only: p.fav_only ?? false,
       }),
     }),
   snap: (polygon: object) =>                          // 자석 스냅(후처리): 그린 영역 → 필지 합집합 폴리곤
@@ -118,7 +135,7 @@ export const rentsApi = {
   del: (pk: string, id: number) =>
     api(`/buildings/${pk}/floor-rents/${id}`, { method: "DELETE" }),
   outline: (pk: string) =>
-    api<{ floor: string | null; use: string | null; exclusive_area: number | null }[]>(`/buildings/${pk}/floor-outline`),
+    api<{ floor: string | null; use: string | null; exclusive_area: number | null; rent_est: number | null; deposit_est: number | null }[]>(`/buildings/${pk}/floor-outline`),
 };
 
 export interface SeriesPt { x: string; y: number; ov: boolean; master: boolean }
@@ -131,15 +148,58 @@ export const seriesApi = {
 };
 
 export const marketApi = {
-  nearby: (b: { center_lat: number; center_lng: number; radius_m: number }) =>
+  nearby: (b: { center_lat: number; center_lng: number; radius_m: number; building_pk?: string; polygon?: object | null; floors?: string[] }) =>
     api<Record<string, unknown>>("/market/nearby", { method: "POST", body: JSON.stringify(b) }),
 };
+
+export interface CompFields {
+  road_frontage?: string | null; station_dist?: number | string | null; use_zone?: string | null;
+  shape?: string | null; slope?: string | null; elevator?: string | null;
+  approval_ym?: string | null; remodel_ym?: string | null; float_pop?: string | null;
+}
+export interface ReportComp {
+  building_pk: string; addr: string; contract_ym: string; price: number; total_area: number;
+  score: number; per_area: number; dist_m: number; lng: number; lat: number;
+  is_outlier: boolean; fields: CompFields;
+}
+export interface FairBreakdown {
+  gong: number | null; land: number | null; far: number | null;
+  wg: number; base: number; alpha: number; comp_fair: number;
+  beta?: number; income_val?: number | null; final?: number;
+}
+export interface ReportPreview {
+  score: number; grade: string; fair_price: number | null; avg_per_pyeong: number | null;
+  expected_roi: number | null; gap: number | null; ask_price: number | null;
+  applied_rent?: number | null; expected_deposit?: number | null; market_applied?: boolean;
+  breakdown?: FairBreakdown | null;
+}
+export interface CompsResponse {
+  subject: { addr: string; score: number; grade: string; items?: Record<string, number>;
+    total_area: number | null; sale_price: number | null; total_rent: number | null;
+    center: { lng: number; lat: number } | null; radius_m: number; polygon: boolean };
+  preview: ReportPreview;
+  comps: ReportComp[];
+  rent_pins: { lng: number; lat: number }[];
+  counts: { sale: number; rent: number };
+}
 
 export const reportsApi = {
   create: (building_pk: string, kind: "briefing" | "analysis", options: Record<string, unknown> = {}) =>
     api<{ report_id: number }>("/reports", { method: "POST", body: JSON.stringify({ building_pk, kind, options }) }),
   get: (id: number) => api<Report>(`/reports/${id}`),
   list: () => api<Report[]>("/reports"),
+  download: async (id: number, kind: "briefing" | "analysis") => {
+    const blob = await apiBlob(`/reports/${id}/download`);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `빌탐정_${kind === "analysis" ? "분석보고서" : "브리핑"}_${id}.pptx`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  },
+  comps: (building_pk: string) => api<CompsResponse>(`/reports/comps/${building_pk}`),
+  preview: (body: { building_pk: string; exclude: string[]; overrides: Record<string, CompFields>; include_market: boolean }) =>
+    api<{ preview: ReportPreview; comp_scores: Record<string, number> }>("/reports/preview", { method: "POST", body: JSON.stringify(body) }),
 };
 
 export interface EnumOpt { code: string; label: string; tier: string | null }
@@ -158,7 +218,9 @@ export const extrasApi = {
   wikiPost: (pk: string, body: string, category?: string) =>
     api(`/buildings/${pk}/wiki`, { method: "POST", body: JSON.stringify({ body, category }) }),
   wikiVote: (postId: number) => api<{ voted: boolean }>(`/wiki/${postId}/vote`, { method: "PUT" }),
+  wikiDel: (postId: number) => api(`/wiki/${postId}`, { method: "DELETE" }),
   memoList: (pk: string) => api<Record<string, unknown>[]>(`/buildings/${pk}/memos`),
   memoAdd: (pk: string, kind: "team" | "secret", body: string) =>
     api(`/buildings/${pk}/memos`, { method: "PUT", body: JSON.stringify({ kind, body }) }),
+  memoDel: (pk: string, id: number) => api(`/buildings/${pk}/memos/${id}`, { method: "DELETE" }),
 };

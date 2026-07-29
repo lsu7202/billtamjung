@@ -103,7 +103,7 @@ export const GROUPS: Group[] = [
   { t: "공시지가·실거래·광고",
     reps: [
       S("광고가", { min: 0, max: 200, unit: "억", inf: true, ticks: "0,50,100" }),
-      S("실거래일", { min: 1970, max: 2026, unit: "", inf: true, inflo: true, handle: "left", ge: "부터", le: "까지", ticks: "1990,2010" }),
+      S("실거래일", { min: 0, max: 30, unit: "년", inf: true, handle: "right", ticks: "0,10,20", le: "이내", chips: [["최근 5년↓", 0, 5], ["최근 10년↓", 0, 10], ["10년↑ 미거래", 10, ""]] }),
     ],
     body: [
       S("최신 공시지가", { min: 0, max: 5000, unit: "만원/㎡", inf: true, ticks: "0,1000,3000" }),

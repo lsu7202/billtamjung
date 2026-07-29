@@ -1,126 +1,99 @@
 import { useState } from "react";
 import { seriesApi, type SeriesPt } from "../../shared/api/endpoints";
+import { TrendChart } from "./TrendChart";
+import { MetricStack } from "./ReportPrimitives";
+import { perPyMan } from "../../shared/format";
 
-/** 시세 추이 통합 카드 — 공시지가(총)·실거래·광고 팀 오버레이. 겹친 그래프(원) + 그래프 호버 툴팁 + 평단가.
- * 표 모드: 계열별 행 추가(호버 시 draft)·수정(억)·삭제(오버레이). specs S02 §3.7.
+/** 거래 시세 — 실거래·광고를 각각 별도 카드로 나란히. 카드별 단일계열 그래프 + 편집표 + 상승률.
+ * 공시지가는 토지 섹션(ParcelBlock)에 값+추이로 통합. 그래프 겹쳐 비교는 '리포트' 탭. specs S02 §3.7.
  */
-const META: { kind: "gongsi" | "real" | "ad"; name: string; color: string; dashed?: boolean; perPy?: boolean }[] = [
-  { kind: "gongsi", name: "총공시지가", color: "#1E5AF0", perPy: true },
-  { kind: "real", name: "실거래가", color: "var(--c-real)", perPy: true },
-  { kind: "ad", name: "광고가", color: "var(--c-ad)", dashed: true, perPy: true },
-];
-
-const toTime = (x: string): number => {
-  const m = x.match(/(\d{4})\D?(\d{1,2})?\D?(\d{1,2})?/);
-  return m ? +m[1] + (m[2] ? (+m[2] - 1) / 12 : 0) + (m[3] ? +m[3] / 365 : 0) : 0;
-};
 const validX = (x: string) => /^\d{4}([/-]\d{1,2}([/-]\d{1,2})?)?$/.test(x.trim());
-const fmtDate = (s: string): string => {   // 숫자만 입력 → 연/월까지만 자동 슬래시: 20000404 → 2000/04
+const fmtDate = (s: string): string => {
   const d = s.replace(/\D/g, "").slice(0, 6);
   return d.length <= 4 ? d : `${d.slice(0, 4)}/${d.slice(4)}`;
 };
-const perPyFmt = (y: number, areaPy?: number) => (areaPy ? `${Math.round(y / areaPy / 1e4).toLocaleString()}만/평` : "");
+const perPyFmt = (y: number, areaPy?: number) => perPyMan(y, areaPy);
 
 export function MarketTrend({ pk, data, fmt, refresh, areaPy }: {
   pk: string; data: Record<"gongsi" | "real" | "ad", SeriesPt[]>; fmt: (n: number) => string; refresh: () => void; areaPy?: number | null;
 }) {
-  const [mode, setMode] = useState<"c" | "t">("c");
-  const [open, setOpen] = useState<Record<string, boolean>>({});
-  const [hovPt, setHovPt] = useState<{ kind: string; name: string; color: string; x: string; y: number; cx: number; cy: number } | null>(null);
-  const series = META.map((m) => ({ ...m, pts: data[m.kind] ?? [] }));
-  const live = series.filter((s) => s.pts.length > 0);
-
-  const W = 860, H = 240, L = 74, R = 24, T = 26, B = 34;
-  const allPts = live.flatMap((s) => s.pts);
-  const times = allPts.map((p) => toTime(p.x));
-  const tmin = Math.min(...times), tmax = Math.max(...times), tspan = tmax - tmin || 1;
-  const ys = allPts.map((p) => p.y);
-  const ymin = Math.min(...ys), ymax = Math.max(...ys), yspan = ymax - ymin || ymax || 1;
-  const X = (x: string) => L + ((toTime(x) - tmin) / tspan) * (W - L - R);
-  const Y = (v: number) => T + (H - T - B) * (1 - (v - ymin) / yspan);
-
+  // 실거래 = 주카드(항상). 광고 = 거의 안 쓰므로 접이식(데이터 없으면 접힘, 클릭해 입력).
   return (
-    <div className="panel">
-      <div className="sec-head">시세 추이
-        <span style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: "auto" }}>
-          <span style={{ display: "flex" }}>
-            <button className={`btn ${mode === "c" ? "primary" : ""}`} style={{ padding: "4px 10px", fontSize: 12, borderRadius: "6px 0 0 6px" }} onClick={() => setMode("c")}>그래프</button>
-            <button className={`btn ${mode === "t" ? "primary" : ""}`} style={{ padding: "4px 10px", fontSize: 12, borderRadius: "0 6px 6px 0", borderLeft: 0 }} onClick={() => setMode("t")}>표</button>
-          </span>
-        </span>
-      </div>
-
-      <div style={{ display: "flex", gap: 16, padding: "0 14px 8px", fontSize: 12, flexWrap: "wrap" }}>
-        {series.map((s) => (
-          <span key={s.kind} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 600, opacity: s.pts.length ? 1 : .4 }}>
-            <span style={{ width: 14, height: 0, borderTop: `3px ${s.dashed ? "dashed" : "solid"} ${s.color}`, display: "inline-block" }} />{s.name}
-          </span>
-        ))}
-      </div>
-
-      {mode === "c" ? (
-        live.length === 0
-          ? <p style={{ color: "var(--muted)", fontSize: 13, padding: "0 14px 14px" }}>데이터가 없습니다 — 표에서 시점을 추가하세요</p>
-          : (
-            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", background: "var(--surface-2)", display: "block" }}
-              onMouseLeave={() => setHovPt(null)}>
-              <line x1={L} y1={T - 6} x2={L} y2={H - B} stroke="var(--line-2)" />
-              <line x1={L} y1={H - B} x2={W - R} y2={H - B} stroke="var(--line-2)" />
-              <text x={L - 8} y={T + 4} textAnchor="end" fontSize="11" fill="var(--muted)" fontFamily="monospace">{fmt(ymax)}</text>
-              <text x={L - 8} y={H - B + 4} textAnchor="end" fontSize="11" fill="var(--muted)" fontFamily="monospace">{fmt(ymin)}</text>
-              {[tmin, (tmin + tmax) / 2, tmax].map((t) => (
-                <text key={t} x={L + ((t - tmin) / tspan) * (W - L - R)} y={H - B + 18} textAnchor="middle" fontSize="10" fill="var(--muted)" fontFamily="monospace">{Math.round(t)}</text>
-              ))}
-              {live.map((s) => (
-                <g key={s.kind}>
-                  {s.pts.length > 1 && <polyline fill="none" stroke={s.color} strokeWidth={2.5} strokeDasharray={s.dashed ? "5 4" : undefined}
-                    points={s.pts.map((p) => `${X(p.x)},${Y(p.y)}`).join(" ")} />}
-                  {s.pts.map((p) => (
-                    <circle key={p.x} cx={X(p.x)} cy={Y(p.y)} r={hovPt?.kind === s.kind && hovPt?.x === p.x ? 5.5 : 3.5} fill={s.color} stroke="#fff" strokeWidth={1.5}
-                      style={{ cursor: "pointer" }}
-                      onMouseEnter={() => setHovPt({ kind: s.kind, name: s.name, color: s.color, x: p.x, y: p.y, cx: X(p.x), cy: Y(p.y) })} />
-                  ))}
-                </g>
-              ))}
-              {/* 호버 툴팁(표 정보): 시점·값·평단가 */}
-              {hovPt && (() => {
-                const meta = META.find((m) => m.kind === hovPt.kind);
-                const l3 = meta?.perPy ? perPyFmt(hovPt.y, areaPy ?? undefined) : "";
-                const bw = 150, bh = l3 ? 58 : 44;
-                const bx = Math.min(Math.max(hovPt.cx - bw / 2, L), W - R - bw);
-                const by = hovPt.cy - bh - 12 < T ? hovPt.cy + 12 : hovPt.cy - bh - 12;
-                return (
-                  <g pointerEvents="none">
-                    <rect x={bx} y={by} width={bw} height={bh} rx={6} fill="#0F1A2E" opacity={0.95} />
-                    <text x={bx + 10} y={by + 17} fontSize="11" fill={hovPt.color} fontWeight="700">{hovPt.name}</text>
-                    <text x={bx + 10} y={by + 33} fontSize="12" fill="#fff" fontFamily="monospace">{hovPt.x} · {fmt(hovPt.y)}</text>
-                    {l3 && <text x={bx + 10} y={by + 49} fontSize="11" fill="#aab2bf" fontFamily="monospace">평단가 {l3}</text>}
-                  </g>
-                );
-              })()}
-            </svg>
-          )
-      ) : (
-        <div style={{ display: "grid", gap: 16, padding: "0 14px 14px" }}>
-          {series.map((s) => (
-            <SeriesTable key={s.kind} pk={pk} kind={s.kind} name={s.name} color={s.color} perPy={!!s.perPy} areaPy={areaPy ?? undefined}
-              pts={s.pts} fmt={fmt} refresh={refresh} expanded={!!open[s.kind]} toggle={() => setOpen((o) => ({ ...o, [s.kind]: !o[s.kind] }))} />
-          ))}
-        </div>
-      )}
+    <div style={{ display: "grid", gap: 12 }}>
+      <SeriesCard pk={pk} kind="real" name="실거래가" color="var(--c-real)" perPy pts={data.real ?? []} fmt={fmt} refresh={refresh} areaPy={areaPy ?? undefined} />
+      <SeriesCard pk={pk} kind="ad" name="광고가" color="var(--c-ad)" dashed perPy pts={data.ad ?? []} fmt={fmt} refresh={refresh} areaPy={areaPy ?? undefined} collapsible />
     </div>
   );
 }
 
-function SeriesTable({ pk, kind, name, color, perPy, areaPy, pts, fmt, refresh, expanded, toggle }: {
-  pk: string; kind: string; name: string; color: string; perPy: boolean; areaPy?: number;
+/* 단일 계열 카드 — 그래프(TrendChart)/표 토글 + 상승률. collapsible=광고처럼 접이식. */
+function SeriesCard({ pk, kind, name, color, dashed, perPy, pts, fmt, refresh, areaPy, collapsible }: {
+  pk: string; kind: string; name: string; color: string; dashed?: boolean; perPy: boolean;
+  pts: SeriesPt[]; fmt: (n: number) => string; refresh: () => void; areaPy?: number; collapsible?: boolean;
+}) {
+  const [mode, setMode] = useState<"c" | "t">("c");
+  const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(collapsible ? pts.length === 0 : false);
+  const first = pts[0]?.y ?? 0, last = pts[pts.length - 1]?.y ?? 0;
+  const rate = first ? ((last - first) / first) * 100 : 0;
+  const chartPts = pts.map((p) => ({ x: p.x, y: p.y, sub: perPy && areaPy ? `평당 ${perPyFmt(p.y, areaPy)}` : undefined }));
+
+  return (
+    <div className="panel">
+      <div className="sec-head" style={collapsible ? { cursor: "pointer" } : undefined}
+        onClick={collapsible ? () => setCollapsed((c) => !c) : undefined}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          {collapsible && <span style={{ color: "var(--muted)", fontSize: 12 }}>{collapsed ? "▸" : "▾"}</span>}
+          <span style={{ width: 14, height: 0, borderTop: `3px ${dashed ? "dashed" : "solid"} ${color}`, display: "inline-block" }} />{name}
+          {collapsible && <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 12 }}>{pts.length ? `· ${pts.length}건` : "· 입력 없음"}</span>}
+        </span>
+        <span style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: "auto" }}>
+          {!collapsed && (
+            <span style={{ display: "flex" }} onClick={(e) => e.stopPropagation()}>
+              <button className={`btn ${mode === "c" ? "primary" : ""}`} style={{ padding: "4px 10px", fontSize: 12, borderRadius: "6px 0 0 6px" }} onClick={() => setMode("c")}>그래프</button>
+              <button className={`btn ${mode === "t" ? "primary" : ""}`} style={{ padding: "4px 10px", fontSize: 12, borderRadius: "0 6px 6px 0", borderLeft: 0 }} onClick={() => setMode("t")}>표</button>
+            </span>
+          )}
+        </span>
+      </div>
+
+      {!collapsed && (mode === "c" ? (
+        pts.length === 0
+          ? <div style={{ padding: "4px 14px 14px" }}><p style={{ color: "var(--muted)", fontSize: 13, textAlign: "center", padding: "12px 0" }}>데이터가 없습니다 — 표에서 시점을 추가하세요</p></div>
+          : (
+            <div style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "wrap", padding: "4px 14px 14px" }}>
+              <div style={{ flex: "1 1 300px", minWidth: 0, maxWidth: 560 }}>
+                <TrendChart points={chartPts} color={color} dashed={dashed} fmt={fmt} height={150} />
+              </div>
+              <div style={{ flex: "1 1 168px" }}>
+                <MetricStack items={[
+                  { label: "최근가", value: fmt(last), accent: color },
+                  ...(perPy && areaPy ? [{ label: "평당", value: perPyFmt(last, areaPy) }] : []),
+                  { label: "거래", value: `${pts.length}건` },
+                  ...(pts.length >= 2 ? [{ label: "상승률", value: (<span style={{ fontSize: 13, fontWeight: 700, color: rate >= 0 ? "var(--up)" : "var(--down)" }}>전체 {rate >= 0 ? "+" : ""}{rate.toFixed(1)}%</span>) }] : []),
+                ]} />
+              </div>
+            </div>
+          )
+      ) : (
+        <div style={{ padding: "0 14px 14px" }}>
+          <SeriesTable pk={pk} kind={kind} perPy={perPy} areaPy={areaPy} pts={pts} fmt={fmt} refresh={refresh}
+            expanded={open} toggle={() => setOpen((o) => !o)} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SeriesTable({ pk, kind, perPy, areaPy, pts, fmt, refresh, expanded, toggle }: {
+  pk: string; kind: string; perPy: boolean; areaPy?: number;
   pts: SeriesPt[]; fmt: (n: number) => string; refresh: () => void; expanded: boolean; toggle: () => void;
 }) {
   const [hover, setHover] = useState(false);
   const [draftKey, setDraftKey] = useState(0);
   const rows = [...pts].reverse();
   const shown = expanded ? rows : rows.slice(0, 3);
-  const save = async (x: string, won: string): Promise<boolean> => {   // 원 단위 입력(정밀)
+  const save = async (x: string, won: string): Promise<boolean> => {
     const y = parseInt(won, 10);
     if (!validX(x) || !(y > 0)) return false;
     await seriesApi.upsert(pk, kind, x.trim(), y); refresh(); return true;
@@ -128,13 +101,9 @@ function SeriesTable({ pk, kind, name, color, perPy, areaPy, pts, fmt, refresh, 
   const del = async (x: string) => { await seriesApi.del(pk, kind, x); refresh(); };
   return (
     <div>
-      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ width: 10, height: 10, borderRadius: 2, background: color, display: "inline-block" }} />{name}
-      </div>
       <table className="wf" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
         <tbody>
           {shown.map((p) => <SeriesRow key={p.x} p={p} fmt={fmt} perPy={perPy} areaPy={areaPy} onSave={save} onDel={del} />)}
-          {/* 빈 계열(광고 등)은 호버할 행이 없으니 draft 항상 노출. 저장되면 draftKey++로 리셋(날짜 잔존 방지) */}
           <SeriesRow key={`draft-${draftKey}`} p={null} fmt={fmt} perPy={perPy} areaPy={areaPy}
             onSave={async (x, y) => { if (await save(x, y)) setDraftKey((k) => k + 1); }} onDel={del} hidden={!hover && pts.length > 0} />
         </tbody>

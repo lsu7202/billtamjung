@@ -16,11 +16,12 @@ export function loadNaver(): Promise<any> {
 }
 
 /** 분류색(전 화면 통일 — 네이버지도-연동 §2) */
+/* S01 매물 카테고리 핀 색 = 리스트 헤더 토큰과 동일해야 함(지도↔리스트 일관). 광고 --green · 내 --blue · 일반 --purple · 본매물 --ink */
 export const PIN_COLORS: Record<string, string> = {
-  ad: "#0E9F6E",
-  mine: "#1E5AF0",
-  normal: "#6E56E8",
-  self: "#0F1A2E",
+  ad: "#0E805B",     // --green
+  mine: "#2B5AA8",   // --blue
+  normal: "#6E56E8", // --purple
+  self: "#262320",   // --ink
 };
 
 export function priceLabel(price: number | null): string {

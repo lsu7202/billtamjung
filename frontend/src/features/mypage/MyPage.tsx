@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { creditsApi, reportsApi, savedApi } from "../../shared/api/endpoints";
+import { openDetail } from "../../shared/map/geo";
 
 /** S0M 마이페이지 — 크레딧(잔액·사용내역) · 내 산출물(stale·재생성) · 저장한 검색조건 */
 
@@ -50,14 +51,15 @@ export function MyPage() {
               <tr key={r.id}>
                 <td className="num">{new Date(r.created_at).toLocaleDateString("ko")}</td>
                 <td>{r.kind === "analysis" ? "매물분석" : "브리핑"}</td>
-                <td style={{ cursor: "pointer" }} onClick={() => nav(`/buildings/${r.building_pk}`)}>{r.addr ?? r.building_pk}</td>
+                <td style={{ cursor: "pointer" }} onClick={() => openDetail(r.building_pk)}>{r.addr ?? r.building_pk}</td>
                 <td className="num">{r.credits_spent ?? "—"}</td>
                 <td>{r.status === "done"
                   ? <span className={`tag ${r.is_stale ? "stale" : "fresh"}`}>{r.is_stale ? "데이터 변경됨" : "최신"}</span>
                   : <span style={{ color: "var(--muted)" }}>{r.status === "failed" ? "실패" : "생성 중…"}</span>}</td>
                 <td style={{ textAlign: "right" }}>
                   {r.status === "done" && <>
-                    <button className="btn" style={{ marginRight: 6 }}>PPT 받기</button>
+                    <button className="btn" style={{ marginRight: 6 }}
+                      onClick={() => reportsApi.download(r.id, r.kind).catch((e) => alert(String(e.message ?? e)))}>PPT 받기</button>
                     {r.is_stale && <button className="btn primary" disabled={regen.isPending}
                       onClick={() => regen.mutate({ building_pk: r.building_pk, kind: r.kind })}>
                       재생성 ({r.kind === "analysis" ? 30 : 10})</button>}

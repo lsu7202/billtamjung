@@ -1,137 +1,180 @@
-import { useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { marketApi } from "../../shared/api/endpoints";
+import { marketApi, rentsApi } from "../../shared/api/endpoints";
+import { MarketArea, CompPoint, circleToGeoJSON, fmtArea, fmtDist, openDetail } from "../../shared/map/geo";
+import { won, wonShort } from "../../shared/format";
 
-/** 주변시세(S03 인라인) — 반경·재조회 · 임대 comps curation(체크=평균 포함) · 층별평균 · 매각 comps. */
+/** 주변시세(S03 인라인) — 반경·재조회 · 임대 comps를 본매물 층별로 그룹(접고펴기) · 매각 comps(매물별 최근·요약). */
 
 interface RentComp {
   floor: string; unit_no: string; contract_area: number | null; exclusive_area: number | null;
   deposit: number; rent: number; maintenance: number; addr: string; building_pk: string;
-  per_deposit?: number; per_rent?: number; is_outlier: boolean;
+  lng: number; lat: number; per_deposit?: number; per_rent?: number; is_outlier: boolean; is_estimate?: boolean;
 }
 interface SaleComp {
   building_pk: string; contract_ym: string; price: number; total_area: number | null;
-  addr: string; dist_m: number; per_area?: number; is_outlier: boolean;
+  addr: string; lng: number; lat: number; dist_m: number; per_area?: number; is_outlier: boolean;
 }
 interface Nearby { rents: RentComp[]; sales: SaleComp[]; radius_m: number; count: number }
 
-const man = (n?: number | null) => (n == null || Number(n) === 0 ? "" : `${Math.round(n / 1e4).toLocaleString()}만`);   // 0·null=빈칸 통일
-const eok = (n?: number | null) => (n == null || Number(n) === 0 ? "" : `${(n / 1e8).toFixed(1)}억`);
+const P = 3.305785;   // ㎡→평
+const man = won;        // 공용(억+만). shared/format.ts
+const eok = wonShort;   // 컴팩트(X.X억)
+const NO_RENTS: RentComp[] = [];   // 안정 빈 배열 — data undefined 시 매 렌더 새 배열 방지(무한 setState 루프 차단)
+const NO_SALES: SaleComp[] = [];
+const signedFloor = (fl: string): number => {   // 서명층수: 지상 양수·지하 음수(층별임대 표와 동일 정렬)
+  const n = parseInt(fl.replace(/\D/g, ""), 10);
+  if (/지하|^\s*B/i.test(fl)) return isNaN(n) ? -1 : -n;
+  return isNaN(n) ? -999 : n;
+};
+const shortAddr = (a: string) => a.replace("서울특별시 ", "").replace("번지", "");
 
-export function MarketBlock({ lng, lat }: { lng: number; lat: number }) {
-  const [radius, setRadius] = useState(500);
-  const [applied, setApplied] = useState(500);
+export function MarketBlock({ pk, lng, lat, area, onComps }: { pk: string; lng: number; lat: number; area: MarketArea; onComps?: (pts: CompPoint[]) => void }) {
   const [unchecked, setUnchecked] = useState<Set<string>>(new Set());
+  const [openFloors, setOpenFloors] = useState<Set<string>>(new Set());   // 층별 접고펴기
+  const [salesOpen, setSalesOpen] = useState(false);   // 실거래 접고펴기(기본 10개 요약)
+  const [rentFloorsOpen, setRentFloorsOpen] = useState(false);   // 임대 층 목록 5개 초과 더보기
+
+  // 본매물 층 목록 = 층별임대(팀) + 대장 프리필 — 이 층들로 주변 임대시세 그룹·후보 조회(§3.2)
+  const subjRents = useQuery({ queryKey: ["rents", pk], queryFn: () => rentsApi.list(pk) });
+  const subjOutline = useQuery({ queryKey: ["floor-outline", pk], queryFn: () => rentsApi.outline(pk) });
+  const subjectFloors = useMemo(() => {
+    const seen = new Set<string>(); const out: string[] = [];
+    for (const it of subjRents.data?.items ?? []) if (it.floor && !seen.has(it.floor)) { seen.add(it.floor); out.push(it.floor); }
+    for (const o of subjOutline.data ?? []) if (o.floor && !seen.has(o.floor)) { seen.add(o.floor); out.push(o.floor); }
+    out.sort((a, b) => signedFloor(b) - signedFloor(a));   // 지상 높은층 → 낮은층 → 지하(층별임대와 동일)
+    return out;
+  }, [subjRents.data, subjOutline.data]);
 
   const q = useQuery<Nearby>({
-    queryKey: ["nearby", lng, lat, applied],
-    queryFn: () => marketApi.nearby({ center_lat: lat, center_lng: lng, radius_m: applied }) as unknown as Promise<Nearby>,
+    queryKey: ["nearby", lng, lat, pk, area, subjectFloors],
+    queryFn: () => marketApi.nearby({
+      center_lat: lat, center_lng: lng, building_pk: pk, radius_m: 0,
+      polygon: area.kind === "circle" ? circleToGeoJSON(area.center ?? { lng, lat }, area.radius_m) : area.geojson,
+      floors: subjectFloors,
+    }) as unknown as Promise<Nearby>,
   });
 
-  const rents = q.data?.rents ?? [];
-  const sales = q.data?.sales ?? [];
+  const rents = q.data?.rents ?? NO_RENTS;
+  const sales = q.data?.sales ?? NO_SALES;
   const keyOf = (r: RentComp) => `${r.building_pk}-${r.floor}-${r.unit_no}`;
+
+  // 지도용 포인트: 임대 매물 + 실거래 매물(같은 건물이면 실거래 우선). 부모(PhotoPanel)로 전달해 색 구분 표시.
+  const points = useMemo<CompPoint[]>(() => {
+    const m = new Map<string, CompPoint>();
+    rents.forEach((r) => { if (r.lng != null) m.set(r.building_pk, { building_pk: r.building_pk, lng: r.lng, lat: r.lat, kind: "rent" }); });
+    sales.forEach((s) => { if (s.lng != null) m.set(s.building_pk, { building_pk: s.building_pk, lng: s.lng, lat: s.lat, kind: "sale" }); });
+    return [...m.values()];
+  }, [rents, sales]);
+  useEffect(() => { onComps?.(points); }, [points, onComps]);
 
   // 체크 초기값: 일반=체크 / 이상치=해제(스펙 §3.2). unchecked = 기본값에서 반전된 키.
   const toggle = (r: RentComp) => {
     const k = keyOf(r);
-    setUnchecked((s) => {
-      const n = new Set(s);
-      if (r.is_outlier) {
-        // 이상치는 기본 해제 → unchecked에 있으면 "수동 포함" 표시로 사용(반전)
-        if (n.has(k)) n.delete(k); else n.add(k);
-      } else {
-        if (n.has(k)) n.delete(k); else n.add(k);
-      }
-      return n;
-    });
+    setUnchecked((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; });
   };
   const effChecked = (r: RentComp) => (r.is_outlier ? unchecked.has(keyOf(r)) : !unchecked.has(keyOf(r)));
+  const toggleFloor = (f: string) => setOpenFloors((s) => { const n = new Set(s); n.has(f) ? n.delete(f) : n.add(f); return n; });
 
-  // 층별 평균(체크 행만 라이브 — §3.2)
-  const floorAvg = useMemo(() => {
+  const compsByFloor = useMemo(() => {
     const by: Record<string, RentComp[]> = {};
-    rents.filter(effChecked).forEach((r) => {
-      if (r.per_rent) (by[r.floor] ??= []).push(r);
-    });
-    return Object.entries(by).map(([floor, xs]) => ({
-      floor,
-      perDeposit: Math.round(xs.reduce((a, x) => a + (x.per_deposit ?? 0), 0) / xs.length),
-      perRent: Math.round(xs.reduce((a, x) => a + (x.per_rent ?? 0), 0) / xs.length),
-      count: xs.length,
-    })).sort((a, b) => a.floor.localeCompare(b.floor));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rents, unchecked]);
+    rents.forEach((r) => (by[r.floor] ??= []).push(r));
+    return by;
+  }, [rents]);
+  const floorSummary = (floor: string) => {
+    const cs = (compsByFloor[floor] ?? []).filter(effChecked).filter((c) => c.per_rent);
+    if (!cs.length) return null;
+    return {
+      perDeposit: Math.round(cs.reduce((a, c) => a + (c.per_deposit ?? 0), 0) / cs.length),
+      perRent: Math.round(cs.reduce((a, c) => a + (c.per_rent ?? 0), 0) / cs.length),
+    };
+  };
 
+  const areaBadge = (
+    <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--signal)", fontWeight: 600 }}>
+      {area.kind === "circle" ? `반경 ${fmtDist(area.radius_m)}` : `상권 ${fmtArea(area.area_m2)}`}
+    </span>
+  );
+  const shownFloors = rentFloorsOpen ? subjectFloors : subjectFloors.slice(0, 5);   // 층 많으면 5개까지만
   return (
+    <>
+    {/* 주변 임대시세 — 별도 카드 */}
     <div className="panel">
-      <div className="sec-head">주변시세 <small style={{ color: "var(--muted)", fontWeight: 400 }}>임대 · 실거래 · 반경 직접 설정</small>
-        <span style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}>
-          반경
-          <input type="range" min={200} max={1000} step={50} value={radius} onChange={(e) => setRadius(+e.target.value)} />
-          <span className="num">{radius}m</span>
-          <button className="btn primary" style={{ padding: "5px 12px" }} onClick={() => setApplied(radius)}>재조회</button>
-        </span>
-      </div>
-
-      <div className="sec-head" style={{ fontSize: 13, borderTop: "1px solid var(--line)" }}>
-        주변 임대시세 <small style={{ color: "var(--muted)", fontWeight: 400 }}>체크 해제 = 평균 제외 · 이상치는 기본 해제</small>
+      <div className="sec-head">주변 임대시세 <small style={{ color: "var(--muted)", fontWeight: 400 }}>본매물 층별 · 펼치면 주변 임대 comps · 주소 클릭 = 상세로 이동해 입력</small>
+        {areaBadge}
       </div>
       <table className="wf">
-        <thead><tr><th style={{ width: 30 }}>✓</th><th>층</th><th className="num">계약면적</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">평당임대</th><th>주소</th></tr></thead>
+        <thead><tr><th>층</th><th className="num">평당 보증금</th><th className="num">평당 임대료</th></tr></thead>
         <tbody>
-          {rents.map((r) => (
-            <tr key={keyOf(r)} style={r.is_outlier ? { opacity: .6 } : undefined}>
-              <td><input type="checkbox" checked={effChecked(r)} onChange={() => toggle(r)} /></td>
-              <td>{r.floor}{r.is_outlier && <span className="tag stale" style={{ marginLeft: 5 }}>이상치</span>}</td>
-              <td className="num">{r.contract_area != null ? `${r.contract_area}평` : ""}</td>
-              <td className="num">{man(r.deposit)}</td>
-              <td className="num">{man(r.rent)}</td>
-              <td className="num">{man(r.per_rent)}</td>
-              <td style={{ fontSize: 12 }}>{r.addr.replace("서울특별시 ", "").replace("번지", "")}</td>
-            </tr>
-          ))}
-          {rents.length === 0 && <tr><td colSpan={7} style={{ color: "var(--muted)", textAlign: "center", padding: 16 }}>반경 내 임대 데이터가 없습니다 — 층별 임대정보가 축적되면 표시됩니다</td></tr>}
+          {subjectFloors.length === 0 && <tr><td colSpan={3} style={{ color: "var(--muted)", textAlign: "center", padding: 16 }}>본매물 층 정보가 없습니다 — 층별 임대정보를 먼저 입력하세요</td></tr>}
+          {shownFloors.map((floor) => {
+            const comps = compsByFloor[floor] ?? [];
+            const sum = floorSummary(floor);
+            const open = openFloors.has(floor);
+            const has = comps.length > 0;
+            return (
+              <Fragment key={floor}>
+                <tr style={has ? { cursor: "pointer" } : undefined} onClick={has ? () => toggleFloor(floor) : undefined}>
+                  <td>{has ? <span style={{ color: "var(--muted)", marginRight: 4 }}>{open ? "▾" : "▸"}</span> : null}{floor}</td>
+                  <td className="num" style={{ color: "var(--signal)" }}>{sum ? man(sum.perDeposit) : ""}</td>
+                  <td className="num" style={{ color: "var(--signal)" }}>{sum ? man(sum.perRent) : ""}</td>
+                </tr>
+                {open && comps.map((c) => (
+                  <tr key={keyOf(c)} style={{ background: "var(--surface-2)", ...(c.is_outlier ? { opacity: .6 } : {}) }}>
+                    <td colSpan={3} style={{ padding: "4px 8px 4px 22px", fontSize: 12 }}>
+                      <input type="checkbox" checked={effChecked(c)} onChange={() => toggle(c)} title="체크=층 평균 포함" style={{ marginRight: 8, verticalAlign: "middle" }} />
+                      <a onClick={() => openDetail(c.building_pk)} style={{ cursor: "pointer", color: "var(--signal)" }} title="클릭 = 이 매물 상세로 이동해 임대정보 입력">{shortAddr(c.addr)}</a>
+                      {c.is_outlier && <span className="tag stale" style={{ marginLeft: 5 }}>이상치</span>}
+                      {c.is_estimate && <span className="tag" style={{ marginLeft: 5, color: "var(--muted)" }}>추정</span>}
+                      <span style={{ color: "var(--muted)" }}>{c.contract_area != null ? ` · ${(c.contract_area / P).toFixed(0)}평` : ""} · 보 {man(c.deposit) || "—"} · 임 {man(c.rent) || "—"} · 평당 {man(c.per_rent) || "—"}</span>
+                    </td>
+                  </tr>
+                ))}
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
-
-      {floorAvg.length > 0 && (
-        <>
-          <div className="sec-head" style={{ fontSize: 13 }}>층별 평균 <small style={{ color: "var(--muted)", fontWeight: 400 }}>체크 행 라이브</small></div>
-          <table className="wf">
-            <thead><tr><th>층</th><th className="num">평당 보증금</th><th className="num">평당 임대료</th><th className="num">건수</th></tr></thead>
-            <tbody>
-              {floorAvg.map((f) => (
-                <tr key={f.floor}>
-                  <td>{f.floor}</td>
-                  <td className="num" style={{ color: "var(--signal)" }}>{man(f.perDeposit)}</td>
-                  <td className="num" style={{ color: "var(--signal)" }}>{man(f.perRent)}</td>
-                  <td className="num">{f.count}건</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
+      {subjectFloors.length > 5 && (
+        <div style={{ padding: "0 14px 12px" }}>
+          <button className="btn" style={{ padding: "4px 12px", fontSize: 12 }} onClick={() => setRentFloorsOpen((v) => !v)}>
+            {rentFloorsOpen ? "접기" : `더보기 (${subjectFloors.length - 5})`}
+          </button>
+        </div>
       )}
+    </div>
 
-      <div className="sec-head" style={{ fontSize: 13, borderTop: "1px solid var(--line)" }}>
-        주변 실거래 <small style={{ color: "var(--muted)", fontWeight: 400 }}>최근 5년</small>
+    {/* 주변 실거래 — 별도 카드 */}
+    <div className="panel">
+      <div className="sec-head">주변 실거래 <small style={{ color: "var(--muted)", fontWeight: 400 }}>최근 5년 · 매물별 최근 거래 · 반경 내 {sales.length}건</small>
+        {areaBadge}
       </div>
       <table className="wf">
         <thead><tr><th>주소</th><th className="num">거리</th><th>거래일</th><th className="num">실거래가</th><th className="num">연면적 평단가</th></tr></thead>
         <tbody>
-          {sales.slice(0, 10).map((s) => (
+          {(salesOpen ? sales : sales.slice(0, 10)).map((s) => (
             <tr key={`${s.building_pk}-${s.contract_ym}-${s.price}`} style={s.is_outlier ? { opacity: .6 } : undefined}>
-              <td style={{ fontSize: 12 }}>{s.addr.replace("서울특별시 ", "").replace("번지", "")}{s.is_outlier && <span className="tag stale" style={{ marginLeft: 5 }}>이상치</span>}</td>
+              <td style={{ fontSize: 12 }}>
+                <a onClick={() => openDetail(s.building_pk)} style={{ cursor: "pointer", color: "var(--signal)" }} title="클릭 = 이 매물 상세로 이동(새 탭)">{shortAddr(s.addr)}</a>
+                {s.is_outlier && <span className="tag stale" style={{ marginLeft: 5 }}>이상치</span>}
+              </td>
               <td className="num">{s.dist_m}m</td>
               <td className="num">{s.contract_ym.slice(0, 4)}/{s.contract_ym.slice(4)}</td>
               <td className="num">{eok(s.price)}</td>
               <td className="num">{man(s.per_area)}</td>
             </tr>
           ))}
+          {sales.length > 10 && (
+            <tr><td colSpan={5} style={{ textAlign: "center", padding: 6 }}>
+              <button className="btn" style={{ padding: "3px 12px", fontSize: 12 }} onClick={() => setSalesOpen((v) => !v)}>
+                {salesOpen ? "접기" : `더보기 (${sales.length - 10})`}
+              </button>
+            </td></tr>
+          )}
           {sales.length === 0 && <tr><td colSpan={5} style={{ color: "var(--muted)", textAlign: "center", padding: 16 }}>반경 내 최근 5년 실거래가 없습니다 — 반경을 넓혀보세요</td></tr>}
         </tbody>
       </table>
     </div>
+    </>
   );
 }

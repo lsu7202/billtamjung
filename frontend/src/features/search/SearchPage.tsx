@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import { searchApi, buildingsApi, extrasApi, listingsApi, type AttrFilters } from "../../shared/api/endpoints";
+import { openDetail } from "../../shared/map/geo";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
 import { FilterModal, activeCount, conditionChips, type Values, type RegionPick } from "./FilterModal";
 import { PriceTrendChart, buildTrendSeries } from "../../shared/ui/PriceTrendChart";
@@ -11,7 +11,7 @@ import "./search.css";
 /** S01 매물 통합검색 — 자동완성 + 지역(구/동) + 3열 목록 + 지도 뷰(핀·영역 그리기) */
 
 interface Hit {
-  building_pk: string; addr: string; price: number | null; roi: number | null;
+  building_pk: string; addr: string; price: number | null; last_sale_price: number | null; roi: number | null;
   lng: number; lat: number; is_fav?: boolean;
   land_area: number | null; floors_above: number | null; floors_below: number | null;
 }
@@ -72,7 +72,6 @@ function SelCard({ picked, bldg, trend, onDetail, onFav }: {
 }
 
 export function SearchPage() {
-  const nav = useNavigate();
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [active, setActive] = useState(-1);
@@ -109,9 +108,19 @@ export function SearchPage() {
       }) as Promise<SearchResult>,
     enabled: !!bjd || !!polygon,
   });
+  // 지도 핀 — 리스트는 페이징하되 지도엔 조건에 맞는 '전체' 매물을 표시(페이징 없음)
+  const mapPins = useQuery<MapPin[]>({
+    queryKey: ["mapPins", bjd, polygon, sort, favOnly, filters],
+    queryFn: () => searchApi.pins({
+      bjd_code: polygon ? undefined : bjd || undefined,
+      polygon: polygon ?? undefined, filters, sort, fav_only: favOnly,
+    }) as Promise<MapPin[]>,
+    enabled: (!!bjd || !!polygon) && view === "map",
+  });
+  const mapPinList = mapPins.data ?? [];
 
   const items = suggest.data ?? [];
-  const go = (pk: string) => nav(`/buildings/${pk}`);
+  const go = (pk: string) => openDetail(pk);   // 리다이렉트=새탭(사이트 규칙)
   async function toggleFav(pk: string) {
     await extrasApi.favToggle(pk);
     qc.invalidateQueries({ queryKey: ["search3"] });
@@ -123,7 +132,7 @@ export function SearchPage() {
   }
   // 필지 클릭 → 매물 선택(부동산플래닛식). 검색결과면 그 핀(분류색), 아니면 건물 조회 후 내매물/일반 판정
   async function selectBuilding(pk: string) {
-    const inPin = pins.find((p) => p.building_pk === pk);
+    const inPin = mapPinList.find((p) => p.building_pk === pk);
     if (inPin) { setPicked(inPin); return; }
     try {
       const [b, listing] = await Promise.all([
@@ -162,20 +171,6 @@ export function SearchPage() {
   const trend = useMemo(() => buildTrendSeries(pickedBldg.data, pickedAds.data), [pickedBldg.data, pickedAds.data]);
 
   const total = result.data ? result.data.ad.total + result.data.mine.total + result.data.normal.total : 0;
-
-  const pins: MapPin[] = useMemo(() => {
-    if (!result.data) return [];
-    return COLS.flatMap(({ key }) =>
-      result.data![key].items
-        .filter((h) => h.lng && h.lat)
-        .map((h) => ({ ...h, col: key })),
-    );
-  }, [result.data]);
-
-  // 지도 미니리스트 페이징 — 3열 페이지를 함께 이동(초과 열은 빈 결과)
-  const mapPages = result.data ? Math.max(result.data.ad.pages, result.data.mine.pages, result.data.normal.pages, 1) : 1;
-  const mapPage = Math.min(Math.max(pages.ad, pages.mine, pages.normal), mapPages);
-  const goMapPage = (p: number) => { const np = Math.min(Math.max(1, p), mapPages); setPages({ ad: np, mine: np, normal: np }); };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 10 }}>
@@ -244,8 +239,8 @@ export function SearchPage() {
 
       {showFilter && (
         <FilterModal
-          initialValues={fValues} initialRegions={fRegions}
-          onApply={(r) => { setFilters(r.filters); setFValues(r.values); setFRegions(r.regions); resetPages(); }}
+          initialValues={fValues} initialRegions={fRegions} initialPolygon={polygon}
+          onApply={(r) => { setFilters(r.filters); setFValues(r.values); setFRegions(r.regions); setPolygon(r.polygon ?? null); resetPages(); }}
           onClose={() => setShowFilter(false)}
           onDraw={() => { setShowFilter(false); setView("map"); }}
         />
@@ -258,16 +253,12 @@ export function SearchPage() {
           <div className="map-list">
             {picked ? <SelCard picked={picked} bldg={pickedBldg.data} trend={trend} onDetail={() => go(picked.building_pk)} onFav={() => toggleFav(picked.building_pk)} /> : null}
             <div className="ml-head">
-              <span>이 지도 영역 <b className="num">{pins.length}</b>건 · 핀과 동기화</span>
-              {mapPages > 1 && (
-                <span className="ml-pager">
-                  <button disabled={mapPage <= 1} onClick={() => goMapPage(mapPage - 1)}>‹</button>
-                  <span className="pg">{mapPage} / {mapPages}</span>
-                  <button disabled={mapPage >= mapPages} onClick={() => goMapPage(mapPage + 1)}>›</button>
-                </span>
-              )}
+              <span>이 지도 영역 <b className="num">{mapPinList.length}</b>건{
+                mapPins.isFetching ? " · 불러오는 중…"
+                : mapPinList.length < total ? ` · 전체 ${total.toLocaleString()}건 中 · 필터로 좁혀보세요`
+                : " · 전체 표시"}</span>
             </div>
-            {pins.map((p) => (
+            {mapPinList.slice(0, 100).map((p) => (
               <div key={p.building_pk} className={`ml-row ${picked?.building_pk === p.building_pk ? "on" : ""}`} onClick={() => { setPicked(p); if (p.lng && p.lat) setCenterReq({ lng: p.lng, lat: p.lat }); }}>
                 <span className="ml-a">{p.addr.replace("서울특별시 ", "").replace("번지", "")}
                   <span className={`ml-tag ${p.col}`}>{p.col === "ad" ? "광고" : p.col === "mine" ? "내" : "일반"}</span>
@@ -275,18 +266,20 @@ export function SearchPage() {
                 <span className="ml-nums">{won(p.price)}{p.roi != null && <small> · {p.roi}%</small>}</span>
               </div>
             ))}
-            {pins.length === 0 && <div className="sel-empty">이 영역에 표시할 매물이 없습니다</div>}
+            {mapPinList.length > 100 && <div className="ml-row" style={{ justifyContent: "center", color: "var(--muted)", cursor: "default" }}>목록은 상위 100건 · 지도에서 전체 확인</div>}
+            {mapPinList.length === 0 && <div className="sel-empty">이 영역에 표시할 매물이 없습니다</div>}
           </div>
           {/* 우: 지도 + 범례 */}
           <div className="map-canvas">
             <MapPanel
-              pins={pins}
+              pins={mapPinList}
+              polygon={polygon}
               polygonActive={!!polygon}
               selectedPk={picked?.building_pk ?? null}
               selectedCol={picked?.col ?? null}
               centerReq={centerReq}
               onParcelClick={(pk) => { if (pk) selectBuilding(pk); }}
-              onPick={(pk) => setPicked(pins.find((p) => p.building_pk === pk) ?? null)}
+              onPick={(pk) => setPicked(mapPinList.find((p) => p.building_pk === pk) ?? null)}
               onPolygon={(g) => { setPolygon(g); setPages({ ad: 1, mine: 1, normal: 1 }); }}
             />
             <div className="map-legend">
@@ -311,7 +304,8 @@ export function SearchPage() {
                 <div className="col-body">
                   <div className="wf-head">
                     <span></span><span>주소</span>
-                    <span className="num">매매가{key === "normal" && <span className="est">추정</span>}</span>
+                    <span className="num">실거래</span>
+                    <span className="num">매매가</span>
                     <span className="num">수익률</span>
                   </div>
                   {col.items.map((h) => (
@@ -319,6 +313,7 @@ export function SearchPage() {
                       <span className="star" style={{ fontSize: 15, color: h.is_fav ? "#f5b81f" : "var(--line-2)" }}
                         onClick={(e) => { e.stopPropagation(); toggleFav(h.building_pk); }}>★</span>
                       <span>{h.addr.replace("서울특별시 ", "").replace("번지", "")}</span>
+                      <span className="num" style={{ color: "var(--muted)" }}>{won(h.last_sale_price)}</span>
                       <span className="num">{won(h.price)}</span>
                       <span className="num" style={{ color: h.roi == null ? "var(--muted)" : undefined }}>{h.roi == null ? "—" : `${h.roi}%`}</span>
                       <span className="row-actions">

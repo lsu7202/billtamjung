@@ -1,9 +1,17 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../shared/api/client";
 import { overlaysApi } from "../../shared/api/endpoints";
-import { KV, NumCell, vPos, vNonNeg } from "./KV";
+import { KV, NumCell, vPos } from "./KV";
 import { EnumField, ChipsMulti } from "./EnumField";
+import { TrendChart } from "./TrendChart";
+import { InfoDot } from "../../shared/ui/InfoDot";
+import { wonShort, manPerM2 } from "../../shared/format";
+
+/* 플랫 정밀 지표 스타일 — 라벨(작게·muted·tracking) / 값(크게·mono) / 단위(작게·muted) */
+const GL: React.CSSProperties = { fontSize: 11, color: "var(--muted)", letterSpacing: ".03em", marginBottom: 4 };
+const GV: React.CSSProperties = { fontSize: 23, fontWeight: 800, lineHeight: 1 };
+const GU: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--muted)", marginLeft: 2 };
 
 /* 용도지역 전체(걸침 다중선택). code=label=풀네임(use_zone_mix 명과 일치). */
 const ZONE_OPTS = ["제1종전용주거지역", "제2종전용주거지역", "제1종일반주거지역", "제2종일반주거지역", "제3종일반주거지역",
@@ -11,6 +19,32 @@ const ZONE_OPTS = ["제1종전용주거지역", "제2종전용주거지역", "�
   "보전녹지지역", "생산녹지지역", "자연녹지지역", "보전관리지역", "생산관리지역", "계획관리지역", "농림지역", "자연환경보전지역", "미지정",
 ].map((z) => ({ code: z, label: z }));
 type ZoneMix = { 명: string; 비중: number; 코드?: string }[];
+
+/* 공시지가 추이 차트(라인만). 상승률 배지는 카드 우측 지표 영역에서 렌더. series=[[연도,원/㎡]]. */
+function GongsiTrend({ series }: { series: [number, number][] }) {
+  if (!series || series.length < 2) return null;
+  const pts = series.map(([y, v]) => ({ x: String(y), y: v, sub: `${manPerM2(v)}/㎡` }));
+  return <TrendChart points={pts} color="var(--c-gongsi)" fmt={(v) => manPerM2(v)} height={150} maxW={560} />;
+}
+/* 공시지가 상승률(10년·5년·전체) — 우측 지표 영역용 */
+function gongsiRates(series: [number, number][]) {
+  if (!series || series.length < 2) return null;
+  const yrs = series.length, first = series[0][1], last = series[yrs - 1][1];
+  const rate = first ? ((last - first) / first) * 100 : 0;
+  const back = (n: number) => { const s = series[Math.max(0, yrs - 1 - n)]; return s && first ? ((last - s[1]) / s[1]) * 100 : null; };
+  return { r5: yrs > 5 ? back(5) : null, r10: yrs > 10 ? back(10) : null, rate };
+}
+const ratePct = (v: number | null) => v == null ? "" : `${v >= 0 ? "+" : ""}${v.toFixed(0)}%`;
+/* 공시지가 표 — 연도별 단가(최신 위). 그래프/표 토글용. */
+function GongsiTable({ series }: { series: [number, number][] }) {
+  if (!series || series.length < 2) return null;
+  return (
+    <table className="wf">
+      <thead><tr><th>연도</th><th className="num">공시지가 (만원/㎡)</th></tr></thead>
+      <tbody>{[...series].reverse().map(([y, v]) => (<tr key={y}><td>{y}</td><td className="num">{manPerM2(v)}</td></tr>))}</tbody>
+    </table>
+  );
+}
 
 /** 필지 셀렉터(S02 §3.6) — 다필지 탭 전환 · 토지/규제/공시지가가 선택 필지 값으로 · 건물 요약(OR 집계).
  * 편집: 필지 오버레이(target_type='parcel', target_id=pnu). enum(지목·지형·도로접면·지세)+자유값(용도지역·토지이용·면적·공시지가).
@@ -31,12 +65,6 @@ const REG_FIELD: Record<string, string> = {   // 규제 라벨 → 필지 오버
 };
 const num = (x: unknown): number | null => (x == null || x === "" ? null : Number(x));
 const pct = (x: unknown): string | null => (x == null || x === "" ? null : String(x).replace("%", ""));   // 법정건폐/용적: 마스터 "50%" → 숫자부만(중복 % 방지)
-const eok = (n: number | null) => {   // 억+만 정밀표기 · 0=빈칸
-  if (n == null || n === 0) return "";
-  const m = Math.round(n / 1e4) * 1e4, e = Math.floor(m / 1e8), man = Math.round((m % 1e8) / 1e4);
-  return e && man ? `${e}억 ${man.toLocaleString()}만` : e ? `${e}억` : `${man.toLocaleString()}만`;
-};
-const man = (n: number | null) => (n == null || n === 0 ? "" : `${Math.round(n / 1e4).toLocaleString()}만/㎡`);
 
 const PY = 3.305785;
 export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZoneMix?: unknown; unit?: "py" | "m2" }) {
@@ -62,11 +90,6 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZo
   const onRevert = (field: string) => revert.mutate(field);
 
   const area = num(p?.area);
-  const gongsiLatest = num(p?.gongsi_latest);
-  const totalGongsi = useMemo(() => {
-    if (!gongsiLatest || !area) return null;
-    return gongsiLatest * area;   // 총공시지가 = 단가 × 그 필지 면적(합산 아님)
-  }, [gongsiLatest, area]);
 
   if (q.isLoading) return null;
   if (parcels.length === 0) return null;
@@ -74,9 +97,13 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZo
   const summary = q.data?.reg_summary ?? {};
   const applied = Object.keys(summary);
 
+  const parcelTag = parcels.length > 1 ? <small style={{ color: "var(--muted)", fontWeight: 400 }}>필지 {p.pnu.slice(-8)}</small> : null;
   return (
+    <>
+    {/* 토지정보 | 규제·특례 (2단) */}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: 14, alignItems: "start" }}>
     <div className="panel">
-      <div className="sec-head">토지정보 · 규제
+      <div className="sec-head">토지정보
         {parcels.length > 1 && <small style={{ color: "var(--muted)", fontWeight: 400 }}>다필지 {parcels.length}개 · 필지별 값</small>}
       </div>
 
@@ -112,7 +139,7 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZo
             </div>
           );
         })()}
-        <KV label="이용상황" field="land_use" value={p.land_use ?? ""} editable current={p.land_use ?? ""} onSave={onSave} onRevert={onRevert} />
+        <KV label="토지이용상황" field="land_use" value={p.land_use ?? ""} editable current={p.land_use ?? ""} onSave={onSave} onRevert={onRevert} />
         <EnumField label="지형/형상" enumKey="shape" value={p.shape} onSave={(v) => onSave("shape", v)} onRevert={() => onRevert("shape")} />
         <EnumField label="도로접면" enumKey="road_frontage" value={p.road_frontage} onSave={(v) => onSave("road_frontage", v)} onRevert={() => onRevert("road_frontage")} />
         <EnumField label="지세" enumKey="slope" value={p.slope} onSave={(v) => onSave("slope", v)} onRevert={() => onRevert("slope")} />
@@ -123,10 +150,12 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZo
           </span>
         </div>
       </div>
+    </div>
 
-      {/* 규제 2레벨: 건물 요약(OR 집계) + 필지 상세(값 클릭=수정 · 구역명 자유입력·"해당 없음"=미해당) */}
-      <div className="sec-head" style={{ fontSize: 13 }}>규제·특례</div>
-      <div style={{ padding: "0 14px 8px", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+    <div className="panel">
+      {/* 규제 2레벨: 건물 요약(OR 집계) + 필지 상세 */}
+      <div className="sec-head">규제·특례 {parcelTag}</div>
+      <div style={{ padding: "12px 14px 8px", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
         <span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 700, marginRight: 2 }}>건물 요약</span>
         {applied.length === 0
           ? <span style={{ color: "var(--green)", fontSize: 12, fontWeight: 700 }}>규제 사항 없음 — 전 필지 해당 없음</span>
@@ -141,18 +170,56 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZo
             current={p.regs[r] ?? ""} onSave={onSave} onRevert={onRevert} />
         ))}
       </div>
+    </div>
+    </div>
+    </>
+  );
+}
 
-      {/* 공시지가(선택 필지) — 시계열 그래프는 상단 '시세 추이' 통합 카드로 이동 */}
-      <div className="sec-head" style={{ fontSize: 13, borderTop: "1px solid var(--line)" }}>공시지가</div>
-      <div className="kv-grid" style={{ paddingTop: 0 }}>
-        <KV label="최신 공시지가" field="gongsi_latest" calc
-          value={man(gongsiLatest)} editable current={gongsiLatest != null ? Math.round(gongsiLatest / 1e4) : ""}
-          parse={(v) => String(Math.round(parseFloat(v) * 1e4))} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
-        {/* 총공시지가 = 🔀 자동(단가×면적) or 직접입력(억) */}
-        <KV label="총공시지가" field="total_gongsi" calc
-          value={eok(num(p.total_gongsi) ?? totalGongsi)} editable
-          current={(num(p.total_gongsi) ?? totalGongsi) != null ? +(((num(p.total_gongsi) ?? totalGongsi) as number) / 1e8).toFixed(2) : ""}
-          parse={(v) => String(Math.round(parseFloat(v) * 1e8))} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
+/* 공시지가 카드(건물 대표필지 시계열) — 실거래와 좌우 페어용 독립 컴포넌트. 그래프/표 토글 + 지표 스택. */
+export function GongsiCard({ series, totalGongsi, landArea }: { series: [number, number][]; totalGongsi: number | null; landArea: number | null }) {
+  const [mode, setMode] = useState<"c" | "t">("c");
+  if (!series || series.length < 2) return null;
+  const gongsiLatest = series[series.length - 1][1];
+  const total = totalGongsi ?? (gongsiLatest && landArea ? gongsiLatest * landArea : null);
+  return (
+    <div className="panel">
+      <div className="sec-head">
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span style={{ width: 14, height: 0, borderTop: "3px solid var(--c-gongsi)", display: "inline-block" }} />공시지가
+        </span>
+        <span style={{ marginLeft: "auto", display: "flex" }}>
+          <button className={`btn ${mode === "c" ? "primary" : ""}`} style={{ padding: "4px 10px", fontSize: 12, borderRadius: "6px 0 0 6px" }} onClick={() => setMode("c")}>그래프</button>
+          <button className={`btn ${mode === "t" ? "primary" : ""}`} style={{ padding: "4px 10px", fontSize: 12, borderRadius: "0 6px 6px 0", borderLeft: 0 }} onClick={() => setMode("t")}>표</button>
+        </span>
+      </div>
+      <div style={{ display: "flex", gap: 20, alignItems: mode === "t" ? "flex-start" : "center", flexWrap: "wrap", padding: "6px 14px 12px" }}>
+        <div style={{ flex: "1 1 260px", minWidth: 0, maxWidth: 560 }}>
+          {mode === "c" ? <GongsiTrend series={series} /> : <GongsiTable series={series} />}
+        </div>
+        <div style={{ flex: "1 1 164px", minWidth: 150, alignSelf: "stretch", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <div style={{ paddingBottom: 12 }}>
+            <div style={GL}>㎡당 공시지가</div>
+            <div className="num" style={{ ...GV, color: "var(--c-gongsi)" }}>{manPerM2(gongsiLatest)}<span style={GU}>/㎡</span></div>
+          </div>
+          <div style={{ borderTop: "1px solid var(--line)", padding: "12px 0" }}>
+            <div style={{ ...GL, display: "inline-flex", alignItems: "center" }}>공시지가 총액<InfoDot text="㎡당 공시지가 × 대지면적" /></div>
+            <div className="num" style={{ ...GV, color: "var(--ink)" }}>{wonShort(total) || "—"}</div>
+          </div>
+          {(() => {
+            const gr = gongsiRates(series);
+            if (!gr) return null;
+            const item = (lbl: string, v: number | null) => v == null ? null : (
+              <span style={{ fontSize: 12.5 }}><span style={{ color: "var(--muted)" }}>{lbl}</span> <b className="num" style={{ color: v >= 0 ? "var(--up)" : "var(--down)" }}>{ratePct(v)}</b></span>
+            );
+            return (
+              <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+                <div style={{ ...GL, marginBottom: 5 }}>공시지가 상승률</div>
+                <div style={{ display: "flex", gap: 13, flexWrap: "wrap" }}>{item("5년", gr.r5)}{item("10년", gr.r10)}{item("전체", gr.rate)}</div>
+              </div>
+            );
+          })()}
+        </div>
       </div>
     </div>
   );

@@ -1,23 +1,27 @@
 /* 정밀 데이터 랩 디자인 토큰 — specs/02-screens/_mockups/wireframe.css 이식 */
 :root {
-  --ink: #0F1A2E;
-  --ink-2: #3A4657;
-  --muted: #8A94A6;
-  --bg: #EDF1F6;
+  /* 프리미엄 웜 모노 — 웜 뉴트럴 베이스 + 잉크 강조(단일). 쿨 블루그레이 폐기. */
+  --ink: #262320;        /* 웜 near-black — 헤더·주요텍스트·강조(잉크 accent) */
+  --ink-2: #55504A;      /* 웜 슬레이트 — 보조 텍스트 */
+  --muted: #948D84;      /* 웜 그레이 — 라벨 */
+  --bg: #F1EFEA;         /* 웜 off-white 캔버스 */
   --panel: #FFFFFF;
-  --surface-2: #F5F8FC;
-  --line: #E3E8F0;
-  --line-2: #CFD8E4;
-  --signal: #1E5AF0;
-  --signal-ink: #1544C4;
-  --signal-bg: #EAF0FE;
-  --green: #0E9F6E;  --green-bg: #E4F5EE;
-  --blue: #1E5AF0;   --blue-bg: #EAF0FE;
+  --surface: #FFFFFF;    /* 밝은 표면(툴팁 글자·차트 끝점 링). 미정의였던 버그 수정됨 */
+  --surface-2: #F6F3EE;  /* 웜 라이트 서피스 */
+  --line: #E7E2D9;       /* 웜 hairline */
+  --line-2: #D8D2C7;
+  /* 강조 = 잉크(웜 모노). 버튼·활성·대표값·링크. 밝은 배경 위에서만 사용(다크 헤더는 별도). */
+  --signal: #262320;
+  --signal-ink: #000000;
+  --signal-bg: #ECE8E0;  /* 선택·hover 웜 틴트(구 연블루) */
+  --green: #0E805B;  --green-bg: #E4F0E9;
+  --blue: #2B5AA8;   --blue-bg: #E7ECF5;   /* 내광고 등 잔여 — 뉴트럴 슬레이트블루 */
   --purple: #6E56E8; --purple-bg: #EEEBFC;
-  --up: #DC2F30;  --down: #2C6BE0;
-  --c-real: #0F1A2E; --c-gongsi: #1E5AF0; --c-ad: #6E56E8;
-  --accent: #1E5AF0;  --lease: #12805C;  --vacant: #C2410C;
-  --radius: 9px; --radius-sm: 6px;
+  --up: #B23A2E;  --down: #5A6B85;         /* 상승 웜레드 / 하락 뉴트럴 */
+  --c-real: #C2571C; --c-gongsi: #3A5DA8; --c-ad: #7A6BB0; --c-rent: #0E805B;  /* 차트 계열색(웜톤 조정) */
+  --accent: #262320;  --lease: #0E805B;  --vacant: #B4531C;
+  --radius: 8px; --radius-sm: 6px;
+  /* 플랫 정밀 원칙: 카드는 그림자 없이 hairline 경계만. --shadow는 지도 위 떠있는 오버레이(레전드·툴바)에만. */
   --shadow: 0 1px 2px rgba(15,26,46,.04), 0 2px 6px rgba(15,26,46,.06);
   --shadow-lg: 0 8px 28px rgba(15,26,46,.14);
   --mono: "SF Mono","JetBrains Mono","Cascadia Mono",ui-monospace,Consolas,"D2Coding",monospace;
@@ -32,6 +36,16 @@ body {
 }
 .num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
+/* 차트 등장 애니메이션 — 컬럼 자라남·라인 그려짐·페이드인. 접근성: reduced-motion 시 무효. */
+@keyframes bt-col-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes bt-line-draw { to { stroke-dashoffset: 0; } }
+@keyframes bt-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes bt-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes bt-radar-in { from { opacity: 0; transform: scale(.55); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0s !important; }
+}
+
 /* 공통 GNB */
 .appbar {
   background: var(--ink); color: #fff; display: flex; align-items: center;
@@ -39,15 +53,15 @@ body {
   position: sticky; top: 0; z-index: 50;
 }
 .appbar .logo { font-weight: 800; font-size: 17px; letter-spacing: -.02em; display: flex; align-items: center; gap: 8px; }
-.appbar .logo::before { content: ""; width: 9px; height: 9px; border-radius: 2.5px; background: var(--signal); box-shadow: 0 0 0 3px rgba(30,90,240,.28); }
+.appbar .logo::before { content: ""; width: 9px; height: 9px; border-radius: 2.5px; background: #E7C876; box-shadow: 0 0 0 3px rgba(231,200,118,.22); }   /* 웜 골드 브랜드 점(단일 색 포인트) */
 .appbar nav { display: flex; gap: 4px; flex: 1; }
-.appbar nav a { color: #9fb0cc; text-decoration: none; font-weight: 700; font-size: 14px; padding: 17px 12px; border-bottom: 2px solid transparent; }
-.appbar nav a.on { color: #fff; border-bottom-color: var(--signal); }
+.appbar nav a { color: #ADA69B; text-decoration: none; font-weight: 700; font-size: 14px; padding: 17px 12px; border-bottom: 2px solid transparent; }
+.appbar nav a.on { color: #fff; border-bottom-color: #E7C876; }
 .appbar .credit { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 999px; padding: 5px 14px; font-size: 13px; }
 .appbar .credit b { font-family: var(--mono); margin-left: 6px; }
 
 /* 패널·버튼·입력 */
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }   /* 플랫: 그림자 없음, hairline 경계만 */
 .btn { border: 1px solid var(--line-2); background: #fff; border-radius: var(--radius-sm); padding: 8px 14px; font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer; }
 .btn:hover { border-color: var(--signal); color: var(--signal); }
 .btn.primary { background: var(--signal); border-color: var(--signal); color: #fff; }
@@ -70,14 +84,13 @@ body {
 .tag.fresh { background: var(--green-bg); color: var(--green); }
 
 /* KV 그리드(S02) */
-.kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; padding: 6px 14px 12px; }
+.kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; padding: 6px 14px 12px; }
 .kv { display: flex; justify-content: space-between; gap: 12px; padding: 9px 2px; border-bottom: 1px solid var(--line); }
 .kv .k { color: var(--ink-2); }
 .kv .v { font-weight: 700; font-variant-numeric: tabular-nums; }
 .kv .v.edited { color: var(--signal-ink); }
 
-.sec-head { font-weight: 800; font-size: 14px; padding: 12px 15px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); position: relative; letter-spacing: -.01em; }
-.sec-head::before { content: ""; position: absolute; left: 0; top: 11px; bottom: 11px; width: 3px; background: var(--signal); border-radius: 0 2px 2px 0; }
+.sec-head { font-weight: 800; font-size: 14px; padding: 13px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); letter-spacing: -.01em; }
 table.wf { width: 100%; border-collapse: collapse; font-size: 13px; }
 table.wf th { text-align: left; color: var(--muted); font-size: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line-2); }
 table.wf td { padding: 9px 12px; border-bottom: 1px solid var(--line); }

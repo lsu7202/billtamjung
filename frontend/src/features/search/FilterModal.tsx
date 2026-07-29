@@ -11,7 +11,7 @@ type Val = SliderVal | string[] | string;
 export type Values = Record<string, Val>;
 
 export interface RegionPick { bjd_code: string; label: string }
-export interface FilterResult { values: Values; regions: RegionPick[]; filters: AttrFilters }
+export interface FilterResult { values: Values; regions: RegionPick[]; filters: AttrFilters; polygon?: object | null }
 
 const PY = 3.305785;
 const isEmpty = (f: Field, v: Val | undefined): boolean => {
@@ -206,11 +206,17 @@ function toFilters(v: Values): AttrFilters {
   const la = sl("대지면적"), ta = sl("연면적");
   const fa = sl("규모 지상"), fb = sl("규모 지하"), bc = sl("건폐율"), fr = sl("용적률");
   const st = sl("역과의거리"), price = sl("실거래가"), gongsi = sl("최신 공시지가"), age = sl("사용승인일");
+  const deal = sl("실거래일");
   const zones = ms("용도지역").map(toZone).filter(Boolean);
-  // 마스터 buildings에 데이터 있는 필드만 서버 필터. 미적재(엘베·주차·건축면적·지목·
-  // 도로접면·지형·지세·주용도이름·기타용도)는 UI 전용 — 데이터 적재 시 여기에 추가.
+  // 서버 필터 매핑 — 값이 DB(master.buildings)와 그대로 일치하는 필드(대조 확인).
+  // 용도지역만 toZone 변환. 주용도는 DB가 코드 저장이라 매핑 전까지 미연결.
   return {
     use_zones: arr(zones),
+    jimoks: arr(ms("지목")),
+    land_uses: arr(ms("토지이용상황")),      // 섹터/디벨롭 선택값 = land_use 명
+    shapes: arr(ms("지형형상")),
+    road_frontages: arr(ms("도로접면")),
+    slopes: arr(ms("지세")),
     land_area_min: area(la.lo), land_area_max: area(la.hi),
     total_area_min: area(ta.lo), total_area_max: area(ta.hi),
     floors_above_min: num(fa.lo), floors_above_max: num(fa.hi),
@@ -219,6 +225,7 @@ function toFilters(v: Values): AttrFilters {
     far_min: num(fr.lo), far_max: num(fr.hi),
     station_dist_max: num(st.hi),
     last_sale_min: eok(price.lo), last_sale_max: eok(price.hi),
+    last_sale_years_min: num(deal.lo), last_sale_years_max: num(deal.hi),
     gongsi_min: man(gongsi.lo), gongsi_max: man(gongsi.hi),
     age_min: num(age.lo), age_max: num(age.hi),
   };
@@ -238,9 +245,9 @@ export function conditionChips(v: Values): { label: string; text: string }[] {
 }
 
 export function FilterModal({
-  initialValues, initialRegions, onApply, onClose, onDraw,
+  initialValues, initialRegions, initialPolygon, onApply, onClose, onDraw,
 }: {
-  initialValues?: Values; initialRegions?: RegionPick[];
+  initialValues?: Values; initialRegions?: RegionPick[]; initialPolygon?: object | null;
   onApply: (r: FilterResult) => void; onClose: () => void; onDraw?: () => void;
 }) {
   const regionsQ = useQuery({ queryKey: ["regions"], queryFn: searchApi.regions });
@@ -256,6 +263,7 @@ export function FilterModal({
   const [tab, setTab] = useState<"all" | number>("all");
   const [values, setValues] = useState<Values>(initialValues ?? {});
   const [regions, setRegions] = useState<RegionPick[]>(initialRegions ?? []);
+  const [pgon, setPgon] = useState<object | null>(initialPolygon ?? null);   // 그린 영역(필터·저장 대상)
   const [gu, setGu] = useState("");
   const [pop, setPop] = useState<{ f: Field; x: number; y: number } | null>(null);
   const [showSave, setShowSave] = useState(false); const [showLoad, setShowLoad] = useState(false);
@@ -372,7 +380,7 @@ export function FilterModal({
             <span className="applied">적용 조건 <b>{count}</b>개</span>
             <span className="sp" />
             <button className="cancel" onClick={onClose}>취소</button>
-            <button className="apply" onClick={() => { onApply({ values, regions, filters: toFilters(values) }); onClose(); }}>적용</button>
+            <button className="apply" onClick={() => { onApply({ values, regions, filters: toFilters(values), polygon: pgon }); onClose(); }}>적용</button>
           </div>
         </div>
       </div>
@@ -398,8 +406,8 @@ export function FilterModal({
             <div className="mini-foot"><button className="mini-cancel" onClick={() => setShowSave(false)}>취소</button>
               <button className="mini-ok" onClick={async () => {
                 if (!saveName.trim()) { setSaveWarn("이름을 입력하세요"); return; }
-                if (count === 0) { setSaveWarn("저장할 조건이 없습니다"); return; }
-                await savedApi.save(saveName.trim(), { values, regions } as Record<string, unknown>);
+                if (count === 0 && !pgon) { setSaveWarn("저장할 조건이 없습니다"); return; }
+                await savedApi.save(saveName.trim(), { values, regions, polygon: pgon } as Record<string, unknown>);
                 setShowSave(false); setSaveName(""); setSaveWarn(""); saved.refetch();
               }}>저장</button>
             </div>
@@ -415,12 +423,12 @@ export function FilterModal({
             <div className="preset-list">
               {(saved.data ?? []).length === 0 && <div className="preset-empty">저장된 조건이 없습니다</div>}
               {(saved.data ?? []).map((p) => {
-                const c = p.conditions_json as { values?: Values; regions?: RegionPick[] };
+                const c = p.conditions_json as { values?: Values; regions?: RegionPick[]; polygon?: object | null };
                 return (
                   <div key={p.id} className="preset">
-                    <div><div className="pn">{p.name}</div><div className="pc">조건 {activeCount(c.values ?? {}, c.regions ?? [])}개</div></div>
+                    <div><div className="pn">{p.name}</div><div className="pc">조건 {activeCount(c.values ?? {}, c.regions ?? [])}개{c.polygon ? " · 영역" : ""}</div></div>
                     <span className="sp" />
-                    <button className="pload" onClick={() => { setValues(c.values ?? {}); setRegions(c.regions ?? []); setShowLoad(false); }}>불러오기</button>
+                    <button className="pload" onClick={() => { setValues(c.values ?? {}); setRegions(c.regions ?? []); setPgon(c.polygon ?? null); setShowLoad(false); }}>불러오기</button>
                     <button className="pdel" onClick={async () => { await savedApi.remove(p.id); saved.refetch(); }}>삭제</button>
                   </div>
                 );

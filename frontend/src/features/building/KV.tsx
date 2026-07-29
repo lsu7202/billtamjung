@@ -34,30 +34,60 @@ export function FloorsRow({ above, below, onSave }: { above: unknown; below: unk
 }
 
 /* 마스터 표시 + 유저 오버레이 인라인 편집(값 클릭→수정→자동저장·검증·↺되돌리기). 최상위=편집 중 리마운트 방지 */
+export const formatPhone = (v: string): string => {   // 전화번호 자동 하이픈(휴대폰·서울02·지역번호)
+  const d = v.replace(/[^\d]/g, "").slice(0, 11);
+  if (d.startsWith("02")) {
+    if (d.length <= 2) return d;
+    if (d.length <= 5) return `${d.slice(0, 2)}-${d.slice(2)}`;
+    if (d.length <= 9) return `${d.slice(0, 2)}-${d.slice(2, 5)}-${d.slice(5)}`;
+    return `${d.slice(0, 2)}-${d.slice(2, 6)}-${d.slice(6, 10)}`;
+  }
+  if (d.length <= 3) return d;
+  if (d.length < 8) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  if (d.length <= 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;   // 10자리 = 3-3-4
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7, 11)}`;                     // 11자리(휴대폰) = 3-4-4
+};
+
+export const wonToEok = (won: unknown): string => {   // 원(콤마 허용) → "45억"/"45.23억" (0=빈칸)
+  const n = Number(String(won ?? "").replace(/,/g, ""));
+  if (!n || Number.isNaN(n)) return "";
+  const e = n / 1e8;
+  return Number.isInteger(e) ? `${e}억` : `${e.toFixed(2)}억`;
+};
+
 export interface KVProps {
   label: string; field?: string; value: React.ReactNode; unit?: string; editable?: boolean; calc?: boolean;
   validate?: Validate; current?: unknown; parse?: (v: string) => string;   // parse: 입력→저장값 변환(평→㎡·억→원)
+  money?: boolean;   // 금액: 원 단위 입력 + 실시간 억 표시(노출은 억)
+  format?: (v: string) => string;   // 텍스트 라이브 포맷(전화번호 하이픈 등)
   onSave?: (field: string, value: string) => void; onRevert?: (field: string) => void;
 }
-export function KV({ label, field, value, unit: u, editable, validate, current, parse, onSave, onRevert }: KVProps) {
+export function KV({ label, field, value, unit: u, editable, validate, current, parse, money, format, onSave, onRevert }: KVProps) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState("");
   const [err, setErr] = useState<string | null>(null);
   function commit() {
-    const e = validate && val ? validate(val) : null;
+    const raw = money ? val.replace(/,/g, "") : val;   // 금액=콤마 제거한 숫자로 저장
+    const e = validate && raw ? validate(raw) : null;
     if (e) { setErr(e); return; }                   // 오류 → 저장 안 함, 편집 유지
     setErr(null); setEditing(false);
-    if (val && field) onSave?.(field, parse ? parse(val) : val);
+    if (raw && field) onSave?.(field, parse ? parse(raw) : raw);
   }
   if (editable && field && editing) {
     return (
       <div className="kv"><span className="k">{label}</span>
         <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
           <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
-            <input className="input" style={{ maxWidth: 110, padding: "3px 8px", borderColor: err ? "var(--up)" : undefined }} autoFocus value={val}
-              onChange={(e) => { setVal(e.target.value); if (err) setErr(null); }}
+            <input className="input" inputMode={money ? "numeric" : undefined}
+              style={{ maxWidth: money ? 120 : 110, padding: "3px 8px", textAlign: money ? "right" : undefined, borderColor: err ? "var(--up)" : undefined }} autoFocus value={val}
+              onChange={(e) => {
+                if (money) { const d = e.target.value.replace(/[^\d]/g, ""); setVal(d ? Number(d).toLocaleString() : ""); }
+                else setVal(format ? format(e.target.value) : e.target.value);
+                if (err) setErr(null);
+              }}
               onBlur={commit}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setErr(null); setEditing(false); } }} />
+            {money && <span style={{ fontSize: 11, color: "var(--muted)", minWidth: 40 }}>{wonToEok(val) || "—"}</span>}
             {/* ↺ = 편집 중에만 노출. mousedown preventDefault로 blur-commit 차단 후 되돌리기 */}
             <button className="btn" style={{ padding: "0 6px", fontSize: 11 }}
               onMouseDown={(e) => { e.preventDefault(); setErr(null); setEditing(false); onRevert?.(field); }}
@@ -75,7 +105,7 @@ export function KV({ label, field, value, unit: u, editable, validate, current, 
       <span className="v num" style={{
         ...(canEdit ? { cursor: "pointer", display: "inline-block", minWidth: empty ? 44 : undefined, minHeight: "1.1em" } : {}),
       }}
-        onClick={canEdit ? () => { setVal(String(current ?? "")); setErr(null); setEditing(true); } : undefined}
+        onClick={canEdit ? () => { setVal(money && current ? Number(String(current).replace(/,/g, "")).toLocaleString() : String(current ?? "")); setErr(null); setEditing(true); } : undefined}
         title={editable ? "클릭 = 수정(자동저장)" : undefined}>
         {empty ? "" : <>{value}{u}</>}
       </span>
