@@ -9,7 +9,7 @@ import { geoToPaths } from "../../shared/map/geo";
 import "./reportslide.css";
 
 /** 분석 보고서 — R_example.pptx 8슬라이드를 웹으로(네이비 코퍼레이트·16:9·cqw 스케일).
- * 표지 → 기본정보 → 분석흐름 → 가치점수 → 매매사례 → 주변월세 → 예상수익률 → 최종요약. specs R-보고서 §5·§6a. */
+ * 표지 → 핵심요약 → 기본정보 → 가치점수 → 매매사례 → 주변월세 → 예상수익률 → 최종요약. specs R-보고서 §5·§6a. */
 const P = 3.305785;
 const AXIS: [string, string][] = [
   ["road_access", "도로접면"], ["station_dist", "역과의거리"], ["use_zone", "용도지역"],
@@ -103,7 +103,7 @@ export function ReportPage() {
     if (document.fullscreenElement) document.exitFullscreen?.();
     else rootRef.current?.requestFullscreen?.();
   };
-  const SLIDES = 9;
+  const SLIDES = 8;
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); setCur((c) => Math.min(SLIDES - 1, c + 1)); }
@@ -238,34 +238,7 @@ export function ReportPage() {
           <ReportMap lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom} />
         </div>
       </Slide>,
-      <Slide key={2} n="03" foot="분석 흐름" rno={rno} date={date}
-        title="분석 흐름" desc="단계별 분석을 통해 본 매물의 적정매매가와 주변월세시세를 체계적으로 산정합니다.">
-        <div style={{ display: "flex", gap: "2.5cqw", width: "100%" }}>
-          <div style={{ flex: "0 0 52%", display: "flex", flexDirection: "column", gap: ".5cqw" }}>
-            {[["STEP 1", "가치점수 분석", "입지·건물·환경 종합 평가"],
-              ["STEP 2", "매매사례 시세분석", "반경 500m 내 최근 5년 유사 거래사례 비교"],
-              ["STEP 3", "주변월세시세 분석", "층별 유사 월세 광고사례 비교"],
-              ["STEP 4", "적정매매가·수익률 요약", "적정매매가·협의금액·예상수익률 정리"]].map(([n, t, d], i) => (
-              <div key={i}>
-                <div className="rs-step"><span className="n">{n}</span><span className="t">{t}</span><span className="d">{d}</span></div>
-                {i < 3 && <div className="rs-arrow">▼</div>}
-              </div>
-            ))}
-          </div>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "1cqw" }}>
-            <div className="rs-concl navy"><h4>빌탐정 분석 엔진</h4>
-              가치점수 분석, 유사 매매사례 분석, 주변월세시세 분석을 종합하여 본 매물의 <b style={{ color: "var(--blue)" }}>적정매매가와 주변월세시세</b>를 산출합니다.</div>
-            <div style={{ fontSize: "1.35cqw", fontWeight: 800, color: "var(--navy)", marginTop: ".3cqw" }}>분석 적용 원칙</div>
-            {[["기본 반경 500m", "상권 중심·반경 직접 조정"],
-              ["기본 최근 5년", "최근 5년 이내 거래·광고 적용"],
-              ["거리가중 우선", "가까운 실거래를 무겁게 반영(1/거리)"],
-              ["매매·월세 산정 기준", "매매=연면적당 평단가, 월세=층별 광고사례"]].map(([k, v], i) => (
-              <div key={i} style={{ fontSize: "1.05cqw" }}><b style={{ color: "var(--navy)" }}>{k}</b> <span style={{ color: "var(--rmuted)" }}>· {v}</span></div>
-            ))}
-          </div>
-        </div>
-      </Slide>,
-      <Slide key={3} n="04" foot="가치점수 분석" rno={rno} date={date}
+      <Slide key={2} n="03" foot="가치점수 분석" rno={rno} date={date}
         title="가치점수 분석" desc="입지·교통·물리적 조건 등 주요 항목을 종합 평가한 본 매물의 가치 점수입니다.">
         <div style={{ display: "flex", gap: "2.5cqw", width: "100%" }}>
           <table className="rs-tbl" style={{ flex: "0 0 52%", alignSelf: "flex-start" }}>
@@ -291,7 +264,7 @@ export function ReportPage() {
           </div>
         </div>
       </Slide>,
-      <Slide key={4} n="05" foot="매매사례 시세분석" rno={rno} date={date}
+      <Slide key={3} n="04" foot="매매사례 시세분석" rno={rno} date={date}
         title="매매사례 시세분석" desc={`${shortAddr} 인근 유사 거래사례로 연면적당 평단가를 산정하고 적정매매가를 도출했습니다.`}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%" }}>
           <table className="rs-tbl">
@@ -333,7 +306,7 @@ export function ReportPage() {
           </div>
         </div>
       </Slide>,
-      <Slide key={5} n="06" foot="주변월세시세 분석" rno={rno} date={date}
+      <Slide key={4} n="05" foot="주변월세시세 분석" rno={rno} date={date}
         title="주변월세시세 분석" desc="반경 500m 내 유사 임대광고 사례(층별 5건 내외) 기준 브리핑형 임대시세 분석">
         <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%" }}>
           <div className="rs-grid" style={{ gridTemplateColumns: "1fr 1.3fr 1fr" }}>
@@ -357,7 +330,7 @@ export function ReportPage() {
           ) : <div className="rs-callout" style={{ background: "var(--card)", borderColor: "var(--rl)", color: "var(--rmuted)" }}>주변 임대광고 사례가 없어 현재 임대료 기준으로 분석되었습니다.</div>}
         </div>
       </Slide>,
-      <Slide key={6} n="07" foot="예상수익률 분석" rno={rno} date={date}
+      <Slide key={5} n="06" foot="예상수익률 분석" rno={rno} date={date}
         title="예상수익률 분석" desc="매매가 기준 수익성 브리핑">
         <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%" }}>
           <div className="rs-grid" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
@@ -401,7 +374,7 @@ export function ReportPage() {
           </div>
         </div>
       </Slide>,
-      <Slide key={7} n="08" foot="최종 분석 요약" rno={rno} date={date}
+      <Slide key={6} n="07" foot="최종 분석 요약" rno={rno} date={date}
         title="최종 분석 요약" desc="적정매매가 및 수익성 종합 결론">
         <div style={{ display: "flex", flexDirection: "column", gap: "1.4cqw", width: "100%" }}>
           <div style={{ display: "flex", alignItems: "stretch", gap: "1cqw" }}>
