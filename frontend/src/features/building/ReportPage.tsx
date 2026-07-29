@@ -335,11 +335,11 @@ export function ReportPage() {
             <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
               <div style={{ fontSize: "1.15cqw", lineHeight: 1.75, color: "var(--rink)" }}>
                 {compMin && compMax
-                  ? <>인근 유사 실거래의 연면적당 평단가는 사례별 약 <b>{compMin.toLocaleString()}~{compMax.toLocaleString()}만원</b> 수준입니다. 본 매물은 입지·용도·건물 규모 등 개별 특성을 반영해 <b style={{ color: "var(--blue)" }}>평당 약 {avgPer ? Math.round(avgPer / 1e4).toLocaleString() : "—"}만원</b>으로 평가되며, 이를 연면적 <b>{py(totalArea)}평</b>에 적용한 결과가 <b style={{ color: "var(--blue)" }}>빌탐정 적정가 약 {eok(fair)}억원</b>입니다.</>
-                  : <>반경 내 유사 실거래가 충분치 않아, 공시지가·대지·건물 규모 등 다른 기준을 함께 반영해 적정가를 산정했습니다.</>}
+                  ? <>인근 유사 실거래의 연면적당 평단가는 사례별 약 <b>{compMin.toLocaleString()}~{compMax.toLocaleString()}만원</b> 수준입니다. 본 매물은 입지·용도·건물 규모 등 개별 특성을 반영해 <b style={{ color: "var(--blue)" }}>평당 약 {avgPer ? Math.round(avgPer / 1e4).toLocaleString() : "—"}만원</b> 수준으로 분석됩니다.</>
+                  : <>반경 내 유사 실거래가 충분치 않아, 다른 기준을 함께 반영해 시세를 분석했습니다.</>}
               </div>
               <div style={{ fontSize: "1cqw", lineHeight: 1.6, color: "var(--rmuted)", marginTop: ".9cqw" }}>
-                실거래가는 공시지가 대비 배율, 대지 평단가, 연면적 평단가 등 여러 기준으로 교차 분석하며, 이를 건물 특성에 맞게 종합한 최종 결론은 마지막 장에 정리했습니다.
+                이 실거래 기준값은 하나의 근거이며, 공시지가·주변 월세시세(수익가치) 등 다른 요소와 함께 종합해 최종 적정가를 산정합니다. 종합 결론은 마지막 장에서 정리합니다.
               </div>
             </div>
           </div>
