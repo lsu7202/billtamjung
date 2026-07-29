@@ -9,7 +9,7 @@ import { geoToPaths } from "../../shared/map/geo";
 import "./reportslide.css";
 
 /** 분석 보고서 — R_example.pptx 8슬라이드를 웹으로(네이비 코퍼레이트·16:9·cqw 스케일).
- * 표지 → 핵심요약 → 기본정보 → 가치점수 → 매매사례 → 주변월세 → 예상수익률 → 최종요약. specs R-보고서 §5·§6a. */
+ * 표지 → 핵심요약 → 기본정보 → 가치분석 → 실거래사례 → 주변월세 → 예상수익률 → 최종요약. specs R-보고서 §5·§6a. */
 const P = 3.305785;
 const AXIS: [string, string][] = [
   ["road_access", "도로접면"], ["station_dist", "역과의거리"], ["use_zone", "용도지역"],
@@ -292,8 +292,8 @@ export function ReportPage() {
           </div>
         </div>
       </Slide>,
-      <Slide key={3} n="04" foot="매매사례 시세분석" rno={rno} date={date}
-        title="매매사례 시세분석" desc={`${shortAddr} 인근 유사 거래사례로 연면적당 평단가를 산정하고 적정매매가를 도출했습니다.`}>
+      <Slide key={3} n="04" foot="실거래 사례 시세분석" rno={rno} date={date}
+        title="실거래 사례 시세분석" desc={`${shortAddr} 인근 유사 실거래 사례로 연면적당 평단가를 산정하고 적정매매가를 도출했습니다.`}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%" }}>
           <table className="rs-tbl">
             <thead><tr><th>사례</th><th>주소</th><th className="r">거리</th><th>거래일</th><th className="r">매매가</th><th className="r">연면적</th><th className="r">평단가</th><th className="r">시점보정</th></tr></thead>
@@ -414,7 +414,7 @@ export function ReportPage() {
           </div>
           <div style={{ display: "flex", gap: "1.4cqw" }}>
             <div className="rs-concl navy" style={{ flex: 1 }}><h4>최종 분석 결론</h4>
-              <li>유사 매매사례 분석 결과 <b style={{ color: "var(--blue)" }}>빌탐정 적정가</b>는 약 <b style={{ color: "var(--blue)" }}>{eok(fair)}억 원</b> 수준입니다.</li>
+              <li>유사 실거래 사례 분석 결과 <b style={{ color: "var(--blue)" }}>빌탐정 적정가</b>는 약 <b style={{ color: "var(--blue)" }}>{eok(fair)}억 원</b> 수준입니다.</li>
               {gap != null && gap > 0 && <li>매도희망가 {eok(ask)}억 원은 매매가 대비 약 {eok(gap)}억 원 높은 수준입니다.</li>}
               <li>매수 검토 시 <b>매매가 {eok(broker)}억 원</b> 내외 기준 가격 협의가 필요합니다.</li>
               <li>가치점수 {grade}등급({score}점) · 매매가 기준 예상수익률 {roi != null ? `${roi.toFixed(2)}%` : "—"}.</li>
