@@ -5,6 +5,7 @@ import { reportsApi, buildingsApi, type CompUsed, type RentFloor } from "../../s
 import { ScoreRadar, CompareBar } from "./ReportPrimitives";
 import { Logo, Seal, Icon, ScoreRing, BuildingArt } from "./ReportAssets";
 import { loadNaver } from "../../shared/map/naver";
+import { geoToPaths } from "../../shared/map/geo";
 import "./reportslide.css";
 
 /** 분석 보고서 — R_example.pptx 8슬라이드를 웹으로(네이비 코퍼레이트·16:9·cqw 스케일).
@@ -25,8 +26,8 @@ const eok = (v: number | null | undefined, d = 0) => (v ? `${(v / 1e8).toFixed(d
 const man = (v: number | null | undefined) => (v ? `${Math.round(v / 1e4).toLocaleString()}` : "—");
 const py = (m2: number | null) => (m2 ? (m2 / P).toFixed(2) : "—");
 
-/** 보고서용 지도 — 네이버 SDK, 상호작용 off(정적 지도처럼). 좌표 없으면 안내. */
-function ReportMap({ lng, lat }: { lng?: number | null; lat?: number | null }) {
+/** 보고서용 지도 — 네이버 SDK, 상호작용 off(정적 지도처럼). 필지 폴리곤 표시(있으면 마커 대신). */
+function ReportMap({ lng, lat, geom }: { lng?: number | null; lat?: number | null; geom?: any }) {
   const ref = useRef<HTMLDivElement>(null);
   const [err, setErr] = useState(false);
   useEffect(() => {
@@ -36,16 +37,27 @@ function ReportMap({ lng, lat }: { lng?: number | null; lat?: number | null }) {
       if (!ref.current) return;
       const pos = new naver.maps.LatLng(lat, lng);
       map = new naver.maps.Map(ref.current, {
-        center: pos, zoom: 17, draggable: false, scrollWheel: false, pinchZoom: false,
+        center: pos, zoom: 18, draggable: false, scrollWheel: false, pinchZoom: false,
         disableDoubleClickZoom: true, scaleControl: false, mapDataControl: false, zoomControl: false,
       });
-      new naver.maps.Marker({
-        position: pos, map,
-        icon: { content: `<div style="width:15px;height:15px;border-radius:50%;background:#262320;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45)"></div>`, anchor: new naver.maps.Point(9, 9) },
-      });
+      const paths = geom ? geoToPaths(naver, geom) : [];
+      if (paths.length) {
+        new naver.maps.Polygon({
+          map, paths, clickable: false,
+          fillColor: "#2B5AA8", fillOpacity: 0.18, strokeColor: "#2B5AA8", strokeWeight: 2.5, strokeOpacity: 0.95,
+        });
+        const bnds = new naver.maps.LatLngBounds();
+        paths.forEach((ring: any[]) => ring.forEach((p: any) => bnds.extend(p)));
+        map.fitBounds(bnds, { top: 44, right: 44, bottom: 44, left: 44 });
+      } else {
+        new naver.maps.Marker({
+          position: pos, map,
+          icon: { content: `<div style="width:15px;height:15px;border-radius:50%;background:#262320;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45)"></div>`, anchor: new naver.maps.Point(9, 9) },
+        });
+      }
     }).catch(() => setErr(true));
     return () => map?.destroy?.();
-  }, [lng, lat]);
+  }, [lng, lat, geom]);
   if (lng == null || lat == null) return <div className="rs-map rs-map-empty">위치 정보 없음</div>;
   return <div className="rs-map" ref={ref}>{err && <span className="rs-map-empty">지도를 불러오지 못했습니다</span>}</div>;
 }
@@ -219,7 +231,7 @@ export function ReportPage() {
             <tr><td>매도희망가</td><td className="blue b">{ask ? `${eok(ask)}억 원` : "—"}</td></tr>
           </tbody></table>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".7cqw", minWidth: 0 }}>
-            <ReportMap lng={num(b.lng)} lat={num(b.lat)} />
+            <ReportMap lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom} />
             <div style={{ fontSize: "1cqw", color: "var(--rmuted)" }}>{shortAddr} · 위치</div>
           </div>
         </div>

@@ -23,6 +23,13 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
         data["lng"], data["lat"] = coords["lng"], coords["lat"]
     data.pop("geom", None)   # WKB 불필요
 
+    # 필지 경계(보고서 지도용) — 대표+부속 필지 합집합 GeoJSON
+    pgeom = await pool().fetchval(
+        """SELECT ST_AsGeoJSON(ST_Union(p.geom)) FROM master.building_parcels bp
+           JOIN master.parcels p ON p.pnu = bp.pnu WHERE bp.building_pk = $1""",
+        building_pk)
+    data["parcel_geom"] = json.loads(pgeom) if pgeom else None
+
     # 유동인구: 오버레이 없으면 접근성 proxy(도로+역)로 추정 등급 채움 — '미지정' 방지(footer 주의사항이 추정 커버)
     data["float_pop"] = vs.float_pop_label(data)
 
