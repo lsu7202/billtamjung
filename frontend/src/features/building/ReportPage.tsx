@@ -220,22 +220,22 @@ export function ReportPage() {
       <Slide key={1} n="02" foot="매물 기본정보" rno={rno} date={date}
         title="매물 기본정보" desc="해당 건물의 기본정보 및 입지 정보 (토지이용계획확인원 및 건축물대장 기준)">
         <div style={{ display: "flex", gap: "2.5cqw", width: "100%" }}>
-          <table className="rs-tbl rs-kv" style={{ flex: "0 0 46%", alignSelf: "flex-start" }}><tbody>
-            <tr><td>대지면적</td><td>{py(landArea)}평 ({landArea ?? "—"}㎡)</td></tr>
-            <tr><td>연면적</td><td>{py(totalArea)}평 ({totalArea ?? "—"}㎡)</td></tr>
-            <tr><td>용도지역</td><td>{useZone}</td></tr>
-            <tr><td>건축물용도</td><td>{mainUse}</td></tr>
-            <tr><td>층수</td><td>지하 {b.floors_below ?? "—"}층 / 지상 {b.floors_above ?? "—"}층</td></tr>
-            <tr><td>사용승인일</td><td>{b.approval_ymd ? String(b.approval_ymd).slice(0, 10).replace(/-/g, ".") : "—"}</td></tr>
-            <tr><td>주차</td><td>{b.parking != null ? `${b.parking}대` : "—"}</td></tr>
-            <tr><td>엘리베이터</td><td>{b.elevator != null ? (Number(b.elevator) > 0 ? `${b.elevator}대` : "없음") : "—"}</td></tr>
-            <tr><td>도로접면</td><td>{b.road_frontage ?? "—"}</td></tr>
-            <tr><td>매도희망가</td><td className="blue b">{ask ? `${eok(ask)}억 원` : "—"}</td></tr>
-          </tbody></table>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".8cqw", minWidth: 0 }}>
+          <div style={{ flex: "0 0 46%", alignSelf: "flex-start", display: "flex", flexDirection: "column", gap: "1cqw" }}>
             <div style={{ fontSize: "2.1cqw", fontWeight: 800, color: "var(--navy)", letterSpacing: "-.01em", lineHeight: 1.1 }}>{shortAddr}</div>
-            <ReportMap lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom} />
+            <table className="rs-tbl rs-kv"><tbody>
+              <tr><td>대지면적</td><td>{py(landArea)}평 ({landArea ?? "—"}㎡)</td></tr>
+              <tr><td>연면적</td><td>{py(totalArea)}평 ({totalArea ?? "—"}㎡)</td></tr>
+              <tr><td>용도지역</td><td>{useZone}</td></tr>
+              <tr><td>건축물용도</td><td>{mainUse}</td></tr>
+              <tr><td>층수</td><td>지하 {b.floors_below ?? "—"}층 / 지상 {b.floors_above ?? "—"}층</td></tr>
+              <tr><td>사용승인일</td><td>{b.approval_ymd ? String(b.approval_ymd).slice(0, 10).replace(/-/g, ".") : "—"}</td></tr>
+              <tr><td>주차</td><td>{b.parking != null ? `${b.parking}대` : "—"}</td></tr>
+              <tr><td>엘리베이터</td><td>{b.elevator != null ? (Number(b.elevator) > 0 ? `${b.elevator}대` : "없음") : "—"}</td></tr>
+              <tr><td>도로접면</td><td>{b.road_frontage ?? "—"}</td></tr>
+              <tr><td>매도희망가</td><td className="blue b">{ask ? `${eok(ask)}억 원` : "—"}</td></tr>
+            </tbody></table>
           </div>
+          <ReportMap lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom} />
         </div>
       </Slide>,
       <Slide key={2} n="03" foot="분석 흐름" rno={rno} date={date}
