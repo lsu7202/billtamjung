@@ -166,6 +166,7 @@ export function ReportPage() {
   const avgPer = fair && totalP ? Math.round(fair / totalP) : (pv?.avg_per_pyeong ?? null);   // 산정요약 = 빌탐정 적정가와 일치
   const roi = broker && rent ? Math.round((rent * 12 / broker) * 10000) / 100 : (pv?.expected_roi ?? null);  // 수익률=매매가 기준
   const comps = ((pv?.comps_used ?? []) as CompUsed[]).slice(0, 7);
+  const bd = pv?.breakdown ?? null;   // F-17 3법 블렌드 산출분해(공시배율·대지·연면적·α·β)
   const floors = (pv?.rent_floors ?? []) as RentFloor[];
   const roiAsk = ask && rent ? (rent * 12 / ask) * 100 : null;
 
@@ -293,7 +294,7 @@ export function ReportPage() {
         </div>
       </Slide>,
       <Slide key={3} n="04" foot="주변 실거래 분석" rno={rno} date={date}
-        title="주변 실거래 분석" desc={`${shortAddr} 인근 유사 실거래 사례로 연면적당 평단가를 산정하고 적정매매가를 도출했습니다.`}>
+        title="주변 실거래 분석" desc={`${shortAddr} 인근 유사 실거래를 공시배율·대지평단가·연면적 3법으로 분석해 적정매매가를 도출했습니다.`}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%" }}>
           <table className="rs-tbl">
             <thead><tr><th>사례</th><th>주소</th><th className="r">거리</th><th>거래일</th><th className="r">매매가</th><th className="r">연면적</th><th className="r">평단가</th><th className="r">시점보정</th></tr></thead>
@@ -319,12 +320,30 @@ export function ReportPage() {
                 items={[...comps.map((c, i) => ({ label: `${i + 1}`, value: c.per_now ?? 0, color: "var(--navy)" })),
                   ...(avgPer ? [{ label: "본매물", value: avgPer, color: "var(--blue)", strong: true }] : [])].filter((x) => x.value > 0)} />}
             </div>
-            <div className="rs-flow" style={{ flex: 1 }}>
-              <div className="rs-fbox"><div className="k">가중평균 평단가</div><div className="v">{avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만/평` : "—"}</div></div>
-              <span className="rs-op">×</span>
-              <div className="rs-fbox"><div className="k">본 매물 연면적</div><div className="v">{py(totalArea)}평</div></div>
-              <span className="rs-op">=</span>
-              <div className="rs-fbox hl"><div className="k">빌탐정 적정가</div><div className="v" style={{ color: "var(--peach-tx)" }}>{eok(fair)}억 원</div></div>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".55cqw", justifyContent: "center" }}>
+              {bd ? <>
+                <div style={{ display: "flex", gap: ".55cqw" }}>
+                  {([["공시배율법", bd.gong], ["대지평단가법", bd.land], ["연면적법", bd.far]] as [string, number | null][])
+                    .filter(([, v]) => v != null).map(([k, v]) => (
+                    <div key={k} className="rs-fbox" style={{ flex: 1, padding: ".7cqw .5cqw", textAlign: "center" }}>
+                      <div className="k" style={{ fontSize: ".85cqw" }}>{k}</div>
+                      <div className="v" style={{ fontSize: "1.25cqw" }}>{eok(v!)}억</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: ".92cqw", color: "var(--rmuted)", lineHeight: 1.4 }}>
+                  공시:대지 <b style={{ color: "var(--navy)" }}>{Math.round(bd.wg * 100)}:{Math.round((1 - bd.wg) * 100)}</b> 블렌드
+                  {bd.alpha > 0 && <> → 연면적법 <b style={{ color: "var(--navy)" }}>{Math.round(bd.alpha * 100)}%</b> 반영</>}
+                  {bd.beta && bd.income_val ? <> → 수익환원 <b style={{ color: "var(--navy)" }}>{Math.round(bd.beta * 100)}%</b> 블렌드</> : null}
+                </div>
+                <div className="rs-fbox hl"><div className="k">빌탐정 적정가</div><div className="v" style={{ color: "var(--peach-tx)", fontSize: "1.7cqw" }}>{eok(fair)}억 원</div></div>
+              </> : <div className="rs-flow">
+                <div className="rs-fbox"><div className="k">가중평균 평단가</div><div className="v">{avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만/평` : "—"}</div></div>
+                <span className="rs-op">×</span>
+                <div className="rs-fbox"><div className="k">본 매물 연면적</div><div className="v">{py(totalArea)}평</div></div>
+                <span className="rs-op">=</span>
+                <div className="rs-fbox hl"><div className="k">빌탐정 적정가</div><div className="v" style={{ color: "var(--peach-tx)" }}>{eok(fair)}억 원</div></div>
+              </div>}
             </div>
           </div>
           <div className="rs-callout">
