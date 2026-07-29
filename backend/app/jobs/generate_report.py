@@ -327,14 +327,18 @@ def synthesize(subject: dict, subject_score: float, comps: list[dict],
         subj_py = (_fnum(subject.get("total_area")) or 0) / report_calc.M2_PER_PYEONG
         ap = {**ap, "fair_price": blended,
               "avg_per_pyeong": round(blended / subj_py) if subj_py else ap.get("avg_per_pyeong")}
-    roi = report_calc.expected_roi(rent, ap["fair_price"])
-    ask = _fnum(subject.get("ask_price")) or _fnum(subject.get("sale_price"))   # 매도희망가(신규) 우선, 없으면 매매가
-    gap = round(ask - ap["fair_price"]) if (ask and ap["fair_price"]) else None
+    # 3층 가격(2026-07-29): 매도희망가(건물주) · 매매가(중개인, 기본=적정가) · 빌탐정 적정가(시스템=fair_price)
+    ask = _fnum(subject.get("ask_price"))                            # 매도희망가 = 건물주 원하는 값(오버레이)
+    broker = _fnum(subject.get("sale_price")) or ap.get("fair_price")  # 매매가 = 중개인 판단(오버레이), 없으면 적정가
+    roi = report_calc.expected_roi(rent, broker or ap["fair_price"])   # 수익률은 실제 매수기준가(매매가)로
+    gap = round(ask - broker) if (ask and broker) else None          # 협의금액 = 매도희망가 − 매매가
     if ap.get("breakdown"):   # 수익환원 블렌드 정보 보강(리빌용)
         ap["breakdown"] = {**ap["breakdown"], "beta": round(beta, 2),
                            "income_val": round(ann_rent / cap) if (ann_rent and cap) else None,
                            "final": ap.get("fair_price")}
-    return {**ap, "expected_roi": roi, "gap": gap, "ask_price": round(ask) if ask else None,
+    return {**ap, "expected_roi": roi, "gap": gap,
+            "ask_price": round(ask) if ask else None,               # 매도희망가
+            "broker_price": round(broker) if broker else None,     # 매매가(중개인)
             "applied_rent": round(rent) if rent else None, "expected_deposit": round(deposit) if deposit else None,
             "rent_floors": rent_apply["floors"] if rent_apply else None, "market_applied": bool(rent_apply)}
 
@@ -720,16 +724,33 @@ async def run_generate(report_id: int, team_id: int) -> dict:
         path = os.path.join(REPORT_DIR, f"report_{report_id}.pptx")
         _make_pptx(path, rep["kind"], b, vs, syn, report_id)
 
+        # 웹 보고서(/reports/:id) 렌더용 synthesis 스냅샷 — 생성 시점 값 고정(analysis만).
+        snapshot = None
+        if rep["kind"] == "analysis" and vs and syn:
+            snapshot = {
+                "subject": {"addr": b.get("addr"), "score": vs["score"], "grade": vs["grade"],
+                            "items": vs["items"], "total_area": _fnum(b.get("total_area")),
+                            "land_area": _fnum(b.get("land_area")), "sale_price": _fnum(b.get("sale_price")),
+                            "total_rent": _fnum(b.get("total_rent"))},
+                "preview": {"score": vs["score"], "grade": vs["grade"], "fair_price": syn["fair_price"],
+                            "avg_per_pyeong": syn["avg_per_pyeong"], "expected_roi": syn["expected_roi"],
+                            "gap": syn["gap"], "ask_price": syn["ask_price"], "broker_price": syn.get("broker_price"),
+                            "applied_rent": syn.get("applied_rent"), "expected_deposit": syn.get("expected_deposit"),
+                            "market_applied": syn.get("market_applied", False), "breakdown": syn.get("breakdown"),
+                            "rent_floors": syn.get("rent_floors"), "comps_used": syn.get("comps_used")},
+            }
+
         cost = settings.cost_analysis if rep["kind"] == "analysis" else settings.cost_briefing
         async with tx() as conn:  # 성공 트랜잭션: 차감+완료+워터마크 원자
             await conn.execute("SELECT app.deduct_credit($1,$2,$3)", rep["account_id"], cost, report_id)
             await conn.execute(
                 """UPDATE app.reports SET status='done', completed_at=now(),
-                     credits_spent=$2, file_path=$3, formula_set_version=$4,
+                     credits_spent=$2, file_path=$3, formula_set_version=$4, result_json=$7,
                      master_version=(SELECT version FROM master.master_version),
                      source_watermark=COALESCE(app.building_watermark($5,$6), now())
                    WHERE id=$1""",
                 report_id, cost, path, fs_version, rep["building_pk"], team_id,
+                json.dumps(snapshot) if snapshot else None,
             )
         return {"ok": True, "file": path, "credits": cost}
     except Exception as e:  # 실패: 미차감

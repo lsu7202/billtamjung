@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { reportsApi, CompFields, ReportComp } from "../../shared/api/endpoints";
 import "./report.css";
@@ -16,6 +17,7 @@ const eok = (v: number | null | undefined, d = 1) => (v == null ? "—" : `${(v 
 type Props = { pk: string; credits?: number; onClose: () => void; onDone: (msg: string) => void };
 
 export function ReportModal({ pk, credits, onClose, onDone }: Props) {
+  const nav = useNavigate();
   const { data, isLoading } = useQuery({ queryKey: ["report-comps", pk], queryFn: () => reportsApi.comps(pk) });
   const [exclude, setExclude] = useState<Set<string>>(new Set());
   const [overrides, setOverrides] = useState<Record<string, CompFields>>({});
@@ -59,7 +61,7 @@ export function ReportModal({ pk, credits, onClose, onDone }: Props) {
       const { report_id } = await reportsApi.create(pk, "analysis", { exclude: [...exclude], overrides, include_market: includeMarket });
       for (let i = 0; i < 60; i++) {
         const r = await reportsApi.get(report_id);
-        if (r.status === "done") return onDone(`✓ 분석 보고서 완료 — 내 산출물 보관 (크레딧 ${r.credits_spent})`);
+        if (r.status === "done") { onDone(`✓ 분석 보고서 완료 — 내 산출물 보관 (크레딧 ${r.credits_spent})`); nav(`/reports/${report_id}`); return; }
         if (r.status === "failed") { setMsg(`실패: ${r.failed_reason ?? ""} (미차감)`); setBusy(false); return; }
         await new Promise((res) => setTimeout(res, 500));
       }

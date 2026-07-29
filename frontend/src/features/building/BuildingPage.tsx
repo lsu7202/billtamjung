@@ -102,9 +102,10 @@ export function BuildingPage() {
   const fullRent = total?.rent_full ?? (estMonthly || 0);
   const fullDeposit = total?.deposit_full ?? (estDeposit || 0);
   // 매매가 = 수기 sale_price 우선, 없으면 적정가 추정(F-17 v2 배치 sale_est). 실거래·광고가는 시계열 별도.
-  const priceActual = b.sale_price != null && b.sale_price !== "" ? Number(b.sale_price) : null;
-  const priceEst = b.sale_est != null && b.sale_est !== "" ? Number(b.sale_est) : null;
-  const price = priceActual ?? priceEst;
+  // 3층 가격(specs data-overview): 빌탐정 적정가(sale_est·시스템) / 매매가(sale_price·중개인, 기본=적정가) / 매도희망가(ask_price·건물주)
+  const priceActual = b.sale_price != null && b.sale_price !== "" ? Number(b.sale_price) : null;   // 매매가(중개인 오버레이)
+  const priceEst = b.sale_est != null && b.sale_est !== "" ? Number(b.sale_est) : null;             // 빌탐정 적정가
+  const price = priceActual ?? priceEst;                                                            // 매매가 = 오버레이 or 적정가
   const landP = b.land_area ? Number(b.land_area) / P : null;
   const totalP = b.total_area ? Number(b.total_area) / P : null;
   const buildP = b.build_area ? Number(b.build_area) / P : null;
@@ -237,7 +238,7 @@ export function BuildingPage() {
             <div className="panel">
               <div className="sec-head">금액정보</div>
               <div className="kv-grid">
-                {/* 🔀 파생값: 자동집계 표시 + 직접입력 override 가능(data-overview §수정모드). ↺=집계값 복원 */}
+                {/* 🔀 매매가 = 중개인 판단(기본=빌탐정 적정가 sale_est). 매도·매수희망가는 업무탭 '가격 협의'. 빌탐정 적정가 별도표시는 리포트에서만 */}
                 <KV label="매매가" field="sale_price" value={price != null ? eok(price) : ""}
                   editable money current={priceActual != null ? String(priceActual) : ""} parse={(v) => v} validate={vPos}
                   onSave={onSave} onRevert={onRevert} />

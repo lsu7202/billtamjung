@@ -7,6 +7,7 @@ import { refresh } from "../shared/api/client";
 import { LoginPage } from "../features/auth/LoginPage";
 import { SearchPage } from "../features/search/SearchPage";
 import { BuildingPage } from "../features/building/BuildingPage";
+import { ReportPage } from "../features/building/ReportPage";
 import { MyPage } from "../features/mypage/MyPage";
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 10_000 } } });
@@ -25,6 +26,8 @@ export function App() {
           <Route element={<AuthGuard><Shell /></AuthGuard>}>
             <Route path="/search" element={<SearchPage />} />
             <Route path="/buildings/:pk" element={<BuildingPage />} />
+            <Route path="/buildings/:pk/report" element={<ReportPage />} />
+            <Route path="/reports/:id" element={<ReportPage />} />
             <Route path="/mypage" element={<MyPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/search" replace />} />

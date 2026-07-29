@@ -13,6 +13,7 @@ export interface Report {
   status: "pending" | "generating" | "done" | "failed";
   credits_spent?: number; file_path?: string; created_at: string;
   is_stale?: boolean; addr?: string; failed_reason?: string;
+  result_json?: { subject: CompsResponse["subject"]; preview: ReportPreview } | null;
 }
 
 export const authApi = {
@@ -167,11 +168,16 @@ export interface FairBreakdown {
   wg: number; base: number; alpha: number; comp_fair: number;
   beta?: number; income_val?: number | null; final?: number;
 }
+export interface CompUsed {
+  building_pk: string; addr?: string | null; contract_ym?: string | null; price: number;
+  area_py?: number | null; score?: number; per_now?: number; time_adj?: number; weight?: number;
+}
+export interface RentFloor { floor: string; cur: number; mkt: number; diff: number; count: number }
 export interface ReportPreview {
   score: number; grade: string; fair_price: number | null; avg_per_pyeong: number | null;
-  expected_roi: number | null; gap: number | null; ask_price: number | null;
+  expected_roi: number | null; gap: number | null; ask_price: number | null; broker_price?: number | null;
   applied_rent?: number | null; expected_deposit?: number | null; market_applied?: boolean;
-  breakdown?: FairBreakdown | null;
+  breakdown?: FairBreakdown | null; rent_floors?: RentFloor[] | null; comps_used?: CompUsed[] | null;
 }
 export interface CompsResponse {
   subject: { addr: string; score: number; grade: string; items?: Record<string, number>;

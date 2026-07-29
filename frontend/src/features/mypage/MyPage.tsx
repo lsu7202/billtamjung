@@ -58,6 +58,8 @@ export function MyPage() {
                   : <span style={{ color: "var(--muted)" }}>{r.status === "failed" ? "실패" : "생성 중…"}</span>}</td>
                 <td style={{ textAlign: "right" }}>
                   {r.status === "done" && <>
+                    {r.kind === "analysis" && <button className="btn" style={{ marginRight: 6 }}
+                      onClick={() => nav(`/reports/${r.id}`)}>웹으로 보기</button>}
                     <button className="btn" style={{ marginRight: 6 }}
                       onClick={() => reportsApi.download(r.id, r.kind).catch((e) => alert(String(e.message ?? e)))}>PPT 받기</button>
                     {r.is_stale && <button className="btn primary" disabled={regen.isPending}

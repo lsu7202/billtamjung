@@ -31,9 +31,11 @@ async def _subject_ctx(building_pk: str, team_id: int):
 def _preview_dict(vs: dict, syn: dict) -> dict:
     return {"score": vs["score"], "grade": vs["grade"], "fair_price": syn["fair_price"],
             "avg_per_pyeong": syn["avg_per_pyeong"], "expected_roi": syn["expected_roi"],
-            "gap": syn["gap"], "ask_price": syn["ask_price"],
+            "gap": syn["gap"], "ask_price": syn["ask_price"], "broker_price": syn.get("broker_price"),
             "applied_rent": syn.get("applied_rent"), "expected_deposit": syn.get("expected_deposit"),
-            "market_applied": syn.get("market_applied", False), "breakdown": syn.get("breakdown")}
+            "market_applied": syn.get("market_applied", False), "breakdown": syn.get("breakdown"),
+            "rent_floors": syn.get("rent_floors"),         # STEP3 층별 표
+            "comps_used": syn.get("comps_used")}           # STEP2 유사사례 표(가중 반영분)
 
 
 @router.get("/comps/{building_pk}")
@@ -123,7 +125,11 @@ async def get(report_id: int, user: CurrentUser = Depends(current_user)):
     )
     if not row:
         raise HTTPException(404, "산출물이 없습니다")
-    return dict(row)
+    d = dict(row)
+    for k in ("result_json", "options_json"):   # jsonb → 객체(프론트 파싱 불필요)
+        if isinstance(d.get(k), str):
+            d[k] = json.loads(d[k])
+    return d
 
 
 @router.get("")
