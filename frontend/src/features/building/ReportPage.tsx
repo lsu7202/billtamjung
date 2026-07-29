@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { reportsApi, buildingsApi, type CompUsed, type RentFloor } from "../../shared/api/endpoints";
-import { ScoreRadar } from "./ReportPrimitives";
+import { ScoreRadar, CompareBar } from "./ReportPrimitives";
+import { Logo, Seal, Icon, ScoreRing, BuildingArt } from "./ReportAssets";
+import { loadNaver } from "../../shared/map/naver";
 import "./reportslide.css";
 
 /** 분석 보고서 — R_example.pptx 8슬라이드를 웹으로(네이비 코퍼레이트·16:9·cqw 스케일).
@@ -13,19 +15,47 @@ const AXIS: [string, string][] = [
   ["shape", "지형형상"], ["approval_date", "사용승인일"], ["elevator", "엘리베이터"],
   ["remodel", "대수선·리모델링"], ["slope", "경사도"], ["float_pop", "유동인구"],
 ];
+const AXIS_ICON: Record<string, string> = {
+  road_access: "road", station_dist: "train", use_zone: "zone", shape: "mountain",
+  approval_date: "calendar", elevator: "elevator", remodel: "tools", slope: "slope", float_pop: "people",
+};
 const word = (s: number) => s >= 90 ? "매우 우수" : s >= 80 ? "우수" : s >= 70 ? "양호" : s >= 60 ? "보통" : "미흡";
 const num = (x: unknown): number | null => (x == null || x === "" ? null : Number(x));
 const eok = (v: number | null | undefined, d = 0) => (v ? `${(v / 1e8).toFixed(d)}` : "—");
-const eokU = (v: number | null | undefined, d = 0) => (v ? <>{(v / 1e8).toFixed(d)}<u>억원</u></> : "—");
 const man = (v: number | null | undefined) => (v ? `${Math.round(v / 1e4).toLocaleString()}` : "—");
 const py = (m2: number | null) => (m2 ? (m2 / P).toFixed(2) : "—");
+
+/** 보고서용 지도 — 네이버 SDK, 상호작용 off(정적 지도처럼). 좌표 없으면 안내. */
+function ReportMap({ lng, lat }: { lng?: number | null; lat?: number | null }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [err, setErr] = useState(false);
+  useEffect(() => {
+    if (lng == null || lat == null || !ref.current) return;
+    let map: any;
+    loadNaver().then((naver) => {
+      if (!ref.current) return;
+      const pos = new naver.maps.LatLng(lat, lng);
+      map = new naver.maps.Map(ref.current, {
+        center: pos, zoom: 17, draggable: false, scrollWheel: false, pinchZoom: false,
+        disableDoubleClickZoom: true, scaleControl: false, mapDataControl: false, zoomControl: false,
+      });
+      new naver.maps.Marker({
+        position: pos, map,
+        icon: { content: `<div style="width:15px;height:15px;border-radius:50%;background:#262320;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45)"></div>`, anchor: new naver.maps.Point(9, 9) },
+      });
+    }).catch(() => setErr(true));
+    return () => map?.destroy?.();
+  }, [lng, lat]);
+  if (lng == null || lat == null) return <div className="rs-map rs-map-empty">위치 정보 없음</div>;
+  return <div className="rs-map" ref={ref}>{err && <span className="rs-map-empty">지도를 불러오지 못했습니다</span>}</div>;
+}
 
 function Slide({ n, foot, title, desc, children, rno, date }:
   { n: string; foot: string; title: string; desc: string; children: React.ReactNode; rno: string; date: string }) {
   return (
     <div className="rs-slide">
       <div className="rs-head">
-        <span className="rs-logo">빌탐정<em>BILLTAMJUNG</em></span>
+        <Logo size={2.5} />
         <span className="rs-tag">신뢰할 수 있는 부동산 가치분석 파트너</span>
         <span className="rs-rno">Report No. <b>{rno}</b> · 분석일 {date}</span>
       </div>
@@ -36,7 +66,7 @@ function Slide({ n, foot, title, desc, children, rno, date }:
       <div className="rs-body">{children}</div>
       <div className="rs-foot"><em>{n}  {foot}</em>
         <span className="c">본 보고서는 빌탐정의 자체 조사·분석을 기반으로 작성되었으며, 실제 거래 시 시세 변동 및 개별 조건에 따라 차이가 발생할 수 있습니다.</span>
-        <em>빌탐정 <i>BILLTAMJUNG</i></em>
+        <Logo mono size={1.9} />
       </div>
     </div>
   );
@@ -54,7 +84,12 @@ export function ReportPage() {
   const bq = useQuery({ enabled: !!pk, queryKey: ["building", pk], queryFn: () => buildingsApi.get(pk) });
 
   const [cur, setCur] = useState(0);
-  const SLIDES = 8;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const toggleFs = () => {
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else rootRef.current?.requestFullscreen?.();
+  };
+  const SLIDES = 9;
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); setCur((c) => Math.min(SLIDES - 1, c + 1)); }
@@ -86,7 +121,6 @@ export function ReportPage() {
   const totalArea = sub?.total_area ?? num(b.total_area);
   const landArea = num(b.land_area);
   const totalP = totalArea ? totalArea / P : null;
-  const landP = landArea ? landArea / P : null;
   const avgPer = fair && totalP ? Math.round(fair / totalP) : (pv?.avg_per_pyeong ?? null);   // 산정요약 = 빌탐정 적정가와 일치
   const roi = broker && rent ? Math.round((rent * 12 / broker) * 10000) / 100 : (pv?.expected_roi ?? null);  // 수익률=매매가 기준
   const comps = ((pv?.comps_used ?? []) as CompUsed[]).slice(0, 7);
@@ -103,6 +137,7 @@ export function ReportPage() {
   const mainUse = (b.main_use_name as string) || (b.main_use as string) || (b.etc_use as string) || "—";
   const grade = sub?.grade ?? "—";
   const score = sub?.score ?? 0;
+  const gradeCol = grade === "S" ? "#B8912E" : grade === "A" ? "var(--blue)" : grade === "B" ? "var(--green)" : "var(--rmuted)";
   const gc = (s: number) => s >= 70 ? "var(--blue)" : "var(--rmuted)";
   const addr = sub?.addr ?? "—";
   const shortAddr = addr.replace(/^서울특별시\s*/, "").replace(/\s*번지$/, "");
@@ -111,25 +146,60 @@ export function ReportPage() {
     <div className="deck-top">
       <button className="btn" onClick={() => nav(`/buildings/${pk}`)} style={{ padding: "6px 12px" }}>← 매물로</button>
       <span className="ttl">분석 보고서 · {rno}</span>
+      <button className="btn" style={{ marginLeft: "auto", padding: "6px 12px" }} onClick={() => nav(`/buildings/${pk}/story`)} title="애니메이션 모드(스크롤)">✨ 애니메이션 모드</button>
+      <button className="btn" style={{ padding: "6px 12px" }} onClick={toggleFs} title="전체화면 (발표 모드)">⛶ 전체화면</button>
       {canDownload
-        ? <button className="btn primary" style={{ marginLeft: "auto", padding: "6px 12px" }}
+        ? <button className="btn primary" style={{ padding: "6px 12px" }}
             onClick={() => reportsApi.download(reportId!, "analysis").catch((e) => alert(String(e?.message ?? e)))}>PPT 내보내기</button>
-        : <button className="btn" disabled style={{ marginLeft: "auto", padding: "6px 12px", opacity: .6 }} title="생성 완료 후 다운로드">PPT 내보내기</button>}
+        : <button className="btn" disabled style={{ padding: "6px 12px", opacity: .6 }} title="생성 완료 후 다운로드">PPT 내보내기</button>}
     </div>
   );
 
   const slides = [
-      <Slide key={0} n="01" foot="분석보고서" rno={rno} date={date}
-        title={shortAddr} desc={`${useZone} · ${mainUse} 분석보고서`}>
-        <div style={{ display: "flex", gap: "2.5cqw", width: "100%" }}>
-          <div style={{ flex: "0 0 40%", borderRadius: "1.2cqw", background: "linear-gradient(135deg,#dfe4ec,#c3cbd8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7688", fontSize: "1.4cqw", fontWeight: 700 }}>건물 사진</div>
-          <div className="rs-cards" style={{ flex: 1 }}>
-            <MC lab="가치점수" sub="입지·건물·환경 종합 평가" val={<>{score}<u>점</u></>} pill={`${grade}등급`} pillC="blue" />
-            <MC lab="매도희망가" sub="건물주 희망 매도가" val={eokU(ask)} />
-            <MC lab="빌탐정 적정가" sub="시스템 산정 (F-17)" val={eokU(fair)} valC="var(--green)" />
-            <MC lab="매매가" sub={brokerAdj ? `중개인 판단 · 적정가 ${eok(fair)}억 대비 조정` : "중개인 판단 (기본 = 적정가)"} val={eokU(broker)} valC="var(--blue)" />
-            <MC lab="협의 필요금액" sub="매도희망가 − 매매가" val={gap != null ? <>{eok(Math.abs(gap))}<u>억원</u></> : "—"} pill={gap != null && gap > 0 ? "가격 협의 필요" : undefined} pillC="peach" valC="var(--blue)" />
-            <MC lab="예상수익률" sub="매매가 기준" val={roi != null ? <>{roi.toFixed(2)}<u>%</u></> : "—"} valC="var(--purple)" />
+      <div className="rs-slide" key="cover" style={{ position: "relative" }}>
+        <div style={{ position: "absolute", inset: 0 }}><BuildingArt /></div>
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(8,12,22,.5) 0%, rgba(8,12,22,.12) 34%, rgba(8,12,22,.82) 100%)" }} />
+        <div style={{ position: "relative", height: "100%", display: "flex", flexDirection: "column", padding: "2.8cqw 3.4cqw", color: "#fff", boxSizing: "border-box" }}>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <Logo mono size={2.6} />
+            <span style={{ marginLeft: "auto", fontSize: "1cqw", color: "#c7d3e6" }}>Report No. {rno} · 분석일 {date}</span>
+          </div>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <div style={{ fontSize: "1.15cqw", letterSpacing: ".24em", color: "#8fb0e0", fontWeight: 700, marginBottom: "1cqw" }}>부동산 가치분석 보고서</div>
+            <div style={{ fontSize: "4.8cqw", fontWeight: 800, letterSpacing: "-.02em", lineHeight: 1.04, textShadow: "0 2px 26px rgba(0,0,0,.55)" }}>{shortAddr}</div>
+            <div style={{ fontSize: "1.5cqw", color: "#c7d3e6", marginTop: ".9cqw" }}>{useZone} · {mainUse}</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "1.4cqw" }}>
+            <Seal mono size={8.5} />
+            <div style={{ fontSize: ".95cqw", color: "#aab6cc", lineHeight: 1.55 }}>
+              빌탐정이 자체 조사·분석한 <b style={{ color: "#fff" }}>공식 분석 보고서</b>입니다.<br />제3자 무단복제·유포·변경 시 법적 책임을 질 수 있습니다.
+            </div>
+          </div>
+        </div>
+      </div>,
+      <Slide key={0} n="01" foot="핵심 요약" rno={rno} date={date}
+        title="핵심 요약" desc="매물의 가치점수·가격·수익성을 한눈에 확인하세요.">
+        <div style={{ display: "flex", gap: "3cqw", width: "100%", alignItems: "stretch" }}>
+          <div className="rs-fade" style={{ flex: "0 0 33%", borderRadius: "1.2cqw", background: "linear-gradient(135deg,#dfe4ec,#c3cbd8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7688", fontSize: "1.3cqw", fontWeight: 700 }}>건물 사진</div>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "1.8cqw" }}>
+            <div className="rs-fade" style={{ display: "flex", alignItems: "center", gap: "2.6cqw" }}>
+              <ScoreRing score={score} grade={grade} gradeColor={gradeCol} size={13.5} />
+              <div style={{ flex: 1 }}>
+                {[{ k: "빌탐정 적정가", s: "시스템 산정 · 참고", v: fair ? `${eok(fair)}억원` : "—", c: "var(--green)" },
+                  { k: "매매가", s: brokerAdj ? "적정가에서 조정" : "적정가 기준", v: broker ? `${eok(broker)}억원` : "—", c: "var(--blue)" },
+                  { k: "예상수익률", s: "매매가 기준", v: roi != null ? `${roi.toFixed(2)}%` : "—", c: "var(--purple)" }].map((r, i) => (
+                  <div key={r.k} className="rs-fade" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: ".9cqw .2cqw", borderBottom: i < 2 ? "1px solid var(--rl)" : "none", ["--d" as string]: `${(i + 1) * 90}ms` }}>
+                    <div><div style={{ fontSize: "1.55cqw", fontWeight: 700, color: "var(--navy)" }}>{r.k}</div><div style={{ fontSize: ".9cqw", color: "var(--rmuted)" }}>{r.s}</div></div>
+                    <div className="num" style={{ fontSize: "2.8cqw", fontWeight: 800, color: r.c, lineHeight: 1 }}>{r.v}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rs-fade" style={{ display: "flex", gap: "3.5cqw", paddingTop: "1.3cqw", borderTop: "1px solid var(--rl)", fontSize: "1.1cqw", color: "var(--rmuted)", ["--d" as string]: "360ms" }}>
+              <span>매도희망가 <b style={{ color: "var(--navy)" }}>{ask ? `${eok(ask)}억` : "—"}</b></span>
+              <span>협의 필요금액 <b style={{ color: "var(--peach-tx)" }}>{gap != null ? `${eok(Math.abs(gap))}억` : "—"}</b></span>
+              <span>주변시세 총월세 <b style={{ color: "var(--navy)" }}>{rent ? `${man(rent)}만원` : "—"}</b></span>
+            </div>
           </div>
         </div>
       </Slide>,
@@ -137,32 +207,20 @@ export function ReportPage() {
         title="매물 기본정보" desc="해당 건물의 기본정보 및 입지 정보 (토지이용계획확인원 및 건축물대장 기준)">
         <div style={{ display: "flex", gap: "2.5cqw", width: "100%" }}>
           <table className="rs-tbl rs-kv" style={{ flex: "0 0 46%", alignSelf: "flex-start" }}><tbody>
-            <tr><td>매도희망가</td><td className="blue b">{ask ? `${eok(ask)}억 원` : "—"}</td></tr>
             <tr><td>대지면적</td><td>{py(landArea)}평 ({landArea ?? "—"}㎡)</td></tr>
             <tr><td>연면적</td><td>{py(totalArea)}평 ({totalArea ?? "—"}㎡)</td></tr>
-            <tr><td>대지 평단가</td><td>{ask && landP ? `${(ask / landP / 1e8).toFixed(2)}억 원 (호가 기준)` : "—"}</td></tr>
-            <tr><td>연면적 평단가</td><td>{ask && totalP ? `${Math.round(ask / totalP / 1e4).toLocaleString()}만 원 (호가 기준)` : "—"}</td></tr>
             <tr><td>용도지역</td><td>{useZone}</td></tr>
             <tr><td>건축물용도</td><td>{mainUse}</td></tr>
-            <tr><td>건물규모</td><td>지하 {b.floors_below ?? "—"}층 / 지상 {b.floors_above ?? "—"}층</td></tr>
-            <tr><td>사용승인</td><td>{b.approval_ymd ? `${String(b.approval_ymd).slice(0, 4)}년` : "—"}</td></tr>
-            <tr><td>건폐율 / 용적률</td><td>{b.bcr ?? "—"}% / {b.far ?? "—"}%</td></tr>
-            <tr><td>주차 / 승강기</td><td>{b.parking ?? "—"}대 / {b.elevator ?? "—"}</td></tr>
-            <tr><td>현재 총월세</td><td>{man(curRent)}만 원</td></tr>
-            <tr><td>현재 실수익률</td><td>{roiAsk != null ? `${roiAsk.toFixed(2)}% (현재 월세·매도희망가 기준)` : "—"}</td></tr>
+            <tr><td>층수</td><td>지하 {b.floors_below ?? "—"}층 / 지상 {b.floors_above ?? "—"}층</td></tr>
+            <tr><td>사용승인일</td><td>{b.approval_ymd ? String(b.approval_ymd).slice(0, 10).replace(/-/g, ".") : "—"}</td></tr>
+            <tr><td>주차</td><td>{b.parking != null ? `${b.parking}대` : "—"}</td></tr>
+            <tr><td>엘리베이터</td><td>{b.elevator != null ? (Number(b.elevator) > 0 ? `${b.elevator}대` : "없음") : "—"}</td></tr>
+            <tr><td>도로접면</td><td>{b.road_frontage ?? "—"}</td></tr>
+            <tr><td>매도희망가</td><td className="blue b">{ask ? `${eok(ask)}억 원` : "—"}</td></tr>
           </tbody></table>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "1.1cqw" }}>
-            <div style={{ fontSize: "1.6cqw", fontWeight: 800, color: "var(--navy)" }}>핵심 스펙 요약</div>
-            <Spec k="용도지역" v={useZone} />
-            <Spec k="건물규모" v={`지하 ${b.floors_below ?? "—"} · 지상 ${b.floors_above ?? "—"}층`} />
-            <Spec k="승강기" v={`승강기 ${b.elevator ?? "—"} 보유`} />
-            <Spec k="주차" v={`주차 ${b.parking ?? "—"}대 가능`} />
-            <Spec k="수익률" v={`매도희망가 ${roiAsk != null ? roiAsk.toFixed(2) : "—"}%  →  매매가 ${roi != null ? roi.toFixed(2) : "—"}%`} />
-            <div className="rs-callout">
-              {rent != null && curRent != null && rent !== curRent
-                ? <>현재 총월세 {man(curRent)}만원 대비 주변월세시세 적용 시 <b>{man(rent)}만원({rent >= curRent ? "+" : ""}{Math.round((rent - curRent) / 1e4).toLocaleString()}만원)</b>까지 임대료 개선 여지가 있습니다.</>
-                : "주변월세시세 미포함(현재 임대료 기준)."}
-            </div>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".7cqw", minWidth: 0 }}>
+            <ReportMap lng={num(b.lng)} lat={num(b.lat)} />
+            <div style={{ fontSize: "1cqw", color: "var(--rmuted)" }}>{shortAddr} · 위치</div>
           </div>
         </div>
       </Slide>,
@@ -202,7 +260,7 @@ export function ReportPage() {
               {AXIS.map(([k, l], i) => {
                 const s = sub?.items?.[k] ?? 0;
                 return <tr key={k}>
-                  <td className="b">{`①②③④⑤⑥⑦⑧⑨`[i]} {l}</td>
+                  <td className="b"><span style={{ display: "inline-flex", alignItems: "center", gap: ".7cqw" }}><Icon name={AXIS_ICON[k]} size={1.9} color="var(--navy)" />{`①②③④⑤⑥⑦⑧⑨`[i]} {l}</span></td>
                   <td style={{ color: gc(s), fontWeight: 700 }}>{word(s)}</td>
                   <td style={{ color: "var(--rmuted)" }}>{l} 항목 평가 결과 {word(s)} 수준</td>
                 </tr>;
@@ -214,7 +272,7 @@ export function ReportPage() {
               <div><div className="k">가치점수 총평</div><div className="v">{score}<u>/100점</u></div></div>
               <span className="rs-pill blue" style={{ marginLeft: "auto", fontSize: "1.6cqw", padding: ".7cqw 1.3cqw" }}>{grade}등급</span>
             </div>
-            {sub?.items && <ScoreRadar axes={AXIS.map(([k, l]) => ({ label: l, score: sub.items![k] ?? 0 }))} color="var(--navy)" size={200} />}
+            {sub?.items && <ScoreRadar axes={AXIS.map(([k, l]) => ({ label: l, score: sub.items![k] ?? 0 }))} color="var(--navy)" size={210} showValues />}
             <div style={{ fontSize: ".98cqw", color: "var(--rmuted)", textAlign: "center" }}>등급 기준 · S 90↑ / A 75~89 / B 60~74 / C 60↓ → 본 매물 {grade}등급({word(score)})</div>
           </div>
         </div>
@@ -239,14 +297,19 @@ export function ReportPage() {
               )) : <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--rmuted)", padding: "2cqw" }}>반경 내 실거래 사례 없음</td></tr>}
             </tbody>
           </table>
-          <div style={{ display: "flex", gap: "2cqw", alignItems: "center" }}>
-            <div style={{ fontSize: "1.5cqw", fontWeight: 800, color: "var(--navy)", flex: "0 0 auto" }}>적정매매가<br />산정 요약</div>
+          <div style={{ display: "flex", gap: "2.5cqw", alignItems: "stretch" }}>
+            <div style={{ flex: "0 0 42%", display: "flex", flexDirection: "column" }}>
+              <div style={{ fontSize: "1.1cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>연면적당 평단가 비교 <span style={{ color: "var(--rmuted)", fontWeight: 400 }}>(만원/평)</span></div>
+              {comps.length >= 2 && <CompareBar height={116} fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}`}
+                items={[...comps.map((c, i) => ({ label: `${i + 1}`, value: c.per_now ?? 0, color: "var(--navy)" })),
+                  ...(avgPer ? [{ label: "본매물", value: avgPer, color: "var(--blue)", strong: true }] : [])].filter((x) => x.value > 0)} />}
+            </div>
             <div className="rs-flow" style={{ flex: 1 }}>
-              <div className="rs-fbox"><div className="k">유사사례 가중평균 평단가</div><div className="v">{avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만원/평` : "—"}</div></div>
+              <div className="rs-fbox"><div className="k">가중평균 평단가</div><div className="v">{avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만/평` : "—"}</div></div>
               <span className="rs-op">×</span>
               <div className="rs-fbox"><div className="k">본 매물 연면적</div><div className="v">{py(totalArea)}평</div></div>
               <span className="rs-op">=</span>
-              <div className="rs-fbox hl"><div className="k">빌탐정 적정매매가</div><div className="v" style={{ color: "var(--peach-tx)" }}>{eok(fair)}억 원</div></div>
+              <div className="rs-fbox hl"><div className="k">빌탐정 적정가</div><div className="v" style={{ color: "var(--peach-tx)" }}>{eok(fair)}억 원</div></div>
             </div>
           </div>
           <div className="rs-callout">
@@ -330,7 +393,7 @@ export function ReportPage() {
           <div style={{ display: "flex", alignItems: "stretch", gap: "1cqw" }}>
             <div className="rs-sc" style={{ flex: 1 }}><div className="lab" style={{ fontSize: "1.3cqw", fontWeight: 700, color: "var(--navy)" }}>매도희망가</div><div style={{ fontSize: ".95cqw", color: "var(--rmuted)" }}>건물주 희망 매도가</div><div className="v" style={{ marginTop: ".5cqw" }}>{eok(ask)}<u>억원</u></div></div>
             <span className="rs-op" style={{ alignSelf: "center", color: "var(--blue)" }}>▶</span>
-            <div className="rs-sc blue" style={{ flex: 1 }}><div style={{ fontSize: "1.3cqw", fontWeight: 700, color: "var(--navy)" }}>매매가 <span style={{ fontSize: ".85cqw", fontWeight: 500, color: "var(--rmuted)" }}>(중개인)</span></div><div style={{ fontSize: ".95cqw", color: "var(--rmuted)" }}>빌탐정 적정가 {eok(fair)}억 {brokerAdj ? "대비 조정" : "기준"}</div><div className="v" style={{ marginTop: ".5cqw", color: "var(--green)" }}>{eok(broker)}<u>억원</u></div></div>
+            <div className="rs-sc blue" style={{ flex: 1 }}><div style={{ fontSize: "1.3cqw", fontWeight: 700, color: "var(--navy)" }}>매매가</div><div style={{ fontSize: ".95cqw", color: "var(--rmuted)" }}>빌탐정 적정가 {eok(fair)}억 {brokerAdj ? "대비 조정" : "기준"}</div><div className="v" style={{ marginTop: ".5cqw", color: "var(--green)" }}>{eok(broker)}<u>억원</u></div></div>
             <span className="rs-op" style={{ alignSelf: "center", color: "var(--blue)" }}>▶</span>
             <div className="rs-sc hl" style={{ flex: 1 }}><div style={{ fontSize: "1.3cqw", fontWeight: 700, color: "var(--navy)" }}>협의 필요금액</div><div style={{ fontSize: ".95cqw", color: "var(--rmuted)" }}>매도희망가 − 매매가</div><div className="v" style={{ marginTop: ".5cqw", color: "var(--blue)" }}>{gap != null ? eok(Math.abs(gap)) : "—"}<u>억원</u></div></div>
           </div>
@@ -359,7 +422,7 @@ export function ReportPage() {
   ];
 
   return (
-    <div className="rslide-root deck">
+    <div className="rslide-root deck" ref={rootRef}>
       {toolbar}
       <div className="deck-main">
         <aside className="deck-nav">
@@ -372,7 +435,7 @@ export function ReportPage() {
         </aside>
         <div className="deck-stage">
           <button className="deck-arrow l" disabled={cur === 0} onClick={() => setCur((c) => Math.max(0, c - 1))} aria-label="이전">‹</button>
-          <div className="stage-slide">{slides[cur]}</div>
+          <div className="stage-slide rs-enter" key={cur}>{slides[cur]}</div>
           <button className="deck-arrow r" disabled={cur === slides.length - 1} onClick={() => setCur((c) => Math.min(slides.length - 1, c + 1))} aria-label="다음">›</button>
           <div className="deck-counter">{cur + 1} / {slides.length}</div>
         </div>
@@ -381,21 +444,3 @@ export function ReportPage() {
   );
 }
 
-function MC({ lab, sub, val, unit, pill, pillC, valC }:
-  { lab: string; sub?: string; val: React.ReactNode; unit?: string; pill?: string; pillC?: "blue" | "peach"; valC?: string }) {
-  return (
-    <div className={`rs-mc${pillC === "peach" ? " peach" : ""}`}>
-      <div><div className="lab">{lab}</div>{sub && <div className="sub">{sub}</div>}</div>
-      {pill && <span className={`rs-pill ${pillC}`}>{pill}</span>}
-      <div className="val" style={{ color: valC ?? "var(--navy)" }}>{val}{unit && <u>{unit}</u>}</div>
-    </div>
-  );
-}
-function Spec({ k, v }: { k: string; v: string }) {
-  return (
-    <div className="rs-mc" style={{ padding: "1cqw 1.4cqw" }}>
-      <div className="lab" style={{ fontSize: "1.25cqw", flex: "0 0 26%" }}>{k}</div>
-      <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)" }}>{v}</div>
-    </div>
-  );
-}

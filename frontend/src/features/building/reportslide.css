@@ -38,9 +38,10 @@
 
 /* ── 지표 카드 ── */
 .rs-cards { display: flex; flex-direction: column; gap: 1.1cqw; width: 100%; }
-.rs-mc { background: var(--card); border: 1px solid var(--rl); border-radius: 1cqw; padding: 1.3cqw 1.6cqw; display: flex; align-items: center; gap: 1cqw; }
-.rs-mc.hl { background: #fff; border-color: var(--blue); }
-.rs-mc.peach { background: var(--peach-bg); border-color: var(--peach-line); }
+.rs-mc { background: transparent; border: none; border-top: 1px solid var(--rl); border-radius: 0; padding: 1cqw .2cqw; display: flex; align-items: center; gap: 1cqw; }
+.rs-mc.hl .val { color: var(--peach-tx); }
+.rs-mc.peach .val { color: var(--peach-tx); }
+.rs-mc-ic { width: 3.6cqw; height: 3.6cqw; border-radius: .9cqw; background: #fff; border: 1px solid var(--rl); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .rs-mc .lab { font-size: 1.35cqw; font-weight: 700; color: var(--navy); }
 .rs-mc .sub { font-size: .98cqw; color: var(--rmuted); margin-top: .2cqw; }
 .rs-mc .val { margin-left: auto; font-size: 2.7cqw; font-weight: 800; line-height: 1; }
@@ -51,48 +52,51 @@
 
 /* 작은 지표 카드(가로 그리드) */
 .rs-grid { display: grid; gap: 1cqw; width: 100%; }
-.rs-sc { background: var(--card); border: 1px solid var(--rl); border-radius: 1cqw; padding: 1.2cqw 1.4cqw; }
-.rs-sc.hl { border-color: var(--peach-line); background: var(--peach-bg); }
-.rs-sc.blue { border-color: var(--blue); }
+.rs-sc { background: transparent; border: none; border-radius: 0; padding: .1cqw 0; }
+.rs-sc.hl .v { color: var(--peach-tx); }
+.rs-sc.blue .v { color: var(--blue); }
 .rs-sc .k { font-size: 1cqw; color: var(--rmuted); font-weight: 600; }
 .rs-sc .v { font-size: 2.2cqw; font-weight: 800; margin-top: .5cqw; line-height: 1; }
 .rs-sc .v u { font-size: 1cqw; font-weight: 700; color: var(--rmuted); text-decoration: none; margin-left: .3cqw; }
 
 /* ── 표 ── */
 .rs-tbl { width: 100%; border-collapse: collapse; font-size: 1.1cqw; }
-.rs-tbl th { background: var(--navy); color: #fff; font-weight: 700; padding: .7cqw 1cqw; text-align: left; font-size: 1.02cqw; }
+.rs-tbl th { background: transparent; color: var(--navy); font-weight: 700; padding: .5cqw 1cqw .45cqw; text-align: left; font-size: 1cqw; letter-spacing: .01em; border-bottom: 1.5px solid var(--navy); }
 .rs-tbl td { padding: .58cqw 1cqw; border-bottom: 1px solid var(--rl); }
 .rs-tbl tr:last-child td { border-bottom: none; }
 .rs-tbl .r { text-align: right; }
 .rs-tbl .b { font-weight: 700; }
 .rs-tbl .blue { color: var(--blue); font-weight: 700; }
-.rs-tbl .sum td { background: var(--peach-bg); font-weight: 700; }
+.rs-tbl .sum td { background: transparent; font-weight: 800; border-top: 1.5px solid var(--navy); }
+/* 보고서 지도(기본정보 우측) — 정적 지도처럼 */
+.rs-map { flex: 1; min-height: 22cqw; border-radius: .8cqw; overflow: hidden; border: 1px solid var(--rl); background: #eef1f5; position: relative; }
+.rs-map-empty { display: flex; align-items: center; justify-content: center; height: 100%; min-height: 22cqw; font-size: 1.1cqw; color: var(--rmuted); }
 /* 라벨-값 2열 표(기본정보) */
 .rs-kv td:first-child { color: var(--rmuted); font-weight: 600; width: 42%; background: #FAFBFC; }
 
 /* ── peach 콜아웃 ── */
-.rs-callout { background: var(--peach-bg); border: 1px solid var(--peach-line); border-radius: 1cqw; padding: 1.2cqw 1.5cqw; font-size: 1.15cqw; color: var(--rink); line-height: 1.5; }
+.rs-callout { background: transparent; border: none; border-left: 2.5px solid var(--peach-line); border-radius: 0; padding: .35cqw 0 .35cqw 1.4cqw; font-size: 1.15cqw; color: var(--rink); line-height: 1.5; }
 .rs-callout b { color: var(--peach-tx); }
 
 /* ── 산정 플로우(× = ÷) ── */
 .rs-flow { display: flex; align-items: center; gap: 1cqw; flex-wrap: wrap; }
-.rs-fbox { background: var(--card); border: 1px solid var(--rl); border-radius: 1cqw; padding: 1cqw 1.3cqw; text-align: center; flex: 1 1 0; min-width: 0; }
-.rs-fbox.hl { background: var(--peach-bg); border-color: var(--peach-line); }
+.rs-fbox { background: transparent; border: none; border-radius: 0; padding: .5cqw .2cqw; text-align: center; flex: 1 1 0; min-width: 0; }
+.rs-fbox.hl .v { color: var(--peach-tx); }
 .rs-fbox .k { font-size: .92cqw; color: var(--rmuted); }
 .rs-fbox .v { font-size: 1.7cqw; font-weight: 800; margin-top: .3cqw; }
 .rs-op { font-size: 1.8cqw; font-weight: 700; color: var(--rmuted); flex: 0 0 auto; }
 
 /* ── STEP 플로우(분석 흐름) ── */
-.rs-step { background: var(--card); border: 1px solid var(--rl); border-radius: 1cqw; padding: 1.1cqw 1.6cqw; display: flex; align-items: center; gap: 1.4cqw; }
+.rs-step { background: transparent; border: none; border-top: 1px solid var(--rl); border-radius: 0; padding: 1cqw .3cqw; display: flex; align-items: center; gap: 1.4cqw; }
 .rs-step .n { background: var(--navy); color: #fff; font-weight: 800; font-size: 1.1cqw; border-radius: 5cqw; padding: .5cqw 1cqw; }
 .rs-step .t { font-weight: 700; font-size: 1.5cqw; color: var(--navy); }
 .rs-step .d { font-size: 1.05cqw; color: var(--rmuted); margin-left: auto; }
 .rs-arrow { text-align: center; color: var(--blue); font-size: 1.2cqw; line-height: .6; }
 
 /* 결론 2박스 */
-.rs-concl { border-radius: 1cqw; padding: 1.3cqw 1.6cqw; font-size: 1.12cqw; line-height: 1.7; }
-.rs-concl.navy { background: #F4F6FA; border: 1px solid var(--rl); }
-.rs-concl.peach { background: var(--peach-bg); border: 1px solid var(--peach-line); }
+.rs-concl { border-radius: 0; padding: .2cqw 0 .2cqw 1.5cqw; font-size: 1.12cqw; line-height: 1.7; }
+.rs-concl.navy { background: transparent; border: none; border-left: 2.5px solid var(--navy); }
+.rs-concl.peach { background: transparent; border: none; border-left: 2.5px solid var(--peach-line); }
 .rs-concl h4 { margin: 0 0 .7cqw; font-size: 1.35cqw; color: var(--navy); }
 .rs-concl.peach h4 { color: var(--peach-tx); }
 .rs-concl li { margin: .35cqw 0; list-style: none; padding-left: 1.4cqw; position: relative; }
@@ -115,3 +119,52 @@
 .deck-arrow:disabled { opacity: .32; cursor: default; }
 .deck-arrow.l { left: 16px; } .deck-arrow.r { right: 16px; }
 .deck-counter { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); font-size: 12.5px; font-weight: 700; color: var(--navy); background: #fff; border: 1px solid var(--rl); border-radius: 999px; padding: 4px 14px; }
+
+/* 슬라이드 진입 리빌 — 활성 슬라이드가 바뀌면(key) 슬라이드가 밀려들어오고 내부 .rs-fade가 순차 등장 */
+@keyframes bt-rise { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+@keyframes bt-slidein { from { opacity: 0; transform: translateX(40px) scale(.985); } to { opacity: 1; transform: none; } }
+.stage-slide.rs-enter { animation: bt-slidein .5s cubic-bezier(.22,1,.36,1) both; }
+.stage-slide.rs-enter .rs-fade { animation: bt-rise .6s cubic-bezier(.22,1,.36,1) both; animation-delay: var(--d, 120ms); }
+@media (prefers-reduced-motion: reduce) { .stage-slide.rs-enter, .stage-slide.rs-enter .rs-fade { animation: none !important; } }
+
+/* 전체화면 발표 모드 — 사이드바·툴바 숨기고 슬라이드만, 다크 배경 */
+.rslide-root:fullscreen { background: #0b0e16; height: 100%; }
+.rslide-root:fullscreen .deck-top, .rslide-root:fullscreen .deck-nav { display: none; }
+.rslide-root:fullscreen .deck-stage { background: #0b0e16; padding: 4vh 7vw; }
+.rslide-root:fullscreen .stage-slide { max-width: calc((100vh - 8vh) * 16 / 9); }
+.rslide-root:fullscreen .deck-arrow { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.2); color: #fff; }
+.rslide-root:fullscreen .deck-counter { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.2); color: #fff; }
+
+/* ── 몰입형 스크롤 스토리(프로토타입) ── */
+.story-root { height: 100%; overflow-y: auto; overflow-x: hidden; background: #0a0e17; -webkit-font-smoothing: antialiased;
+  font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", "Segoe UI", sans-serif; }
+@keyframes story-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(7px); } }
+.story-sec { min-height: 100vh; background: #fff; display: flex; flex-direction: column; justify-content: center; padding: 10vh 9vw;
+  opacity: 0; transform: translateY(34px); transition: opacity .9s cubic-bezier(.22,1,.36,1), transform .9s cubic-bezier(.22,1,.36,1); }
+.story-sec.in { opacity: 1; transform: none; }
+.story-kicker { font-size: 13px; letter-spacing: .25em; color: #2b5aa8; font-weight: 800; }
+.story-h { font-size: clamp(20px,2.6vw,34px); font-weight: 700; color: #1a1f2b; margin: .5em 0 .1em; letter-spacing: -.01em; }
+.story-h b { color: #1c8c63; }
+.story-big { font-size: clamp(52px,9vw,110px); font-weight: 800; color: #0b1224; line-height: .9; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.story-big .unit { font-size: .3em; color: #828a99; font-weight: 700; margin-left: .14em; letter-spacing: 0; }
+.story-sub { font-size: clamp(14px,1.5vw,18px); color: #55504a; margin-top: 1em; }
+.story-row { display: flex; gap: 5vw; margin-top: 4.5vh; flex-wrap: wrap; }
+.story-cell .k { font-size: 13.5px; color: #828a99; margin-bottom: .35em; }
+.story-cell .v { font-size: clamp(24px,3vw,38px); font-weight: 800; color: #1a1f2b; font-variant-numeric: tabular-nums; }
+.story-note { margin-top: 6vh; font-size: 12px; color: #a0a8b4; }
+/* 섹션 공용 — 박스 없이 괘선·2열·플로우 */
+.st-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 7vw; margin-top: 3.5vh; }
+.st-row { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 13px 0; border-top: 1px solid #ececef; font-size: clamp(13.5px,1.4vw,17px); }
+.st-row .k { color: #828a99; display: inline-flex; align-items: center; gap: 8px; }
+.st-row .v { font-weight: 700; color: #1a1f2b; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.st-row .v.hl { color: #2b5aa8; }
+.st-lead { font-size: clamp(38px,6vw,84px); font-weight: 800; color: #0b1224; line-height: .95; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.st-lead .unit { font-size: .32em; color: #828a99; font-weight: 700; margin-left: .1em; }
+.st-cols { display: grid; grid-template-columns: 1.1fr .9fr; gap: 6vw; align-items: center; margin-top: 3vh; }
+.st-flow { display: flex; align-items: center; gap: 2vw; flex-wrap: wrap; margin-top: 4vh; }
+.st-flow .cell .k { font-size: 13px; color: #828a99; } .st-flow .cell .v { font-size: clamp(20px,2.6vw,32px); font-weight: 800; color: #1a1f2b; }
+.st-flow .op { font-size: clamp(22px,2.6vw,32px); color: #b8bec9; font-weight: 700; }
+.st-prog { display: flex; align-items: center; gap: 2.5vw; flex-wrap: wrap; margin-top: 3vh; }
+.st-prog .arw { color: #2b5aa8; font-size: clamp(20px,2.4vw,30px); }
+@media (max-width: 820px) { .st-grid2, .st-cols { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .story-sec { opacity: 1; transform: none; } }
