@@ -120,17 +120,28 @@ async def wiki_post(building_pk: str, body: WikiIn, user: CurrentUser = Depends(
 
 
 @router.get("/buildings/{building_pk}/wiki")
-async def wiki_list(building_pk: str, _: CurrentUser = Depends(current_user)):
+async def wiki_list(building_pk: str, user: CurrentUser = Depends(current_user)):
     rows = await pool().fetch(
         """SELECT w.id, w.category, w.body, w.created_at,
                   COALESCE(a.name,'탈퇴한 사용자') AS author,
+                  (w.author_account_id = $2) AS mine,
                   (SELECT count(*) FROM app.wiki_votes v WHERE v.post_id=w.id) AS votes
            FROM app.wiki_posts w LEFT JOIN app.accounts a ON a.id=w.author_account_id
            WHERE w.building_pk=$1 AND w.deleted_at IS NULL
            ORDER BY votes DESC, w.created_at DESC""",
-        building_pk,
+        building_pk, user.account_id,
     )
     return [dict(r) for r in rows]
+
+
+@router.delete("/wiki/{post_id}")
+async def wiki_delete(post_id: int, user: CurrentUser = Depends(current_user)):
+    """내가 쓴 위키만 삭제(soft)."""
+    await pool().execute(
+        "UPDATE app.wiki_posts SET deleted_at=now() WHERE id=$1 AND author_account_id=$2",
+        post_id, user.account_id,
+    )
+    return {"ok": True}
 
 
 @router.put("/wiki/{post_id}/vote")
@@ -174,13 +185,23 @@ async def memo_list(building_pk: str, user: CurrentUser = Depends(current_user))
     )
     can_secret = user.role == "owner" or user.account_id == assignee
     rows = await pool().fetch(
-        """SELECT id, kind, body, created_at FROM app.memos
+        """SELECT id, kind, body, created_at, (author_account_id = $4) AS mine FROM app.memos
            WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL
              AND (kind='team' OR $3)
            ORDER BY created_at DESC""",
-        building_pk, user.team_id, can_secret,
+        building_pk, user.team_id, can_secret, user.account_id,
     )
     return [dict(r) for r in rows]
+
+
+@router.delete("/buildings/{building_pk}/memos/{memo_id}")
+async def memo_delete(building_pk: str, memo_id: int, user: CurrentUser = Depends(current_user)):
+    """내가 쓴 메모만 삭제(soft)."""
+    await pool().execute(
+        "UPDATE app.memos SET deleted_at=now() WHERE id=$1 AND author_account_id=$2",
+        memo_id, user.account_id,
+    )
+    return {"ok": True}
 
 
 # ── 광고가(집단지성·공용 시계열) ─────────────────────

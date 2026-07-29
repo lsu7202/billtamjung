@@ -65,7 +65,8 @@ class Filters(BaseModel):
     road_frontages: list[str] | None = None  # 도로접면
     shapes: list[str] | None = None          # 지형형상
     slopes: list[str] | None = None          # 지세
-    main_uses: list[str] | None = None       # 주용도
+    land_uses: list[str] | None = None       # 토지이용상황(land_use) — 값=명(상업용·단독 등)
+    main_uses: list[str] | None = None       # 주용도(코드 저장 — 매핑 전까지 미연결)
     etc_use: str | None = None               # 기타용도(부분일치)
     # 범위 (min/max)
     land_area_min: float | None = None
@@ -89,6 +90,8 @@ class Filters(BaseModel):
     station_dist_max: int | None = None
     last_sale_min: int | None = None         # 실거래가(원)
     last_sale_max: int | None = None
+    last_sale_years_min: int | None = None   # 실거래일(최근 N년) — 사용승인일과 동일 시맨틱
+    last_sale_years_max: int | None = None
     gongsi_min: int | None = None            # 최신 공시지가(원/㎡)
     gongsi_max: int | None = None
     age_min: int | None = None               # 연식(년) — 사용승인일 기준
@@ -166,6 +169,7 @@ def _filter_sql(f: Filters, args: list) -> str:
     anyof("road_frontage", f.road_frontages)
     anyof("shape", f.shapes)
     anyof("slope", f.slopes)
+    anyof("land_use", f.land_uses)
     anyof("main_use", f.main_uses)
     if f.etc_use:
         add("b.etc_use ILIKE '%' || ${i} || '%'", f.etc_use)
@@ -181,6 +185,11 @@ def _filter_sql(f: Filters, args: list) -> str:
     if f.station_dist_max is not None:
         add("b.station_dist <= ${i}", f.station_dist_max)
     rng("last_sale_price", f.last_sale_min, f.last_sale_max)
+    # 실거래일(최근 N년): last_sale_ym 'YYYYMM' ≥ 오늘−N년. NULL(실거래 없음)은 자동 제외.
+    if f.last_sale_years_max is not None:
+        add("b.last_sale_ym >= to_char(CURRENT_DATE - make_interval(years => ${i}), 'YYYYMM')", f.last_sale_years_max)
+    if f.last_sale_years_min is not None:
+        add("b.last_sale_ym <= to_char(CURRENT_DATE - make_interval(years => ${i}), 'YYYYMM')", f.last_sale_years_min)
     rng("gongsi_latest", f.gongsi_min, f.gongsi_max)
     # 연식(년): approval_ymd 기준. age≤max → 지은지 max년 이내 → approval_ymd ≥ 오늘-max년
     if f.age_max is not None:
@@ -190,24 +199,14 @@ def _filter_sql(f: Filters, args: list) -> str:
     return (" AND " + " AND ".join(conds)) if conds else ""
 
 
-@router.post("")
-async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
-    """3열 목록(광고/내매물/일반) + 열별 독립 페이징. 무크레딧.
-
-    분류(§3.4·상태 종속): 광고 = 최신 광고가 존재 · 내매물 = 팀 담당자 지정 · 일반 = 나머지.
-    매매가(§3.5): 광고=광고가 / 내매물=광고가|최근매각 / 일반=추정 매각가(없으면 NULL→후순위).
-    """
+def _build_base(body: SearchIn, user: CurrentUser) -> tuple[str, list]:
+    """3열 분류 CTE(classified) + args 구성 — search(페이징)·pins(전체) 공용."""
     args: list = [user.team_id]
     poly_sql = ""
     if body.polygon:
         args.append(json.dumps(body.polygon))
         poly_sql = f" AND ST_Within(b.geom, ST_MakeValid(ST_GeomFromGeoJSON(${len(args)}::text)))"
     filt_sql = _filter_sql(body.filters, args)
-    # 정렬 = 매매가순 / 수익률순만(S01 §3.3). 값 없는 항목은 후순위(NULLS LAST).
-    order = {
-        "price": "price DESC NULLS LAST, addr",
-        "roi": "roi DESC NULLS LAST, price DESC NULLS LAST",
-    }.get(body.sort, "price DESC NULLS LAST, addr")
     args.append(user.account_id)   # 즐겨찾기 조인용
     acct_i = len(args)
     fav_join = f"LEFT JOIN app.favorites fv ON fv.building_pk=b.building_pk AND fv.account_id=${acct_i}"
@@ -225,6 +224,11 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
         WHERE team_id = $1 AND deleted_at IS NULL AND rent IS NOT NULL
         GROUP BY building_pk
       ),
+      sale_ov AS (     -- 팀 수기 매매가(sale_price 오버레이) — 매매가 소스(실거래 아님)
+        SELECT target_id AS building_pk, value::bigint AS sale_price
+        FROM app.overlays
+        WHERE team_id = $1 AND target_type = 'building' AND field = 'sale_price' AND value ~ '^[0-9]+$'
+      ),
       classified AS (
         SELECT b.building_pk, b.addr, b.land_area, b.total_area,
                b.floors_above, b.floors_below, b.use_zone,
@@ -238,19 +242,18 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
                  WHEN l.assignee_account_id IS NOT NULL THEN 'mine'
                  ELSE 'normal'
                END AS col,
+               -- 매매가 = 광고가 or 팀 수기값. 실거래가는 매매가가 아님 → 제외.
+               COALESCE(la.price, so.sale_price) AS price,
+               -- 수익률(추정) = 연임대료 / (매매가, 없으면 실거래로 추정)
                CASE
-                 WHEN la.price IS NOT NULL THEN la.price
-                 ELSE b.last_sale_price          -- sales.금액 = 원 단위
-               END AS price,
-               -- 수익률(추정) = 연임대료 / 매매가 · 임대 정보 없으면 NULL(§3.5 후순위)
-               CASE
-                 WHEN tr.monthly_rent IS NOT NULL AND COALESCE(la.price, b.last_sale_price) > 0
+                 WHEN tr.monthly_rent IS NOT NULL AND COALESCE(la.price, so.sale_price, b.last_sale_price) > 0
                  THEN round((tr.monthly_rent * 12.0)
-                            / COALESCE(la.price, b.last_sale_price) * 100, 2)
+                            / COALESCE(la.price, so.sale_price, b.last_sale_price) * 100, 2)
                  ELSE NULL
                END AS roi
         FROM master.buildings b
         LEFT JOIN latest_ad la ON la.building_pk = b.building_pk
+        LEFT JOIN sale_ov so ON so.building_pk = b.building_pk
         LEFT JOIN team_rent tr ON tr.building_pk = b.building_pk
         LEFT JOIN app.listings l
           ON l.building_pk = b.building_pk AND l.team_id = $1
@@ -259,6 +262,22 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
         WHERE TRUE {poly_sql} {filt_sql} {fav_where}
       )
     """
+    return base, args
+
+
+@router.post("")
+async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
+    """3열 목록(광고/내매물/일반) + 열별 독립 페이징. 무크레딧.
+
+    분류(§3.4·상태 종속): 광고 = 최신 광고가 존재 · 내매물 = 팀 담당자 지정 · 일반 = 나머지.
+    매매가(§3.5): 광고=광고가 / 내매물=광고가|최근매각 / 일반=추정 매각가(없으면 NULL→후순위).
+    """
+    base, args = _build_base(body, user)
+    # 정렬 = 매매가순 / 수익률순만(S01 §3.3). 값 없는 항목은 후순위(NULLS LAST).
+    order = {
+        "price": "price DESC NULLS LAST, addr",
+        "roi": "roi DESC NULLS LAST, price DESC NULLS LAST",
+    }.get(body.sort, "price DESC NULLS LAST, addr")
 
     async def col(name: str, page: int):
         off = (page - 1) * body.per_page
@@ -280,3 +299,19 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
         "mine": await col("mine", body.page_mine),
         "normal": await col("normal", body.page_normal),
     }
+
+
+@router.post("/pins")
+async def pins(body: SearchIn, user: CurrentUser = Depends(current_user)):
+    """지도 핀 — 페이징 없이 조건에 맞는 매물(경량: 좌표·분류·가격).
+    프론트가 뷰포트 컬링(화면 안 핀만 렌더)하므로 넉넉히 반환하되, 3000개 상한(응답 크기·극단 방지).
+    가격 있는 매물 우선(NULLS LAST) → 상한에 걸려도 유의미한 핀부터."""
+    base, args = _build_base(body, user)
+    rows = await pool().fetch(
+        base + """SELECT building_pk, addr, lng, lat, col, price, roi,
+                         last_sale_price, is_fav
+                  FROM classified WHERE lng IS NOT NULL
+                  ORDER BY price DESC NULLS LAST, building_pk LIMIT 3000""",
+        *args,
+    )
+    return [dict(r) for r in rows]

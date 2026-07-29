@@ -3,6 +3,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from ..core.db import pool
 from ..core.deps import current_user, CurrentUser
+from ..jobs import value_score as vs
 
 router = APIRouter(prefix="/buildings", tags=["buildings"])
 
@@ -21,6 +22,24 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
     if coords:
         data["lng"], data["lat"] = coords["lng"], coords["lat"]
     data.pop("geom", None)   # WKB 불필요
+
+    # 유동인구: 오버레이 없으면 접근성 proxy(도로+역)로 추정 등급 채움 — '미지정' 방지(footer 주의사항이 추정 커버)
+    data["float_pop"] = vs.float_pop_label(data)
+
+    # 적정가 추정(F-17 v2 배치) — 매매가 미입력 시 기본값. specs R.
+    se = await pool().fetchval(
+        "SELECT sale_est FROM master.building_sale_est WHERE building_pk=$1", building_pk)
+    data["sale_est"] = int(se) if se is not None else None
+
+    # 지역 지가 상승률(리포트 맥락) — 자치구별 누적 지가변동률(land_adjust)
+    if data.get("bjd_code"):
+        gu = str(data["bjd_code"])[:5]
+        la = await pool().fetch("SELECT yr, adj FROM master.land_adjust WHERE gu=$1 ORDER BY yr", gu)
+        if not la:
+            la = await pool().fetch("SELECT yr, adj FROM master.land_adjust WHERE gu='11' ORDER BY yr")
+        amap = {r["yr"]: float(r["adj"]) for r in la}
+        data["region_land_5y"] = amap.get(2020)
+        data["region_land_10y"] = amap.get(2016)
 
     # 시계열: 공시지가(대표 PNU 연도별) · 매각 이력 (S02 §3.7)
     if data.get("pnu"):
@@ -43,12 +62,17 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
 
 @router.get("/{building_pk}/floor-outline")
 async def floor_outline(building_pk: str, _: CurrentUser = Depends(current_user)):
-    """층별개요(대장) 프리필 — 층·용도·전용면적. 층별임대정보 최초 입력 시 시드용(S02 §3.5)."""
+    """층별개요(대장) 프리필 — 층·용도·층별면적(바닥, 합=연면적) + 임대료/보증금 추정(공공 상권시세). 층별임대정보 시드용(S02 §3.5).
+    rent_est/deposit_est = 마스터 추정값(유저가 입력하면 오버레이가 덮음)."""
     rows = await pool().fetch(
-        "SELECT floor, use, exclusive_area FROM master.floor_outline WHERE building_pk=$1 ORDER BY seq",
+        """SELECT fo.floor, fo.use, fo.exclusive_area, fre.rent_est, fre.deposit_est
+           FROM master.floor_outline fo
+           LEFT JOIN master.floor_rent_est fre USING (building_pk, seq)
+           WHERE fo.building_pk=$1 ORDER BY fo.seq""",
         building_pk)
     return [{"floor": r["floor"], "use": r["use"],
-             "exclusive_area": float(r["exclusive_area"]) if r["exclusive_area"] is not None else None}
+             "exclusive_area": float(r["exclusive_area"]) if r["exclusive_area"] is not None else None,
+             "rent_est": r["rent_est"], "deposit_est": r["deposit_est"]}
             for r in rows]
 
 

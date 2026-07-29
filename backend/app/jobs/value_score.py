@@ -59,6 +59,36 @@ def remodel_score(years_since: float | None) -> int:
     return 0
 
 
+# 유동인구(float_pop): NICE 전건물 미확보 → 도로접면·역거리 proxy로 마스터값 초기화(route B).
+# 유저 오버레이(enum) 있으면 우선. comp도 전 건물 값이 존재 → F-17 유사도 가중 정상화.
+FLOAT_POP_SCORES = {"매우높음": 100, "높음": 78, "보통": 50, "낮음": 22, "매우낮음": 6}
+
+
+def float_pop_score(b: dict[str, Any]) -> int:
+    ov = b.get("float_pop")
+    if ov in FLOAT_POP_SCORES:                # 유저 오버레이 우선
+        return FLOAT_POP_SCORES[ov]
+    proxy = (ROAD_SCORES.get(b.get("road_frontage") or "", 0)
+             + station_score(_num(b.get("station_dist")))) / 2   # 접근성 proxy(0~100)
+    for cut, sc in [(80, 100), (60, 78), (40, 50), (20, 22)]:     # 버킷 → 점수표 앵커
+        if proxy >= cut:
+            return sc
+    return 6
+
+
+def float_pop_label(b: dict[str, Any]) -> str:
+    """표시용 유동인구 등급 — 오버레이 있으면 그 값, 없으면 접근성 proxy 버킷(추정)."""
+    ov = b.get("float_pop")
+    if ov in FLOAT_POP_SCORES:
+        return ov
+    proxy = (ROAD_SCORES.get(b.get("road_frontage") or "", 0)
+             + station_score(_num(b.get("station_dist")))) / 2
+    for cut, lbl in [(80, "매우높음"), (60, "높음"), (40, "보통"), (20, "낮음")]:
+        if proxy >= cut:
+            return lbl
+    return "매우낮음"
+
+
 # param_key(weight.*) → 항목 점수 산출 매핑. 키 = 마스터 실제 컬럼명(0006/0009/0011)
 def item_scores(b: dict[str, Any]) -> dict[str, int]:
     return {
@@ -70,6 +100,7 @@ def item_scores(b: dict[str, Any]) -> dict[str, int]:
         "elevator": 100 if _num(b.get("elevator")) else 0,
         "remodel": remodel_score(b.get("remodel_years")),
         "slope": SLOPE_SCORES.get(b.get("slope") or "", 0),
+        "float_pop": float_pop_score(b),
     }
 
 
