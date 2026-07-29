@@ -69,8 +69,8 @@
 .rs-tbl .blue { color: var(--blue); font-weight: 700; }
 .rs-tbl .sum td { background: transparent; font-weight: 800; border-top: 1.5px solid var(--navy); }
 /* 보고서 지도(기본정보 우측) — 정적 지도처럼 */
-.rs-map { flex: 1; min-height: 22cqw; border-radius: .8cqw; overflow: hidden; border: 1px solid var(--rl); background: #eef1f5; position: relative; }
-.rs-map-empty { display: flex; align-items: center; justify-content: center; height: 100%; min-height: 22cqw; font-size: 1.1cqw; color: var(--rmuted); }
+.rs-map { flex: 1; min-height: 27cqw; border-radius: .8cqw; overflow: hidden; border: 1px solid var(--rl); background: #eef1f5; position: relative; }
+.rs-map-empty { display: flex; align-items: center; justify-content: center; height: 100%; min-height: 27cqw; font-size: 1.1cqw; color: var(--rmuted); }
 /* 라벨-값 2열 표(기본정보) */
 .rs-kv td:first-child { color: var(--rmuted); font-weight: 600; width: 42%; background: #FAFBFC; }
 

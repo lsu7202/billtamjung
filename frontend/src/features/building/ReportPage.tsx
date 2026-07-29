@@ -49,7 +49,7 @@ function ReportMap({ lng, lat, geom }: { lng?: number | null; lat?: number | nul
         const bnds = new naver.maps.LatLngBounds();
         paths.forEach((ring: any[]) => ring.forEach((p: any) => bnds.extend(p)));
         map.fitBounds(bnds, { top: 60, right: 60, bottom: 60, left: 60 });
-        map.setZoom(map.getZoom() - 2);   // fit에서 2단계 줌아웃 — 필지 유지 + 주변 맥락
+        map.setZoom(map.getZoom() - 3);   // fit에서 3단계 줌아웃 — 로케이터형(넓은 맥락)
         map.setCenter(new naver.maps.LatLng(lat, lng));
       } else {
         new naver.maps.Marker({
