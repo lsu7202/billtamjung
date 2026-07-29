@@ -21,6 +21,34 @@ const AXIS_ICON: Record<string, string> = {
   approval_date: "calendar", elevator: "elevator", remodel: "tools", slope: "slope", float_pop: "people",
 };
 const word = (s: number) => s >= 90 ? "매우 우수" : s >= 80 ? "우수" : s >= 70 ? "양호" : s >= 60 ? "보통" : "미흡";
+/** 가치 분석 항목별 '사실 기반' 의견 — 실제 필드값 + 점수대 평가. "[사실]해서 [평가]하다" 형태. */
+function opinion(k: string, s: number, b: Record<string, any>): string {
+  const A = s >= 90 ? "매우 우수합니다" : s >= 80 ? "우수합니다" : s >= 70 ? "양호합니다" : s >= 60 ? "무난합니다" : "다소 아쉽습니다";
+  const yr = b.approval_ymd ? Number(String(b.approval_ymd).slice(0, 4)) : null;
+  const age = yr ? new Date().getFullYear() - yr : null;
+  switch (k) {
+    case "road_access":
+      return b.road_frontage ? `${b.road_frontage}에 접해 접근성과 건물 활용도가 ${A}` : `도로 접면 여건상 접근성이 ${A}`;
+    case "station_dist":
+      return b.station_dist != null ? `가장 가까운 역까지 약 ${Math.round(b.station_dist)}m로, 대중교통 접근성이 ${A}` : `역 접근성이 ${A}`;
+    case "use_zone":
+      return b.use_zone ? `${b.use_zone}에 속해 상업·업무 활용 잠재력이 ${A}` : `용도지역상 활용 잠재력이 ${A}`;
+    case "shape":
+      return b.shape ? `대지 형상이 ${b.shape}이라 토지 이용 효율이 ${A}` : `대지 형상상 이용 효율이 ${A}`;
+    case "approval_date":
+      return yr ? `${yr}년 준공(약 ${age}년차)으로, 건물 연식 여건이 ${A}` : `건물 연식 여건이 ${A}`;
+    case "elevator":
+      return (Number(b.elevator) || 0) > 0 ? `엘리베이터 ${b.elevator}대가 있어 상층부 접근성이 ${A}` : "엘리베이터가 없어 상층부 접근성이 다소 아쉽습니다";
+    case "remodel":
+      return b.remodel_ymd ? `${String(b.remodel_ymd).slice(0, 4)}년 대수선 이력이 있어 건물 관리 상태가 ${A}` : "대수선 이력이 없어 노후 관리 측면이 다소 아쉽습니다";
+    case "slope":
+      return b.slope ? `대지 경사가 ${b.slope}이라 건축·이용 여건이 ${A}` : `대지 경사 여건이 ${A}`;
+    case "float_pop":
+      return b.float_pop ? `유동인구가 ${b.float_pop} 수준으로, 상권 활력이 ${A}` : `상권 활력이 ${A}`;
+    default:
+      return `평가 결과 ${word(s)} 수준`;
+  }
+}
 const num = (x: unknown): number | null => (x == null || x === "" ? null : Number(x));
 const eok = (v: number | null | undefined, d = 0) => (v ? `${(v / 1e8).toFixed(d)}` : "—");
 const man = (v: number | null | undefined) => (v ? `${Math.round(v / 1e4).toLocaleString()}` : "—");
@@ -238,8 +266,8 @@ export function ReportPage() {
           <ReportMap lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom} />
         </div>
       </Slide>,
-      <Slide key={2} n="03" foot="가치점수 분석" rno={rno} date={date}
-        title="가치점수 분석" desc="입지·교통·물리적 조건 등 주요 항목을 종합 평가한 본 매물의 가치 점수입니다.">
+      <Slide key={2} n="03" foot="가치 분석" rno={rno} date={date}
+        title="가치 분석" desc="입지·교통·물리적 조건 등 주요 항목을 종합 평가한 본 매물의 가치 점수입니다.">
         <div style={{ display: "flex", gap: "2.5cqw", width: "100%" }}>
           <table className="rs-tbl" style={{ flex: "0 0 52%", alignSelf: "flex-start" }}>
             <thead><tr><th>평가 항목</th><th>평가 결과</th><th>분석 의견</th></tr></thead>
@@ -249,7 +277,7 @@ export function ReportPage() {
                 return <tr key={k}>
                   <td className="b"><span style={{ display: "inline-flex", alignItems: "center", gap: ".7cqw" }}><Icon name={AXIS_ICON[k]} size={1.9} color="var(--navy)" />{`①②③④⑤⑥⑦⑧⑨`[i]} {l}</span></td>
                   <td style={{ color: gc(s), fontWeight: 700 }}>{word(s)}</td>
-                  <td style={{ color: "var(--rmuted)" }}>{l} 항목 평가 결과 {word(s)} 수준</td>
+                  <td style={{ color: "var(--rmuted)", fontSize: "1cqw", lineHeight: 1.35 }}>{opinion(k, s, b)}</td>
                 </tr>;
               })}
             </tbody>
