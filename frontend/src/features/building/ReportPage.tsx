@@ -159,18 +159,21 @@ export function ReportPage() {
   const brokerAdj = broker != null && fair != null && Math.abs(broker - fair) > 1e6;   // 중개인이 적정가에서 조정했나
   const rent = pv?.applied_rent ?? sub?.total_rent ?? null;
   const curRent = sub?.total_rent ?? null;
-  const dep = pv?.expected_deposit ?? null;
   const totalArea = sub?.total_area ?? num(b.total_area);
   const landArea = num(b.land_area);
   const totalP = totalArea ? totalArea / P : null;
   const avgPer = fair && totalP ? Math.round(fair / totalP) : (pv?.avg_per_pyeong ?? null);   // 산정요약 = 빌탐정 적정가와 일치
   const roi = broker && rent ? Math.round((rent * 12 / broker) * 10000) / 100 : (pv?.expected_roi ?? null);  // 수익률=매매가 기준
   const comps = ((pv?.comps_used ?? []) as CompUsed[]).slice(0, 7);
+  const gseries = (b.gongsi_series ?? []) as [number, number][];   // 공시지가 시계열 [연도, 원/㎡]
+  const gLatest = num(b.gongsi_latest);                            // 본매물 공시지가(원/㎡)
+  const gTotal = gLatest && landArea ? gLatest * landArea : null;  // 공시총액(원)
+  const impliedMult = fair && gTotal ? fair / gTotal : null;       // 적정가 ÷ 공시총액 = 공시배율(참고)
   const _perVals = comps.map((c) => c.per_now).filter((v): v is number => !!v);   // comp 연면적당 평단가(원/평)
   const compMin = _perVals.length ? Math.round(Math.min(..._perVals) / 1e4) : null;
   const compMax = _perVals.length ? Math.round(Math.max(..._perVals) / 1e4) : null;
   const floors = (pv?.rent_floors ?? []) as RentFloor[];
-  const roiAsk = ask && rent ? (rent * 12 / ask) * 100 : null;
+  const roiFair = rent && fair ? (rent * 12 / fair) * 100 : null;   // 적정가 기준 예상수익률(리포트용)
 
   const loading = (reportId != null && rq.isLoading) || (needLive && cq.isLoading) || (!!pk && bq.isLoading);
   if (loading && !sub) return <div style={{ padding: 40, color: "var(--muted)" }}>보고서 계산 중…</div>;
@@ -345,13 +348,37 @@ export function ReportPage() {
           </div>
         </div>
       </Slide>,
-      <Slide key={4} n="05" foot="주변월세시세 분석" rno={rno} date={date}
-        title="주변월세시세 분석" desc="반경 500m 내 유사 임대광고 사례(층별 5건 내외) 기준 브리핑형 임대시세 분석">
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%" }}>
-          <div className="rs-grid" style={{ gridTemplateColumns: "1fr 1.3fr 1fr" }}>
+      <Slide key={4} n="05" foot="공시지가" rno={rno} date={date}
+        title="공시지가 분석" desc={`${shortAddr}의 공시지가 추이와, 실거래가 공시가 대비 형성되는 수준(공시배율)을 반영합니다.`}>
+        <div style={{ display: "flex", gap: "2.5cqw", width: "100%", height: "100%", alignItems: "center" }}>
+          <div style={{ flex: "0 0 54%" }}>
+            <div style={{ fontSize: "1.1cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>연도별 공시지가 <span style={{ color: "var(--rmuted)", fontWeight: 400 }}>(만원/㎡)</span></div>
+            {gseries.length >= 2
+              ? <CompareBar height={170} fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}`}
+                  items={gseries.map(([y, p]) => ({ label: `'${String(y).slice(2)}`, value: Number(p), color: "var(--navy)" }))} />
+              : <div style={{ color: "var(--rmuted)", fontSize: "1.1cqw", padding: "2cqw 0" }}>공시지가 시계열 데이터가 없습니다.</div>}
+          </div>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "1cqw" }}>
+            <div style={{ display: "flex", gap: ".8cqw" }}>
+              <div className="rs-fbox" style={{ flex: 1, textAlign: "center" }}><div className="k">본매물 공시지가</div><div className="v">{gLatest ? `${Math.round(gLatest / 1e4).toLocaleString()}만` : "—"}<span style={{ fontSize: ".85cqw", color: "var(--rmuted)" }}>/㎡</span></div></div>
+              <div className="rs-fbox" style={{ flex: 1, textAlign: "center" }}><div className="k">공시총액 (공시지가×대지)</div><div className="v">{gTotal ? eok(gTotal) : "—"}억</div></div>
+            </div>
+            <div style={{ fontSize: "1.12cqw", lineHeight: 1.75, color: "var(--rink)" }}>
+              {impliedMult
+                ? <>본 매물의 빌탐정 적정가는 공시총액의 <b style={{ color: "var(--blue)" }}>약 {impliedMult.toFixed(1)}배</b> 수준입니다. 인근 실거래도 공시가 대비 유사한 배율로 형성되며, 이 <b>공시배율</b>을 본 매물 공시총액에 적용한 값이 적정가 산정의 한 축입니다.</>
+                : <>공시지가는 인근 실거래의 공시가 대비 배율과 함께 적정가 산정의 기준이 됩니다.</>}
+            </div>
+          </div>
+        </div>
+      </Slide>,
+      <Slide key={5} n="06" foot="주변월세·수익가치" rno={rno} date={date}
+        title="주변월세·수익가치" desc="주변 월세시세로 임대수익을 추정하고, 이를 수익가치(수익환원)로 적정가에 반영합니다.">
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%", height: "100%" }}>
+          <div className="rs-grid" style={{ gridTemplateColumns: "1fr 1.3fr 1fr 1fr" }}>
             <div className="rs-sc"><div className="k">현재 총월세</div><div className="v">{man(curRent)}<u>만원</u></div></div>
-            <div className="rs-sc blue"><div className="k">주변월세시세 적용 총월세</div><div className="v" style={{ color: "var(--blue)" }}>{man(rent)}<u>만원</u> <span style={{ fontSize: ".9cqw", color: "var(--rmuted)", fontWeight: 500 }}>연 {eok(rent ? rent * 12 : null)}억</span></div></div>
-            <div className="rs-sc"><div className="k">차이</div><div className="v" style={{ color: "var(--blue)" }}>{rent != null && curRent != null ? `${rent >= curRent ? "+" : ""}${Math.round((rent - curRent) / 1e4).toLocaleString()}` : "—"}<u>만원</u></div></div>
+            <div className="rs-sc blue"><div className="k">주변시세 적용 총월세</div><div className="v" style={{ color: "var(--blue)" }}>{man(rent)}<u>만원</u> <span style={{ fontSize: ".9cqw", color: "var(--rmuted)", fontWeight: 500 }}>연 {eok(rent ? rent * 12 : null)}억</span></div></div>
+            <div className="rs-sc"><div className="k">예상 연임대수익</div><div className="v">{rent ? eok(rent * 12) : "—"}<u>억</u></div></div>
+            <div className="rs-sc hl"><div className="k">적정가 기준 예상수익률</div><div className="v" style={{ color: "var(--peach-tx)" }}>{roiFair != null ? roiFair.toFixed(2) : "—"}<u>%</u></div></div>
           </div>
           {floors.length ? (
             <table className="rs-tbl">
@@ -367,49 +394,8 @@ export function ReportPage() {
               </tbody>
             </table>
           ) : <div className="rs-callout" style={{ background: "var(--card)", borderColor: "var(--rl)", color: "var(--rmuted)" }}>주변 임대광고 사례가 없어 현재 임대료 기준으로 분석되었습니다.</div>}
-        </div>
-      </Slide>,
-      <Slide key={5} n="06" foot="예상수익률 분석" rno={rno} date={date}
-        title="예상수익률 분석" desc="매매가 기준 수익성 브리핑">
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%" }}>
-          <div className="rs-grid" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
-            <div className="rs-sc"><div className="k">예상보증금</div><div className="v">{dep ? `${(dep / 1e8).toFixed(1)}` : "—"}<u>억원</u></div></div>
-            <div className="rs-sc"><div className="k">예상월임대료</div><div className="v">{man(rent)}<u>만원</u></div></div>
-            <div className="rs-sc"><div className="k">예상 연임대수익</div><div className="v">{rent ? eok(rent * 12) : "—"}<u>억</u></div></div>
-            <div className="rs-sc hl"><div className="k">매매가 기준 예상수익률</div><div className="v" style={{ color: "var(--peach-tx)" }}>{roi != null ? roi.toFixed(2) : "—"}<u>%</u></div></div>
-          </div>
-          <div style={{ display: "flex", gap: "2.5cqw" }}>
-            <div style={{ flex: "0 0 46%" }}>
-              <div style={{ fontSize: "1.3cqw", fontWeight: 800, color: "var(--navy)", marginBottom: ".6cqw" }}>가격 협의가 수익률에 미치는 영향</div>
-              <table className="rs-tbl">
-                <thead><tr><th>구분</th><th className="r">매도희망가</th><th className="r" style={{ background: "var(--blue)" }}>매매가</th></tr></thead>
-                <tbody>
-                  <tr><td>가격</td><td className="r">{eok(ask)}억 원</td><td className="r b blue">{eok(broker)}억 원</td></tr>
-                  <tr><td>예상수익률</td><td className="r">{roiAsk != null ? `${roiAsk.toFixed(2)}%` : "—"}</td><td className="r b blue">{roi != null ? `${roi.toFixed(2)}%` : "—"}</td></tr>
-                </tbody>
-              </table>
-              <div style={{ fontSize: "1.05cqw", color: "var(--blue)", fontWeight: 700, marginTop: ".6cqw" }}>→ 매매가(적정가) 기준 접근 시 수익률 개선</div>
-            </div>
-            <div style={{ flex: 1 }}>
-              <div className="rs-concl navy" style={{ background: "var(--navy)", color: "#dfe6f2" }}>
-                <h4 style={{ color: "#fff" }}>왜 이렇게 분석되었나</h4>
-                <li style={{ color: "#cfd8e8" }}>주변월세시세 적용 총월세 {man(rent)}만원 기준</li>
-                <li style={{ color: "#cfd8e8" }}>예상보증금 {dep ? (dep / 1e8).toFixed(1) : "—"}억 원 반영</li>
-                <li style={{ color: "#cfd8e8" }}>매매가 {eok(broker)}억 원 기준 단순 연임대수익 산정 (빌탐정 적정가 {eok(fair)}억)</li>
-                <li style={{ color: "#cfd8e8" }}>매도희망가 대비 매매가 매수 시 수익률 개선</li>
-              </div>
-            </div>
-          </div>
-          <div className="rs-flow">
-            <div className="rs-fbox"><div className="k">적용 총월세</div><div className="v" style={{ fontSize: "1.3cqw" }}>{man(rent)}만원</div></div>
-            <span className="rs-op">×</span>
-            <div className="rs-fbox"><div className="k">개월</div><div className="v" style={{ fontSize: "1.3cqw" }}>12개월</div></div>
-            <span className="rs-op">=</span>
-            <div className="rs-fbox"><div className="k">예상 연임대수익</div><div className="v" style={{ fontSize: "1.3cqw" }}>{rent ? eok(rent * 12) : "—"}억</div></div>
-            <span className="rs-op">÷</span>
-            <div className="rs-fbox"><div className="k">매매가</div><div className="v" style={{ fontSize: "1.3cqw" }}>{eok(broker)}억</div></div>
-            <span className="rs-op">=</span>
-            <div className="rs-fbox hl"><div className="k">예상수익률</div><div className="v" style={{ fontSize: "1.3cqw", color: "var(--peach-tx)" }}>{roi != null ? roi.toFixed(2) : "—"}%</div></div>
+          <div style={{ fontSize: "1cqw", lineHeight: 1.6, color: "var(--rmuted)", marginTop: "auto" }}>
+            주변 월세시세로 추정한 연 임대수익은 <b style={{ color: "var(--navy)" }}>수익환원</b>(연 임대수익 ÷ 자치구 환원율) 방식으로 적정가 산정에 일부 반영됩니다. 예상수익률은 <b style={{ color: "var(--navy)" }}>빌탐정 적정가</b> 대비 연 임대수익 기준입니다.
           </div>
         </div>
       </Slide>,
