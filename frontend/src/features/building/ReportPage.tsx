@@ -166,7 +166,9 @@ export function ReportPage() {
   const avgPer = fair && totalP ? Math.round(fair / totalP) : (pv?.avg_per_pyeong ?? null);   // 산정요약 = 빌탐정 적정가와 일치
   const roi = broker && rent ? Math.round((rent * 12 / broker) * 10000) / 100 : (pv?.expected_roi ?? null);  // 수익률=매매가 기준
   const comps = ((pv?.comps_used ?? []) as CompUsed[]).slice(0, 7);
-  const bd = pv?.breakdown ?? null;   // F-17 3법 블렌드 산출분해(공시배율·대지·연면적·α·β)
+  const _perVals = comps.map((c) => c.per_now).filter((v): v is number => !!v);   // comp 연면적당 평단가(원/평)
+  const compMin = _perVals.length ? Math.round(Math.min(..._perVals) / 1e4) : null;
+  const compMax = _perVals.length ? Math.round(Math.max(..._perVals) / 1e4) : null;
   const floors = (pv?.rent_floors ?? []) as RentFloor[];
   const roiAsk = ask && rent ? (rent * 12 / ask) * 100 : null;
 
@@ -294,7 +296,7 @@ export function ReportPage() {
         </div>
       </Slide>,
       <Slide key={3} n="04" foot="주변 실거래 분석" rno={rno} date={date}
-        title="주변 실거래 분석" desc={`${shortAddr} 인근 유사 실거래를 공시배율·대지평단가·연면적 3법으로 분석해 적정매매가를 도출했습니다.`}>
+        title="주변 실거래 분석" desc={`${shortAddr} 인근의 유사 실거래를 바탕으로 본 매물의 적정매매가를 분석했습니다.`}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%", height: "100%" }}>
           <table className="rs-tbl">
             <thead><tr><th>사례</th><th>주소</th><th className="r">거리</th><th>거래일</th><th className="r">매매가</th><th className="r">연면적</th><th className="r">평단가</th><th className="r">시점보정</th></tr></thead>
@@ -330,31 +332,15 @@ export function ReportPage() {
                 items={[...comps.map((c, i) => ({ label: `${i + 1}`, value: c.per_now ?? 0, color: "var(--navy)" })),
                   ...(avgPer ? [{ label: "본매물", value: avgPer, color: "var(--blue)", strong: true }] : [])].filter((x) => x.value > 0)} />}
             </div>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".55cqw", justifyContent: "center" }}>
-              {bd ? <>
-                <div style={{ display: "flex", gap: ".55cqw" }}>
-                  {([["공시지가 기준", bd.gong], ["대지(땅값) 기준", bd.land], ["연면적 기준", bd.far]] as [string, number | null][])
-                    .filter(([, v]) => v != null).map(([k, v]) => (
-                    <div key={k} className="rs-fbox" style={{ flex: 1, padding: ".7cqw .4cqw", textAlign: "center" }}>
-                      <div className="k" style={{ fontSize: ".82cqw" }}>{k}</div>
-                      <div className="v" style={{ fontSize: "1.2cqw" }}>{eok(v!)}억</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ textAlign: "center", fontSize: ".95cqw", color: "var(--rmuted)" }}>세 방식을 건물 특성에 맞게 <b style={{ color: "var(--navy)" }}>가중 종합</b> ↓</div>
-                <div className="rs-fbox hl"><div className="k">빌탐정 적정가</div><div className="v" style={{ color: "var(--peach-tx)", fontSize: "1.7cqw" }}>{eok(fair)}억 원</div></div>
-                <div style={{ fontSize: ".78cqw", color: "var(--rmuted)", lineHeight: 1.35 }}>
-                  공시지가·대지 {Math.round(bd.wg * 100)}:{Math.round((1 - bd.wg) * 100)} 종합
-                  {bd.alpha > 0 && <>, 연면적 기준 {Math.round(bd.alpha * 100)}% 반영</>}
-                  {bd.beta && bd.income_val ? <>, 임대수익 {Math.round(bd.beta * 100)}% 가미</> : null}
-                </div>
-              </> : <div className="rs-flow">
-                <div className="rs-fbox"><div className="k">가중평균 평단가</div><div className="v">{avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만/평` : "—"}</div></div>
-                <span className="rs-op">×</span>
-                <div className="rs-fbox"><div className="k">본 매물 연면적</div><div className="v">{py(totalArea)}평</div></div>
-                <span className="rs-op">=</span>
-                <div className="rs-fbox hl"><div className="k">빌탐정 적정가</div><div className="v" style={{ color: "var(--peach-tx)" }}>{eok(fair)}억 원</div></div>
-              </div>}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+              <div style={{ fontSize: "1.15cqw", lineHeight: 1.75, color: "var(--rink)" }}>
+                {compMin && compMax
+                  ? <>인근 유사 실거래의 연면적당 평단가는 사례별 약 <b>{compMin.toLocaleString()}~{compMax.toLocaleString()}만원</b> 수준입니다. 본 매물은 입지·용도·건물 규모 등 개별 특성을 반영해 <b style={{ color: "var(--blue)" }}>평당 약 {avgPer ? Math.round(avgPer / 1e4).toLocaleString() : "—"}만원</b>으로 평가되며, 이를 연면적 <b>{py(totalArea)}평</b>에 적용한 결과가 <b style={{ color: "var(--blue)" }}>빌탐정 적정가 약 {eok(fair)}억원</b>입니다.</>
+                  : <>반경 내 유사 실거래가 충분치 않아, 공시지가·대지·건물 규모 등 다른 기준을 함께 반영해 적정가를 산정했습니다.</>}
+              </div>
+              <div style={{ fontSize: "1cqw", lineHeight: 1.6, color: "var(--rmuted)", marginTop: ".9cqw" }}>
+                실거래가는 공시지가 대비 배율, 대지 평단가, 연면적 평단가 등 여러 기준으로 교차 분석하며, 이를 건물 특성에 맞게 종합한 최종 결론은 마지막 장에 정리했습니다.
+              </div>
             </div>
           </div>
         </div>
