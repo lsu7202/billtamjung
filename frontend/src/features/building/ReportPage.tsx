@@ -295,7 +295,7 @@ export function ReportPage() {
       </Slide>,
       <Slide key={3} n="04" foot="주변 실거래 분석" rno={rno} date={date}
         title="주변 실거래 분석" desc={`${shortAddr} 인근 유사 실거래를 공시배율·대지평단가·연면적 3법으로 분석해 적정매매가를 도출했습니다.`}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%", height: "100%" }}>
           <table className="rs-tbl">
             <thead><tr><th>사례</th><th>주소</th><th className="r">거리</th><th>거래일</th><th className="r">매매가</th><th className="r">연면적</th><th className="r">평단가</th><th className="r">시점보정</th></tr></thead>
             <tbody>
@@ -323,10 +323,10 @@ export function ReportPage() {
               )) : <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--rmuted)", padding: "2cqw" }}>반경 내 실거래 사례 없음</td></tr>}
             </tbody>
           </table>
-          <div style={{ display: "flex", gap: "2.5cqw", alignItems: "stretch" }}>
+          <div style={{ display: "flex", gap: "2.5cqw", alignItems: "center", flex: 1 }}>
             <div style={{ flex: "0 0 42%", display: "flex", flexDirection: "column" }}>
               <div style={{ fontSize: "1.1cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>연면적당 평단가 비교 <span style={{ color: "var(--rmuted)", fontWeight: 400 }}>(만원/평)</span></div>
-              {comps.length >= 2 && <CompareBar height={116} fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}`}
+              {comps.length >= 2 && <CompareBar height={150} fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}`}
                 items={[...comps.map((c, i) => ({ label: `${i + 1}`, value: c.per_now ?? 0, color: "var(--navy)" })),
                   ...(avgPer ? [{ label: "본매물", value: avgPer, color: "var(--blue)", strong: true }] : [])].filter((x) => x.value > 0)} />}
             </div>
