@@ -38,8 +38,8 @@ export function MetricStack({ items }: {
 }
 
 /* 점수 레이더 — N축(F-16 8축 등). score 0~100. */
-export function ScoreRadar({ axes, size = 210, color = "var(--signal)" }: {
-  axes: { label: string; score: number }[]; size?: number; color?: string;
+export function ScoreRadar({ axes, size = 210, color = "var(--signal)", showValues }: {
+  axes: { label: string; score: number }[]; size?: number; color?: string; showValues?: boolean;
 }) {
   const n = axes.length;
   if (n < 3) return null;
@@ -59,8 +59,13 @@ export function ScoreRadar({ axes, size = 210, color = "var(--signal)" }: {
         style={{ transformBox: "fill-box", transformOrigin: "center", animation: "bt-radar-in .7s cubic-bezier(.22,1,.36,1) .15s both" }} />
       {axes.map((a) => a.score).map((v, i) => { const [x, y] = pt(i, v); return <circle key={i} cx={x} cy={y} r={2.5} fill={color} />; })}
       {axes.map((ax, i) => {
-        const [x, y] = pt(i, 122);
-        return <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle" fontSize={10.5} fill="var(--muted)">{ax.label}</text>;
+        const [x, y] = pt(i, showValues ? 128 : 122);
+        return (
+          <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle" fontSize={10.5} fill="var(--muted)">
+            <tspan x={x}>{ax.label}</tspan>
+            {showValues && <tspan x={x} dy={12} fontWeight={700} fill={color}>{Math.round(ax.score)}%</tspan>}
+          </text>
+        );
       })}
     </svg>
   );
@@ -84,7 +89,13 @@ export function CompareBar({ items, fmt, height = 178 }: {
   if (!list.length) return <p style={{ color: "var(--muted)", fontSize: 13 }}>데이터 없음</p>;
   const W = cw, H = height, T = 24, B = 34, base = H - B;
   const max = Math.max(...list.map((i) => i.value), 1);
-  const band = W / list.length, colW = Math.min(56, band * 0.52);
+  // 고정 폭·고정 간격으로 가운데 정렬(퍼짐 방지). 넘치면 폭만 축소.
+  const gap = 16;
+  let colW = 40;
+  if (colW * list.length + gap * (list.length - 1) > W) colW = Math.max(10, (W - gap * (list.length - 1)) / list.length);
+  const groupW = colW * list.length + gap * (list.length - 1);
+  const startX = (W - groupW) / 2;
+  const xOf = (i: number) => startX + i * (colW + gap);
   return (
     <svg ref={ref} viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ height: H, display: "block", overflow: "visible" }} onMouseLeave={() => setHi(null)}>
       <defs>
@@ -98,12 +109,12 @@ export function CompareBar({ items, fmt, height = 178 }: {
       <line x1={0} y1={base} x2={W} y2={base} stroke="var(--line-2)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
       {list.map((it, i) => {
         const h = Math.max(3, (it.value / max) * (base - T));
-        const x = i * band + (band - colW) / 2, y = base - h;
+        const x = xOf(i), y = base - h;
         const dim = hi != null && hi !== i;
         const delay = i * 0.07;
         return (
           <g key={it.label} onMouseEnter={() => setHi(i)} style={{ cursor: "default" }}>
-            <rect x={i * band} y={0} width={band} height={H} fill="transparent" />
+            <rect x={xOf(i) - gap / 2} y={0} width={colW + gap} height={H} fill="transparent" />
             <g style={{ transformBox: "fill-box", transformOrigin: "bottom", animation: `bt-col-grow .6s cubic-bezier(.22,1,.36,1) ${delay}s both`, transition: "opacity .12s", opacity: dim ? 0.5 : 1 }}>
               <rect x={x} y={y} width={colW} height={h} rx={5} fill={`url(#${gid}-${i})`} />
               {(hi === i || it.strong) && <rect x={x} y={y} width={colW} height={Math.min(h, 3)} rx={1.5} fill={it.color ?? "var(--ink)"} />}

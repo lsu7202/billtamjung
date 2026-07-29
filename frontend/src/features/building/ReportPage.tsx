@@ -299,6 +299,16 @@ export function ReportPage() {
           <table className="rs-tbl">
             <thead><tr><th>사례</th><th>주소</th><th className="r">거리</th><th>거래일</th><th className="r">매매가</th><th className="r">연면적</th><th className="r">평단가</th><th className="r">시점보정</th></tr></thead>
             <tbody>
+              <tr style={{ background: "color-mix(in srgb, var(--blue) 8%, transparent)" }}>
+                <td className="b blue">본매물</td>
+                <td className="b" style={{ maxWidth: "16cqw", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{shortAddr}</td>
+                <td className="r">—</td>
+                <td>—</td>
+                <td className="r b blue">{fair ? `${eok(fair, 1)}억` : "—"}<span style={{ fontSize: ".82cqw", color: "var(--rmuted)", fontWeight: 500 }}> 적정가</span></td>
+                <td className="r">{py(totalArea)}평</td>
+                <td className="r b blue">{avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만` : "—"}</td>
+                <td className="r">—</td>
+              </tr>
               {comps.length ? comps.map((c, i) => (
                 <tr key={c.building_pk + i}>
                   <td>{i + 1}</td>
@@ -323,20 +333,21 @@ export function ReportPage() {
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".55cqw", justifyContent: "center" }}>
               {bd ? <>
                 <div style={{ display: "flex", gap: ".55cqw" }}>
-                  {([["공시배율법", bd.gong], ["대지평단가법", bd.land], ["연면적법", bd.far]] as [string, number | null][])
+                  {([["공시지가 기준", bd.gong], ["대지(땅값) 기준", bd.land], ["연면적 기준", bd.far]] as [string, number | null][])
                     .filter(([, v]) => v != null).map(([k, v]) => (
-                    <div key={k} className="rs-fbox" style={{ flex: 1, padding: ".7cqw .5cqw", textAlign: "center" }}>
-                      <div className="k" style={{ fontSize: ".85cqw" }}>{k}</div>
-                      <div className="v" style={{ fontSize: "1.25cqw" }}>{eok(v!)}억</div>
+                    <div key={k} className="rs-fbox" style={{ flex: 1, padding: ".7cqw .4cqw", textAlign: "center" }}>
+                      <div className="k" style={{ fontSize: ".82cqw" }}>{k}</div>
+                      <div className="v" style={{ fontSize: "1.2cqw" }}>{eok(v!)}억</div>
                     </div>
                   ))}
                 </div>
-                <div style={{ fontSize: ".92cqw", color: "var(--rmuted)", lineHeight: 1.4 }}>
-                  공시:대지 <b style={{ color: "var(--navy)" }}>{Math.round(bd.wg * 100)}:{Math.round((1 - bd.wg) * 100)}</b> 블렌드
-                  {bd.alpha > 0 && <> → 연면적법 <b style={{ color: "var(--navy)" }}>{Math.round(bd.alpha * 100)}%</b> 반영</>}
-                  {bd.beta && bd.income_val ? <> → 수익환원 <b style={{ color: "var(--navy)" }}>{Math.round(bd.beta * 100)}%</b> 블렌드</> : null}
-                </div>
+                <div style={{ textAlign: "center", fontSize: ".95cqw", color: "var(--rmuted)" }}>세 방식을 건물 특성에 맞게 <b style={{ color: "var(--navy)" }}>가중 종합</b> ↓</div>
                 <div className="rs-fbox hl"><div className="k">빌탐정 적정가</div><div className="v" style={{ color: "var(--peach-tx)", fontSize: "1.7cqw" }}>{eok(fair)}억 원</div></div>
+                <div style={{ fontSize: ".78cqw", color: "var(--rmuted)", lineHeight: 1.35 }}>
+                  공시지가·대지 {Math.round(bd.wg * 100)}:{Math.round((1 - bd.wg) * 100)} 종합
+                  {bd.alpha > 0 && <>, 연면적 기준 {Math.round(bd.alpha * 100)}% 반영</>}
+                  {bd.beta && bd.income_val ? <>, 임대수익 {Math.round(bd.beta * 100)}% 가미</> : null}
+                </div>
               </> : <div className="rs-flow">
                 <div className="rs-fbox"><div className="k">가중평균 평단가</div><div className="v">{avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만/평` : "—"}</div></div>
                 <span className="rs-op">×</span>
@@ -345,11 +356,6 @@ export function ReportPage() {
                 <div className="rs-fbox hl"><div className="k">빌탐정 적정가</div><div className="v" style={{ color: "var(--peach-tx)" }}>{eok(fair)}억 원</div></div>
               </div>}
             </div>
-          </div>
-          <div className="rs-callout">
-            {gap != null && gap > 0
-              ? <>매도희망가 {eok(ask)}억 대비 <b>약 {eok(Math.abs(gap))}억 협의 필요</b> (매매가 {eok(broker)}억 기준 · 빌탐정 적정가 {eok(fair)}억)</>
-              : <>빌탐정 적정가 <b>{eok(fair)}억</b> 기준 (매도희망가 미입력)</>}
           </div>
         </div>
       </Slide>,
