@@ -44,11 +44,13 @@ function ReportMap({ lng, lat, geom }: { lng?: number | null; lat?: number | nul
       if (paths.length) {
         new naver.maps.Polygon({
           map, paths, clickable: false,
-          fillColor: "#2B5AA8", fillOpacity: 0.18, strokeColor: "#2B5AA8", strokeWeight: 2.5, strokeOpacity: 0.95,
+          fillColor: "#2B5AA8", fillOpacity: 0.25, strokeColor: "#2B5AA8", strokeWeight: 3.5, strokeOpacity: 1,
         });
         const bnds = new naver.maps.LatLngBounds();
         paths.forEach((ring: any[]) => ring.forEach((p: any) => bnds.extend(p)));
-        map.fitBounds(bnds, { top: 44, right: 44, bottom: 44, left: 44 });
+        map.fitBounds(bnds, { top: 60, right: 60, bottom: 60, left: 60 });
+        map.setZoom(map.getZoom() - 2);   // fit에서 2단계 줌아웃 — 필지 유지 + 주변 맥락
+        map.setCenter(new naver.maps.LatLng(lat, lng));
       } else {
         new naver.maps.Marker({
           position: pos, map,
@@ -230,9 +232,9 @@ export function ReportPage() {
             <tr><td>도로접면</td><td>{b.road_frontage ?? "—"}</td></tr>
             <tr><td>매도희망가</td><td className="blue b">{ask ? `${eok(ask)}억 원` : "—"}</td></tr>
           </tbody></table>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".7cqw", minWidth: 0 }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".8cqw", minWidth: 0 }}>
+            <div style={{ fontSize: "2.1cqw", fontWeight: 800, color: "var(--navy)", letterSpacing: "-.01em", lineHeight: 1.1 }}>{shortAddr}</div>
             <ReportMap lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom} />
-            <div style={{ fontSize: "1cqw", color: "var(--rmuted)" }}>{shortAddr} · 위치</div>
           </div>
         </div>
       </Slide>,
