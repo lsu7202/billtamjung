@@ -9,7 +9,7 @@ import { geoToPaths } from "../../shared/map/geo";
 import "./reportslide.css";
 
 /** 분석 보고서 — R_example.pptx 8슬라이드를 웹으로(네이비 코퍼레이트·16:9·cqw 스케일).
- * 표지 → 핵심요약 → 기본정보 → 미래가치 → 실거래가 → 공시지가 → 임대수익 → 종합결론(적정가+수익성). specs R-보고서 §5·§6a. */
+ * 표지 → 핵심요약 → 기본정보 → 매력도 → 실거래가 → 공시지가 → 임대수익 → 종합결론(적정가+수익성). specs R-보고서 §5·§6a. */
 const P = 3.305785;
 const AXIS: [string, string][] = [
   ["road_access", "도로접면"], ["station_dist", "역과의거리"], ["use_zone", "용도지역"],
@@ -235,7 +235,7 @@ export function ReportPage() {
         </div>
       </div>,
       <Slide key={0} n="01" foot="핵심 요약" rno={rno} date={date}
-        title="핵심 요약" desc="본 매물의 빌탐정 적정가·수익성과 미래가치를 한눈에 확인하세요.">
+        title="핵심 요약" desc="본 매물의 빌탐정 적정가·수익성과 매력도를 한눈에 확인하세요.">
         <div style={{ display: "flex", gap: "3cqw", width: "100%", alignItems: "stretch" }}>
           <div className="rs-fade" style={{ flex: "0 0 33%", borderRadius: "1.2cqw", background: "linear-gradient(135deg,#dfe4ec,#c3cbd8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7688", fontSize: "1.3cqw", fontWeight: 700 }}>건물 사진</div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "1.8cqw" }}>
@@ -244,7 +244,7 @@ export function ReportPage() {
               <div style={{ flex: 1 }}>
                 {[{ k: "빌탐정 적정가", s: "시스템 산정", v: fair ? `${eok(fair)}억원` : "—", c: "var(--navy)" },
                   { k: "적정가 기준 예상수익률", s: "연 임대수익 기준", v: roiFair != null ? `${roiFair.toFixed(2)}%` : "—", c: "var(--purple)" },
-                  { k: "미래가치 등급", s: "입지·건물 매력도 (적정가와 별개)", v: `${grade}등급`, c: "var(--blue)" }].map((r, i) => (
+                  { k: "매력도 등급", s: "입지·건물 매력도 (적정가와 별개)", v: `${grade}등급`, c: "var(--blue)" }].map((r, i) => (
                   <div key={r.k} className="rs-fade" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: ".9cqw .2cqw", borderBottom: i < 2 ? "1px solid var(--rl)" : "none", ["--d" as string]: `${(i + 1) * 90}ms` }}>
                     <div><div style={{ fontSize: "1.55cqw", fontWeight: 700, color: "var(--navy)" }}>{r.k}</div><div style={{ fontSize: ".9cqw", color: "var(--rmuted)" }}>{r.s}</div></div>
                     <div className="num" style={{ fontSize: "2.8cqw", fontWeight: 800, color: r.c, lineHeight: 1 }}>{r.v}</div>
@@ -281,8 +281,8 @@ export function ReportPage() {
           <ReportMap lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom} />
         </div>
       </Slide>,
-      <Slide key={2} n="03" foot="미래가치 분석" rno={rno} date={date}
-        title="미래가치 분석" desc="입지·교통·건물 등 매력도를 종합한 미래가치·임대여력 지표입니다. 적정가 산정과는 별개로, 향후 성장 잠재력을 봅니다.">
+      <Slide key={2} n="03" foot="매력도 분석" rno={rno} date={date}
+        title="매력도 분석" desc="입지·교통·건물 상태 등을 종합 평가한 이 건물의 매력도(장단점) 지표입니다. 적정가 산정과는 별개입니다.">
         <div style={{ display: "flex", gap: "2.5cqw", width: "100%" }}>
           <table className="rs-tbl" style={{ flex: "0 0 52%", alignSelf: "flex-start" }}>
             <thead><tr><th>평가 항목</th><th>평가 결과</th><th>분석 의견</th></tr></thead>
@@ -299,7 +299,7 @@ export function ReportPage() {
           </table>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "1cqw" }}>
             <div className="rs-sc blue" style={{ display: "flex", alignItems: "center" }}>
-              <div><div className="k">미래가치 점수</div><div className="v">{score}<u>/100점</u></div></div>
+              <div><div className="k">매력도 점수</div><div className="v">{score}<u>/100점</u></div></div>
               <span className="rs-pill blue" style={{ marginLeft: "auto", fontSize: "1.6cqw", padding: ".7cqw 1.3cqw" }}>{grade}등급</span>
             </div>
             {sub?.items && <ScoreRadar axes={AXIS.map(([k, l]) => ({ label: l, score: sub.items![k] ?? 0 }))} color="var(--navy)" size={210} showValues />}
@@ -471,7 +471,7 @@ export function ReportPage() {
             {([
               ["예상수익률", <CountUp key="r" end={roiFair ?? 0} dur={1000} delay={1200} fmt={(v) => v.toFixed(2)} />, "%", nbhdRoi ? `주변 평균 ${nbhdRoi}%` : "적정가 기준"],
               ["예상 연임대수익", <CountUp key="l" end={rent ? rent * 12 / 1e8 : 0} dur={1000} delay={1400} fmt={(v) => Math.round(v).toLocaleString()} />, "억", "주변 임대시세 적용"],
-              ["미래가치", grade, "등급", `가치점수 ${score}점`],
+              ["매력도", grade, "등급", `가치점수 ${score}점`],
             ] as [string, React.ReactNode, string, string][]).map(([k, v, u, d], i) => (
               <div key={k} className="rs-fade" style={{ textAlign: "center", padding: "0 2.8cqw", borderRight: i < 2 ? "1px solid var(--rl)" : "none", ["--d" as string]: `${1100 + i * 200}ms` }}>
                 <div style={{ fontSize: "1cqw", color: "var(--rmuted)", fontWeight: 700 }}>{k}</div>
@@ -485,7 +485,7 @@ export function ReportPage() {
             <b style={{ color: "var(--navy)" }}>종합 의견 &nbsp;</b>
             인근 실거래를 공시지가·대지·연면적으로 교차 분석하고 주변 임대수익을 반영해 적정가 <b style={{ color: "var(--blue)" }}>약 {eok(fair)}억원</b>으로 산정됩니다.
             {landPremium != null && landPremium >= 10 ? <> 이 땅의 공시지가가 주변 평균보다 <b>약 {landPremium.toFixed(0)}% 높아</b> 입지 경쟁력이 뚜렷하고,</> : null}
-            {topStrengths.length ? <> <b>{topStrengths.join("·")}</b> 등에서 우수해 미래가치 <b>{grade}등급</b>으로 평가됩니다.</> : <> 미래가치는 <b>{grade}등급</b>입니다.</>}
+            {topStrengths.length ? <> <b>{topStrengths.join("·")}</b> 등에서 우수해 매력도 <b>{grade}등급</b>으로 평가됩니다.</> : <> 매력도는 <b>{grade}등급</b>입니다.</>}
             {" "}적정가 기준 예상수익률은 <b style={{ color: "var(--blue)" }}>{roiFair != null ? roiFair.toFixed(2) : "—"}%</b>로{nbhdRoi != null ? <> 주변 평균({nbhdRoi}%)보다 <b>{roiFair != null && roiFair >= nbhdRoi ? "높은" : "낮은"}</b> 수준이며,</> : ","} 연 약 <b style={{ color: "var(--blue)" }}>{rent ? eok(rent * 12) : "—"}억원</b>의 임대수익이 기대됩니다.
           </div>
         </div>
