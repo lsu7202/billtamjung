@@ -385,8 +385,8 @@ export function ReportPage() {
           </div>
         </div>
       </Slide>,
-      <Slide key={5} n="06" foot="주변임대·수익가치" rno={rno} date={date}
-        title="주변임대·수익가치" desc="주변 임대시세로 임대수익을 추정하고, 이를 수익가치(수익환원)로 적정가에 반영합니다.">
+      <Slide key={5} n="06" foot="임대수익 분석" rno={rno} date={date}
+        title="임대수익 분석" desc="주변 임대시세로 임대수익을 추정하고, 이를 수익가치(수익환원)로 적정가에 반영합니다.">
         <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%", height: "100%" }}>
           <div className="rs-grid" style={{ gridTemplateColumns: "1fr 1.3fr 1fr 1fr" }}>
             <div className="rs-sc"><div className="k">현재 총임대료</div><div className="v">{man(curRent)}<u>만원</u></div></div>
