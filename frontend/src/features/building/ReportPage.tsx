@@ -1,57 +1,14 @@
 import { useState, useEffect, useRef, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { reportsApi, buildingsApi, type CompUsed, type RentFloor } from "../../shared/api/endpoints";
+import { reportsApi } from "../../shared/api/endpoints";
 import { ScoreRadar, CompareBar } from "./ReportPrimitives";
 import { Logo, Seal, Icon, ScoreRing, BuildingArt, CountUp } from "./ReportAssets";
 import { ReportMap } from "./ReportMap";
+import { useReportModel, AXIS, num, eok, man, py, word, type Seg } from "./reportModel";
 import "./reportslide.css";
 
-/** 분석 보고서 — R_example.pptx 8슬라이드를 웹으로(네이비 코퍼레이트·16:9·cqw 스케일).
- * 표지 → 핵심요약 → 기본정보 → 매력도 → 실거래가 → 공시지가 → 임대수익 → 투자유형 → 종합결론. specs R-보고서 §5·§6a · formulas F-20. */
-const P = 3.305785;
-const AXIS: [string, string][] = [
-  ["road_access", "도로접면"], ["station_dist", "역과의거리"], ["use_zone", "용도지역"],
-  ["shape", "지형형상"], ["approval_date", "사용승인일"], ["elevator", "엘리베이터"],
-  ["remodel", "대수선·리모델링"], ["slope", "경사도"], ["float_pop", "유동인구"],
-];
-const AXIS_ICON: Record<string, string> = {
-  road_access: "road", station_dist: "train", use_zone: "zone", shape: "mountain",
-  approval_date: "calendar", elevator: "elevator", remodel: "tools", slope: "slope", float_pop: "people",
-};
-const word = (s: number) => s >= 90 ? "매우 우수" : s >= 80 ? "우수" : s >= 70 ? "양호" : s >= 60 ? "보통" : "미흡";
-/** 가치 분석 항목별 '사실 기반' 의견 — 실제 필드값 + 점수대 평가. "[사실]해서 [평가]하다" 형태. */
-function opinion(k: string, s: number, b: Record<string, any>): string {
-  const A = s >= 90 ? "매우 우수합니다" : s >= 80 ? "우수합니다" : s >= 70 ? "양호합니다" : s >= 60 ? "무난합니다" : "다소 아쉽습니다";
-  const yr = b.approval_ymd ? Number(String(b.approval_ymd).slice(0, 4)) : null;
-  const age = yr ? new Date().getFullYear() - yr : null;
-  switch (k) {
-    case "road_access":
-      return b.road_frontage ? `${b.road_frontage}에 접해 접근성과 건물 활용도가 ${A}` : `도로 접면 여건상 접근성이 ${A}`;
-    case "station_dist":
-      return b.station_dist != null ? `가장 가까운 역까지 약 ${Math.round(b.station_dist)}m로, 대중교통 접근성이 ${A}` : `역 접근성이 ${A}`;
-    case "use_zone":
-      return b.use_zone ? `${b.use_zone}에 속해 상업·업무 활용 잠재력이 ${A}` : `용도지역상 활용 잠재력이 ${A}`;
-    case "shape":
-      return b.shape ? `대지 형상이 ${b.shape}이라 토지 이용 효율이 ${A}` : `대지 형상상 이용 효율이 ${A}`;
-    case "approval_date":
-      return yr ? `${yr}년 준공(약 ${age}년차)으로, 건물 연식 여건이 ${A}` : `건물 연식 여건이 ${A}`;
-    case "elevator":
-      return (Number(b.elevator) || 0) > 0 ? `엘리베이터 ${b.elevator}대가 있어 상층부 접근성이 ${A}` : "엘리베이터가 없어 상층부 접근성이 다소 아쉽습니다";
-    case "remodel":
-      return b.remodel_ymd ? `${String(b.remodel_ymd).slice(0, 4)}년 대수선 이력이 있어 건물 관리 상태가 ${A}` : "대수선 이력이 없어 노후 관리 측면이 다소 아쉽습니다";
-    case "slope":
-      return b.slope ? `대지 경사가 ${b.slope}이라 건축·이용 여건이 ${A}` : `대지 경사 여건이 ${A}`;
-    case "float_pop":
-      return b.float_pop ? `유동인구가 ${b.float_pop} 수준으로, 상권 활력이 ${A}` : `상권 활력이 ${A}`;
-    default:
-      return `평가 결과 ${word(s)} 수준`;
-  }
-}
-const num = (x: unknown): number | null => (x == null || x === "" ? null : Number(x));
-const eok = (v: number | null | undefined, d = 0) => (v ? `${(v / 1e8).toFixed(d)}` : "—");
-const man = (v: number | null | undefined) => (v ? `${Math.round(v / 1e4).toLocaleString()}` : "—");
-const py = (m2: number | null) => (m2 ? (m2 / P).toFixed(2) : "—");
+/** 분석 보고서 — R_example.pptx 8슬라이드를 웹으로(네이비 코퍼레이트·16:9·cqw 스케일). 내용은 reportModel 단일 소스.
+ * 표지 → 핵심요약 → 기본정보 → 매력도 → 실거래가 → 공시지가 → 임대수익 → 투자유형 → 미래가치 → 종합결론. */
 
 function Slide({ n, foot, title, desc, children, rno, date }:
   { n: string; foot: string; title: string; desc: string; children: React.ReactNode; rno: string; date: string }) {
@@ -79,12 +36,7 @@ export function ReportPage() {
   const params = useParams();
   const nav = useNavigate();
   const reportId = params.id ? Number(params.id) : null;
-  const rq = useQuery({ enabled: reportId != null, queryKey: ["report", reportId], queryFn: () => reportsApi.get(reportId!) });
-  const snap = rq.data?.result_json ?? null;
-  const pk = reportId != null ? (rq.data?.building_pk ?? "") : (params.pk ?? "");
-  const needLive = reportId == null || (!!rq.data && !snap);
-  const cq = useQuery({ enabled: needLive && !!pk, queryKey: ["report-comps", pk], queryFn: () => reportsApi.comps(pk) });
-  const bq = useQuery({ enabled: !!pk, queryKey: ["building", pk], queryFn: () => buildingsApi.get(pk) });
+  const m = useReportModel(reportId, params.pk);
 
   const [cur, setCur] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -102,66 +54,18 @@ export function ReportPage() {
     return () => window.removeEventListener("keydown", h);
   }, []);
 
-  const sub = snap?.subject ?? cq.data?.subject;
-  const pv = snap?.preview ?? cq.data?.preview;
-  const canDownload = reportId != null && rq.data?.status === "done";
-  const b = (bq.data ?? {}) as Record<string, any>;
-
-  // ── 3층 가격 모델(specs data-overview) ──
-  // 빌탐정 적정가 = 시스템 산정(sale_est 정본, 스냅샷은 생성시점 fair 고정)
-  const saleEst = num(b.sale_est);
-  const fair = reportId == null ? (saleEst ?? pv?.fair_price ?? null) : (pv?.fair_price ?? saleEst ?? null);
-  // 매도희망가 = 건물주 호가(기본정보 필드로만 표시). 매매가·협의(중개인 판단)는 브리핑 소관 — 본 보고서 제외
-  const ask = pv?.ask_price ?? num(b.ask_price) ?? null;
-  const rent = pv?.applied_rent ?? sub?.total_rent ?? null;
-  const _floors0 = (pv?.rent_floors ?? []) as RentFloor[];
-  const curRent = _floors0.length ? _floors0.reduce((s, f) => s + f.cur, 0) : (sub?.total_rent ?? null);  // 현재 총임대료 = 층별 현재(대장 추정) 합
-  const totalArea = sub?.total_area ?? num(b.total_area);
-  const landArea = num(b.land_area);
-  const totalP = totalArea ? totalArea / P : null;
-  const avgPer = fair && totalP ? Math.round(fair / totalP) : (pv?.avg_per_pyeong ?? null);   // 산정요약 = 빌탐정 적정가와 일치
-  const usedComps = (pv?.comps_used ?? []) as CompUsed[];                      // 산정에 쓰인 전체 comp
-  const comps = [...usedComps].sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0)).slice(0, 4);  // 대표 = 가까운 순 4건
-  const moreCount = Math.max(0, usedComps.length - comps.length);              // 표에 안 나온 나머지
-  const avgPerNow = usedComps.length                                          // 주변 실거래 연면적당 평단가 평균(원/평)
-    ? Math.round(usedComps.reduce((s, c) => s + (c.per_now || 0), 0) / usedComps.length) : null;
-  const gLatest = num(b.gongsi_latest);                            // 본매물 공시지가(원/㎡)
-  const gTotal = gLatest && landArea ? gLatest * landArea : null;  // 공시총액(원)
-  const gctx = pv?.gongsi_ctx ?? null;
-  const nbhdGongsi = gctx?.nbhd_per_m2 ?? null;                    // 주변 사례 공시지가 중앙값(원/㎡)
-  const gmult = gctx?.mult ?? null;                               // 공시배율(실거래÷공시총액)
-  const landPremium = gLatest && nbhdGongsi ? (gLatest / nbhdGongsi - 1) * 100 : null;   // 본매물 땅값 주변 대비 %
-  const _perVals = comps.map((c) => c.per_now).filter((v): v is number => !!v);   // comp 연면적당 평단가(원/평)
-  const compMin = _perVals.length ? Math.round(Math.min(..._perVals) / 1e4) : null;
-  const compMax = _perVals.length ? Math.round(Math.max(..._perVals) / 1e4) : null;
-  const floors = _floors0;
-  const roiFair = rent && fair ? (rent * 12 / fair) * 100 : null;   // 적정가 기준 예상수익률(리포트용)
-  const rs = pv?.rent_summary ?? null;                              // 임대 요약(층수·보증금)
-  const rFloors = rs?.floor_count ?? floors.length;
-  const rCurDep = rs?.cur_deposit ?? null;                          // 현재 총보증금
-  const perPyRent = curRent && totalArea ? curRent / (totalArea / P) : null;   // 평당 월임대료(연면적 기준)
-  const upsidePct = (rent != null && curRent) ? ((rent - curRent) / curRent) * 100 : null;   // 임대 상승여력 %
-  const nbhdRoi = rs?.nearby_roi ?? null;                                       // 주변 평균 수익률(중앙값)
-  const topStrengths = AXIS.map(([k, l]) => ({ l, s: (sub?.items?.[k] ?? 0) as number }))   // 가치 항목 강점 상위(75점↑)
-    .sort((a, b) => b.s - a.s).filter((x) => x.s >= 75).slice(0, 3).map((x) => x.l);
-  const ut = pv?.use_type ?? null;                                              // F-20 투자 유형
-  const officeApt = (ut?.office_fit ?? 0) >= 65;                                 // 사옥 적합 여부
-  const fut = ut?.future ?? null;                                                // F-21 미래가치(개발여지+임대상향)
-
-  const loading = (reportId != null && rq.isLoading) || (needLive && cq.isLoading) || (!!pk && bq.isLoading);
-  if (loading && !sub) return <div style={{ padding: 40, color: "var(--muted)" }}>보고서 계산 중…</div>;
-  if (!sub && (cq.isError || rq.isError)) return <div style={{ padding: 40, color: "var(--up)" }}>보고서를 불러오지 못했습니다.</div>;
-
-  const rno = reportId != null ? `BT-${new Date(rq.data?.created_at ?? "2026-01-01").getFullYear()}-${String(reportId).padStart(6, "0")}` : "미리보기";
-  const date = new Date(rq.data?.created_at ?? "2026-01-01").toLocaleDateString("ko-KR").replace(/\. /g, ".").replace(/\.$/, "");
-  const useZone = (b.use_zone as string) || "—";
-  const mainUse = (b.main_use_name as string) || (b.main_use as string) || (b.etc_use as string) || "—";
-  const grade = sub?.grade ?? "—";
-  const score = sub?.score ?? 0;
-  const gradeCol = grade === "S" ? "#B8912E" : grade === "A" ? "var(--blue)" : grade === "B" ? "var(--green)" : "var(--rmuted)";
+  // ── 모든 값·의견·서술은 reportModel 단일 소스(애니메이션 모드와 동일) ──
+  const {
+    pk, sub, b, loading, isError, canDownload, rno, date,
+    fair, ask, rent, curRent, totalArea, landArea, avgPer, comps, moreCount, avgPerNow,
+    gLatest, gTotal, nbhdGongsi, gmult, landPremium, compMin, compMax,
+    roiFair, rs, rFloors, rCurDep, perPyRent, upsidePct, nbhdRoi,
+    ut, officeApt, fut, useZone, mainUse, grade, score, gradeCol, shortAddr, opinions, conclusion,
+  } = m;
   const gc = (s: number) => s >= 70 ? "var(--blue)" : "var(--rmuted)";
-  const addr = sub?.addr ?? "—";
-  const shortAddr = addr.replace(/^서울특별시\s*/, "").replace(/\s*번지$/, "");
+
+  if (loading && !sub) return <div style={{ padding: 40, color: "var(--muted)" }}>보고서 계산 중…</div>;
+  if (!sub && isError) return <div style={{ padding: 40, color: "var(--up)" }}>보고서를 불러오지 못했습니다.</div>;
 
   const toolbar = (
     <div className="deck-top">
@@ -251,14 +155,13 @@ export function ReportPage() {
           <table className="rs-tbl" style={{ flex: "0 0 52%", alignSelf: "flex-start" }}>
             <thead><tr><th>평가 항목</th><th>평가 결과</th><th>분석 의견</th></tr></thead>
             <tbody>
-              {AXIS.map(([k, l], i) => {
-                const s = sub?.items?.[k] ?? 0;
-                return <tr key={k}>
-                  <td className="b"><span style={{ display: "inline-flex", alignItems: "center", gap: ".7cqw" }}><Icon name={AXIS_ICON[k]} size={1.9} color="var(--navy)" />{`①②③④⑤⑥⑦⑧⑨`[i]} {l}</span></td>
-                  <td style={{ color: gc(s), fontWeight: 700 }}>{word(s)}</td>
-                  <td style={{ color: "var(--rmuted)", fontSize: "1cqw", lineHeight: 1.35 }}>{opinion(k, s, b)}</td>
-                </tr>;
-              })}
+              {opinions.map((o, i) => (
+                <tr key={o.key}>
+                  <td className="b"><span style={{ display: "inline-flex", alignItems: "center", gap: ".7cqw" }}><Icon name={o.icon} size={1.9} color="var(--navy)" />{`①②③④⑤⑥⑦⑧⑨`[i]} {o.label}</span></td>
+                  <td style={{ color: gc(o.score), fontWeight: 700 }}>{o.word}</td>
+                  <td style={{ color: "var(--rmuted)", fontSize: "1cqw", lineHeight: 1.35 }}>{o.text}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "1cqw" }}>
@@ -578,15 +481,10 @@ export function ReportPage() {
               </Fragment>
             ))}
           </div>
-          {/* 종합 의견 — 자세한 문장(왜 이 적정가·장점·기대·예상 이익) */}
+          {/* 종합 의견 — reportModel.conclusion 단일 소스(애니메이션 모드와 동일 문구) */}
           <div className="rs-fade" style={{ fontSize: "1.05cqw", lineHeight: 1.75, color: "var(--rink)", maxWidth: "90%", margin: ".6cqw auto 0", ["--d" as string]: "2050ms" }}>
             <b style={{ color: "var(--navy)" }}>종합 의견 &nbsp;</b>
-            인근 실거래를 공시지가·대지·연면적으로 교차 분석하고 주변 임대수익을 반영해 적정가 <b style={{ color: "var(--blue)" }}>약 {eok(fair)}억원</b>으로 산정됩니다.
-            {landPremium != null && landPremium >= 10 ? <> 이 땅의 공시지가가 주변 평균보다 <b>약 {landPremium.toFixed(0)}% 높아</b> 입지 경쟁력이 뚜렷하고,</> : null}
-            {topStrengths.length ? <> <b>{topStrengths.join("·")}</b> 등에서 우수해 매력도 <b>{grade}등급</b>으로 평가됩니다.</> : <> 매력도는 <b>{grade}등급</b>입니다.</>}
-            {" "}적정가 기준 예상수익률은 <b style={{ color: "var(--blue)" }}>{roiFair != null ? roiFair.toFixed(2) : "—"}%</b>로{nbhdRoi != null ? <> 주변 평균({nbhdRoi}%)보다 <b>{roiFair != null && roiFair >= nbhdRoi ? "높은" : "낮은"}</b> 수준이며,</> : ","} 연 약 <b style={{ color: "var(--blue)" }}>{rent ? eok(rent * 12) : "—"}억원</b>의 임대수익이 기대됩니다.
-            {ut ? <> 활용 측면에서는 <b style={{ color: "var(--navy)" }}>{ut.primary}</b>이 최적이며{officeApt ? <>, 업무 상권·역세권이라 <b>사옥으로도 적합</b>합니다.</> : <>입니다.</>}</> : null}
-            {fut && fut.label ? <> 미래가치는 <b style={{ color: "var(--navy)" }}>{fut.label}</b>으로{fut.label === "상승 기대형" ? <> 개발·임대 여력에 따른 <b>추가 상승</b>이 기대됩니다.</> : fut.label === "정체형" ? <> 단기 변동은 크지 않습니다.</> : <> 지가 상승에 따른 <b>안정적 가치 성장</b>이 기대됩니다.</>}</> : null}
+            {conclusion.map((s: Seg, i: number) => s.b ? <b key={i} style={{ color: "var(--blue)" }}>{s.t}</b> : <Fragment key={i}>{s.t}</Fragment>)}
           </div>
         </div>
       </Slide>,

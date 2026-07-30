@@ -1,74 +1,30 @@
 import { useEffect, useRef, useState, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { reportsApi, buildingsApi, type CompUsed, type RentFloor } from "../../shared/api/endpoints";
 import { CountUp, BuildingArt } from "./ReportAssets";
 import { ScoreRadar, CompareBar } from "./ReportPrimitives";
 import { ReportMap, ZONE_COLOR } from "./ReportMap";
+import { useReportModel, AXIS, num, eok, man, py, type Seg } from "./reportModel";
 
-/** 몰입형 스크롤 보고서 — 덱(/report)과 동일한 10장 구조를 스크롤 내러티브로 재구성.
- * 다크 북엔드(인트로·결론) + 라이트 분석부 · 스크롤 리빌 · 카운트업 · 섹션 레일. 같은 데이터, 다른 표현. */
-const P = 3.305785;
-const num = (x: unknown) => (x == null || x === "" ? null : Number(x));
-const eok = (v: number | null | undefined) => (v ? (v / 1e8).toFixed(0) : "—");
-const man = (v: number | null | undefined) => (v ? `${Math.round(v / 1e4).toLocaleString()}` : "—");
-const py = (m2: number | null | undefined) => (m2 ? (m2 / P).toFixed(1) : "—");
-const word = (s: number) => s >= 90 ? "매우 우수" : s >= 80 ? "우수" : s >= 70 ? "양호" : s >= 60 ? "보통" : "미흡";
-const AXIS: [string, string][] = [
-  ["road_access", "도로접면"], ["station_dist", "역과의거리"], ["use_zone", "용도지역"],
-  ["shape", "지형형상"], ["approval_date", "사용승인일"], ["elevator", "엘리베이터"],
-  ["remodel", "대수선·리모델링"], ["slope", "경사도"], ["float_pop", "유동인구"],
-];
+/** 몰입형 스크롤 보고서 — 덱(/report)과 동일한 reportModel(값·의견·서술 단일 소스)을 쓰고 디자인만 다르게.
+ * 다크 북엔드(인트로·결론) + 라이트 분석부 · 스크롤 리빌 · 카운트업 · 섹션 레일. */
 const RAIL = ["표지", "핵심요약", "기본정보", "매력도", "실거래", "공시지가", "임대수익", "투자유형", "미래가치", "종합결론"];
 
 export function ReportStory() {
   const { pk = "" } = useParams();
   const nav = useNavigate();
-  const cq = useQuery({ queryKey: ["report-comps", pk], queryFn: () => reportsApi.comps(pk) });
-  const bq = useQuery({ queryKey: ["building", pk], queryFn: () => buildingsApi.get(pk) });
-  const sub = cq.data?.subject, pv = cq.data?.preview;
-  const b = (bq.data ?? {}) as Record<string, any>;
-
-  const fair = num(b.sale_est) ?? pv?.fair_price ?? null;
-  const ask = pv?.ask_price ?? num(b.ask_price) ?? null;
-  const score = sub?.score ?? 0;
-  const grade = sub?.grade ?? "—";
-  const gradeCol = grade === "S" ? "#B8912E" : grade === "A" ? "#2b5aa8" : grade === "B" ? "#1c8c63" : "#828a99";
-  const addr = (sub?.addr ?? "").replace(/^서울특별시\s*/, "").replace(/\s*번지$/, "");
-  const useZone = (b.use_zone as string) || "—";
-  const mainUse = (b.main_use_name as string) || (b.main_use as string) || (b.etc_use as string) || "—";
-  const totalArea = sub?.total_area ?? num(b.total_area);
-  const landArea = num(b.land_area);
-  const totalP = totalArea ? totalArea / P : null;
-  const avgPer = fair && totalP ? Math.round(fair / totalP) : null;
-  const rent = pv?.applied_rent ?? sub?.total_rent ?? null;
-  const floors = (pv?.rent_floors ?? []) as RentFloor[];
-  const curRent = floors.length ? floors.reduce((s, f) => s + f.cur, 0) : (sub?.total_rent ?? null);
-  const roiFair = rent && fair ? (rent * 12 / fair) * 100 : (pv?.expected_roi ?? null);
-  const rs = pv?.rent_summary ?? null;
-  const rCurDep = rs?.cur_deposit ?? null;
-  const nbhdRoi = rs?.nearby_roi ?? null;
-  const perPyRent = curRent && totalArea ? curRent / (totalArea / P) : null;
-  const usedComps = (pv?.comps_used ?? []) as CompUsed[];
-  const comps = [...usedComps].sort((a, c) => (c.weight ?? 0) - (a.weight ?? 0)).slice(0, 5);
-  const _perVals = usedComps.map((c) => c.per_now).filter((v): v is number => !!v);
-  const compMin = _perVals.length ? Math.round(Math.min(..._perVals) / 1e4) : null;
-  const compMax = _perVals.length ? Math.round(Math.max(..._perVals) / 1e4) : null;
-  const gLatest = num(b.gongsi_latest);
-  const gTotal = gLatest && landArea ? gLatest * landArea : null;
-  const gctx = pv?.gongsi_ctx ?? null;
-  const nbhdGongsi = gctx?.nbhd_per_m2 ?? null;
-  const gmult = gctx?.mult ?? null;
-  const landPremium = gLatest && nbhdGongsi ? (gLatest / nbhdGongsi - 1) * 100 : null;
-  const ut = pv?.use_type ?? null;
-  const officeApt = (ut?.office_fit ?? 0) >= 65;
-  const fut = ut?.future ?? null;
+  const m = useReportModel(null, pk);
+  const {
+    sub, b, fair, ask, rent, totalArea, landArea, avgPer, usedComps, comps, compMin, compMax,
+    gLatest, gTotal, nbhdGongsi, gmult, landPremium, roiFair, rs, rCurDep, perPyRent, nbhdRoi,
+    ut, officeApt, fut, useZone, mainUse, grade, score, gradeCol, shortAddr, floors, opinions, conclusion,
+  } = m;
+  const addr = shortAddr;
 
   // ── 스크롤: 인트로 패럴랙스 + 진행바 + 섹션 레일(스크롤 스파이) ──
   const scRef = useRef<HTMLDivElement>(null);
   const secRefs = useRef<(HTMLElement | null)[]>([]);
-  const [p, setP] = useState(0);          // 인트로 진행(0~1)
-  const [prog, setProg] = useState(0);    // 전체 진행(0~1)
+  const [p, setP] = useState(0);
+  const [prog, setProg] = useState(0);
   const [shown, setShown] = useState<boolean[]>([]);
   const [active, setActive] = useState(0);
   const onScroll = () => {
@@ -83,7 +39,7 @@ export function ReportStory() {
     }), { threshold: 0.45 });
     secRefs.current.forEach((el) => el && io.observe(el));
     return () => io.disconnect();
-  }, [cq.data, bq.data]);
+  }, [m.sub, m.b]);
   const setRef = (i: number) => (el: HTMLElement | null) => { secRefs.current[i] = el; };
   const cls = (i: number, dark = false) => `story-sec${dark ? " story-dark" : ""}${shown[i] ? " in" : ""}`;
   const goto = (i: number) => secRefs.current[i]?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -100,7 +56,7 @@ export function ReportStory() {
         ))}
       </nav>
 
-      {/* 0 ── 인트로: 건물 속으로 빨려들어감 ── */}
+      {/* 0 ── 인트로 ── */}
       <section data-i={0} ref={setRef(0)} style={{ height: "230vh", position: "relative" }}>
         <div style={{ position: "sticky", top: 0, height: "100vh", overflow: "hidden", background: "#0a0e17" }}>
           <div style={{ position: "absolute", inset: 0, transformOrigin: "50% 88%", transform: `scale(${1 + p * 5.5})`, opacity: Math.max(0, 1 - p * 1.15), willChange: "transform, opacity" }}>
@@ -149,18 +105,24 @@ export function ReportStory() {
         </div>}
       </section>
 
-      {/* 3 ── 매력도 ── */}
+      {/* 3 ── 매력도 (의견 텍스트 = 덱과 동일) ── */}
       <section data-i={3} ref={setRef(3)} className={cls(3)}>
         <div className="story-kicker">매력도 분석</div>
         <h2 className="story-h">입지·건물 종합 매력도 <b style={{ color: gradeCol }}>{grade}등급 · {score}점</b></h2>
         <div className="st-cols">
           <div>
-            {AXIS.map(([kk, l]) => { const s = (sub?.items?.[kk] ?? 0) as number; return (
-              <div className="st-row" key={kk}><span className="k">{l}</span><span className="v" style={{ color: s >= 70 ? "#2b5aa8" : "#828a99" }}>{word(s)} · {Math.round(s)}</span></div>
-            ); })}
+            {opinions.map((o) => (
+              <div key={o.key} style={{ padding: "12px 0", borderTop: "1px solid #ececef" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 14 }}>
+                  <span style={{ color: "#1a1f2b", fontWeight: 600, fontSize: "clamp(14px,1.4vw,17px)" }}>{o.label}</span>
+                  <span style={{ color: o.score >= 70 ? "#2b5aa8" : "#828a99", fontWeight: 700, whiteSpace: "nowrap" }}>{o.word} · {Math.round(o.score)}</span>
+                </div>
+                <div style={{ fontSize: "clamp(12.5px,1.25vw,15px)", color: "#828a99", marginTop: 4, lineHeight: 1.4 }}>{o.text}</div>
+              </div>
+            ))}
           </div>
-          <div style={{ minHeight: 240, display: "flex", justifyContent: "center" }}>
-            {shown[3] && sub?.items && <ScoreRadar axes={AXIS.map(([kk, l]) => ({ label: l, score: (sub.items![kk] ?? 0) as number }))} color={gradeCol} size={260} showValues />}
+          <div style={{ minHeight: 240, display: "flex", justifyContent: "center", alignSelf: "center" }}>
+            {shown[3] && sub?.items && <ScoreRadar axes={AXIS.map(([kk, l]) => ({ label: l, score: (sub.items![kk] ?? 0) as number }))} color={gradeCol} size={270} showValues />}
           </div>
         </div>
       </section>
@@ -299,10 +261,8 @@ export function ReportStory() {
           ))}
         </div>
         <KeywordBand ut={ut} fut={fut} officeApt={officeApt} dark />
-        <p style={{ fontSize: "clamp(14px,1.5vw,18px)", color: "#c7d3e6", marginTop: "4.5vh", lineHeight: 1.75, maxWidth: 860 }}>
-          인근 실거래를 공시지가·대지·연면적으로 교차 분석하고 주변 임대수익을 반영해 적정가 <b style={{ color: "#5fe0a8" }}>약 {eok(fair)}억원</b>으로 산정됩니다.
-          {landPremium != null && landPremium >= 10 ? <> 이 땅의 공시지가가 주변 평균보다 <b style={{ color: "#fff" }}>약 {landPremium.toFixed(0)}% 높아</b> 입지 경쟁력이 뚜렷합니다.</> : null}
-          {ut ? <> 활용은 <b style={{ color: "#fff" }}>{ut.primary}</b>이 최적이며, 미래가치는 <b style={{ color: "#fff" }}>{fut?.label}</b>으로 {fut?.label === "상승 기대형" ? "추가 상승이 기대됩니다." : fut?.label === "정체형" ? "단기 변동은 크지 않습니다." : "지가 상승에 따른 안정적 가치 성장이 기대됩니다."}</> : null}
+        <p style={{ fontSize: "clamp(14px,1.5vw,18px)", color: "#c7d3e6", marginTop: "4.5vh", lineHeight: 1.75, maxWidth: 880 }}>
+          {conclusion.map((s: Seg, i: number) => s.b ? <b key={i} style={{ color: "#5fe0a8" }}>{s.t}</b> : <Fragment key={i}>{s.t}</Fragment>)}
         </p>
         <p className="story-note">본 보고서는 빌탐정의 자체 조사·분석 기반이며 실제 거래 시 차이가 발생할 수 있습니다.</p>
       </section>
@@ -310,7 +270,7 @@ export function ReportStory() {
   );
 }
 
-/** 성격 키워드 밴드 — 중앙 양옆, 투자유형·미래가치. 다크 배경용 밝은 색. */
+/** 성격 키워드 밴드 — 중앙 양옆, 투자유형·미래가치. */
 function KeywordBand({ ut, fut, officeApt, dark }: { ut: any; fut: any; officeApt: boolean; dark?: boolean }) {
   const items = [
     ut?.primary ? { lab: "투자 유형", val: ut.primary, extra: officeApt ? "사옥 적합" : null, c: dark ? "#7FB0FF" : "#2b5aa8" } : null,
