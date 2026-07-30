@@ -412,26 +412,35 @@ export function ReportPage() {
               </div>
             ))}
           </div>
-          <div style={{ display: "flex", gap: "2.5cqw", alignItems: "center", flex: 1 }}>
-            <div style={{ flex: "0 0 38%" }}>
-              <div style={{ fontSize: "1.1cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>현재 vs 주변 임대시세 <span style={{ color: "var(--rmuted)", fontWeight: 400 }}>(월 총액, 만원)</span></div>
+          <div style={{ display: "flex", gap: "2.2cqw", alignItems: "center", flex: 1 }}>
+            <div style={{ flex: "0 0 25%" }}>
+              <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>현재 vs 주변 임대시세 <span style={{ color: "var(--rmuted)", fontWeight: 400, fontSize: ".85cqw" }}>(월, 만원)</span></div>
               {curRent && rent
-                ? <CompareBar height={150} fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}`}
+                ? <CompareBar height={140} fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}`}
                     items={[{ label: "현재", value: curRent, color: "var(--navy)" },
                             { label: "주변시세", value: rent, color: "var(--blue)", strong: true }]} />
-                : <div style={{ color: "var(--rmuted)", fontSize: "1.1cqw", padding: "2cqw 0" }}>주변 임대사례가 부족합니다.</div>}
+                : <div style={{ color: "var(--rmuted)", fontSize: "1.05cqw", padding: "2cqw 0" }}>주변 임대사례가 부족합니다.</div>}
             </div>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".9cqw" }}>
-              <div style={{ fontSize: "1.15cqw", lineHeight: 1.75, color: "var(--rink)" }}>
+            <div style={{ flex: "0 0 25%" }}>
+              <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>수익률 vs 주변 평균 <span style={{ color: "var(--rmuted)", fontWeight: 400, fontSize: ".85cqw" }}>(%)</span></div>
+              {roiFair != null && nbhdRoi != null
+                ? <CompareBar height={140} fmt={(v) => v.toFixed(2)}
+                    items={[{ label: "본매물", value: roiFair, color: "var(--blue)", strong: true },
+                            { label: "주변평균", value: nbhdRoi, color: "var(--navy)" }]} />
+                : <div style={{ color: "var(--rmuted)", fontSize: "1.05cqw", padding: "2cqw 0" }}>주변 수익률 데이터가 부족합니다.</div>}
+            </div>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".8cqw" }}>
+              <div style={{ fontSize: "1.12cqw", lineHeight: 1.7, color: "var(--rink)" }}>
                 본 매물의 현재 총 월임대료는 <b>{man(curRent)}만원</b>(연 {eok(curRent ? curRent * 12 : null)}억), 총 보증금은 <b>{rCurDep ? eok(rCurDep, 0) : "—"}억</b> 수준입니다.
                 {upsidePct != null && (upsidePct >= 3
-                  ? <> 주변 임대시세를 적용하면 <b style={{ color: "var(--blue)" }}>{man(rent)}만원</b>까지 <b style={{ color: "var(--blue)" }}>약 {upsidePct.toFixed(0)}% 상승 여력</b>이 있습니다.</>
+                  ? <> 주변 임대시세 적용 시 <b style={{ color: "var(--blue)" }}>약 {upsidePct.toFixed(0)}% 상승 여력</b>이 있습니다.</>
                   : upsidePct <= -3
-                    ? <> 현재 임대료가 주변 시세보다 다소 높은 편으로, 임대 안정성이 높습니다.</>
-                    : <> 현재 임대료가 주변 시세와 유사한 적정 수준입니다.</>)}
+                    ? <> 현재 임대료가 주변 시세보다 다소 높아 임대 안정성이 높습니다.</>
+                    : <> 현재 임대료는 주변 시세와 유사한 적정 수준입니다.</>)}
+                {nbhdRoi != null && roiFair != null ? <> 적정가 기준 예상수익률 <b style={{ color: "var(--blue)" }}>{roiFair.toFixed(2)}%</b>는 주변 평균(<b>{nbhdRoi}%</b>)보다 <b style={{ color: roiFair >= nbhdRoi ? "var(--blue)" : "var(--rmuted)" }}>{roiFair >= nbhdRoi ? "높아 수익성 우위" : "다소 낮은 편"}</b>입니다.</> : null}
               </div>
-              <div style={{ fontSize: "1cqw", lineHeight: 1.6, color: "var(--rmuted)" }}>
-                이 임대수익은 <b style={{ color: "var(--navy)" }}>수익환원</b>(연 임대수익 ÷ 자치구 환원율)으로 적정가 산정에 반영되며, 예상수익률은 빌탐정 적정가 대비 연 임대수익 기준입니다.
+              <div style={{ fontSize: ".95cqw", lineHeight: 1.55, color: "var(--rmuted)" }}>
+                이 임대수익은 <b style={{ color: "var(--navy)" }}>수익환원</b>(연 임대수익 ÷ 자치구 환원율)으로 적정가에 반영됩니다. 주변 수익률은 반경 내 건물의 임대추정 ÷ 적정가 중앙값입니다.
               </div>
             </div>
           </div>
