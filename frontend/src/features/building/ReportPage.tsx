@@ -436,28 +436,30 @@ export function ReportPage() {
       <Slide key={6} n="07" foot="적정가 종합" rno={rno} date={date}
         title="적정가 종합" desc="여러 관점의 분석을 종합해 본 매물의 빌탐정 적정가를 산정했습니다.">
         <div style={{ display: "flex", flexDirection: "column", gap: "1.6cqw", width: "100%", height: "100%", justifyContent: "center" }}>
+          <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)", textAlign: "center" }}>다음 세 가지 기준을 종합해 산정했습니다</div>
           <div style={{ display: "flex", gap: "2cqw", alignItems: "stretch" }}>
             {([
-              ["주변 실거래 시세", compMin && compMax ? `평당 ${compMin.toLocaleString()}~${compMax.toLocaleString()}만` : "인근 거래 기준", "인근 유사 거래의 연면적당 평단가"],
-              ["공시지가 기준", "공시배율 환산", "실거래가가 공시가의 몇 배인지"],
-              ["주변 임대 수익가치", "임대수익 반영", "임대 기반 수익환원 가치 가미"],
-            ] as [string, string, string][]).map(([k, v, d]) => (
+              ["실거래가", "주축", compMin && compMax ? `평당 ${compMin.toLocaleString()}~${compMax.toLocaleString()}만` : "인근 유사 거래", "공시·대지·연면적 3방식으로 환산"],
+              ["공시지가", "", gmult ? `공시가의 약 ${gmult.toFixed(1)}배` : "공시배율 반영", "실거래가 공시총액 대비 형성 수준"],
+              ["임대수익", "", rent ? `연 ${eok(rent * 12)}억` : "임대수익 반영", "수익환원으로 약 20% 가미"],
+            ] as [string, string, string, string][]).map(([k, tag, v, d]) => (
               <div key={k} style={{ flex: 1, borderTop: "2px solid var(--navy)", paddingTop: ".7cqw" }}>
-                <div style={{ fontSize: "1.15cqw", fontWeight: 800, color: "var(--navy)" }}>{k}</div>
+                <div style={{ fontSize: "1.15cqw", fontWeight: 800, color: "var(--navy)" }}>{k}{tag && <span style={{ fontSize: ".82cqw", color: "#fff", background: "var(--blue)", borderRadius: "1cqw", padding: ".1cqw .6cqw", marginLeft: ".5cqw", fontWeight: 700 }}>{tag}</span>}</div>
                 <div style={{ fontSize: "1.4cqw", fontWeight: 800, color: "var(--blue)", margin: ".25cqw 0" }}>{v}</div>
                 <div style={{ fontSize: ".9cqw", color: "var(--rmuted)", lineHeight: 1.4 }}>{d}</div>
               </div>
             ))}
           </div>
-          <div style={{ textAlign: "center", fontSize: "1cqw", color: "var(--rmuted)" }}>세 관점을 건물 특성(연면적·용적)에 맞게 <b style={{ color: "var(--navy)" }}>종합</b> ↓</div>
+          <div style={{ textAlign: "center", fontSize: "1cqw", color: "var(--rmuted)" }}>건물 특성(연면적·용적)에 맞게 <b style={{ color: "var(--navy)" }}>종합</b> ↓</div>
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: "1.2cqw", color: "var(--rmuted)", fontWeight: 700 }}>빌탐정 적정가</div>
             <div style={{ fontSize: "4cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.08 }}>{eok(fair)}<span style={{ fontSize: "2cqw" }}>억 원</span></div>
             <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)" }}>평당 약 {avgPer ? Math.round(avgPer / 1e4).toLocaleString() : "—"}만원 · 연면적 {py(totalArea)}평</div>
           </div>
-          <div style={{ fontSize: "1cqw", lineHeight: 1.6, color: "var(--rmuted)", textAlign: "center", maxWidth: "82%", margin: "0 auto" }}>
-            인근 실거래를 공시지가 배율·대지 평단가·연면적 평단가로 교차 분석하고, 주변 임대 기반 수익가치를 더해 산정했습니다.
-            가치 분석(입지·건물 매력도)은 미래가치·임대여력을 보는 <b style={{ color: "var(--navy)" }}>별도 지표</b>로, 적정가에는 직접 반영하지 않습니다.
+          <div style={{ fontSize: ".85cqw", lineHeight: 1.5, color: "var(--rmuted)", maxWidth: "90%", margin: "0 auto", display: "flex", flexDirection: "column", gap: ".15cqw" }}>
+            <div>※ <b>실거래가</b>가 산정의 주축이며, 공시지가·임대수익을 함께 반영합니다. 임대수익은 수익환원(연 임대료 ÷ 자치구 환원율) 방식으로 약 20% 가미됩니다.</div>
+            <div>※ 인근 실거래는 <b>시점보정·거리가중·이상치 제외</b>를 적용해 종합했습니다.</div>
+            <div>※ 가치점수(입지·건물 매력도)는 <b>미래가치 지표</b>로, 적정가 산정과는 별개입니다(이중계산 방지).</div>
           </div>
         </div>
       </Slide>,
