@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { reportsApi, buildingsApi, type CompUsed, type RentFloor } from "../../shared/api/endpoints";
-import { ScoreRadar, CompareBar, TrendCompare } from "./ReportPrimitives";
+import { ScoreRadar, CompareBar } from "./ReportPrimitives";
 import { Logo, Seal, Icon, ScoreRing, BuildingArt } from "./ReportAssets";
 import { loadNaver } from "../../shared/map/naver";
 import { geoToPaths } from "../../shared/map/geo";
@@ -159,7 +159,6 @@ export function ReportPage() {
   const totalP = totalArea ? totalArea / P : null;
   const avgPer = fair && totalP ? Math.round(fair / totalP) : (pv?.avg_per_pyeong ?? null);   // 산정요약 = 빌탐정 적정가와 일치
   const comps = ((pv?.comps_used ?? []) as CompUsed[]).slice(0, 7);
-  const gseries = (b.gongsi_series ?? []) as [number, number][];   // 공시지가 시계열 [연도, 원/㎡]
   const gLatest = num(b.gongsi_latest);                            // 본매물 공시지가(원/㎡)
   const gTotal = gLatest && landArea ? gLatest * landArea : null;  // 공시총액(원)
   const gctx = pv?.gongsi_ctx ?? null;
@@ -361,23 +360,19 @@ export function ReportPage() {
             </div>
           </div>
           <div style={{ display: "flex", gap: "2.5cqw", flex: 1, alignItems: "center" }}>
-            <div style={{ flex: "0 0 58%" }}>
-              <div style={{ fontSize: "1.1cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>연도별 공시지가 추세 <span style={{ color: "var(--rmuted)", fontWeight: 400 }}>(만원/㎡ · 주변 평균과 비교)</span></div>
-              {gseries.length >= 2
-                ? <TrendCompare height={165} fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}`}
-                    points={gseries.map(([yr, p]) => ({ label: `'${String(yr).slice(2)}`, value: Number(p) }))}
-                    refValue={nbhdGongsi} refLabel="주변 평균" />
-                : <div style={{ color: "var(--rmuted)", fontSize: "1.1cqw", padding: "2cqw 0" }}>공시지가 시계열 데이터가 없습니다.</div>}
+            <div style={{ flex: "0 0 46%" }}>
+              <div style={{ fontSize: "1.1cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>최근 공시지가 비교 <span style={{ color: "var(--rmuted)", fontWeight: 400 }}>(만원/㎡)</span></div>
+              {gLatest && nbhdGongsi
+                ? <CompareBar height={175} fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}`}
+                    items={[{ label: "본매물", value: gLatest, color: "var(--blue)", strong: true },
+                            { label: "주변 평균", value: nbhdGongsi, color: "var(--navy)" }]} />
+                : <div style={{ color: "var(--rmuted)", fontSize: "1.1cqw", padding: "2cqw 0" }}>주변 사례 공시지가 데이터가 부족합니다.</div>}
             </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".9cqw" }}>
-              <div style={{ display: "flex", gap: ".7cqw" }}>
-                <div className="rs-fbox" style={{ flex: 1, textAlign: "center" }}><div className="k">이 건물 공시지가</div><div className="v" style={{ color: "var(--blue)" }}>{gLatest ? `${Math.round(gLatest / 1e4).toLocaleString()}만` : "—"}</div></div>
-                <div className="rs-fbox" style={{ flex: 1, textAlign: "center" }}><div className="k">주변 평균</div><div className="v">{nbhdGongsi ? `${Math.round(nbhdGongsi / 1e4).toLocaleString()}만` : "—"}</div></div>
-                <div className="rs-fbox" style={{ flex: 1, textAlign: "center" }}><div className="k">공시총액</div><div className="v">{gTotal ? eok(gTotal) : "—"}억</div></div>
-              </div>
-              <div style={{ fontSize: "1.05cqw", lineHeight: 1.7, color: "var(--rink)" }}>
+              <div className="rs-fbox" style={{ textAlign: "center" }}><div className="k">공시총액 (공시지가 × 대지면적)</div><div className="v">{gTotal ? eok(gTotal) : "—"}<span style={{ fontSize: "1cqw", color: "var(--rmuted)" }}>억</span></div></div>
+              <div style={{ fontSize: "1.08cqw", lineHeight: 1.7, color: "var(--rink)" }}>
                 {landPremium != null
-                  ? <>이 건물이 앉은 땅은 주변 실거래 평균보다 공시지가가 {landPremium >= 0 ? "높아 상대적으로 입지 우위가 드러납니다" : "낮아 주변 대비 저평가 상태입니다"}. 실거래가 공시가의 몇 배에 형성되는지(공시배율)는 적정가 산정의 한 축으로 반영됩니다.</>
+                  ? <>이 건물이 앉은 땅은 최근 공시지가 기준 주변 실거래 평균보다 {landPremium >= 0 ? "높아 상대적으로 입지 우위가 드러납니다" : "낮아 주변 대비 저평가 상태입니다"}. 실거래가 공시가의 몇 배에 형성되는지(공시배율)는 적정가 산정의 한 축으로 반영됩니다.</>
                   : <>공시지가와 실거래 배율을 함께 반영해 적정가를 산정합니다.</>}
               </div>
             </div>
