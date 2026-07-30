@@ -336,7 +336,13 @@ def synthesize(subject: dict, subject_score: float, comps: list[dict],
         ap["breakdown"] = {**ap["breakdown"], "beta": round(beta, 2),
                            "income_val": round(ann_rent / cap) if (ann_rent and cap) else None,
                            "final": ap.get("fair_price")}
-    return {**ap, "expected_roi": roi, "gap": gap,
+    # 공시지가 맥락(05 페이지): 주변 사례 공시지가 중앙값(원/㎡) + 공시배율(실거래÷공시총액)
+    import statistics as _st
+    _pm2 = [c["gongsi_total"] / c["land_area"] for c in comps if c.get("gongsi_total") and c.get("land_area")]
+    _mult = [c["price"] / c["gongsi_total"] for c in comps if c.get("gongsi_total") and c.get("price")]
+    gongsi_ctx = {"nbhd_per_m2": round(_st.median(_pm2)) if _pm2 else None,
+                  "mult": round(_st.median(_mult), 2) if _mult else None, "n": len(_pm2)}
+    return {**ap, "expected_roi": roi, "gap": gap, "gongsi_ctx": gongsi_ctx,
             "ask_price": round(ask) if ask else None,               # 매도희망가
             "broker_price": round(broker) if broker else None,     # 매매가(중개인)
             "applied_rent": round(rent) if rent else None, "expected_deposit": round(deposit) if deposit else None,
@@ -737,6 +743,7 @@ async def run_generate(report_id: int, team_id: int) -> dict:
                             "gap": syn["gap"], "ask_price": syn["ask_price"], "broker_price": syn.get("broker_price"),
                             "applied_rent": syn.get("applied_rent"), "expected_deposit": syn.get("expected_deposit"),
                             "market_applied": syn.get("market_applied", False), "breakdown": syn.get("breakdown"),
+                            "gongsi_ctx": syn.get("gongsi_ctx"),
                             "rent_floors": syn.get("rent_floors"), "comps_used": syn.get("comps_used")},
             }
 

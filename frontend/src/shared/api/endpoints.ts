@@ -178,6 +178,7 @@ export interface ReportPreview {
   expected_roi: number | null; gap: number | null; ask_price: number | null; broker_price?: number | null;
   applied_rent?: number | null; expected_deposit?: number | null; market_applied?: boolean;
   breakdown?: FairBreakdown | null; rent_floors?: RentFloor[] | null; comps_used?: CompUsed[] | null;
+  gongsi_ctx?: { nbhd_per_m2: number | null; mult: number | null; n: number } | null;
 }
 export interface CompsResponse {
   subject: { addr: string; score: number; grade: string; items?: Record<string, number>;

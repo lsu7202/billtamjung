@@ -162,7 +162,10 @@ export function ReportPage() {
   const gseries = (b.gongsi_series ?? []) as [number, number][];   // 공시지가 시계열 [연도, 원/㎡]
   const gLatest = num(b.gongsi_latest);                            // 본매물 공시지가(원/㎡)
   const gTotal = gLatest && landArea ? gLatest * landArea : null;  // 공시총액(원)
-  const impliedMult = fair && gTotal ? fair / gTotal : null;       // 적정가 ÷ 공시총액 = 공시배율(참고)
+  const gctx = pv?.gongsi_ctx ?? null;
+  const nbhdGongsi = gctx?.nbhd_per_m2 ?? null;                    // 주변 사례 공시지가 중앙값(원/㎡)
+  const gmult = gctx?.mult ?? null;                               // 공시배율(실거래÷공시총액)
+  const landPremium = gLatest && nbhdGongsi ? (gLatest / nbhdGongsi - 1) * 100 : null;   // 본매물 땅값 주변 대비 %
   const _perVals = comps.map((c) => c.per_now).filter((v): v is number => !!v);   // comp 연면적당 평단가(원/평)
   const compMin = _perVals.length ? Math.round(Math.min(..._perVals) / 1e4) : null;
   const compMax = _perVals.length ? Math.round(Math.max(..._perVals) / 1e4) : null;
@@ -354,13 +357,17 @@ export function ReportPage() {
           </div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "1cqw" }}>
             <div style={{ display: "flex", gap: ".8cqw" }}>
-              <div className="rs-fbox" style={{ flex: 1, textAlign: "center" }}><div className="k">본매물 공시지가</div><div className="v">{gLatest ? `${Math.round(gLatest / 1e4).toLocaleString()}만` : "—"}<span style={{ fontSize: ".85cqw", color: "var(--rmuted)" }}>/㎡</span></div></div>
-              <div className="rs-fbox" style={{ flex: 1, textAlign: "center" }}><div className="k">공시총액 (공시지가×대지)</div><div className="v">{gTotal ? eok(gTotal) : "—"}억</div></div>
+              <div className="rs-fbox" style={{ flex: 1, textAlign: "center" }}><div className="k">이 건물 땅의 공시지가</div><div className="v" style={{ color: "var(--blue)" }}>{gLatest ? `${Math.round(gLatest / 1e4).toLocaleString()}만` : "—"}<span style={{ fontSize: ".85cqw", color: "var(--rmuted)" }}>/㎡</span></div></div>
+              <div className="rs-fbox" style={{ flex: 1, textAlign: "center" }}><div className="k">주변 사례 평균</div><div className="v">{nbhdGongsi ? `${Math.round(nbhdGongsi / 1e4).toLocaleString()}만` : "—"}<span style={{ fontSize: ".85cqw", color: "var(--rmuted)" }}>/㎡</span></div></div>
+              <div className="rs-fbox" style={{ flex: 1, textAlign: "center" }}><div className="k">공시총액</div><div className="v">{gTotal ? eok(gTotal) : "—"}억</div></div>
             </div>
-            <div style={{ fontSize: "1.12cqw", lineHeight: 1.75, color: "var(--rink)" }}>
-              {impliedMult
-                ? <>본 매물의 빌탐정 적정가는 공시총액의 <b style={{ color: "var(--blue)" }}>약 {impliedMult.toFixed(1)}배</b> 수준입니다. 인근 실거래도 공시가 대비 유사한 배율로 형성되며, 이 <b>공시배율</b>을 본 매물 공시총액에 적용한 값이 적정가 산정의 한 축입니다.</>
-                : <>공시지가는 인근 실거래의 공시가 대비 배율과 함께 적정가 산정의 기준이 됩니다.</>}
+            <div style={{ fontSize: "1.1cqw", lineHeight: 1.75, color: "var(--rink)" }}>
+              {landPremium != null
+                ? <>이 건물이 앉은 땅의 공시지가는 주변 실거래 사례 평균보다 <b style={{ color: landPremium >= 0 ? "var(--blue)" : "var(--rmuted)" }}>{landPremium >= 0 ? "약 " + landPremium.toFixed(0) + "% 높은" : "약 " + Math.abs(landPremium).toFixed(0) + "% 낮은"}</b> 수준으로, {landPremium >= 0 ? "상대적으로 입지가 우수한 땅" : "주변 대비 저평가된 땅"}입니다. </>
+                : <>이 건물이 앉은 땅의 공시지가는 국가가 매년 평가하는 공적 지가입니다. </>}
+              {gmult
+                ? <>한편 인근 실거래는 공시총액의 <b style={{ color: "var(--blue)" }}>약 {gmult.toFixed(1)}배</b>에 거래되는데(=시장이 공시가보다 그만큼 높게 값을 매김), 이 배율을 본 매물 공시총액에 적용한 값이 적정가 산정의 한 축이 됩니다.</>
+                : <>실거래가 공시가 대비 어느 수준에 형성되는지를 함께 반영해 적정가를 산정합니다.</>}
             </div>
           </div>
         </div>

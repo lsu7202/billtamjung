@@ -34,6 +34,7 @@ def _preview_dict(vs: dict, syn: dict) -> dict:
             "gap": syn["gap"], "ask_price": syn["ask_price"], "broker_price": syn.get("broker_price"),
             "applied_rent": syn.get("applied_rent"), "expected_deposit": syn.get("expected_deposit"),
             "market_applied": syn.get("market_applied", False), "breakdown": syn.get("breakdown"),
+            "gongsi_ctx": syn.get("gongsi_ctx"),           # 05 공시지가 맥락(주변 중앙값·공시배율)
             "rent_floors": syn.get("rent_floors"),         # STEP3 층별 표
             "comps_used": syn.get("comps_used")}           # STEP2 유사사례 표(가중 반영분)
 
