@@ -540,7 +540,11 @@ export function ReportPage() {
                   { k: "임대 상향 여력", v: fut.upside, c: "var(--blue)",
                     sub: rs && rs.cur_rent && rs.mkt_rent
                       ? `현재 ${Math.round(rs.cur_rent / 1e4).toLocaleString()}만 → 주변시세 ${Math.round(rs.mkt_rent / 1e4).toLocaleString()}만/월`
-                      : "주변 임대시세 대비 상향분" }].map((x) => (
+                      : "주변 임대시세 대비 상향분" },
+                  { k: "지가 상승 추세", v: fut.land, c: "var(--purple)",
+                    sub: fut.land_rate5 != null
+                      ? `최근 5년 공시지가 ${fut.land_rate5 >= 0 ? "+" : ""}${fut.land_rate5}% 변동`
+                      : "지가 시계열 데이터 없음" }].map((x) => (
                   <div key={x.k}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: ".35cqw" }}>
                       <span style={{ fontSize: "1.15cqw", fontWeight: 700, color: "var(--navy)" }}>{x.k}</span>
@@ -562,12 +566,19 @@ export function ReportPage() {
               {(fut.upside ?? 0) < 20
                 ? <>현재 임대료도 주변 시세와 유사해 단기 상향 여력이 낮습니다.</>
                 : <>현재 임대료가 주변 시세를 밑돌아 <b>임대 리포지셔닝 여지</b>가 있습니다.</>}
+              {fut.land != null && fut.land_rate5 != null
+                ? (fut.land >= 50
+                    ? <> 반면 최근 5년 공시지가가 <b style={{ color: "var(--navy)" }}>{fut.land_rate5 >= 0 ? "+" : ""}{fut.land_rate5}%</b> 올라 <b>지가 상승 추세가 양호</b>합니다.</>
+                    : fut.land >= 25
+                      ? <> 최근 5년 공시지가는 <b>{fut.land_rate5 >= 0 ? "+" : ""}{fut.land_rate5}%</b> 상승했습니다.</>
+                      : <> 최근 5년 공시지가 변동도 완만합니다.</>)
+                : null}
               {fut.grade === "제한적"
                 ? <> 다만 이는 입지·수익이 이미 성숙한 <b>우량자산</b>이라는 의미로, 안정적 보유·임대 운영에 적합합니다. 향후 상승은 지가 상승과 리모델링을 통한 임대 리포지셔닝에서 기대할 수 있습니다.</>
                 : <> 이 여력이 실현되면 현재가치를 넘어서는 추가 상승이 기대됩니다.</>}
             </div>
             <div style={{ fontSize: ".9cqw", lineHeight: 1.5, color: "var(--rmuted)", textAlign: "center", maxWidth: "90%", margin: "0 auto" }}>
-              ※ 미래가치 = 개발여지(55%) + 임대 상향 여력(45%) 블렌드. 현재가치(적정가)와 별개의 상승 잠재력 지표이며, 지가 상승 추세는 표준지공시지가 시계열 확보 후 3축으로 반영 예정입니다.
+              ※ 미래가치 = 개발여지(40%) + 임대 상향 여력(30%) + 지가 상승 추세(30%) 블렌드. 현재가치(적정가)와 별개의 상승 잠재력 지표입니다. 지가 상승은 개별 공시지가 5년 변동률(없으면 자치구 지가변동률)을 사용합니다.
             </div>
           </> : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--rmuted)", fontSize: "1.2cqw" }}>미래가치 산정에 필요한 데이터가 부족합니다.</div>}
         </div>

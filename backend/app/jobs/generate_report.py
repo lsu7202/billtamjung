@@ -392,7 +392,27 @@ async def _use_type(building_pk: str, b: dict) -> dict | None:
     })
     result["zones"] = await _market_zones(building_pk)   # 상권 존 폴리곤(지도용)
     result["_far"], result["_legal_far"] = _fnum(b.get("far")), _parse_far(lf)   # 미래가치 계산용
+    result["_land_rate5"] = await _land_rate5(b)         # 지가 상승 추세(미래가치 3축)
     return result
+
+
+async def _land_rate5(b: dict) -> float | None:
+    """지가 5년 변동률(%) — 개별 공시지가 시계열(gongsi_series) 우선, 없으면 자치구 지가변동률(land_adjust)."""
+    if b.get("pnu"):
+        gs = await pool().fetch(
+            "SELECT year, price FROM master.gongsi_series WHERE pnu=$1 ORDER BY year", b["pnu"])
+        if len(gs) >= 2 and gs[-1]["price"]:
+            last_y = gs[-1]["year"]
+            base = next((r for r in gs if r["year"] == last_y - 5), gs[0])   # 5년 전(없으면 최古)
+            if base["price"]:
+                return (gs[-1]["price"] - base["price"]) / base["price"] * 100
+    if b.get("bjd_code"):                                # 폴백: 자치구 누적 지가변동률 팩터
+        gu = str(b["bjd_code"])[:5]
+        f = (await pool().fetchval("SELECT adj FROM master.land_adjust WHERE gu=$1 AND yr=2020", gu)
+             or await pool().fetchval("SELECT adj FROM master.land_adjust WHERE gu='11' AND yr=2020"))
+        if f:
+            return (float(f) - 1) * 100
+    return None
 
 
 def _attach_future(ut: dict | None, rent_summary: dict | None) -> None:
@@ -402,7 +422,7 @@ def _attach_future(ut: dict | None, rent_summary: dict | None) -> None:
     rs = rent_summary or {}
     ut["future"] = use_type.future_value(
         ut.pop("_far", None), ut.pop("_legal_far", None), None,   # land_use는 far로 이미 반영(나지=far 0)
-        rs.get("cur_rent"), rs.get("mkt_rent"))
+        rs.get("cur_rent"), rs.get("mkt_rent"), ut.pop("_land_rate5", None))
 
 
 def synthesize(subject: dict, subject_score: float, comps: list[dict],

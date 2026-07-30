@@ -88,27 +88,41 @@ def rent_upside_score(cur_rent: float | None, mkt_rent: float | None) -> int | N
     return round(_clamp((mkt_rent - cur_rent) / cur_rent / 0.30) * 100)
 
 
+def land_trend_score(rate5_pct: float | None) -> int | None:
+    """지가 상승 추세 0~100 — 최근 5년 공시지가(개별) 변동률. +40%/5년(≈7%/년)=만점. None=시계열 없음."""
+    if rate5_pct is None:
+        return None
+    return round(_clamp(rate5_pct / 40.0) * 100)             # ponytail: 40% 컷은 서울 분포로 캘리브레이션 예정
+
+
 def future_value(far: float | None, legal_far: float | None, land_use: str | None,
-                 cur_rent: float | None, mkt_rent: float | None) -> dict:
-    """미래가치(상승 여력) = 개발여지 + 임대 상향 여력 2축 블렌드 0~100.
-    지가상승추세(3축)는 표준지공시지가 시계열 확보 후 추가 예정(specs formulas.md F-21)."""
+                 cur_rent: float | None, mkt_rent: float | None,
+                 land_rate5: float | None = None) -> dict:
+    """미래가치(상승 여력) = 개발여지 + 임대 상향 여력 + 지가 상승 추세 3축 블렌드 0~100.
+    지가상승 = 개별 공시지가 5년 변동률(gongsi_series), 없으면 지역 지가변동률(land_adjust) 폴백. specs F-21."""
     dev = dev_headroom_score(far, legal_far, land_use)
     up = rent_upside_score(cur_rent, mkt_rent)
-    parts = [(dev, 0.55), (up, 0.45)]                        # 개발여지 우세(가격 영향 큼)
-    avail = [(s, w) for s, w in parts if s is not None]
+    land = land_trend_score(land_rate5)
+    parts = [(dev, 0.40, "개발여지"), (up, 0.30, "임대 상향 여력"), (land, 0.30, "지가 상승 추세")]
+    avail = [(s, w) for s, w, _ in parts if s is not None]
     score = round(sum(s * w for s, w in avail) / sum(w for _, w in avail)) if avail else None
     grade = None if score is None else ("높음" if score >= 60 else "보통" if score >= 30 else "제한적")
-    return {"score": score, "grade": grade, "dev": dev, "upside": up,
-            "reason": _future_reason(dev, up, grade)}
+    return {"score": score, "grade": grade, "dev": dev, "upside": up, "land": land,
+            "land_rate5": round(land_rate5) if land_rate5 is not None else None,
+            "reason": _future_reason(parts, grade)}
 
 
-def _future_reason(dev: int | None, up: int | None, grade: str | None) -> str:
+def _future_reason(parts: list, grade: str | None) -> str:
     if grade is None:
         return "미래가치 산정에 필요한 데이터가 부족합니다"
+    avail = {name: s for s, _, name in parts if s is not None}
+    strong = {k: v for k, v in avail.items() if v >= 40}
     if grade == "제한적":
-        return "개발여지·임대 상향 여력이 모두 제한적 — 이미 성숙한 우량자산으로 안정적 보유형"
-    hi = "개발여지" if (dev or 0) >= (up or 0) else "임대 상향 여력"
-    return f"{hi}를 중심으로 향후 가치 상승 여력이 있습니다"
+        if strong:                                       # 한 축은 양호하나 종합은 낮음(예: 지가만 상승)
+            return f"{max(strong, key=strong.get)}는 양호하나 개발·임대 여력이 작아 상승 여력은 제한적"
+        return "개발여지·임대·지가 상승 여력이 제한적 — 이미 성숙한 우량자산으로 안정적 보유형"
+    top = max(avail, key=avail.get)
+    return f"{top}를 중심으로 향후 가치 상승 여력이 있습니다"
 
 
 def classify(inp: dict) -> dict:
@@ -162,15 +176,18 @@ def demo() -> None:
                   "land_use": "상업용", "road_score": 90, "station_score": 90, "remodel_years": None,
                   "use_zone": "일반상업지역", "market": {"office": 0.5, "food": 0.3, "ent": 0.05}})
     assert d["primary"] == "리모델링용", d
-    # 미래가치: 157-36(활용률 120%·현재임대≈주변) → 제한적
+    # 미래가치: 157-36(활용률 120%·현재임대≈주변·지가 시계열 없음) → 제한적
     fv = future_value(far=956, legal_far=800, land_use="업무용", cur_rent=43682, mkt_rent=43597)
-    assert fv["dev"] == 0 and fv["grade"] == "제한적", fv
+    assert fv["dev"] == 0 and fv["land"] is None and fv["grade"] == "제한적", fv
+    # 지가 상승 추세 편입: 5년 +50%(≈8.5%/년) → 지가축 만점 → 등급 상승
+    fv_land = future_value(far=956, legal_far=800, land_use="업무용", cur_rent=43682, mkt_rent=43597, land_rate5=50)
+    assert fv_land["land"] == 100 and fv_land["score"] > fv["score"], fv_land
     # 저활용 + 임대 상향 여력 큼 → 높음
-    fv2 = future_value(far=200, legal_far=800, land_use="상업용", cur_rent=100, mkt_rent=150)
+    fv2 = future_value(far=200, legal_far=800, land_use="상업용", cur_rent=100, mkt_rent=150, land_rate5=30)
     assert fv2["score"] and fv2["score"] >= 60, fv2
     # 나지 → 개발여지 100
     assert dev_headroom_score(0, 800, "상업나지") == 100
-    print("미래가치(157-36):", fv, "| 저활용:", fv2)
+    print("미래가치(157-36):", fv, "| +지가:", fv_land, "| 저활용:", fv2)
     print("신축(157-36):", a)
     print("나지:", b)
     print("저활용노후:", c)
