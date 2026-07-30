@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { reportsApi, buildingsApi, type CompUsed, type RentFloor } from "../../shared/api/endpoints";
-import { ScoreRadar, CompareBar } from "./ReportPrimitives";
+import { ScoreRadar, CompareBar, TrendCompare } from "./ReportPrimitives";
 import { Logo, Seal, Icon, ScoreRing, BuildingArt } from "./ReportAssets";
 import { loadNaver } from "../../shared/map/naver";
 import { geoToPaths } from "../../shared/map/geo";
@@ -347,27 +347,39 @@ export function ReportPage() {
       </Slide>,
       <Slide key={4} n="05" foot="공시지가" rno={rno} date={date}
         title="공시지가 분석" desc={`${shortAddr}의 공시지가 추이와, 실거래가 공시가 대비 형성되는 수준(공시배율)을 반영합니다.`}>
-        <div style={{ display: "flex", gap: "2.5cqw", width: "100%", height: "100%", alignItems: "center" }}>
-          <div style={{ flex: "0 0 54%" }}>
-            <div style={{ fontSize: "1.1cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>연도별 공시지가 <span style={{ color: "var(--rmuted)", fontWeight: 400 }}>(만원/㎡)</span></div>
-            {gseries.length >= 2
-              ? <CompareBar height={170} fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}`}
-                  items={gseries.map(([y, p]) => ({ label: `'${String(y).slice(2)}`, value: Number(p), color: "var(--navy)" }))} />
-              : <div style={{ color: "var(--rmuted)", fontSize: "1.1cqw", padding: "2cqw 0" }}>공시지가 시계열 데이터가 없습니다.</div>}
-          </div>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "1cqw" }}>
-            <div style={{ display: "flex", gap: ".8cqw" }}>
-              <div className="rs-fbox" style={{ flex: 1, textAlign: "center" }}><div className="k">이 건물 땅의 공시지가</div><div className="v" style={{ color: "var(--blue)" }}>{gLatest ? `${Math.round(gLatest / 1e4).toLocaleString()}만` : "—"}<span style={{ fontSize: ".85cqw", color: "var(--rmuted)" }}>/㎡</span></div></div>
-              <div className="rs-fbox" style={{ flex: 1, textAlign: "center" }}><div className="k">주변 사례 평균</div><div className="v">{nbhdGongsi ? `${Math.round(nbhdGongsi / 1e4).toLocaleString()}만` : "—"}<span style={{ fontSize: ".85cqw", color: "var(--rmuted)" }}>/㎡</span></div></div>
-              <div className="rs-fbox" style={{ flex: 1, textAlign: "center" }}><div className="k">공시총액</div><div className="v">{gTotal ? eok(gTotal) : "—"}억</div></div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.4cqw", width: "100%", height: "100%" }}>
+          <div style={{ display: "flex", gap: "2.5cqw" }}>
+            <div style={{ flex: 1, borderTop: "2px solid var(--navy)", paddingTop: ".7cqw" }}>
+              <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)" }}>주변 대비 땅값 (공시지가)</div>
+              <div style={{ fontSize: "3.2cqw", fontWeight: 800, color: "var(--blue)", lineHeight: 1.05 }}>{landPremium != null ? `${landPremium >= 0 ? "+" : ""}${landPremium.toFixed(0)}%` : "—"}</div>
+              <div style={{ fontSize: ".92cqw", color: "var(--rmuted)" }}>주변 실거래 사례 평균 대비 {landPremium != null && landPremium >= 0 ? "높음 · 입지 우위" : "낮음"}</div>
             </div>
-            <div style={{ fontSize: "1.1cqw", lineHeight: 1.75, color: "var(--rink)" }}>
-              {landPremium != null
-                ? <>이 건물이 앉은 땅의 공시지가는 주변 실거래 사례 평균보다 <b style={{ color: landPremium >= 0 ? "var(--blue)" : "var(--rmuted)" }}>{landPremium >= 0 ? "약 " + landPremium.toFixed(0) + "% 높은" : "약 " + Math.abs(landPremium).toFixed(0) + "% 낮은"}</b> 수준으로, {landPremium >= 0 ? "상대적으로 입지가 우수한 땅" : "주변 대비 저평가된 땅"}입니다. </>
-                : <>이 건물이 앉은 땅의 공시지가는 국가가 매년 평가하는 공적 지가입니다. </>}
-              {gmult
-                ? <>한편 인근 실거래는 공시총액의 <b style={{ color: "var(--blue)" }}>약 {gmult.toFixed(1)}배</b>에 거래되는데(=시장이 공시가보다 그만큼 높게 값을 매김), 이 배율을 본 매물 공시총액에 적용한 값이 적정가 산정의 한 축이 됩니다.</>
-                : <>실거래가 공시가 대비 어느 수준에 형성되는지를 함께 반영해 적정가를 산정합니다.</>}
+            <div style={{ flex: 1, borderTop: "2px solid var(--navy)", paddingTop: ".7cqw" }}>
+              <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)" }}>공시배율 <span style={{ color: "var(--rmuted)", fontWeight: 400 }}>(실거래 ÷ 공시총액)</span></div>
+              <div style={{ fontSize: "3.2cqw", fontWeight: 800, color: "var(--blue)", lineHeight: 1.05 }}>{gmult != null ? `${gmult.toFixed(1)}배` : "—"}</div>
+              <div style={{ fontSize: ".92cqw", color: "var(--rmuted)" }}>시장이 공시가보다 이만큼 높게 값을 매김</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "2.5cqw", flex: 1, alignItems: "center" }}>
+            <div style={{ flex: "0 0 58%" }}>
+              <div style={{ fontSize: "1.1cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>연도별 공시지가 추세 <span style={{ color: "var(--rmuted)", fontWeight: 400 }}>(만원/㎡ · 주변 평균과 비교)</span></div>
+              {gseries.length >= 2
+                ? <TrendCompare height={165} fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}`}
+                    points={gseries.map(([yr, p]) => ({ label: `'${String(yr).slice(2)}`, value: Number(p) }))}
+                    refValue={nbhdGongsi} refLabel="주변 평균" />
+                : <div style={{ color: "var(--rmuted)", fontSize: "1.1cqw", padding: "2cqw 0" }}>공시지가 시계열 데이터가 없습니다.</div>}
+            </div>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".9cqw" }}>
+              <div style={{ display: "flex", gap: ".7cqw" }}>
+                <div className="rs-fbox" style={{ flex: 1, textAlign: "center" }}><div className="k">이 건물 공시지가</div><div className="v" style={{ color: "var(--blue)" }}>{gLatest ? `${Math.round(gLatest / 1e4).toLocaleString()}만` : "—"}</div></div>
+                <div className="rs-fbox" style={{ flex: 1, textAlign: "center" }}><div className="k">주변 평균</div><div className="v">{nbhdGongsi ? `${Math.round(nbhdGongsi / 1e4).toLocaleString()}만` : "—"}</div></div>
+                <div className="rs-fbox" style={{ flex: 1, textAlign: "center" }}><div className="k">공시총액</div><div className="v">{gTotal ? eok(gTotal) : "—"}억</div></div>
+              </div>
+              <div style={{ fontSize: "1.05cqw", lineHeight: 1.7, color: "var(--rink)" }}>
+                {landPremium != null
+                  ? <>이 건물이 앉은 땅은 주변 실거래 평균보다 공시지가가 {landPremium >= 0 ? "높아 상대적으로 입지 우위가 드러납니다" : "낮아 주변 대비 저평가 상태입니다"}. 실거래가 공시가의 몇 배에 형성되는지(공시배율)는 적정가 산정의 한 축으로 반영됩니다.</>
+                  : <>공시지가와 실거래 배율을 함께 반영해 적정가를 산정합니다.</>}
+              </div>
             </div>
           </div>
         </div>

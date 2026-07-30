@@ -128,6 +128,54 @@ export function CompareBar({ items, fmt, height = 178 }: {
   );
 }
 
+/* 추세 비교 라인차트 — 시계열 라인(면적채움·끝점 강조) + 기준선(주변 평균 등). 리포트 공용. */
+export function TrendCompare({ points, refValue, refLabel, fmt, height = 170 }: {
+  points: { label: string; value: number }[]; refValue?: number | null; refLabel?: string; fmt: (n: number) => string; height?: number;
+}) {
+  const gid = useId();
+  const ref = useRef<SVGSVGElement>(null);
+  const [cw, setCw] = useState(360);
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return;
+    const ro = new ResizeObserver(() => setCw(el.clientWidth || 360));
+    ro.observe(el); setCw(el.clientWidth || 360);
+    return () => ro.disconnect();
+  }, []);
+  const pts = points.filter((p) => p.value > 0);
+  if (pts.length < 2) return <p style={{ color: "var(--muted)", fontSize: 13 }}>데이터 없음</p>;
+  const W = cw, H = height, T = 26, B = 30, L = 8, R = 12, base = H - B;
+  const max = Math.max(...pts.map((p) => p.value), refValue || 0) * 1.1;
+  const x = (i: number) => L + (i / (pts.length - 1)) * (W - L - R);
+  const y = (v: number) => base - (v / max) * (base - T);
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`).join(" ");
+  const area = `${line} L${x(pts.length - 1).toFixed(1)} ${base} L${x(0).toFixed(1)} ${base} Z`;
+  const last = pts[pts.length - 1];
+  return (
+    <svg ref={ref} viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ height: H, display: "block", overflow: "visible" }}>
+      <defs>
+        <linearGradient id={`${gid}-a`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--navy)" stopOpacity={0.18} />
+          <stop offset="100%" stopColor="var(--navy)" stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <line x1={0} y1={base} x2={W} y2={base} stroke="var(--line-2)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+      {refValue ? <>
+        <line x1={L} y1={y(refValue)} x2={W - R} y2={y(refValue)} stroke="var(--blue)" strokeWidth={1.5} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />
+        <text x={L + 2} y={y(refValue) - 5} fontSize="11" fontWeight={700} fill="var(--blue)">{refLabel ?? "주변 평균"} {fmt(refValue)}</text>
+      </> : null}
+      <path d={area} fill={`url(#${gid}-a)`} />
+      <path d={line} fill="none" stroke="var(--navy)" strokeWidth={2.4} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" style={{ animation: "bt-fade .5s ease both" }} />
+      {pts.map((p, i) => (
+        <g key={p.label}>
+          <circle cx={x(i)} cy={y(p.value)} r={i === pts.length - 1 ? 4 : 2.5} fill={i === pts.length - 1 ? "var(--navy)" : "#fff"} stroke="var(--navy)" strokeWidth={1.6} />
+          <text x={x(i)} y={H - 12} textAnchor="middle" fontSize="11" fill="var(--muted)">{p.label}</text>
+        </g>
+      ))}
+      <text x={x(pts.length - 1)} y={y(last.value) - 10} textAnchor="end" fontSize="12.5" fontWeight={800} fill="var(--navy)" style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(last.value)}</text>
+    </svg>
+  );
+}
+
 /* 등급 배지(A~E 등) — 매력도·적합도. */
 export function Grade({ grade, color }: { grade: string; color?: string }) {
   return (
