@@ -39,14 +39,23 @@ def _dist_m(lat1, lng1, lat2, lng2):
 
 
 def _iqr_keep(cd):
-    """per_area(=매매가/연면적, 원/㎡) IQR 1.5 이상치 제외 — 라이브 _flag_comp_outliers와 동일. 3건 미만이면 유지."""
-    if len(cd) < 3:
-        return cd
+    """per_area(=매매가/연면적, 원/㎡) 이상치 제외 — 라이브 _outlier_bounds와 동일 규칙.
+    표본 ≥10=IQR 1.5, 소표본=MAD 수정z(3.5). 3건 미만/편차0이면 유지."""
     vals = [c["price"] / c["total_area"] for c in cd]
-    q1, q3 = statistics.quantiles(vals, n=4)[0], statistics.quantiles(vals, n=4)[2]
-    iqr = q3 - q1
-    lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
-    kept = [c for c in cd if lo <= (c["price"] / c["total_area"]) <= hi]
+    if len(vals) < 3:
+        return cd
+    med = statistics.median(vals)
+    if len(vals) >= 10:
+        q1, q3 = statistics.quantiles(vals, n=4)[0], statistics.quantiles(vals, n=4)[2]
+        iqr = q3 - q1
+        lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+    else:
+        mad = statistics.median([abs(x - med) for x in vals])
+        if mad == 0:
+            return cd
+        d = 3.5 * mad / 0.6745
+        lo, hi = med - d, med + d
+    kept = [c for c, v in zip(cd, vals) if lo <= v <= hi]
     return kept if len(kept) >= 3 else cd
 
 

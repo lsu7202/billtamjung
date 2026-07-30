@@ -349,15 +349,30 @@ def synthesize(subject: dict, subject_score: float, comps: list[dict],
             "rent_floors": rent_apply["floors"] if rent_apply else None, "market_applied": bool(rent_apply)}
 
 
-def _flag_comp_outliers(comps: list[dict]) -> None:
-    """IQR 1.5 기준 평단가 이상치 플래그(F-17 기본 제외). 3건 미만이면 스킵."""
+def _outlier_bounds(vals: list[float]) -> tuple[float, float] | None:
+    """평단가 이상치 [하한,상한]. 표본 충분(≥10)=IQR 1.5, 소표본=MAD 수정z(3.5, 소표본서도 견고).
+    3건 미만이거나 편차 0이면 판정 불가(None). 배치·라이브 공용 규칙."""
     import statistics
-    vals = [c["per_area"] for c in comps]
     if len(vals) < 3:
+        return None
+    med = statistics.median(vals)
+    if len(vals) >= 10:
+        q1, q3 = statistics.quantiles(vals, n=4)[0], statistics.quantiles(vals, n=4)[2]
+        iqr = q3 - q1
+        return (q1 - 1.5 * iqr, q3 + 1.5 * iqr)
+    mad = statistics.median([abs(x - med) for x in vals])
+    if mad == 0:
+        return None
+    d = 3.5 * mad / 0.6745   # Iglewicz-Hoaglin 수정 z-score 임계 3.5
+    return (med - d, med + d)
+
+
+def _flag_comp_outliers(comps: list[dict]) -> None:
+    """평단가 이상치 플래그(F-17 기본 제외)."""
+    b = _outlier_bounds([c["per_area"] for c in comps])
+    if b is None:
         return
-    q1, q3 = statistics.quantiles(vals, n=4)[0], statistics.quantiles(vals, n=4)[2]
-    iqr = q3 - q1
-    lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+    lo, hi = b
     for c in comps:
         if not (lo <= c["per_area"] <= hi):
             c["is_outlier"] = True
