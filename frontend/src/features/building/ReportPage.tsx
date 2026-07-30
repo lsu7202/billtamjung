@@ -175,6 +175,11 @@ export function ReportPage() {
   const compMax = _perVals.length ? Math.round(Math.max(..._perVals) / 1e4) : null;
   const floors = _floors0;
   const roiFair = rent && fair ? (rent * 12 / fair) * 100 : null;   // 적정가 기준 예상수익률(리포트용)
+  const rs = pv?.rent_summary ?? null;                              // 임대 요약(층수·보증금)
+  const rFloors = rs?.floor_count ?? floors.length;
+  const rCurDep = rs?.cur_deposit ?? null;                          // 현재 총보증금
+  const perPyRent = curRent && totalArea ? curRent / (totalArea / P) : null;   // 평당 월임대료(연면적 기준)
+  const upsidePct = (rent != null && curRent) ? ((rent - curRent) / curRent) * 100 : null;   // 임대 상승여력 %
 
   const loading = (reportId != null && rq.isLoading) || (needLive && cq.isLoading) || (!!pk && bq.isLoading);
   if (loading && !sub) return <div style={{ padding: 40, color: "var(--muted)" }}>보고서 계산 중…</div>;
@@ -388,29 +393,43 @@ export function ReportPage() {
       </Slide>,
       <Slide key={5} n="06" foot="임대수익 분석" rno={rno} date={date}
         title="임대수익 분석" desc="주변 임대시세로 임대수익을 추정하고, 이를 수익가치(수익환원)로 적정가에 반영합니다.">
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%", height: "100%" }}>
-          <div className="rs-grid" style={{ gridTemplateColumns: "1fr 1.3fr 1fr 1fr" }}>
-            <div className="rs-sc"><div className="k">현재 총임대료</div><div className="v">{man(curRent)}<u>만원</u></div></div>
-            <div className="rs-sc blue"><div className="k">주변시세 적용 총임대료</div><div className="v" style={{ color: "var(--blue)" }}>{man(rent)}<u>만원</u> <span style={{ fontSize: ".9cqw", color: "var(--rmuted)", fontWeight: 500 }}>연 {eok(rent ? rent * 12 : null)}억</span></div></div>
-            <div className="rs-sc"><div className="k">예상 연임대수익</div><div className="v">{rent ? eok(rent * 12) : "—"}<u>억</u></div></div>
-            <div className="rs-sc hl"><div className="k">적정가 기준 예상수익률</div><div className="v" style={{ color: "var(--peach-tx)" }}>{roiFair != null ? roiFair.toFixed(2) : "—"}<u>%</u></div></div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.6cqw", width: "100%", height: "100%", justifyContent: "center" }}>
+          <div style={{ display: "flex", gap: "2cqw" }}>
+            {([
+              ["건물 규모", `지하 ${b.floors_below ?? "—"} · 지상 ${b.floors_above ?? "—"}층`, `임대 분석 ${rFloors}개 층`],
+              ["본매물 총 월임대료", `${man(curRent)}만원`, `연 ${eok(curRent ? curRent * 12 : null)}억`],
+              ["평균 평당 임대료", perPyRent ? `${(perPyRent / 1e4).toFixed(1)}만원` : "—", "연면적 기준 · 월"],
+              ["적정가 기준 예상수익률", roiFair != null ? `${roiFair.toFixed(2)}%` : "—", "연 임대수익 ÷ 적정가"],
+            ] as [string, string, string][]).map(([k, v, d]) => (
+              <div key={k} style={{ flex: 1, borderTop: "2px solid var(--navy)", paddingTop: ".7cqw" }}>
+                <div style={{ fontSize: "1.02cqw", fontWeight: 700, color: "var(--navy)" }}>{k}</div>
+                <div style={{ fontSize: "2.3cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.05, margin: ".15cqw 0" }}>{v}</div>
+                <div style={{ fontSize: ".9cqw", color: "var(--rmuted)" }}>{d}</div>
+              </div>
+            ))}
           </div>
-          {floors.length ? (
-            <table className="rs-tbl">
-              <thead><tr><th>층수</th><th className="r">현재 임대료</th><th className="r">주변임대시세</th><th className="r">차이</th><th className="r">참고사례수</th></tr></thead>
-              <tbody>
-                {floors.map((f) => (
-                  <tr key={f.floor}><td>{f.floor}</td><td className="r">{man(f.cur)}만원</td><td className="r">{man(f.mkt)}만원</td>
-                    <td className="r blue">{f.diff >= 0 ? "+" : ""}{Math.round(f.diff / 1e4).toLocaleString()}만원</td><td className="r">{f.count}건</td></tr>
-                ))}
-                <tr className="sum"><td>합계</td><td className="r">{man(curRent)}만원</td><td className="r">{man(rent)}만원</td>
-                  <td className="r blue">{rent != null && curRent != null ? `${rent >= curRent ? "+" : ""}${Math.round((rent - curRent) / 1e4).toLocaleString()}` : "—"}만원</td>
-                  <td className="r">{floors.reduce((a, f) => a + f.count, 0)}건</td></tr>
-              </tbody>
-            </table>
-          ) : <div className="rs-callout" style={{ background: "var(--card)", borderColor: "var(--rl)", color: "var(--rmuted)" }}>주변 임대광고 사례가 없어 현재 임대료 기준으로 분석되었습니다.</div>}
-          <div style={{ fontSize: "1cqw", lineHeight: 1.6, color: "var(--rmuted)", marginTop: "auto" }}>
-            주변 임대시세로 추정한 연 임대수익은 <b style={{ color: "var(--navy)" }}>수익환원</b>(연 임대수익 ÷ 자치구 환원율) 방식으로 적정가 산정에 일부 반영됩니다. 예상수익률은 <b style={{ color: "var(--navy)" }}>빌탐정 적정가</b> 대비 연 임대수익 기준입니다.
+          <div style={{ display: "flex", gap: "2.5cqw", alignItems: "center", flex: 1 }}>
+            <div style={{ flex: "0 0 38%" }}>
+              <div style={{ fontSize: "1.1cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>현재 vs 주변 임대시세 <span style={{ color: "var(--rmuted)", fontWeight: 400 }}>(월 총액, 만원)</span></div>
+              {curRent && rent
+                ? <CompareBar height={150} fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}`}
+                    items={[{ label: "현재", value: curRent, color: "var(--navy)" },
+                            { label: "주변시세", value: rent, color: "var(--blue)", strong: true }]} />
+                : <div style={{ color: "var(--rmuted)", fontSize: "1.1cqw", padding: "2cqw 0" }}>주변 임대사례가 부족합니다.</div>}
+            </div>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".9cqw" }}>
+              <div style={{ fontSize: "1.15cqw", lineHeight: 1.75, color: "var(--rink)" }}>
+                본 매물의 현재 총 월임대료는 <b>{man(curRent)}만원</b>(연 {eok(curRent ? curRent * 12 : null)}억), 총 보증금은 <b>{rCurDep ? eok(rCurDep, 0) : "—"}억</b> 수준입니다.
+                {upsidePct != null && (upsidePct >= 3
+                  ? <> 주변 임대시세를 적용하면 <b style={{ color: "var(--blue)" }}>{man(rent)}만원</b>까지 <b style={{ color: "var(--blue)" }}>약 {upsidePct.toFixed(0)}% 상승 여력</b>이 있습니다.</>
+                  : upsidePct <= -3
+                    ? <> 현재 임대료가 주변 시세보다 다소 높은 편으로, 임대 안정성이 높습니다.</>
+                    : <> 현재 임대료가 주변 시세와 유사한 적정 수준입니다.</>)}
+              </div>
+              <div style={{ fontSize: "1cqw", lineHeight: 1.6, color: "var(--rmuted)" }}>
+                이 임대수익은 <b style={{ color: "var(--navy)" }}>수익환원</b>(연 임대수익 ÷ 자치구 환원율)으로 적정가 산정에 반영되며, 예상수익률은 빌탐정 적정가 대비 연 임대수익 기준입니다.
+              </div>
+            </div>
           </div>
         </div>
       </Slide>,

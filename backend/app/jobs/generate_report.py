@@ -358,7 +358,12 @@ def synthesize(subject: dict, subject_score: float, comps: list[dict],
     _mult = [c["price"] / c["gongsi_total"] for c in comps if c.get("gongsi_total") and c.get("price")]
     gongsi_ctx = {"nbhd_per_m2": round(_st.median(_pm2)) if _pm2 else None,
                   "mult": round(_st.median(_mult), 2) if _mult else None, "n": len(_pm2)}
-    return {**ap, "expected_roi": roi, "gap": gap, "gongsi_ctx": gongsi_ctx,
+    # 임대 요약(06 페이지): 층수·현재/주변 총임대료·보증금 집계
+    rent_summary = ({"floor_count": len(rent_apply["floors"]),
+                     "cur_rent": round(rent_apply["cur_rent"]), "mkt_rent": round(rent_apply["applied_rent"]),
+                     "cur_deposit": round(rent_apply["cur_deposit"]), "mkt_deposit": round(rent_apply["applied_deposit"])}
+                    if rent_apply else None)
+    return {**ap, "expected_roi": roi, "gap": gap, "gongsi_ctx": gongsi_ctx, "rent_summary": rent_summary,
             "ask_price": round(ask) if ask else None,               # 매도희망가
             "broker_price": round(broker) if broker else None,     # 매매가(중개인)
             "applied_rent": round(rent) if rent else None, "expected_deposit": round(deposit) if deposit else None,
@@ -775,6 +780,7 @@ async def run_generate(report_id: int, team_id: int) -> dict:
                             "applied_rent": syn.get("applied_rent"), "expected_deposit": syn.get("expected_deposit"),
                             "market_applied": syn.get("market_applied", False), "breakdown": syn.get("breakdown"),
                             "gongsi_ctx": syn.get("gongsi_ctx"),
+                            "rent_summary": syn.get("rent_summary"),
                             "rent_floors": syn.get("rent_floors"), "comps_used": syn.get("comps_used")},
             }
 
