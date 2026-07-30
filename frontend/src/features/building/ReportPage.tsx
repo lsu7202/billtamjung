@@ -54,8 +54,11 @@ const eok = (v: number | null | undefined, d = 0) => (v ? `${(v / 1e8).toFixed(d
 const man = (v: number | null | undefined) => (v ? `${Math.round(v / 1e4).toLocaleString()}` : "—");
 const py = (m2: number | null) => (m2 ? (m2 / P).toFixed(2) : "—");
 
-/** 보고서용 지도 — 네이버 SDK, 상호작용 off(정적 지도처럼). 필지 폴리곤 표시(있으면 마커 대신). */
-function ReportMap({ lng, lat, geom }: { lng?: number | null; lat?: number | null; geom?: any }) {
+const ZONE_COLOR: Record<string, string> = { 업무: "#2B5AA8", 먹자: "#E8833A", 유흥: "#D64545", 판매: "#2E9E6B" };
+type Zone = { geojson: unknown; cat: string; count: number };
+
+/** 보고서용 지도 — 네이버 SDK, 상호작용 off. zones(상권 존 색칠) 있으면 우선, 없으면 필지 폴리곤/마커. */
+function ReportMap({ lng, lat, geom, zones, h }: { lng?: number | null; lat?: number | null; geom?: any; zones?: Zone[]; h?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [err, setErr] = useState(false);
   useEffect(() => {
@@ -65,31 +68,41 @@ function ReportMap({ lng, lat, geom }: { lng?: number | null; lat?: number | nul
       if (!ref.current) return;
       const pos = new naver.maps.LatLng(lat, lng);
       map = new naver.maps.Map(ref.current, {
-        center: pos, zoom: 18, draggable: false, scrollWheel: false, pinchZoom: false,
+        center: pos, zoom: 16, draggable: false, scrollWheel: false, pinchZoom: false,
         disableDoubleClickZoom: true, scaleControl: false, mapDataControl: false, zoomControl: false,
       });
+      if (zones && zones.length) {
+        const bnds = new naver.maps.LatLngBounds();
+        zones.forEach((z) => {
+          const paths = geoToPaths(naver, z.geojson);
+          const col = ZONE_COLOR[z.cat] || "#8891a0";
+          new naver.maps.Polygon({ map, paths, clickable: false, fillColor: col, fillOpacity: 0.42, strokeColor: col, strokeWeight: 0.5, strokeOpacity: 0.5 });
+          paths.forEach((ring: any[]) => ring.forEach((p: any) => bnds.extend(p)));
+        });
+        new naver.maps.Marker({ position: pos, map, zIndex: 100,
+          icon: { content: `<div style="width:16px;height:16px;border-radius:50%;background:#262320;border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.5)"></div>`, anchor: new naver.maps.Point(9, 9) } });
+        map.fitBounds(bnds, { top: 12, right: 12, bottom: 12, left: 12 });
+        map.setZoom(map.getZoom() + 1, false);   // 확대: 존이 잘려도 본매물 주변 밀도 우선
+        map.setCenter(pos);
+        return;
+      }
       const paths = geom ? geoToPaths(naver, geom) : [];
       if (paths.length) {
-        new naver.maps.Polygon({
-          map, paths, clickable: false,
-          fillColor: "#2B5AA8", fillOpacity: 0.25, strokeColor: "#2B5AA8", strokeWeight: 3.5, strokeOpacity: 1,
-        });
+        new naver.maps.Polygon({ map, paths, clickable: false, fillColor: "#2B5AA8", fillOpacity: 0.25, strokeColor: "#2B5AA8", strokeWeight: 3.5, strokeOpacity: 1 });
         const bnds = new naver.maps.LatLngBounds();
         paths.forEach((ring: any[]) => ring.forEach((p: any) => bnds.extend(p)));
         map.fitBounds(bnds, { top: 60, right: 60, bottom: 60, left: 60 });
-        map.setZoom(map.getZoom() - 3);   // fit에서 3단계 줌아웃 — 로케이터형(넓은 맥락)
+        map.setZoom(map.getZoom() - 3);
         map.setCenter(new naver.maps.LatLng(lat, lng));
       } else {
-        new naver.maps.Marker({
-          position: pos, map,
-          icon: { content: `<div style="width:15px;height:15px;border-radius:50%;background:#262320;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45)"></div>`, anchor: new naver.maps.Point(9, 9) },
-        });
+        new naver.maps.Marker({ position: pos, map,
+          icon: { content: `<div style="width:15px;height:15px;border-radius:50%;background:#262320;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45)"></div>`, anchor: new naver.maps.Point(9, 9) } });
       }
     }).catch(() => setErr(true));
     return () => map?.destroy?.();
-  }, [lng, lat, geom]);
+  }, [lng, lat, geom, zones]);
   if (lng == null || lat == null) return <div className="rs-map rs-map-empty">위치 정보 없음</div>;
-  return <div className="rs-map" ref={ref}>{err && <span className="rs-map-empty">지도를 불러오지 못했습니다</span>}</div>;
+  return <div className="rs-map" ref={ref} style={h ? { height: h, minHeight: 0, flex: "none" } : undefined}>{err && <span className="rs-map-empty">지도를 불러오지 못했습니다</span>}</div>;
 }
 
 function Slide({ n, foot, title, desc, children, rno, date }:
@@ -450,33 +463,38 @@ export function ReportPage() {
       </Slide>,
       <Slide key={6} n="07" foot="투자 유형" rno={rno} date={date}
         title="투자 유형 분석" desc="용적률·상권·연식 등으로 이 건물의 최적 활용(신축·리모델·수익·사옥)을 판별했습니다.">
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.4cqw", width: "100%", height: "100%", justifyContent: "center" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1cqw", width: "100%", height: "100%" }}>
           {ut ? <>
-            <div className="rs-pop" style={{ textAlign: "center", ["--d" as string]: "150ms" }}>
-              <div style={{ fontSize: "1.1cqw", color: "var(--rmuted)", fontWeight: 700 }}>이 건물에 가장 적합한 활용</div>
-              <div style={{ fontSize: "3.6cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.1 }}>
-                {ut.primary}{officeApt && <span style={{ fontSize: "1.3cqw", color: "#fff", background: "var(--blue)", borderRadius: "1.5cqw", padding: ".2cqw 1cqw", marginLeft: ".8cqw", fontWeight: 700, verticalAlign: "middle" }}>사옥 적합</span>}
+            <div style={{ display: "flex", gap: "2.2cqw", flex: 1, alignItems: "stretch", minHeight: 0 }}>
+              {/* 좌: 대표유형(좌측 정렬) + 유형별 적합도 */}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "1.6cqw" }}>
+                <div className="rs-pop" style={{ ["--d" as string]: "150ms" }}>
+                  <div style={{ fontSize: "1.1cqw", color: "var(--rmuted)", fontWeight: 700 }}>이 건물에 가장 적합한 활용</div>
+                  <div style={{ fontSize: "3.4cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.1 }}>
+                    {ut.primary}{officeApt && <span style={{ fontSize: "1.3cqw", color: "#fff", background: "var(--blue)", borderRadius: "1.5cqw", padding: ".2cqw 1cqw", marginLeft: ".8cqw", fontWeight: 700, verticalAlign: "middle" }}>사옥 적합</span>}
+                  </div>
+                  <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)", marginTop: ".3cqw" }}>{ut.reason}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>유형별 적합도 <span style={{ color: "var(--rmuted)", fontWeight: 400, fontSize: ".85cqw" }}>(점)</span></div>
+                  <CompareBar height={140} fmt={(v) => `${Math.round(v)}`}
+                    items={[{ label: "신축", value: ut.scores["신축용"] ?? 0, color: "var(--navy)" },
+                            { label: "리모델", value: ut.scores["리모델링용"] ?? 0, color: "var(--navy)" },
+                            { label: "수익", value: ut.scores["수익형"] ?? 0, color: "var(--blue)", strong: true },
+                            { label: "사옥적합", value: ut.office_fit ?? 0, color: "var(--purple)" }].map((x) => ({ ...x, value: Math.max(x.value, 1) }))} />
+                </div>
               </div>
-              <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)", marginTop: ".3cqw" }}>{ut.reason}</div>
-            </div>
-            <div style={{ display: "flex", gap: "3cqw", flex: 1, alignItems: "center" }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>유형별 적합도 <span style={{ color: "var(--rmuted)", fontWeight: 400, fontSize: ".85cqw" }}>(점)</span></div>
-                <CompareBar height={150} fmt={(v) => `${Math.round(v)}`}
-                  items={[{ label: "신축", value: ut.scores["신축용"] ?? 0, color: "var(--navy)" },
-                          { label: "리모델", value: ut.scores["리모델링용"] ?? 0, color: "var(--navy)" },
-                          { label: "수익", value: ut.scores["수익형"] ?? 0, color: "var(--blue)", strong: true },
-                          { label: "사옥적합", value: ut.office_fit ?? 0, color: "var(--purple)" }].map((x) => ({ ...x, value: Math.max(x.value, 1) }))} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>주변 상권 프로필 <span style={{ color: "var(--rmuted)", fontWeight: 400, fontSize: ".85cqw" }}>(반경 300m 층별 용도)</span></div>
-                {ut.market && (ut.market.office || ut.market.food || ut.market.ent || ut.market.retail)
-                  ? <CompareBar height={150} fmt={(v) => `${Math.round(v * 100)}%`}
-                      items={[{ label: "업무", value: ut.market.office || 0, color: "var(--blue)", strong: true },
-                              { label: "먹자", value: ut.market.food || 0, color: "var(--navy)" },
-                              { label: "유흥", value: ut.market.ent || 0, color: "var(--navy)" },
-                              { label: "판매", value: ut.market.retail || 0, color: "var(--navy)" }].filter((x) => x.value > 0)} />
+              {/* 우: 큰 상권 지도(높이 채움) */}
+              <div style={{ flex: 1.5, display: "flex", flexDirection: "column", gap: ".5cqw", minHeight: 0 }}>
+                <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)" }}>주변 상권 지도 <span style={{ color: "var(--rmuted)", fontWeight: 400, fontSize: ".85cqw" }}>(반경 300m · 격자 지배 용도)</span></div>
+                {ut.zones && ut.zones.length
+                  ? <ReportMap lng={num(b.lng)} lat={num(b.lat)} zones={ut.zones as any} />
                   : <div style={{ color: "var(--rmuted)", fontSize: "1.05cqw", padding: "2cqw 0" }}>주변 상권 데이터가 부족합니다.</div>}
+                <div style={{ display: "flex", gap: "1cqw", flexWrap: "wrap", fontSize: ".85cqw", color: "var(--rmuted)" }}>
+                  {[["업무", "#2B5AA8"], ["먹자", "#E8833A"], ["유흥", "#D64545"], ["판매", "#2E9E6B"]].map(([k, c]) => (
+                    <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: ".3cqw" }}><span style={{ width: ".9cqw", height: ".9cqw", background: c, borderRadius: ".2cqw", display: "inline-block" }} />{k}</span>
+                  ))}
+                </div>
               </div>
             </div>
             <div style={{ fontSize: ".9cqw", lineHeight: 1.5, color: "var(--rmuted)", textAlign: "center", maxWidth: "88%", margin: "0 auto" }}>

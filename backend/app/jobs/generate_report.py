@@ -343,6 +343,27 @@ def _parse_far(txt) -> float | None:
     return float(m.group().replace(",", "")) if m else None
 
 
+async def _market_zones(building_pk: str) -> list[dict]:
+    """상권 존(격자 ~100m) — 셀별 지배 용도(업무/먹자/유흥/판매) 폴리곤. 지도 오버레이용."""
+    rows = await pool().fetch(
+        """WITH s AS (SELECT geom, ST_X(geom) lng, ST_Y(geom) lat FROM master.buildings WHERE building_pk=$1),
+             cells AS (
+               SELECT ST_SnapToGrid(b.geom, s.lng, s.lat, 0.0011, 0.0009) cell,
+                 CASE WHEN fo.use ~ '사무소|업무시설' THEN '업무'
+                      WHEN fo.use ~ '음식점' THEN '먹자'
+                      WHEN fo.use ~ '유흥|단란|노래연습장|주점' THEN '유흥'
+                      WHEN fo.use ~ '소매점|백화점' THEN '판매' ELSE '기타' END cat
+               FROM master.buildings b JOIN master.floor_outline fo USING(building_pk), s
+               WHERE ST_DWithin(b.geom::geography, s.geom::geography, 300)
+                 AND fo.use !~ '주택|아파트|오피스텔|주차|부대'),
+             agg AS (SELECT cell, cat, count(*) c FROM cells WHERE cat<>'기타' GROUP BY cell, cat),
+             dom AS (SELECT DISTINCT ON (cell) cell, cat, c FROM agg ORDER BY cell, c DESC)
+           SELECT ST_AsGeoJSON(ST_Envelope(ST_Expand(cell, 0.00055, 0.00045))) geojson, cat, c
+           FROM dom WHERE c >= 3 ORDER BY c""",
+        building_pk)
+    return [{"geojson": json.loads(r["geojson"]), "cat": r["cat"], "count": r["c"]} for r in rows]
+
+
 async def _use_type(building_pk: str, b: dict) -> dict | None:
     """F-20 활용 유형(투자 유형) 분류 — legal_far·상권 프로필 조립 후 classify()."""
     lf = await pool().fetchval(
@@ -360,7 +381,7 @@ async def _use_type(building_pk: str, b: dict) -> dict | None:
     market = ({"office": mk["office"] or 0, "food": mk["food"] or 0, "ent": mk["ent"] or 0, "retail": mk["retail"] or 0}
               if mk and mk["n"] else {})
     la = _fnum(b.get("land_area"))
-    return use_type.classify({
+    result = use_type.classify({
         "far": _fnum(b.get("far")), "legal_far": _parse_far(lf), "land_use": b.get("land_use"),
         "floors_above": b.get("floors_above"), "land_area_py": (la / 3.305785) if la else None,
         "age_years": b.get("age_years"), "remodel_years": b.get("remodel_years"),
@@ -369,6 +390,8 @@ async def _use_type(building_pk: str, b: dict) -> dict | None:
         "station_score": value_score.station_score(_fnum(b.get("station_dist"))),
         "use_zone": b.get("use_zone"), "market": market,
     })
+    result["zones"] = await _market_zones(building_pk)   # 상권 존 폴리곤(지도용)
+    return result
 
 
 def synthesize(subject: dict, subject_score: float, comps: list[dict],
