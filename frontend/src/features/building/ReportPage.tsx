@@ -79,8 +79,13 @@ function ReportMap({ lng, lat, geom, zones, h }: { lng?: number | null; lat?: nu
           new naver.maps.Polygon({ map, paths, clickable: false, fillColor: col, fillOpacity: 0.42, strokeColor: col, strokeWeight: 0.5, strokeOpacity: 0.5 });
           paths.forEach((ring: any[]) => ring.forEach((p: any) => bnds.extend(p)));
         });
-        new naver.maps.Marker({ position: pos, map, zIndex: 100,
-          icon: { content: `<div style="width:16px;height:16px;border-radius:50%;background:#262320;border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.5)"></div>`, anchor: new naver.maps.Point(9, 9) } });
+        const subPaths = geom ? geoToPaths(naver, geom) : [];   // 본매물 = 필지 폴리곤(점 아님)
+        if (subPaths.length)
+          new naver.maps.Polygon({ map, paths: subPaths, clickable: false, zIndex: 100,
+            fillColor: "#262320", fillOpacity: 0.85, strokeColor: "#fff", strokeWeight: 2, strokeOpacity: 1 });
+        else
+          new naver.maps.Marker({ position: pos, map, zIndex: 100,
+            icon: { content: `<div style="width:16px;height:16px;border-radius:50%;background:#262320;border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.5)"></div>`, anchor: new naver.maps.Point(9, 9) } });
         map.fitBounds(bnds, { top: 12, right: 12, bottom: 12, left: 12 });
         map.setZoom(map.getZoom() + 1, false);   // 확대: 존이 잘려도 본매물 주변 밀도 우선
         map.setCenter(pos);
@@ -488,7 +493,7 @@ export function ReportPage() {
               <div style={{ flex: 1.5, display: "flex", flexDirection: "column", gap: ".5cqw", minHeight: 0 }}>
                 <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)" }}>주변 상권 지도 <span style={{ color: "var(--rmuted)", fontWeight: 400, fontSize: ".85cqw" }}>(반경 300m · 격자 지배 용도)</span></div>
                 {ut.zones && ut.zones.length
-                  ? <ReportMap lng={num(b.lng)} lat={num(b.lat)} zones={ut.zones as any} />
+                  ? <ReportMap lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom} zones={ut.zones as any} />
                   : <div style={{ color: "var(--rmuted)", fontSize: "1.05cqw", padding: "2cqw 0" }}>주변 상권 데이터가 부족합니다.</div>}
                 <div style={{ display: "flex", gap: "1cqw", flexWrap: "wrap", fontSize: ".85cqw", color: "var(--rmuted)" }}>
                   {[["업무", "#2B5AA8"], ["먹자", "#E8833A"], ["유흥", "#D64545"], ["판매", "#2E9E6B"]].map(([k, c]) => (
