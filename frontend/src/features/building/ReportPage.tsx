@@ -9,7 +9,7 @@ import { geoToPaths } from "../../shared/map/geo";
 import "./reportslide.css";
 
 /** 분석 보고서 — R_example.pptx 8슬라이드를 웹으로(네이비 코퍼레이트·16:9·cqw 스케일).
- * 표지 → 핵심요약 → 기본정보 → 가치분석 → 실거래사례 → 주변월세 → 예상수익률 → 최종요약. specs R-보고서 §5·§6a. */
+ * 표지 → 핵심요약 → 기본정보 → 가치분석 → 실거래사례 → 주변임대 → 예상수익률 → 최종요약. specs R-보고서 §5·§6a. */
 const P = 3.305785;
 const AXIS: [string, string][] = [
   ["road_access", "도로접면"], ["station_dist", "역과의거리"], ["use_zone", "용도지역"],
@@ -240,7 +240,7 @@ export function ReportPage() {
             <div className="rs-fade" style={{ display: "flex", gap: "3.5cqw", paddingTop: "1.3cqw", borderTop: "1px solid var(--rl)", fontSize: "1.1cqw", color: "var(--rmuted)", ["--d" as string]: "360ms" }}>
               <span>평당 적정가 <b style={{ color: "var(--navy)" }}>{avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만원` : "—"}</b></span>
               <span>연면적 <b style={{ color: "var(--navy)" }}>{py(totalArea)}평</b></span>
-              {rent ? <span>주변시세 총월세 <b style={{ color: "var(--navy)" }}>{man(rent)}만원</b></span> : null}
+              {rent ? <span>주변시세 총임대료 <b style={{ color: "var(--navy)" }}>{man(rent)}만원</b></span> : null}
             </div>
           </div>
         </div>
@@ -336,7 +336,7 @@ export function ReportPage() {
                   : <>반경 내 유사 실거래가 충분치 않아, 다른 기준을 함께 반영해 시세를 분석했습니다.</>}
               </div>
               <div style={{ fontSize: "1cqw", lineHeight: 1.6, color: "var(--rmuted)", marginTop: ".9cqw" }}>
-                이 실거래 기준값은 하나의 근거이며, 공시지가·주변 월세시세(수익가치) 등 다른 요소와 함께 종합해 최종 적정가를 산정합니다. 종합 결론은 마지막 장에서 정리합니다.
+                이 실거래 기준값은 하나의 근거이며, 공시지가·주변 임대시세(수익가치) 등 다른 요소와 함께 종합해 최종 적정가를 산정합니다. 종합 결론은 마지막 장에서 정리합니다.
               </div>
             </div>
           </div>
@@ -365,18 +365,18 @@ export function ReportPage() {
           </div>
         </div>
       </Slide>,
-      <Slide key={5} n="06" foot="주변월세·수익가치" rno={rno} date={date}
-        title="주변월세·수익가치" desc="주변 월세시세로 임대수익을 추정하고, 이를 수익가치(수익환원)로 적정가에 반영합니다.">
+      <Slide key={5} n="06" foot="주변임대·수익가치" rno={rno} date={date}
+        title="주변임대·수익가치" desc="주변 임대시세로 임대수익을 추정하고, 이를 수익가치(수익환원)로 적정가에 반영합니다.">
         <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%", height: "100%" }}>
           <div className="rs-grid" style={{ gridTemplateColumns: "1fr 1.3fr 1fr 1fr" }}>
-            <div className="rs-sc"><div className="k">현재 총월세</div><div className="v">{man(curRent)}<u>만원</u></div></div>
-            <div className="rs-sc blue"><div className="k">주변시세 적용 총월세</div><div className="v" style={{ color: "var(--blue)" }}>{man(rent)}<u>만원</u> <span style={{ fontSize: ".9cqw", color: "var(--rmuted)", fontWeight: 500 }}>연 {eok(rent ? rent * 12 : null)}억</span></div></div>
+            <div className="rs-sc"><div className="k">현재 총임대료</div><div className="v">{man(curRent)}<u>만원</u></div></div>
+            <div className="rs-sc blue"><div className="k">주변시세 적용 총임대료</div><div className="v" style={{ color: "var(--blue)" }}>{man(rent)}<u>만원</u> <span style={{ fontSize: ".9cqw", color: "var(--rmuted)", fontWeight: 500 }}>연 {eok(rent ? rent * 12 : null)}억</span></div></div>
             <div className="rs-sc"><div className="k">예상 연임대수익</div><div className="v">{rent ? eok(rent * 12) : "—"}<u>억</u></div></div>
             <div className="rs-sc hl"><div className="k">적정가 기준 예상수익률</div><div className="v" style={{ color: "var(--peach-tx)" }}>{roiFair != null ? roiFair.toFixed(2) : "—"}<u>%</u></div></div>
           </div>
           {floors.length ? (
             <table className="rs-tbl">
-              <thead><tr><th>층수</th><th className="r">현재 월세</th><th className="r">주변월세시세</th><th className="r">차이</th><th className="r">참고사례수</th></tr></thead>
+              <thead><tr><th>층수</th><th className="r">현재 임대료</th><th className="r">주변임대시세</th><th className="r">차이</th><th className="r">참고사례수</th></tr></thead>
               <tbody>
                 {floors.map((f) => (
                   <tr key={f.floor}><td>{f.floor}</td><td className="r">{man(f.cur)}만원</td><td className="r">{man(f.mkt)}만원</td>
@@ -389,7 +389,7 @@ export function ReportPage() {
             </table>
           ) : <div className="rs-callout" style={{ background: "var(--card)", borderColor: "var(--rl)", color: "var(--rmuted)" }}>주변 임대광고 사례가 없어 현재 임대료 기준으로 분석되었습니다.</div>}
           <div style={{ fontSize: "1cqw", lineHeight: 1.6, color: "var(--rmuted)", marginTop: "auto" }}>
-            주변 월세시세로 추정한 연 임대수익은 <b style={{ color: "var(--navy)" }}>수익환원</b>(연 임대수익 ÷ 자치구 환원율) 방식으로 적정가 산정에 일부 반영됩니다. 예상수익률은 <b style={{ color: "var(--navy)" }}>빌탐정 적정가</b> 대비 연 임대수익 기준입니다.
+            주변 임대시세로 추정한 연 임대수익은 <b style={{ color: "var(--navy)" }}>수익환원</b>(연 임대수익 ÷ 자치구 환원율) 방식으로 적정가 산정에 일부 반영됩니다. 예상수익률은 <b style={{ color: "var(--navy)" }}>빌탐정 적정가</b> 대비 연 임대수익 기준입니다.
           </div>
         </div>
       </Slide>,
@@ -400,7 +400,7 @@ export function ReportPage() {
             {([
               ["주변 실거래 시세", compMin && compMax ? `평당 ${compMin.toLocaleString()}~${compMax.toLocaleString()}만` : "인근 거래 기준", "인근 유사 거래의 연면적당 평단가"],
               ["공시지가 기준", "공시배율 환산", "실거래가가 공시가의 몇 배인지"],
-              ["주변 월세 수익가치", "임대수익 반영", "월세 기반 수익환원 가치 가미"],
+              ["주변 임대 수익가치", "임대수익 반영", "임대 기반 수익환원 가치 가미"],
             ] as [string, string, string][]).map(([k, v, d]) => (
               <div key={k} style={{ flex: 1, borderTop: "2px solid var(--navy)", paddingTop: ".7cqw" }}>
                 <div style={{ fontSize: "1.15cqw", fontWeight: 800, color: "var(--navy)" }}>{k}</div>
@@ -416,7 +416,7 @@ export function ReportPage() {
             <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)" }}>평당 약 {avgPer ? Math.round(avgPer / 1e4).toLocaleString() : "—"}만원 · 연면적 {py(totalArea)}평</div>
           </div>
           <div style={{ fontSize: "1cqw", lineHeight: 1.6, color: "var(--rmuted)", textAlign: "center", maxWidth: "82%", margin: "0 auto" }}>
-            인근 실거래를 공시지가 배율·대지 평단가·연면적 평단가로 교차 분석하고, 주변 월세 기반 수익가치를 더해 산정했습니다.
+            인근 실거래를 공시지가 배율·대지 평단가·연면적 평단가로 교차 분석하고, 주변 임대 기반 수익가치를 더해 산정했습니다.
             가치 분석(입지·건물 매력도)은 미래가치·임대여력을 보는 <b style={{ color: "var(--navy)" }}>별도 지표</b>로, 적정가에는 직접 반영하지 않습니다.
           </div>
         </div>
