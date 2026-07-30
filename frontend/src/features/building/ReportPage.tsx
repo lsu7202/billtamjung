@@ -158,7 +158,11 @@ export function ReportPage() {
   const landArea = num(b.land_area);
   const totalP = totalArea ? totalArea / P : null;
   const avgPer = fair && totalP ? Math.round(fair / totalP) : (pv?.avg_per_pyeong ?? null);   // 산정요약 = 빌탐정 적정가와 일치
-  const comps = ((pv?.comps_used ?? []) as CompUsed[]).slice(0, 7);
+  const usedComps = (pv?.comps_used ?? []) as CompUsed[];                      // 산정에 쓰인 전체 comp
+  const comps = [...usedComps].sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0)).slice(0, 4);  // 대표 = 가까운 순 4건
+  const moreCount = Math.max(0, usedComps.length - comps.length);              // 표에 안 나온 나머지
+  const avgPerNow = usedComps.length                                          // 주변 실거래 연면적당 평단가 평균(원/평)
+    ? Math.round(usedComps.reduce((s, c) => s + (c.per_now || 0), 0) / usedComps.length) : null;
   const gLatest = num(b.gongsi_latest);                            // 본매물 공시지가(원/㎡)
   const gTotal = gLatest && landArea ? gLatest * landArea : null;  // 공시총액(원)
   const gctx = pv?.gongsi_ctx ?? null;
@@ -294,8 +298,8 @@ export function ReportPage() {
           </div>
         </div>
       </Slide>,
-      <Slide key={3} n="04" foot="주변 실거래 분석" rno={rno} date={date}
-        title="주변 실거래 분석" desc={`${shortAddr} 인근의 유사 실거래를 바탕으로 본 매물의 적정매매가를 분석했습니다.`}>
+      <Slide key={3} n="04" foot="실거래가 분석" rno={rno} date={date}
+        title="실거래가 분석" desc={`${shortAddr} 인근의 유사 실거래를 바탕으로 본 매물의 적정매매가를 분석했습니다.`}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%", height: "100%" }}>
           <table className="rs-tbl">
             <thead><tr><th>사례</th><th>주소</th><th className="r">거리</th><th>거래일</th><th className="r">매매가</th><th className="r">연면적</th><th className="r">평단가</th><th className="r">시점보정</th></tr></thead>
@@ -322,12 +326,14 @@ export function ReportPage() {
                   <td className="r">{c.time_adj != null ? `${c.time_adj >= 0 ? "+" : ""}${Math.round(c.time_adj * 100)}%` : "—"}</td>
                 </tr>
               )) : <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--rmuted)", padding: "2cqw" }}>반경 내 실거래 사례 없음</td></tr>}
+              {moreCount > 0 && <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--rmuted)", fontSize: ".95cqw", padding: ".55cqw", borderTop: "1px dashed var(--rl)" }}>가까운 순 4건 표시 · 외 <b style={{ color: "var(--navy)" }}>+{moreCount}건</b>도 적정가 산정에 반영됨</td></tr>}
             </tbody>
           </table>
           <div style={{ display: "flex", gap: "2.5cqw", alignItems: "center", flex: 1 }}>
             <div style={{ flex: "0 0 42%", display: "flex", flexDirection: "column" }}>
               <div style={{ fontSize: "1.1cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>연면적당 평단가 비교 <span style={{ color: "var(--rmuted)", fontWeight: 400 }}>(만원/평)</span></div>
               {comps.length >= 2 && <CompareBar height={150} fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}`}
+                refLine={avgPerNow ? { value: avgPerNow, label: "주변 평균" } : null}
                 items={[...comps.map((c, i) => ({ label: `${i + 1}`, value: c.per_now ?? 0, color: "var(--navy)" })),
                   ...(avgPer ? [{ label: "본매물", value: avgPer, color: "var(--blue)", strong: true }] : [])].filter((x) => x.value > 0)} />}
             </div>

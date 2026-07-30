@@ -72,8 +72,9 @@ export function ScoreRadar({ axes, size = 210, color = "var(--signal)", showValu
 }
 
 /* 비교 컬럼차트 — 세로 막대(그라디언트·호버 강조·값라벨·베이스라인). 가격/임대료 비교. TrendChart와 동일 감성. */
-export function CompareBar({ items, fmt, height = 178 }: {
+export function CompareBar({ items, fmt, height = 178, refLine }: {
   items: { label: string; value: number; color?: string; strong?: boolean }[]; fmt: (n: number) => string; height?: number;
+  refLine?: { value: number; label: string } | null;
 }) {
   const gid = useId();
   const ref = useRef<SVGSVGElement>(null);
@@ -88,7 +89,8 @@ export function CompareBar({ items, fmt, height = 178 }: {
   const list = items.filter((i) => i.value > 0);
   if (!list.length) return <p style={{ color: "var(--muted)", fontSize: 13 }}>데이터 없음</p>;
   const W = cw, H = height, T = 24, B = 34, base = H - B;
-  const max = Math.max(...list.map((i) => i.value), 1);
+  const max = Math.max(...list.map((i) => i.value), refLine?.value || 0, 1);
+  const yOf = (v: number) => base - (v / max) * (base - T);
   // 고정 폭·고정 간격으로 가운데 정렬(퍼짐 방지). 넘치면 폭만 축소.
   const gap = 16;
   let colW = 40;
@@ -107,6 +109,10 @@ export function CompareBar({ items, fmt, height = 178 }: {
         ))}
       </defs>
       <line x1={0} y1={base} x2={W} y2={base} stroke="var(--line-2)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+      {refLine && refLine.value > 0 ? <>
+        <line x1={0} y1={yOf(refLine.value)} x2={W} y2={yOf(refLine.value)} stroke="var(--blue)" strokeWidth={1.5} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />
+        <text x={W - 2} y={yOf(refLine.value) - 5} textAnchor="end" fontSize="11" fontWeight={700} fill="var(--blue)">{refLine.label} {fmt(refLine.value)}</text>
+      </> : null}
       {list.map((it, i) => {
         const h = Math.max(3, (it.value / max) * (base - T));
         const x = xOf(i), y = base - h;
