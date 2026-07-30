@@ -93,7 +93,7 @@ function ReportMap({ lng, lat, geom, zones, h }: { lng?: number | null; lat?: nu
       }
       const paths = geom ? geoToPaths(naver, geom) : [];
       if (paths.length) {
-        new naver.maps.Polygon({ map, paths, clickable: false, fillColor: "#2B5AA8", fillOpacity: 0.25, strokeColor: "#2B5AA8", strokeWeight: 3.5, strokeOpacity: 1 });
+        new naver.maps.Polygon({ map, paths, clickable: false, fillColor: "#262320", fillOpacity: 0.85, strokeColor: "#fff", strokeWeight: 2, strokeOpacity: 1 });
         const bnds = new naver.maps.LatLngBounds();
         paths.forEach((ring: any[]) => ring.forEach((p: any) => bnds.extend(p)));
         map.fitBounds(bnds, { top: 60, right: 60, bottom: 60, left: 60 });
