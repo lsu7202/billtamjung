@@ -126,6 +126,12 @@
 .stage-slide.rs-enter { animation: bt-slidein .5s cubic-bezier(.22,1,.36,1) both; }
 .stage-slide.rs-enter .rs-fade { animation: bt-rise .6s cubic-bezier(.22,1,.36,1) both; animation-delay: var(--d, 120ms); }
 @media (prefers-reduced-motion: reduce) { .stage-slide.rs-enter, .stage-slide.rs-enter .rs-fade { animation: none !important; } }
+/* 07 수렴 플로우 — 3축이 적정가로 모이는 라인 draw(진입 시) */
+@keyframes bt-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes bt-pop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
+.stage-slide.rs-enter .rs-converge path { animation: bt-draw .85s cubic-bezier(.4,0,.2,1) both; animation-delay: var(--d, 700ms); }
+.stage-slide.rs-enter .rs-converge circle { transform-box: fill-box; transform-origin: center; animation: bt-pop .4s cubic-bezier(.22,1,.36,1) both; animation-delay: 1450ms; }
+@media (prefers-reduced-motion: reduce) { .stage-slide.rs-enter .rs-converge path, .stage-slide.rs-enter .rs-converge circle { animation: none !important; stroke-dashoffset: 0 !important; } }
 
 /* 전체화면 발표 모드 — 사이드바·툴바 숨기고 슬라이드만, 다크 배경 */
 .rslide-root:fullscreen { background: #0b0e16; height: 100%; }
