@@ -179,7 +179,7 @@ export interface ReportPreview {
   applied_rent?: number | null; expected_deposit?: number | null; market_applied?: boolean;
   breakdown?: FairBreakdown | null; rent_floors?: RentFloor[] | null; comps_used?: CompUsed[] | null;
   gongsi_ctx?: { nbhd_per_m2: number | null; mult: number | null; n: number } | null;
-  rent_summary?: { floor_count: number; cur_rent: number; mkt_rent: number; cur_deposit: number; mkt_deposit: number } | null;
+  rent_summary?: { floor_count: number; cur_rent: number; mkt_rent: number; cur_deposit: number; mkt_deposit: number; nearby_roi: number | null } | null;
 }
 export interface CompsResponse {
   subject: { addr: string; score: number; grade: string; items?: Record<string, number>;

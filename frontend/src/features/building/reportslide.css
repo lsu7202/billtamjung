@@ -132,6 +132,9 @@
 .stage-slide.rs-enter .rs-converge path { animation: bt-draw .85s cubic-bezier(.4,0,.2,1) both; animation-delay: var(--d, 700ms); }
 .stage-slide.rs-enter .rs-converge circle { transform-box: fill-box; transform-origin: center; animation: bt-pop .4s cubic-bezier(.22,1,.36,1) both; animation-delay: 1450ms; }
 @media (prefers-reduced-motion: reduce) { .stage-slide.rs-enter .rs-converge path, .stage-slide.rs-enter .rs-converge circle { animation: none !important; stroke-dashoffset: 0 !important; } }
+/* 결론 강조 팝인(스케일 바운스) — 적정가 등 핵심 숫자용 */
+.stage-slide.rs-enter .rs-pop { animation: bt-pop .7s cubic-bezier(.34,1.56,.64,1) both; animation-delay: var(--d, 300ms); }
+@media (prefers-reduced-motion: reduce) { .stage-slide.rs-enter .rs-pop { animation: none !important; } }
 
 /* 전체화면 발표 모드 — 사이드바·툴바 숨기고 슬라이드만, 다크 배경 */
 .rslide-root:fullscreen { background: #0b0e16; height: 100%; }

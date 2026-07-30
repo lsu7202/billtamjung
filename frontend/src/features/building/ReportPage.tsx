@@ -180,6 +180,9 @@ export function ReportPage() {
   const rCurDep = rs?.cur_deposit ?? null;                          // 현재 총보증금
   const perPyRent = curRent && totalArea ? curRent / (totalArea / P) : null;   // 평당 월임대료(연면적 기준)
   const upsidePct = (rent != null && curRent) ? ((rent - curRent) / curRent) * 100 : null;   // 임대 상승여력 %
+  const nbhdRoi = rs?.nearby_roi ?? null;                                       // 주변 평균 수익률(중앙값)
+  const topStrengths = AXIS.map(([k, l]) => ({ l, s: (sub?.items?.[k] ?? 0) as number }))   // 가치 항목 강점 상위(75점↑)
+    .sort((a, b) => b.s - a.s).filter((x) => x.s >= 75).slice(0, 3).map((x) => x.l);
 
   const loading = (reportId != null && rq.isLoading) || (needLive && cq.isLoading) || (!!pk && bq.isLoading);
   if (loading && !sub) return <div style={{ padding: 40, color: "var(--muted)" }}>보고서 계산 중…</div>;
@@ -437,51 +440,44 @@ export function ReportPage() {
       <Slide key={6} n="07" foot="종합 결론" rno={rno} date={date}
         title="종합 결론" desc="적정가와 수익성을 종합한 본 매물의 최종 결론입니다.">
         <div style={{ display: "flex", flexDirection: "column", gap: ".9cqw", width: "100%", height: "100%", justifyContent: "center" }}>
-          <div className="rs-fade" style={{ fontSize: "1.1cqw", fontWeight: 700, color: "var(--navy)", textAlign: "center", ["--d" as string]: "40ms" }}>세 기준이 하나로 모여 적정가가 됩니다</div>
-          {/* 3 축 — 여백·타이포만(박스 없음) */}
-          <div style={{ display: "flex" }}>
-            {([
-              ["실거래가", "주축", compMin && compMax ? `평당 ${compMin.toLocaleString()}~${compMax.toLocaleString()}만` : "인근 유사 거래", "공시·대지·연면적 3방식 환산"],
-              ["공시지가", "", gmult ? `공시가의 약 ${gmult.toFixed(1)}배` : "공시배율 반영", "실거래가 공시총액 대비"],
-              ["임대수익", "", rent ? `연 ${eok(rent * 12)}억` : "임대수익 반영", "수익환원으로 약 20% 가미"],
-            ] as [string, string, string, string][]).map(([k, tag, v, d], i) => (
-              <div key={k} className="rs-fade" style={{ flex: 1, textAlign: "center", padding: "0 .8cqw", ["--d" as string]: `${150 + i * 150}ms` }}>
-                <div style={{ fontSize: "1.15cqw", fontWeight: 800, color: "var(--navy)" }}>{k}{tag && <span style={{ fontSize: ".78cqw", color: "#fff", background: "var(--blue)", borderRadius: "1cqw", padding: ".1cqw .55cqw", marginLeft: ".4cqw", fontWeight: 700 }}>{tag}</span>}</div>
-                <div style={{ fontSize: "1.9cqw", fontWeight: 800, color: "var(--blue)", margin: ".18cqw 0", lineHeight: 1.05 }}>{v}</div>
-                <div style={{ fontSize: ".85cqw", color: "var(--rmuted)", lineHeight: 1.35 }}>{d}</div>
-              </div>
-            ))}
+          {/* 3축 — 작은 supporting 한 줄(결론보다 약하게) */}
+          <div className="rs-fade" style={{ display: "flex", justifyContent: "center", gap: "1.6cqw", fontSize: ".98cqw", color: "var(--rmuted)", ["--d" as string]: "60ms" }}>
+            <span>실거래 {compMin && compMax ? <b style={{ color: "var(--navy)" }}>{compMin.toLocaleString()}~{compMax.toLocaleString()}만/평</b> : "—"}</span>
+            <span style={{ color: "var(--rl)" }}>|</span>
+            <span>공시배율 {gmult ? <b style={{ color: "var(--navy)" }}>×{gmult.toFixed(1)}</b> : "—"}</span>
+            <span style={{ color: "var(--rl)" }}>|</span>
+            <span>임대수익 <b style={{ color: "var(--navy)" }}>연 {rent ? eok(rent * 12) : "—"}억</b></span>
+            <span style={{ color: "var(--rmuted)" }}>을 종합</span>
           </div>
-          {/* 수렴 라인(draw 애니메이션) */}
-          <svg className="rs-converge" viewBox="0 0 1000 80" preserveAspectRatio="none" width="100%" style={{ height: "4.2cqw", display: "block", overflow: "visible" }}>
-            <path pathLength={1} d="M167,2 C167,58 500,26 500,78" fill="none" stroke="var(--navy)" strokeWidth={2} strokeDasharray={1} vectorEffect="non-scaling-stroke" style={{ ["--d" as string]: "620ms" }} />
-            <path pathLength={1} d="M500,2 L500,78" fill="none" stroke="var(--navy)" strokeWidth={2} strokeDasharray={1} vectorEffect="non-scaling-stroke" style={{ ["--d" as string]: "760ms" }} />
-            <path pathLength={1} d="M833,2 C833,58 500,26 500,78" fill="none" stroke="var(--navy)" strokeWidth={2} strokeDasharray={1} vectorEffect="non-scaling-stroke" style={{ ["--d" as string]: "900ms" }} />
-            <circle cx={500} cy={78} r={7} fill="var(--blue)" />
-          </svg>
-          {/* 적정가 — 수렴점(박스 없음·카운트업) */}
-          <div style={{ textAlign: "center", marginTop: "-.4cqw" }}>
-            <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)", fontWeight: 700 }}>빌탐정 적정가</div>
-            <div style={{ fontSize: "4.4cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.02 }}>
-              <CountUp end={fair ? fair / 1e8 : 0} dur={1200} delay={1500} fmt={(v) => Math.round(v).toLocaleString()} /><span style={{ fontSize: "2cqw" }}>억 원</span>
+          {/* 결론 — 적정가 초대형(팝인+카운트업) */}
+          <div className="rs-pop" style={{ textAlign: "center", ["--d" as string]: "260ms" }}>
+            <div style={{ fontSize: "1.2cqw", color: "var(--rmuted)", fontWeight: 700, letterSpacing: ".06em" }}>빌탐정 적정가</div>
+            <div style={{ fontSize: "5.4cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1, letterSpacing: "-.02em" }}>
+              <CountUp end={fair ? fair / 1e8 : 0} dur={1300} delay={400} fmt={(v) => Math.round(v).toLocaleString()} /><span style={{ fontSize: "2.4cqw" }}>억 원</span>
             </div>
-            <div style={{ fontSize: "1cqw", color: "var(--rmuted)" }}>평당 약 {avgPer ? Math.round(avgPer / 1e4).toLocaleString() : "—"}만원 · 연면적 {py(totalArea)}평</div>
+            <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)" }}>평당 약 {avgPer ? Math.round(avgPer / 1e4).toLocaleString() : "—"}만원 · 연면적 {py(totalArea)}평</div>
           </div>
-          {/* 수익성 — hairline 구분(박스 없음) */}
-          <div className="rs-fade" style={{ display: "flex", justifyContent: "center", ["--d" as string]: "1750ms", marginTop: ".2cqw" }}>
+          {/* 핵심 지표 3 — 큼지막, hairline, 순차 카운트업 */}
+          <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
             {([
-              ["예상수익률", roiFair != null ? `${roiFair.toFixed(2)}%` : "—"],
-              ["예상 연임대수익", rent ? `${eok(rent * 12)}억` : "—"],
-              ["미래가치", `${grade}등급`],
-            ] as [string, string][]).map(([k, v], i) => (
-              <div key={k} style={{ textAlign: "center", padding: "0 2.4cqw", borderRight: i < 2 ? "1px solid var(--rl)" : "none" }}>
-                <div style={{ fontSize: ".9cqw", color: "var(--rmuted)", fontWeight: 700 }}>{k}</div>
-                <div style={{ fontSize: "1.7cqw", fontWeight: 800, color: "var(--blue)", lineHeight: 1.15 }}>{v}</div>
+              ["예상수익률", <CountUp key="r" end={roiFair ?? 0} dur={1000} delay={1200} fmt={(v) => v.toFixed(2)} />, "%", nbhdRoi ? `주변 평균 ${nbhdRoi}%` : "적정가 기준"],
+              ["예상 연임대수익", <CountUp key="l" end={rent ? rent * 12 / 1e8 : 0} dur={1000} delay={1400} fmt={(v) => Math.round(v).toLocaleString()} />, "억", "주변 임대시세 적용"],
+              ["미래가치", grade, "등급", `가치점수 ${score}점`],
+            ] as [string, React.ReactNode, string, string][]).map(([k, v, u, d], i) => (
+              <div key={k} className="rs-fade" style={{ textAlign: "center", padding: "0 2.8cqw", borderRight: i < 2 ? "1px solid var(--rl)" : "none", ["--d" as string]: `${1100 + i * 200}ms` }}>
+                <div style={{ fontSize: "1cqw", color: "var(--rmuted)", fontWeight: 700 }}>{k}</div>
+                <div style={{ fontSize: "2.7cqw", fontWeight: 800, color: "var(--blue)", lineHeight: 1.05 }}>{v}<span style={{ fontSize: "1.35cqw" }}>{u}</span></div>
+                <div style={{ fontSize: ".82cqw", color: "var(--rmuted)" }}>{d}</div>
               </div>
             ))}
           </div>
-          <div style={{ fontSize: ".82cqw", lineHeight: 1.5, color: "var(--rmuted)", textAlign: "center", maxWidth: "92%", margin: "0 auto" }}>
-            ※ 실거래가(주축)를 공시·대지·연면적으로 환산 + 임대수익 수익환원 20% 가미(시점보정·거리가중·이상치 제외). 가치점수는 미래가치 지표로 적정가와 별개.
+          {/* 종합 의견 — 자세한 문장(왜 이 적정가·장점·기대·예상 이익) */}
+          <div className="rs-fade" style={{ fontSize: "1.05cqw", lineHeight: 1.75, color: "var(--rink)", maxWidth: "90%", margin: ".6cqw auto 0", ["--d" as string]: "1650ms" }}>
+            <b style={{ color: "var(--navy)" }}>종합 의견 &nbsp;</b>
+            인근 실거래를 공시지가·대지·연면적으로 교차 분석하고 주변 임대수익을 반영해 적정가 <b style={{ color: "var(--blue)" }}>약 {eok(fair)}억원</b>으로 산정됩니다.
+            {landPremium != null && landPremium >= 10 ? <> 이 땅의 공시지가가 주변 평균보다 <b>약 {landPremium.toFixed(0)}% 높아</b> 입지 경쟁력이 뚜렷하고,</> : null}
+            {topStrengths.length ? <> <b>{topStrengths.join("·")}</b> 등에서 우수해 미래가치 <b>{grade}등급</b>으로 평가됩니다.</> : <> 미래가치는 <b>{grade}등급</b>입니다.</>}
+            {" "}적정가 기준 예상수익률은 <b style={{ color: "var(--blue)" }}>{roiFair != null ? roiFair.toFixed(2) : "—"}%</b>로{nbhdRoi != null ? <> 주변 평균({nbhdRoi}%)보다 <b>{roiFair != null && roiFair >= nbhdRoi ? "높은" : "낮은"}</b> 수준이며,</> : ","} 연 약 <b style={{ color: "var(--blue)" }}>{rent ? eok(rent * 12) : "—"}억원</b>의 임대수익이 기대됩니다.
           </div>
         </div>
       </Slide>,

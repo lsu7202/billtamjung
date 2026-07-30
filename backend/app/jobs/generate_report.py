@@ -260,6 +260,15 @@ async def _nearby_rent_apply(building_pk: str, subject: dict, team_id: int) -> d
     if clng is None and geom:
         clng, clat = geom["lng"], geom["lat"]
 
+    # 주변 평균 수익률(중앙값) = 반경 내 건물들의 (연임대추정 ÷ 적정가) — 06 비교·07 의견용.
+    nearby_roi = await pool().fetchval(
+        f"""SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY e.annual_rent::float / se.sale_est * 100)
+            FROM master.building_rent_est e
+            JOIN master.building_sale_est se USING (building_pk)
+            JOIN master.buildings b USING (building_pk)
+            WHERE e.annual_rent > 0 AND se.sale_est > 0 AND b.building_pk <> $4 AND {_COMP_SPATIAL}""",
+        clng, clat, radius, building_pk, json.dumps(poly) if poly else None)
+
     # 주변 임대 comps = 팀 실제(app.floor_rents) + 마스터 추정(master.floor_rent_est, 팀 미입력 층) — market.nearby와 동일 소스.
     rows = await pool().fetch(
         f"""SELECT floor, area, rent, deposit FROM (
@@ -321,7 +330,8 @@ async def _nearby_rent_apply(building_pk: str, subject: dict, team_id: int) -> d
         applied_rent += mr; applied_deposit += md
         floors.append({"floor": fl, "cur": scur, "mkt": mr, "diff": mr - scur, "count": cnt})
     return {"floors": floors, "applied_rent": applied_rent, "applied_deposit": applied_deposit,
-            "cur_rent": cur_rent, "cur_deposit": cur_deposit}
+            "cur_rent": cur_rent, "cur_deposit": cur_deposit,
+            "nearby_roi": round(float(nearby_roi), 2) if nearby_roi else None}
 
 
 def synthesize(subject: dict, subject_score: float, comps: list[dict],
@@ -361,7 +371,8 @@ def synthesize(subject: dict, subject_score: float, comps: list[dict],
     # 임대 요약(06 페이지): 층수·현재/주변 총임대료·보증금 집계
     rent_summary = ({"floor_count": len(rent_apply["floors"]),
                      "cur_rent": round(rent_apply["cur_rent"]), "mkt_rent": round(rent_apply["applied_rent"]),
-                     "cur_deposit": round(rent_apply["cur_deposit"]), "mkt_deposit": round(rent_apply["applied_deposit"])}
+                     "cur_deposit": round(rent_apply["cur_deposit"]), "mkt_deposit": round(rent_apply["applied_deposit"]),
+                     "nearby_roi": rent_apply.get("nearby_roi")}
                     if rent_apply else None)
     return {**ap, "expected_roi": roi, "gap": gap, "gongsi_ctx": gongsi_ctx, "rent_summary": rent_summary,
             "ask_price": round(ask) if ask else None,               # 매도희망가
