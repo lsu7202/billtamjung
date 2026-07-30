@@ -9,7 +9,7 @@ import { geoToPaths } from "../../shared/map/geo";
 import "./reportslide.css";
 
 /** 분석 보고서 — R_example.pptx 8슬라이드를 웹으로(네이비 코퍼레이트·16:9·cqw 스케일).
- * 표지 → 핵심요약 → 기본정보 → 가치분석 → 실거래사례 → 주변임대 → 예상수익률 → 최종요약. specs R-보고서 §5·§6a. */
+ * 표지 → 핵심요약 → 기본정보 → 미래가치 → 실거래가 → 공시지가 → 임대수익 → 종합결론(적정가+수익성). specs R-보고서 §5·§6a. */
 const P = 3.305785;
 const AXIS: [string, string][] = [
   ["road_access", "도로접면"], ["station_dist", "역과의거리"], ["use_zone", "용도지역"],
@@ -433,33 +433,48 @@ export function ReportPage() {
           </div>
         </div>
       </Slide>,
-      <Slide key={6} n="07" foot="적정가 종합" rno={rno} date={date}
-        title="적정가 종합" desc="여러 관점의 분석을 종합해 본 매물의 빌탐정 적정가를 산정했습니다.">
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.6cqw", width: "100%", height: "100%", justifyContent: "center" }}>
-          <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)", textAlign: "center" }}>다음 세 가지 기준을 종합해 산정했습니다</div>
+      <Slide key={6} n="07" foot="종합 결론" rno={rno} date={date}
+        title="종합 결론" desc="적정가와 수익성을 종합한 본 매물의 최종 결론입니다.">
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.1cqw", width: "100%", height: "100%", justifyContent: "center" }}>
+          <div style={{ fontSize: "1cqw", fontWeight: 700, color: "var(--navy)", textAlign: "center" }}>실거래·공시지가·임대수익을 종합해 적정가를 산정했습니다</div>
           <div style={{ display: "flex", gap: "2cqw", alignItems: "stretch" }}>
             {([
-              ["실거래가", "주축", compMin && compMax ? `평당 ${compMin.toLocaleString()}~${compMax.toLocaleString()}만` : "인근 유사 거래", "공시·대지·연면적 3방식으로 환산"],
-              ["공시지가", "", gmult ? `공시가의 약 ${gmult.toFixed(1)}배` : "공시배율 반영", "실거래가 공시총액 대비 형성 수준"],
+              ["실거래가", "주축", compMin && compMax ? `평당 ${compMin.toLocaleString()}~${compMax.toLocaleString()}만` : "인근 유사 거래", "공시·대지·연면적 3방식 환산"],
+              ["공시지가", "", gmult ? `공시가의 약 ${gmult.toFixed(1)}배` : "공시배율 반영", "실거래가 공시총액 대비"],
               ["임대수익", "", rent ? `연 ${eok(rent * 12)}억` : "임대수익 반영", "수익환원으로 약 20% 가미"],
             ] as [string, string, string, string][]).map(([k, tag, v, d]) => (
-              <div key={k} style={{ flex: 1, borderTop: "2px solid var(--navy)", paddingTop: ".7cqw" }}>
-                <div style={{ fontSize: "1.15cqw", fontWeight: 800, color: "var(--navy)" }}>{k}{tag && <span style={{ fontSize: ".82cqw", color: "#fff", background: "var(--blue)", borderRadius: "1cqw", padding: ".1cqw .6cqw", marginLeft: ".5cqw", fontWeight: 700 }}>{tag}</span>}</div>
-                <div style={{ fontSize: "1.4cqw", fontWeight: 800, color: "var(--blue)", margin: ".25cqw 0" }}>{v}</div>
-                <div style={{ fontSize: ".9cqw", color: "var(--rmuted)", lineHeight: 1.4 }}>{d}</div>
+              <div key={k} style={{ flex: 1, borderTop: "2px solid var(--navy)", paddingTop: ".5cqw" }}>
+                <div style={{ fontSize: "1.05cqw", fontWeight: 800, color: "var(--navy)" }}>{k}{tag && <span style={{ fontSize: ".78cqw", color: "#fff", background: "var(--blue)", borderRadius: "1cqw", padding: ".1cqw .55cqw", marginLeft: ".4cqw", fontWeight: 700 }}>{tag}</span>}</div>
+                <div style={{ fontSize: "1.3cqw", fontWeight: 800, color: "var(--blue)", margin: ".12cqw 0" }}>{v}</div>
+                <div style={{ fontSize: ".82cqw", color: "var(--rmuted)", lineHeight: 1.35 }}>{d}</div>
               </div>
             ))}
           </div>
-          <div style={{ textAlign: "center", fontSize: "1cqw", color: "var(--rmuted)" }}>건물 특성(연면적·용적)에 맞게 <b style={{ color: "var(--navy)" }}>종합</b> ↓</div>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "1.2cqw", color: "var(--rmuted)", fontWeight: 700 }}>빌탐정 적정가</div>
-            <div style={{ fontSize: "4cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.08 }}>{eok(fair)}<span style={{ fontSize: "2cqw" }}>억 원</span></div>
-            <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)" }}>평당 약 {avgPer ? Math.round(avgPer / 1e4).toLocaleString() : "—"}만원 · 연면적 {py(totalArea)}평</div>
+          <div style={{ display: "flex", gap: "1.5cqw", alignItems: "stretch", marginTop: ".2cqw" }}>
+            <div style={{ flex: "0 0 38%", background: "color-mix(in srgb,var(--navy) 6%,transparent)", borderRadius: ".8cqw", padding: ".9cqw", textAlign: "center" }}>
+              <div style={{ fontSize: "1cqw", color: "var(--rmuted)", fontWeight: 700 }}>빌탐정 적정가</div>
+              <div style={{ fontSize: "3cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.05 }}>{eok(fair)}<span style={{ fontSize: "1.5cqw" }}>억</span></div>
+              <div style={{ fontSize: ".88cqw", color: "var(--rmuted)" }}>평당 {avgPer ? Math.round(avgPer / 1e4).toLocaleString() : "—"}만 · {py(totalArea)}평</div>
+            </div>
+            <div style={{ flex: 1, display: "flex", gap: "1.5cqw" }}>
+              {([
+                ["예상수익률", roiFair != null ? `${roiFair.toFixed(2)}%` : "—", "적정가 대비 연 임대수익"],
+                ["예상 연임대수익", rent ? `${eok(rent * 12)}억` : "—", "주변 임대시세 적용"],
+                ["미래가치 등급", `${grade}등급`, `가치점수 ${score}점`],
+              ] as [string, string, string][]).map(([k, v, d]) => (
+                <div key={k} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", borderLeft: "1px solid var(--rl)", paddingLeft: "1.1cqw" }}>
+                  <div style={{ fontSize: ".92cqw", color: "var(--rmuted)", fontWeight: 700 }}>{k}</div>
+                  <div style={{ fontSize: "1.85cqw", fontWeight: 800, color: "var(--blue)", lineHeight: 1.1 }}>{v}</div>
+                  <div style={{ fontSize: ".78cqw", color: "var(--rmuted)" }}>{d}</div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div style={{ fontSize: ".85cqw", lineHeight: 1.5, color: "var(--rmuted)", maxWidth: "90%", margin: "0 auto", display: "flex", flexDirection: "column", gap: ".15cqw" }}>
-            <div>※ <b>실거래가</b>가 산정의 주축이며, 공시지가·임대수익을 함께 반영합니다. 임대수익은 수익환원(연 임대료 ÷ 자치구 환원율) 방식으로 약 20% 가미됩니다.</div>
-            <div>※ 인근 실거래는 <b>시점보정·거리가중·이상치 제외</b>를 적용해 종합했습니다.</div>
-            <div>※ 가치점수(입지·건물 매력도)는 <b>미래가치 지표</b>로, 적정가 산정과는 별개입니다(이중계산 방지).</div>
+          <div style={{ fontSize: "1.05cqw", lineHeight: 1.6, color: "var(--rink)", textAlign: "center", maxWidth: "92%", margin: "0 auto" }}>
+            본 매물은 적정가 <b style={{ color: "var(--blue)" }}>약 {eok(fair)}억</b>, 적정가 기준 <b style={{ color: "var(--blue)" }}>예상수익률 {roiFair != null ? roiFair.toFixed(2) : "—"}%</b> 수준의 현재가치를 지니며, 입지·건물 매력도(미래가치)는 <b>{grade}등급</b>입니다.
+          </div>
+          <div style={{ fontSize: ".82cqw", lineHeight: 1.5, color: "var(--rmuted)", textAlign: "center", maxWidth: "92%", margin: "0 auto" }}>
+            ※ 적정가 = 실거래가(주축)를 공시·대지·연면적으로 환산 + 임대수익 수익환원 20% 가미(시점보정·거리가중·이상치 제외). 가치점수는 미래가치 지표로 적정가와 별개(이중계산 방지).
           </div>
         </div>
       </Slide>,
