@@ -46,6 +46,7 @@ async def comps(building_pk: str, user: CurrentUser = Depends(current_user)):
     comps = await g._fetch_comps(building_pk, b, params)
     rent_apply = await g._nearby_rent_apply(building_pk, b, user.team_id)   # 주변 임대 comp 적용(리포트 임대료 비교·applied_rent)
     syn = g.synthesize(b, vs["score"], [c for c in comps if not c["is_outlier"]], params, ta, rent_apply)  # 초기=이상치 제외
+    ut = await g._use_type(building_pk, b)   # F-20 투자 유형
     poly, radius, center = g._market_spatial(b)
     geom = await pool().fetchrow(
         "SELECT ST_X(geom) AS lng, ST_Y(geom) AS lat FROM master.buildings WHERE building_pk=$1", building_pk)
@@ -64,7 +65,7 @@ async def comps(building_pk: str, user: CurrentUser = Depends(current_user)):
                     "total_area": g._fnum(b.get("total_area")), "sale_price": g._fnum(b.get("sale_price")),
                     "total_rent": g._fnum(b.get("total_rent")), "center": ctr,
                     "radius_m": radius, "polygon": bool(poly)},
-        "preview": _preview_dict(vs, syn),
+        "preview": {**_preview_dict(vs, syn), "use_type": ut},
         "comps": comps,
         "rent_pins": [dict(r) for r in rent_rows],
         "counts": {"sale": len(comps), "rent": len(rent_rows)},

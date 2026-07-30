@@ -87,7 +87,7 @@ def classify(inp: dict) -> dict:
     primary = max(scores, key=lambda k: scores[k])
     reason = _reason(primary, util, inp)
     return {"primary": primary, "scores": scores, "office_fit": of, "util": round(util) if util else None,
-            "reason": reason}
+            "reason": reason, "market": inp.get("market") or {}}
 
 
 def _reason(primary: str, util: float | None, inp: dict) -> str:

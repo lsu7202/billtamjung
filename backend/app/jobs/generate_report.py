@@ -13,7 +13,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from ..core.db import tx, pool
 from ..core.config import settings
-from . import value_score, report_calc
+from . import value_score, report_calc, use_type
 
 router = APIRouter(prefix="/jobs", tags=["worker"])
 
@@ -332,6 +332,43 @@ async def _nearby_rent_apply(building_pk: str, subject: dict, team_id: int) -> d
     return {"floors": floors, "applied_rent": applied_rent, "applied_deposit": applied_deposit,
             "cur_rent": cur_rent, "cur_deposit": cur_deposit,
             "nearby_roi": round(float(nearby_roi), 2) if nearby_roi else None}
+
+
+def _parse_far(txt) -> float | None:
+    """legal_far 텍스트('800%', '1,000% (도심 800%)') → float(%). 앞의 숫자."""
+    if not txt:
+        return None
+    import re
+    m = re.search(r"[\d,]+", str(txt))
+    return float(m.group().replace(",", "")) if m else None
+
+
+async def _use_type(building_pk: str, b: dict) -> dict | None:
+    """F-20 활용 유형(투자 유형) 분류 — legal_far·상권 프로필 조립 후 classify()."""
+    lf = await pool().fetchval(
+        """SELECT max(pr.legal_far) FROM master.building_parcels bp
+           JOIN master.parcels pr ON pr.pnu = bp.pnu WHERE bp.building_pk = $1""", building_pk)
+    mk = await pool().fetchrow(
+        """WITH s AS (SELECT geom FROM master.buildings WHERE building_pk=$1),
+             f AS (SELECT fo.use FROM master.floor_outline fo JOIN master.buildings b USING(building_pk), s
+                   WHERE ST_DWithin(b.geom::geography, s.geom::geography, 300)
+                     AND fo.use !~ '주택|아파트|오피스텔|주차|부대|고시원')
+           SELECT count(*) AS n,
+             avg((use ~ '사무소|업무시설')::int)::float AS office, avg((use ~ '음식점')::int)::float AS food,
+             avg((use ~ '유흥|단란|노래연습장|주점')::int)::float AS ent, avg((use ~ '소매점|백화점')::int)::float AS retail
+           FROM f""", building_pk)
+    market = ({"office": mk["office"] or 0, "food": mk["food"] or 0, "ent": mk["ent"] or 0, "retail": mk["retail"] or 0}
+              if mk and mk["n"] else {})
+    la = _fnum(b.get("land_area"))
+    return use_type.classify({
+        "far": _fnum(b.get("far")), "legal_far": _parse_far(lf), "land_use": b.get("land_use"),
+        "floors_above": b.get("floors_above"), "land_area_py": (la / 3.305785) if la else None,
+        "age_years": b.get("age_years"), "remodel_years": b.get("remodel_years"),
+        "shape": b.get("shape"), "road_frontage": b.get("road_frontage"),
+        "road_score": value_score.ROAD_SCORES.get(b.get("road_frontage") or "", 0),
+        "station_score": value_score.station_score(_fnum(b.get("station_dist"))),
+        "use_zone": b.get("use_zone"), "market": market,
+    })
 
 
 def synthesize(subject: dict, subject_score: float, comps: list[dict],
@@ -780,6 +817,7 @@ async def run_generate(report_id: int, team_id: int) -> dict:
         # 웹 보고서(/reports/:id) 렌더용 synthesis 스냅샷 — 생성 시점 값 고정(analysis만).
         snapshot = None
         if rep["kind"] == "analysis" and vs and syn:
+            ut = await _use_type(rep["building_pk"], b)   # F-20 투자 유형
             snapshot = {
                 "subject": {"addr": b.get("addr"), "score": vs["score"], "grade": vs["grade"],
                             "items": vs["items"], "total_area": _fnum(b.get("total_area")),
@@ -790,7 +828,7 @@ async def run_generate(report_id: int, team_id: int) -> dict:
                             "gap": syn["gap"], "ask_price": syn["ask_price"], "broker_price": syn.get("broker_price"),
                             "applied_rent": syn.get("applied_rent"), "expected_deposit": syn.get("expected_deposit"),
                             "market_applied": syn.get("market_applied", False), "breakdown": syn.get("breakdown"),
-                            "gongsi_ctx": syn.get("gongsi_ctx"),
+                            "gongsi_ctx": syn.get("gongsi_ctx"), "use_type": ut,
                             "rent_summary": syn.get("rent_summary"),
                             "rent_floors": syn.get("rent_floors"), "comps_used": syn.get("comps_used")},
             }

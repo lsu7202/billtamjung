@@ -9,7 +9,7 @@ import { geoToPaths } from "../../shared/map/geo";
 import "./reportslide.css";
 
 /** 분석 보고서 — R_example.pptx 8슬라이드를 웹으로(네이비 코퍼레이트·16:9·cqw 스케일).
- * 표지 → 핵심요약 → 기본정보 → 매력도 → 실거래가 → 공시지가 → 임대수익 → 종합결론(적정가+수익성). specs R-보고서 §5·§6a. */
+ * 표지 → 핵심요약 → 기본정보 → 매력도 → 실거래가 → 공시지가 → 임대수익 → 투자유형 → 종합결론. specs R-보고서 §5·§6a · formulas F-20. */
 const P = 3.305785;
 const AXIS: [string, string][] = [
   ["road_access", "도로접면"], ["station_dist", "역과의거리"], ["use_zone", "용도지역"],
@@ -131,7 +131,7 @@ export function ReportPage() {
     if (document.fullscreenElement) document.exitFullscreen?.();
     else rootRef.current?.requestFullscreen?.();
   };
-  const SLIDES = 8;
+  const SLIDES = 9;
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); setCur((c) => Math.min(SLIDES - 1, c + 1)); }
@@ -183,6 +183,8 @@ export function ReportPage() {
   const nbhdRoi = rs?.nearby_roi ?? null;                                       // 주변 평균 수익률(중앙값)
   const topStrengths = AXIS.map(([k, l]) => ({ l, s: (sub?.items?.[k] ?? 0) as number }))   // 가치 항목 강점 상위(75점↑)
     .sort((a, b) => b.s - a.s).filter((x) => x.s >= 75).slice(0, 3).map((x) => x.l);
+  const ut = pv?.use_type ?? null;                                              // F-20 투자 유형
+  const officeApt = (ut?.office_fit ?? 0) >= 65;                                 // 사옥 적합 여부
 
   const loading = (reportId != null && rq.isLoading) || (needLive && cq.isLoading) || (!!pk && bq.isLoading);
   if (loading && !sub) return <div style={{ padding: 40, color: "var(--muted)" }}>보고서 계산 중…</div>;
@@ -252,10 +254,10 @@ export function ReportPage() {
                 ))}
               </div>
             </div>
-            <div className="rs-fade" style={{ display: "flex", gap: "3.5cqw", paddingTop: "1.3cqw", borderTop: "1px solid var(--rl)", fontSize: "1.1cqw", color: "var(--rmuted)", ["--d" as string]: "360ms" }}>
+            <div className="rs-fade" style={{ display: "flex", alignItems: "center", gap: "2.6cqw", paddingTop: "1.3cqw", borderTop: "1px solid var(--rl)", fontSize: "1.1cqw", color: "var(--rmuted)", ["--d" as string]: "360ms" }}>
+              {ut ? <span>투자 유형 <b style={{ color: "var(--blue)" }}>{ut.primary}</b>{officeApt && <span style={{ fontSize: ".8cqw", color: "#fff", background: "var(--navy)", borderRadius: "1cqw", padding: ".1cqw .6cqw", marginLeft: ".4cqw", fontWeight: 700 }}>사옥 적합</span>}</span> : null}
               <span>평당 적정가 <b style={{ color: "var(--navy)" }}>{avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만원` : "—"}</b></span>
               <span>연면적 <b style={{ color: "var(--navy)" }}>{py(totalArea)}평</b></span>
-              {rent ? <span>주변시세 총임대료 <b style={{ color: "var(--navy)" }}>{man(rent)}만원</b></span> : null}
             </div>
           </div>
         </div>
@@ -446,7 +448,44 @@ export function ReportPage() {
           </div>
         </div>
       </Slide>,
-      <Slide key={6} n="07" foot="종합 결론" rno={rno} date={date}
+      <Slide key={6} n="07" foot="투자 유형" rno={rno} date={date}
+        title="투자 유형 분석" desc="용적률·상권·연식 등으로 이 건물의 최적 활용(신축·리모델·수익·사옥)을 판별했습니다.">
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.4cqw", width: "100%", height: "100%", justifyContent: "center" }}>
+          {ut ? <>
+            <div className="rs-pop" style={{ textAlign: "center", ["--d" as string]: "150ms" }}>
+              <div style={{ fontSize: "1.1cqw", color: "var(--rmuted)", fontWeight: 700 }}>이 건물에 가장 적합한 활용</div>
+              <div style={{ fontSize: "3.6cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.1 }}>
+                {ut.primary}{officeApt && <span style={{ fontSize: "1.3cqw", color: "#fff", background: "var(--blue)", borderRadius: "1.5cqw", padding: ".2cqw 1cqw", marginLeft: ".8cqw", fontWeight: 700, verticalAlign: "middle" }}>사옥 적합</span>}
+              </div>
+              <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)", marginTop: ".3cqw" }}>{ut.reason}</div>
+            </div>
+            <div style={{ display: "flex", gap: "3cqw", flex: 1, alignItems: "center" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>유형별 적합도 <span style={{ color: "var(--rmuted)", fontWeight: 400, fontSize: ".85cqw" }}>(점)</span></div>
+                <CompareBar height={150} fmt={(v) => `${Math.round(v)}`}
+                  items={[{ label: "신축", value: ut.scores["신축용"] ?? 0, color: "var(--navy)" },
+                          { label: "리모델", value: ut.scores["리모델링용"] ?? 0, color: "var(--navy)" },
+                          { label: "수익", value: ut.scores["수익형"] ?? 0, color: "var(--blue)", strong: true },
+                          { label: "사옥적합", value: ut.office_fit ?? 0, color: "var(--purple)" }].map((x) => ({ ...x, value: Math.max(x.value, 1) }))} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>주변 상권 프로필 <span style={{ color: "var(--rmuted)", fontWeight: 400, fontSize: ".85cqw" }}>(반경 300m 층별 용도)</span></div>
+                {ut.market && (ut.market.office || ut.market.food || ut.market.ent || ut.market.retail)
+                  ? <CompareBar height={150} fmt={(v) => `${Math.round(v * 100)}%`}
+                      items={[{ label: "업무", value: ut.market.office || 0, color: "var(--blue)", strong: true },
+                              { label: "먹자", value: ut.market.food || 0, color: "var(--navy)" },
+                              { label: "유흥", value: ut.market.ent || 0, color: "var(--navy)" },
+                              { label: "판매", value: ut.market.retail || 0, color: "var(--navy)" }].filter((x) => x.value > 0)} />
+                  : <div style={{ color: "var(--rmuted)", fontSize: "1.05cqw", padding: "2cqw 0" }}>주변 상권 데이터가 부족합니다.</div>}
+              </div>
+            </div>
+            <div style={{ fontSize: ".9cqw", lineHeight: 1.5, color: "var(--rmuted)", textAlign: "center", maxWidth: "88%", margin: "0 auto" }}>
+              ※ 활용률(현재 용적률÷법정) {ut.util != null ? `${ut.util}%` : "—"} · 상권 프로필(층별 용도)·연식·입지로 판별. 사옥 적합도는 업무상권·역세권 기준이며, 실제 활용 목적은 매수자 판단입니다.
+            </div>
+          </> : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--rmuted)", fontSize: "1.2cqw" }}>투자 유형 산정에 필요한 데이터가 부족합니다.</div>}
+        </div>
+      </Slide>,
+      <Slide key={7} n="08" foot="종합 결론" rno={rno} date={date}
         title="종합 결론" desc="적정가와 수익성을 종합한 본 매물의 최종 결론입니다.">
         <div style={{ display: "flex", flexDirection: "column", gap: ".9cqw", width: "100%", height: "100%", justifyContent: "center" }}>
           {/* 3축 — 작은 supporting 한 줄(결론보다 약하게) */}
@@ -487,6 +526,7 @@ export function ReportPage() {
             {landPremium != null && landPremium >= 10 ? <> 이 땅의 공시지가가 주변 평균보다 <b>약 {landPremium.toFixed(0)}% 높아</b> 입지 경쟁력이 뚜렷하고,</> : null}
             {topStrengths.length ? <> <b>{topStrengths.join("·")}</b> 등에서 우수해 매력도 <b>{grade}등급</b>으로 평가됩니다.</> : <> 매력도는 <b>{grade}등급</b>입니다.</>}
             {" "}적정가 기준 예상수익률은 <b style={{ color: "var(--blue)" }}>{roiFair != null ? roiFair.toFixed(2) : "—"}%</b>로{nbhdRoi != null ? <> 주변 평균({nbhdRoi}%)보다 <b>{roiFair != null && roiFair >= nbhdRoi ? "높은" : "낮은"}</b> 수준이며,</> : ","} 연 약 <b style={{ color: "var(--blue)" }}>{rent ? eok(rent * 12) : "—"}억원</b>의 임대수익이 기대됩니다.
+            {ut ? <> 활용 측면에서는 <b style={{ color: "var(--navy)" }}>{ut.primary}</b>이 최적이며{officeApt ? <>, 업무 상권·역세권이라 <b>사옥으로도 적합</b>합니다.</> : <>입니다.</>}</> : null}
           </div>
         </div>
       </Slide>,
