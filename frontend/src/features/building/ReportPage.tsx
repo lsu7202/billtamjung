@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { reportsApi, buildingsApi, type CompUsed, type RentFloor } from "../../shared/api/endpoints";
@@ -619,8 +619,24 @@ export function ReportPage() {
               </div>
             ))}
           </div>
+          {/* 성격 키워드 — 중앙 양옆, 아래서 위로 올라오며(rs-fade) 큼지막하게 */}
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "4.5cqw", marginTop: ".6cqw" }}>
+            {([
+              ut?.primary ? { lab: "투자 유형", val: ut.primary, extra: officeApt ? "사옥 적합" : null, c: "var(--blue)" } : null,
+              fut?.label ? { lab: "미래가치", val: fut.label, extra: null, c: "var(--purple)" } : null,
+            ].filter(Boolean) as { lab: string; val: string; extra: string | null; c: string }[]).map((t, i) => (
+              <Fragment key={t.lab}>
+                {i > 0 && <div style={{ width: "1px", height: "3.4cqw", background: "var(--rl)" }} />}
+                <div className="rs-fade" style={{ textAlign: "center", ["--d" as string]: `${1650 + i * 240}ms` }}>
+                  <div style={{ fontSize: ".92cqw", fontWeight: 700, letterSpacing: ".1em", color: "var(--rmuted)", marginBottom: ".25cqw" }}>{t.lab}</div>
+                  <div style={{ fontSize: "3.2cqw", fontWeight: 800, lineHeight: 1, color: t.c, letterSpacing: "-.01em" }}>{t.val}</div>
+                  {t.extra && <div style={{ fontSize: ".95cqw", fontWeight: 700, color: t.c, opacity: .85, marginTop: ".35cqw", letterSpacing: ".02em" }}>· {t.extra}</div>}
+                </div>
+              </Fragment>
+            ))}
+          </div>
           {/* 종합 의견 — 자세한 문장(왜 이 적정가·장점·기대·예상 이익) */}
-          <div className="rs-fade" style={{ fontSize: "1.05cqw", lineHeight: 1.75, color: "var(--rink)", maxWidth: "90%", margin: ".6cqw auto 0", ["--d" as string]: "1650ms" }}>
+          <div className="rs-fade" style={{ fontSize: "1.05cqw", lineHeight: 1.75, color: "var(--rink)", maxWidth: "90%", margin: ".6cqw auto 0", ["--d" as string]: "2050ms" }}>
             <b style={{ color: "var(--navy)" }}>종합 의견 &nbsp;</b>
             인근 실거래를 공시지가·대지·연면적으로 교차 분석하고 주변 임대수익을 반영해 적정가 <b style={{ color: "var(--blue)" }}>약 {eok(fair)}억원</b>으로 산정됩니다.
             {landPremium != null && landPremium >= 10 ? <> 이 땅의 공시지가가 주변 평균보다 <b>약 {landPremium.toFixed(0)}% 높아</b> 입지 경쟁력이 뚜렷하고,</> : null}
