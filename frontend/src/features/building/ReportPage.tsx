@@ -510,27 +510,27 @@ export function ReportPage() {
         </div>
       </Slide>,
       <Slide key={8} n="08" foot="미래가치" rno={rno} date={date}
-        title="미래가치 분석" desc="개발여지와 임대 상향 여력으로 본 매물의 향후 가치 상승 잠재력을 평가했습니다.">
+        title="미래가치 분석" desc="지가 상승 추세(기본)에 개발여지·임대 상향 여력(추가)을 더해 본 매물의 향후 가치 성장을 평가했습니다.">
         <div style={{ display: "flex", flexDirection: "column", gap: "1.8cqw", width: "100%", height: "100%", justifyContent: "center" }}>
-          {fut && fut.score != null ? <>
+          {fut && fut.label ? <>
             <div style={{ display: "flex", gap: "2.4cqw", alignItems: "center", minHeight: 0 }}>
-              {/* 좌: 미래가치 등급 */}
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "1.2cqw" }}>
+              {/* 좌: 미래가치 유형(성격) + 구성 요약 */}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "1.3cqw" }}>
                 <div className="rs-pop" style={{ ["--d" as string]: "150ms" }}>
-                  <div style={{ fontSize: "1.1cqw", color: "var(--rmuted)", fontWeight: 700 }}>미래가치 · 상승 여력</div>
-                  <div style={{ fontSize: "3.4cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.1 }}>
-                    {fut.grade}<span style={{ fontSize: "1.4cqw", color: "var(--rmuted)", fontWeight: 700, marginLeft: ".7cqw" }}>{fut.score}점</span>
-                  </div>
-                  <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)", marginTop: ".3cqw", lineHeight: 1.5 }}>{fut.reason}</div>
+                  <div style={{ fontSize: "1.1cqw", color: "var(--rmuted)", fontWeight: 700 }}>미래가치 유형</div>
+                  <div style={{ fontSize: "3cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.1 }}>{fut.label}</div>
+                  <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)", marginTop: ".4cqw", lineHeight: 1.55 }}>{fut.reason}</div>
                 </div>
-                {/* 종합 게이지 */}
-                <div>
-                  <div style={{ height: "1.1cqw", background: "var(--rl)", borderRadius: "1cqw", overflow: "hidden" }}>
-                    <div className="rs-fade" style={{ width: `${Math.max(fut.score, 2)}%`, height: "100%", background: "linear-gradient(90deg,var(--navy),var(--blue))", borderRadius: "1cqw", ["--d" as string]: "400ms" }} />
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: ".8cqw", color: "var(--rmuted)", marginTop: ".3cqw" }}>
-                    <span>제한적</span><span>보통</span><span>높음</span>
-                  </div>
+                {/* 구성 요약 — 기본 상승(지가) + 추가 여력(개발·임대) */}
+                <div style={{ display: "flex", gap: "1cqw" }}>
+                  {[{ t: "기본 상승", v: fut.land_rate5 != null ? `지가 ${fut.land_rate5 >= 0 ? "+" : ""}${fut.land_rate5}%` : "—", s: "최근 5년 공시지가" },
+                    { t: "추가 여력", v: Math.max(fut.dev ?? 0, fut.upside ?? 0) >= 45 ? "있음" : Math.max(fut.dev ?? 0, fut.upside ?? 0) >= 20 ? "일부" : "제한적", s: "개발·임대" }].map((x) => (
+                    <div key={x.t} style={{ flex: 1, background: "var(--rbg, #f6f7f9)", borderRadius: ".6cqw", padding: ".7cqw .9cqw" }}>
+                      <div style={{ fontSize: ".85cqw", color: "var(--rmuted)", fontWeight: 700 }}>{x.t}</div>
+                      <div style={{ fontSize: "1.35cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.2 }}>{x.v}</div>
+                      <div style={{ fontSize: ".78cqw", color: "var(--rmuted)" }}>{x.s}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
               {/* 우: 2축 상세 */}
@@ -573,9 +573,11 @@ export function ReportPage() {
                       ? <> 최근 5년 공시지가는 <b>{fut.land_rate5 >= 0 ? "+" : ""}{fut.land_rate5}%</b> 상승했습니다.</>
                       : <> 최근 5년 공시지가 변동도 완만합니다.</>)
                 : null}
-              {fut.grade === "제한적"
-                ? <> 다만 이는 입지·수익이 이미 성숙한 <b>우량자산</b>이라는 의미로, 안정적 보유·임대 운영에 적합합니다. 향후 상승은 지가 상승과 리모델링을 통한 임대 리포지셔닝에서 기대할 수 있습니다.</>
-                : <> 이 여력이 실현되면 현재가치를 넘어서는 추가 상승이 기대됩니다.</>}
+              {fut.label === "상승 기대형"
+                ? <> 이 여력이 실현되면 현재가치를 넘어서는 <b>추가 상승</b>이 기대됩니다.</>
+                : fut.label === "정체형"
+                  ? <> 단기적으로는 가치 변동이 크지 않은 <b>안정 보유형</b>입니다.</>
+                  : <> 다만 이는 입지·수익이 이미 성숙한 <b>우량자산</b>이라는 의미로, 지가가 꾸준히 오르는 만큼 <b>보유 시 가치도 점진적으로 상승</b>합니다. 개발·리모델링을 더하면 추가 상승 여력도 열립니다.</>}
             </div>
             <div style={{ fontSize: ".9cqw", lineHeight: 1.5, color: "var(--rmuted)", textAlign: "center", maxWidth: "90%", margin: "0 auto" }}>
               ※ 미래가치 = 개발여지(40%) + 임대 상향 여력(30%) + 지가 상승 추세(30%) 블렌드. 현재가치(적정가)와 별개의 상승 잠재력 지표입니다. 지가 상승은 개별 공시지가 5년 변동률(없으면 자치구 지가변동률)을 사용합니다.
@@ -625,7 +627,7 @@ export function ReportPage() {
             {topStrengths.length ? <> <b>{topStrengths.join("·")}</b> 등에서 우수해 매력도 <b>{grade}등급</b>으로 평가됩니다.</> : <> 매력도는 <b>{grade}등급</b>입니다.</>}
             {" "}적정가 기준 예상수익률은 <b style={{ color: "var(--blue)" }}>{roiFair != null ? roiFair.toFixed(2) : "—"}%</b>로{nbhdRoi != null ? <> 주변 평균({nbhdRoi}%)보다 <b>{roiFair != null && roiFair >= nbhdRoi ? "높은" : "낮은"}</b> 수준이며,</> : ","} 연 약 <b style={{ color: "var(--blue)" }}>{rent ? eok(rent * 12) : "—"}억원</b>의 임대수익이 기대됩니다.
             {ut ? <> 활용 측면에서는 <b style={{ color: "var(--navy)" }}>{ut.primary}</b>이 최적이며{officeApt ? <>, 업무 상권·역세권이라 <b>사옥으로도 적합</b>합니다.</> : <>입니다.</>}</> : null}
-            {fut && fut.grade ? <> 향후 가치 상승 여력은 <b style={{ color: "var(--navy)" }}>{fut.grade}</b> 수준으로{fut.grade === "제한적" ? <>, 성숙한 우량자산의 <b>안정적 보유</b>에 적합합니다.</> : <> <b>추가 상승</b>이 기대됩니다.</>}</> : null}
+            {fut && fut.label ? <> 미래가치는 <b style={{ color: "var(--navy)" }}>{fut.label}</b>으로{fut.label === "상승 기대형" ? <> 개발·임대 여력에 따른 <b>추가 상승</b>이 기대됩니다.</> : fut.label === "정체형" ? <> 단기 변동은 크지 않습니다.</> : <> 지가 상승에 따른 <b>안정적 가치 성장</b>이 기대됩니다.</>}</> : null}
           </div>
         </div>
       </Slide>,

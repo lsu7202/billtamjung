@@ -98,31 +98,37 @@ def land_trend_score(rate5_pct: float | None) -> int | None:
 def future_value(far: float | None, legal_far: float | None, land_use: str | None,
                  cur_rent: float | None, mkt_rent: float | None,
                  land_rate5: float | None = None) -> dict:
-    """미래가치(상승 여력) = 개발여지 + 임대 상향 여력 + 지가 상승 추세 3축 블렌드 0~100.
+    """미래가치 = 기본 상승(지가 추세) + 추가 여력(개발·임대) 구조. 단순 점수 아닌 '유형'으로 표현.
+    ★ 지가가 꾸준하면 개발·임대 여력이 없어도 '안정 성장형' — "제한적"이라 단정하지 않음(가치는 오름).
     지가상승 = 개별 공시지가 5년 변동률(gongsi_series), 없으면 지역 지가변동률(land_adjust) 폴백. specs F-21."""
     dev = dev_headroom_score(far, legal_far, land_use)
     up = rent_upside_score(cur_rent, mkt_rent)
-    land = land_trend_score(land_rate5)
-    parts = [(dev, 0.40, "개발여지"), (up, 0.30, "임대 상향 여력"), (land, 0.30, "지가 상승 추세")]
-    avail = [(s, w) for s, w, _ in parts if s is not None]
+    land = land_trend_score(land_rate5)                  # 기본 상승(baseline)
+    ups = [s for s in (dev, up) if s is not None]
+    active = max(ups) if ups else None                   # 추가 여력(개발·임대 중 강한 쪽)
+    label, reason = _future_type(land, active, dev, up)
+    # 참고 지수: baseline(지가) 우세 blend — headline 아님(유형이 headline)
+    parts = [(land, 0.5), (dev, 0.3), (up, 0.2)]
+    avail = [(s, w) for s, w in parts if s is not None]
     score = round(sum(s * w for s, w in avail) / sum(w for _, w in avail)) if avail else None
-    grade = None if score is None else ("높음" if score >= 60 else "보통" if score >= 30 else "제한적")
-    return {"score": score, "grade": grade, "dev": dev, "upside": up, "land": land,
+    return {"score": score, "label": label, "dev": dev, "upside": up, "land": land,
             "land_rate5": round(land_rate5) if land_rate5 is not None else None,
-            "reason": _future_reason(parts, grade)}
+            "reason": reason}
 
 
-def _future_reason(parts: list, grade: str | None) -> str:
-    if grade is None:
-        return "미래가치 산정에 필요한 데이터가 부족합니다"
-    avail = {name: s for s, _, name in parts if s is not None}
-    strong = {k: v for k, v in avail.items() if v >= 40}
-    if grade == "제한적":
-        if strong:                                       # 한 축은 양호하나 종합은 낮음(예: 지가만 상승)
-            return f"{max(strong, key=strong.get)}는 양호하나 개발·임대 여력이 작아 상승 여력은 제한적"
-        return "개발여지·임대·지가 상승 여력이 제한적 — 이미 성숙한 우량자산으로 안정적 보유형"
-    top = max(avail, key=avail.get)
-    return f"{top}를 중심으로 향후 가치 상승 여력이 있습니다"
+def _future_type(land: int | None, active: int | None, dev: int | None, up: int | None):
+    """유형 판정 — 추가 여력(개발·임대) 크면 상승 기대형, 아니면 지가 추세로 안정/완만/정체."""
+    if land is None and active is None:
+        return None, "미래가치 산정에 필요한 데이터가 부족합니다"
+    a, b = (active or 0), (land or 0)
+    if a >= 45:                                          # 개발·임대 추가 여력 큼
+        lever = "개발여지" if (dev or 0) >= (up or 0) else "임대 상향 여력"
+        return "상승 기대형", f"{lever}에 따른 추가 상승 여력이 있어 현재가치를 넘어서는 성장이 기대됩니다"
+    if b >= 35:                                          # 지가 꾸준 → 개발·임대 없어도 안정 성장
+        return "안정 성장형", "개발·임대 추가 여력은 크지 않으나 지가가 꾸준히 상승 중 — 보유 시 안정적 가치 성장이 기대되는 우량 자산입니다"
+    if b >= 15:
+        return "완만 상승형", "지가가 완만히 상승 중이며, 개발·임대를 통한 추가 상승 여력은 크지 않습니다"
+    return "정체형", "지가 상승·개발·임대 여력이 모두 낮아 단기 가치 변동이 제한적입니다"
 
 
 def classify(inp: dict) -> dict:
@@ -176,18 +182,18 @@ def demo() -> None:
                   "land_use": "상업용", "road_score": 90, "station_score": 90, "remodel_years": None,
                   "use_zone": "일반상업지역", "market": {"office": 0.5, "food": 0.3, "ent": 0.05}})
     assert d["primary"] == "리모델링용", d
-    # 미래가치: 157-36(활용률 120%·현재임대≈주변·지가 시계열 없음) → 제한적
-    fv = future_value(far=956, legal_far=800, land_use="업무용", cur_rent=43682, mkt_rent=43597)
-    assert fv["dev"] == 0 and fv["land"] is None and fv["grade"] == "제한적", fv
-    # 지가 상승 추세 편입: 5년 +50%(≈8.5%/년) → 지가축 만점 → 등급 상승
-    fv_land = future_value(far=956, legal_far=800, land_use="업무용", cur_rent=43682, mkt_rent=43597, land_rate5=50)
-    assert fv_land["land"] == 100 and fv_land["score"] > fv["score"], fv_land
-    # 저활용 + 임대 상향 여력 큼 → 높음
+    # 미래가치: 157-36(개발여지 0·임대상향 0·지가 5년 +20%) → 개발·임대 없어도 '안정 성장형'(제한적 아님)
+    fv = future_value(far=956, legal_far=800, land_use="업무용", cur_rent=43682, mkt_rent=43597, land_rate5=20)
+    assert fv["dev"] == 0 and fv["upside"] == 0 and fv["label"] == "안정 성장형", fv
+    # 개발·임대 추가 여력 큼 → 상승 기대형
     fv2 = future_value(far=200, legal_far=800, land_use="상업용", cur_rent=100, mkt_rent=150, land_rate5=30)
-    assert fv2["score"] and fv2["score"] >= 60, fv2
+    assert fv2["label"] == "상승 기대형", fv2
+    # 지가도 정체 + 여력 없음 → 정체형
+    fv3 = future_value(far=956, legal_far=800, land_use="업무용", cur_rent=43682, mkt_rent=43597, land_rate5=2)
+    assert fv3["label"] == "정체형", fv3
     # 나지 → 개발여지 100
     assert dev_headroom_score(0, 800, "상업나지") == 100
-    print("미래가치(157-36):", fv, "| +지가:", fv_land, "| 저활용:", fv2)
+    print("미래가치(157-36):", fv, "| 여력큼:", fv2, "| 정체:", fv3)
     print("신축(157-36):", a)
     print("나지:", b)
     print("저활용노후:", c)
