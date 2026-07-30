@@ -391,7 +391,18 @@ async def _use_type(building_pk: str, b: dict) -> dict | None:
         "use_zone": b.get("use_zone"), "market": market,
     })
     result["zones"] = await _market_zones(building_pk)   # 상권 존 폴리곤(지도용)
+    result["_far"], result["_legal_far"] = _fnum(b.get("far")), _parse_far(lf)   # 미래가치 계산용
     return result
+
+
+def _attach_future(ut: dict | None, rent_summary: dict | None) -> None:
+    """미래가치(개발여지+임대상향) 계산해 use_type에 부착. far/legal은 _use_type, 임대는 synthesize에서 조립."""
+    if not ut:
+        return
+    rs = rent_summary or {}
+    ut["future"] = use_type.future_value(
+        ut.pop("_far", None), ut.pop("_legal_far", None), None,   # land_use는 far로 이미 반영(나지=far 0)
+        rs.get("cur_rent"), rs.get("mkt_rent"))
 
 
 def synthesize(subject: dict, subject_score: float, comps: list[dict],
@@ -841,6 +852,7 @@ async def run_generate(report_id: int, team_id: int) -> dict:
         snapshot = None
         if rep["kind"] == "analysis" and vs and syn:
             ut = await _use_type(rep["building_pk"], b)   # F-20 투자 유형
+            _attach_future(ut, syn.get("rent_summary"))   # F-21 미래가치
             snapshot = {
                 "subject": {"addr": b.get("addr"), "score": vs["score"], "grade": vs["grade"],
                             "items": vs["items"], "total_area": _fnum(b.get("total_area")),

@@ -149,7 +149,7 @@ export function ReportPage() {
     if (document.fullscreenElement) document.exitFullscreen?.();
     else rootRef.current?.requestFullscreen?.();
   };
-  const SLIDES = 9;
+  const SLIDES = 10;
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); setCur((c) => Math.min(SLIDES - 1, c + 1)); }
@@ -203,6 +203,7 @@ export function ReportPage() {
     .sort((a, b) => b.s - a.s).filter((x) => x.s >= 75).slice(0, 3).map((x) => x.l);
   const ut = pv?.use_type ?? null;                                              // F-20 투자 유형
   const officeApt = (ut?.office_fit ?? 0) >= 65;                                 // 사옥 적합 여부
+  const fut = ut?.future ?? null;                                                // F-21 미래가치(개발여지+임대상향)
 
   const loading = (reportId != null && rq.isLoading) || (needLive && cq.isLoading) || (!!pk && bq.isLoading);
   if (loading && !sub) return <div style={{ padding: 40, color: "var(--muted)" }}>보고서 계산 중…</div>;
@@ -508,7 +509,70 @@ export function ReportPage() {
           </> : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--rmuted)", fontSize: "1.2cqw" }}>투자 유형 산정에 필요한 데이터가 부족합니다.</div>}
         </div>
       </Slide>,
-      <Slide key={7} n="08" foot="종합 결론" rno={rno} date={date}
+      <Slide key={8} n="08" foot="미래가치" rno={rno} date={date}
+        title="미래가치 분석" desc="개발여지와 임대 상향 여력으로 본 매물의 향후 가치 상승 잠재력을 평가했습니다.">
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.8cqw", width: "100%", height: "100%", justifyContent: "center" }}>
+          {fut && fut.score != null ? <>
+            <div style={{ display: "flex", gap: "2.4cqw", alignItems: "center", minHeight: 0 }}>
+              {/* 좌: 미래가치 등급 */}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "1.2cqw" }}>
+                <div className="rs-pop" style={{ ["--d" as string]: "150ms" }}>
+                  <div style={{ fontSize: "1.1cqw", color: "var(--rmuted)", fontWeight: 700 }}>미래가치 · 상승 여력</div>
+                  <div style={{ fontSize: "3.4cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.1 }}>
+                    {fut.grade}<span style={{ fontSize: "1.4cqw", color: "var(--rmuted)", fontWeight: 700, marginLeft: ".7cqw" }}>{fut.score}점</span>
+                  </div>
+                  <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)", marginTop: ".3cqw", lineHeight: 1.5 }}>{fut.reason}</div>
+                </div>
+                {/* 종합 게이지 */}
+                <div>
+                  <div style={{ height: "1.1cqw", background: "var(--rl)", borderRadius: "1cqw", overflow: "hidden" }}>
+                    <div className="rs-fade" style={{ width: `${Math.max(fut.score, 2)}%`, height: "100%", background: "linear-gradient(90deg,var(--navy),var(--blue))", borderRadius: "1cqw", ["--d" as string]: "400ms" }} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: ".8cqw", color: "var(--rmuted)", marginTop: ".3cqw" }}>
+                    <span>제한적</span><span>보통</span><span>높음</span>
+                  </div>
+                </div>
+              </div>
+              {/* 우: 2축 상세 */}
+              <div style={{ flex: 1.3, display: "flex", flexDirection: "column", justifyContent: "center", gap: "1.4cqw" }}>
+                {[{ k: "개발여지", v: fut.dev, c: "var(--navy)",
+                    sub: `활용률 ${ut?.util != null ? `${ut.util}%` : "—"} · 법정 용적률 대비 미사용분 (나지=최대)` },
+                  { k: "임대 상향 여력", v: fut.upside, c: "var(--blue)",
+                    sub: rs && rs.cur_rent && rs.mkt_rent
+                      ? `현재 ${Math.round(rs.cur_rent / 1e4).toLocaleString()}만 → 주변시세 ${Math.round(rs.mkt_rent / 1e4).toLocaleString()}만/월`
+                      : "주변 임대시세 대비 상향분" }].map((x) => (
+                  <div key={x.k}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: ".35cqw" }}>
+                      <span style={{ fontSize: "1.15cqw", fontWeight: 700, color: "var(--navy)" }}>{x.k}</span>
+                      <span style={{ fontSize: "1.6cqw", fontWeight: 800, color: x.c }}>{x.v != null ? x.v : "—"}<span style={{ fontSize: ".9cqw", color: "var(--rmuted)", fontWeight: 700 }}>{x.v != null ? "점" : ""}</span></span>
+                    </div>
+                    <div style={{ height: ".9cqw", background: "var(--rl)", borderRadius: "1cqw", overflow: "hidden" }}>
+                      <div className="rs-fade" style={{ width: `${Math.max(x.v ?? 0, 2)}%`, height: "100%", background: x.c, borderRadius: "1cqw", ["--d" as string]: "550ms" }} />
+                    </div>
+                    <div style={{ fontSize: ".85cqw", color: "var(--rmuted)", marginTop: ".3cqw" }}>{x.sub}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rs-fade" style={{ fontSize: "1.05cqw", lineHeight: 1.75, color: "var(--rink)", maxWidth: "92%", margin: "0 auto", ["--d" as string]: "750ms" }}>
+              <b style={{ color: "var(--navy)" }}>해석 &nbsp;</b>
+              {(fut.dev ?? 0) < 20
+                ? <>활용률 {ut?.util != null ? `${ut.util}%` : "—"}로 법정 용적률을 이미 채워 <b>신축·증축 여지가 제한적</b>이고, </>
+                : <>법정 용적률 대비 미사용분이 남아 <b>개발여지가 유효</b>하고, </>}
+              {(fut.upside ?? 0) < 20
+                ? <>현재 임대료도 주변 시세와 유사해 단기 상향 여력이 낮습니다.</>
+                : <>현재 임대료가 주변 시세를 밑돌아 <b>임대 리포지셔닝 여지</b>가 있습니다.</>}
+              {fut.grade === "제한적"
+                ? <> 다만 이는 입지·수익이 이미 성숙한 <b>우량자산</b>이라는 의미로, 안정적 보유·임대 운영에 적합합니다. 향후 상승은 지가 상승과 리모델링을 통한 임대 리포지셔닝에서 기대할 수 있습니다.</>
+                : <> 이 여력이 실현되면 현재가치를 넘어서는 추가 상승이 기대됩니다.</>}
+            </div>
+            <div style={{ fontSize: ".9cqw", lineHeight: 1.5, color: "var(--rmuted)", textAlign: "center", maxWidth: "90%", margin: "0 auto" }}>
+              ※ 미래가치 = 개발여지(55%) + 임대 상향 여력(45%) 블렌드. 현재가치(적정가)와 별개의 상승 잠재력 지표이며, 지가 상승 추세는 표준지공시지가 시계열 확보 후 3축으로 반영 예정입니다.
+            </div>
+          </> : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--rmuted)", fontSize: "1.2cqw" }}>미래가치 산정에 필요한 데이터가 부족합니다.</div>}
+        </div>
+      </Slide>,
+      <Slide key={7} n="09" foot="종합 결론" rno={rno} date={date}
         title="종합 결론" desc="적정가와 수익성을 종합한 본 매물의 최종 결론입니다.">
         <div style={{ display: "flex", flexDirection: "column", gap: ".9cqw", width: "100%", height: "100%", justifyContent: "center" }}>
           {/* 3축 — 작은 supporting 한 줄(결론보다 약하게) */}
@@ -550,6 +614,7 @@ export function ReportPage() {
             {topStrengths.length ? <> <b>{topStrengths.join("·")}</b> 등에서 우수해 매력도 <b>{grade}등급</b>으로 평가됩니다.</> : <> 매력도는 <b>{grade}등급</b>입니다.</>}
             {" "}적정가 기준 예상수익률은 <b style={{ color: "var(--blue)" }}>{roiFair != null ? roiFair.toFixed(2) : "—"}%</b>로{nbhdRoi != null ? <> 주변 평균({nbhdRoi}%)보다 <b>{roiFair != null && roiFair >= nbhdRoi ? "높은" : "낮은"}</b> 수준이며,</> : ","} 연 약 <b style={{ color: "var(--blue)" }}>{rent ? eok(rent * 12) : "—"}억원</b>의 임대수익이 기대됩니다.
             {ut ? <> 활용 측면에서는 <b style={{ color: "var(--navy)" }}>{ut.primary}</b>이 최적이며{officeApt ? <>, 업무 상권·역세권이라 <b>사옥으로도 적합</b>합니다.</> : <>입니다.</>}</> : null}
+            {fut && fut.grade ? <> 향후 가치 상승 여력은 <b style={{ color: "var(--navy)" }}>{fut.grade}</b> 수준으로{fut.grade === "제한적" ? <>, 성숙한 우량자산의 <b>안정적 보유</b>에 적합합니다.</> : <> <b>추가 상승</b>이 기대됩니다.</>}</> : null}
           </div>
         </div>
       </Slide>,

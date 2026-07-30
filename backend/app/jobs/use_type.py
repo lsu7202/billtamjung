@@ -72,6 +72,45 @@ def office_fit_score(market: dict, station_score: float, use_zone: str | None) -
     return round(100 * (0.35 * biz + 0.25 * quiet + 0.25 * transit + 0.15 * zone))
 
 
+def dev_headroom_score(far: float | None, legal_far: float | None, land_use: str | None) -> int | None:
+    """개발여지 0~100 — 미사용 용적률(법정−현재)÷법정. 나지=100(전량 신축). None=판정불가."""
+    if land_use and "나지" in land_use:
+        return 100
+    if not far or not legal_far:
+        return None
+    return round(_clamp((legal_far - far) / legal_far) * 100)
+
+
+def rent_upside_score(cur_rent: float | None, mkt_rent: float | None) -> int | None:
+    """임대 상향 여력 0~100 — (주변시세−현재)÷현재. +30% 이상=만점. None=현재임대 없음."""
+    if not cur_rent or mkt_rent is None:
+        return None
+    return round(_clamp((mkt_rent - cur_rent) / cur_rent / 0.30) * 100)
+
+
+def future_value(far: float | None, legal_far: float | None, land_use: str | None,
+                 cur_rent: float | None, mkt_rent: float | None) -> dict:
+    """미래가치(상승 여력) = 개발여지 + 임대 상향 여력 2축 블렌드 0~100.
+    지가상승추세(3축)는 표준지공시지가 시계열 확보 후 추가 예정(specs formulas.md F-21)."""
+    dev = dev_headroom_score(far, legal_far, land_use)
+    up = rent_upside_score(cur_rent, mkt_rent)
+    parts = [(dev, 0.55), (up, 0.45)]                        # 개발여지 우세(가격 영향 큼)
+    avail = [(s, w) for s, w in parts if s is not None]
+    score = round(sum(s * w for s, w in avail) / sum(w for _, w in avail)) if avail else None
+    grade = None if score is None else ("높음" if score >= 60 else "보통" if score >= 30 else "제한적")
+    return {"score": score, "grade": grade, "dev": dev, "upside": up,
+            "reason": _future_reason(dev, up, grade)}
+
+
+def _future_reason(dev: int | None, up: int | None, grade: str | None) -> str:
+    if grade is None:
+        return "미래가치 산정에 필요한 데이터가 부족합니다"
+    if grade == "제한적":
+        return "개발여지·임대 상향 여력이 모두 제한적 — 이미 성숙한 우량자산으로 안정적 보유형"
+    hi = "개발여지" if (dev or 0) >= (up or 0) else "임대 상향 여력"
+    return f"{hi}를 중심으로 향후 가치 상승 여력이 있습니다"
+
+
 def classify(inp: dict) -> dict:
     """유형별 점수 + 대표유형 + 사옥 적합도 + 근거.
     inp: far, legal_far, land_use, floors_above, age_years, remodel_years, land_area_py,
@@ -123,6 +162,15 @@ def demo() -> None:
                   "land_use": "상업용", "road_score": 90, "station_score": 90, "remodel_years": None,
                   "use_zone": "일반상업지역", "market": {"office": 0.5, "food": 0.3, "ent": 0.05}})
     assert d["primary"] == "리모델링용", d
+    # 미래가치: 157-36(활용률 120%·현재임대≈주변) → 제한적
+    fv = future_value(far=956, legal_far=800, land_use="업무용", cur_rent=43682, mkt_rent=43597)
+    assert fv["dev"] == 0 and fv["grade"] == "제한적", fv
+    # 저활용 + 임대 상향 여력 큼 → 높음
+    fv2 = future_value(far=200, legal_far=800, land_use="상업용", cur_rent=100, mkt_rent=150)
+    assert fv2["score"] and fv2["score"] >= 60, fv2
+    # 나지 → 개발여지 100
+    assert dev_headroom_score(0, 800, "상업나지") == 100
+    print("미래가치(157-36):", fv, "| 저활용:", fv2)
     print("신축(157-36):", a)
     print("나지:", b)
     print("저활용노후:", c)
