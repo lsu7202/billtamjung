@@ -260,18 +260,28 @@ async def _nearby_rent_apply(building_pk: str, subject: dict, team_id: int) -> d
     if clng is None and geom:
         clng, clat = geom["lng"], geom["lat"]
 
+    # 주변 임대 comps = 팀 실제(app.floor_rents) + 마스터 추정(master.floor_rent_est, 팀 미입력 층) — market.nearby와 동일 소스.
     rows = await pool().fetch(
-        f"""SELECT fr.floor, fr.contract_area, fr.rent, fr.deposit
-            FROM app.floor_rents fr JOIN master.buildings b ON b.building_pk = fr.building_pk
-            WHERE fr.deleted_at IS NULL AND fr.is_vacant IS NOT TRUE
-              AND fr.building_pk <> $4 AND fr.rent > 0 AND fr.contract_area > 0
-              AND {_COMP_SPATIAL}""",
+        f"""SELECT floor, area, rent, deposit FROM (
+              SELECT fr.floor, fr.contract_area::float AS area, fr.rent::float AS rent, COALESCE(fr.deposit,0)::float AS deposit
+              FROM app.floor_rents fr JOIN master.buildings b ON b.building_pk = fr.building_pk
+              WHERE fr.deleted_at IS NULL AND fr.is_vacant IS NOT TRUE AND fr.building_pk <> $4
+                AND fr.rent > 0 AND fr.contract_area > 0 AND {_COMP_SPATIAL}
+              UNION ALL
+              SELECT fo.floor, sum(fo.exclusive_area)::float, sum(fre.rent_est)::float, sum(COALESCE(fre.deposit_est,0))::float
+              FROM master.buildings b JOIN master.floor_rent_est fre ON fre.building_pk = b.building_pk
+                   JOIN master.floor_outline fo ON fo.building_pk = fre.building_pk AND fo.seq = fre.seq
+              WHERE b.building_pk <> $4 AND fre.rent_est > 0 AND fo.exclusive_area > 0 AND {_COMP_SPATIAL}
+                AND NOT EXISTS (SELECT 1 FROM app.floor_rents fr2
+                                WHERE fr2.building_pk = b.building_pk AND fr2.floor = fo.floor AND fr2.deleted_at IS NULL)
+              GROUP BY b.building_pk, fo.floor
+            ) q WHERE area > 0 AND rent > 0""",
         clng, clat, radius, building_pk, json.dumps(poly) if poly else None)
     if not rows:
         return None
     # per_rent/per_deposit(원/㎡) → 전역 IQR 이상치 제외 → 층별 평균. market.nearby와 동일 알고리즘(화면 숫자 일치)
-    recs = [{"floor": r["floor"], "per_rent": r["rent"] / float(r["contract_area"]),
-             "per_deposit": (r["deposit"] or 0) / float(r["contract_area"])} for r in rows]
+    recs = [{"floor": r["floor"], "per_rent": r["rent"] / r["area"],
+             "per_deposit": r["deposit"] / r["area"]} for r in rows]
     prs = [x["per_rent"] for x in recs]
     lo, hi = float("-inf"), float("inf")
     if len(prs) >= 3:
@@ -285,25 +295,31 @@ async def _nearby_rent_apply(building_pk: str, subject: dict, team_id: int) -> d
                 "per_deposit": statistics.mean(x["per_deposit"] for x in xs), "count": len(xs)}
            for fl, xs in by_floor.items()}
 
-    subj = await pool().fetch(
-        """SELECT floor, contract_area, rent, deposit FROM app.floor_rents
-           WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL""", building_pk, team_id)
-    sf: dict = {}
-    for r in subj:
-        d = sf.setdefault(r["floor"], {"area": 0.0, "rent": 0, "deposit": 0})
-        d["area"] += float(r["contract_area"] or 0); d["rent"] += r["rent"] or 0; d["deposit"] += r["deposit"] or 0
+    # 본매물 층별 = 마스터 대장(floor_outline+floor_rent_est) 기준, 팀 오버레이(app.floor_rents) 있으면 그 층 대체.
+    mrows = await pool().fetch(
+        """SELECT fo.floor, sum(fo.exclusive_area)::float AS area,
+                  sum(fre.rent_est)::float AS rent, sum(COALESCE(fre.deposit_est,0))::float AS deposit
+           FROM master.floor_outline fo JOIN master.floor_rent_est fre USING (building_pk, seq)
+           WHERE fo.building_pk=$1 AND fre.rent_est>0 GROUP BY fo.floor""", building_pk)
+    trows = await pool().fetch(
+        """SELECT floor, sum(contract_area)::float AS area, sum(rent)::float AS rent, sum(COALESCE(deposit,0))::float AS deposit
+           FROM app.floor_rents WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL AND is_vacant IS NOT TRUE
+           GROUP BY floor""", building_pk, team_id)
+    sf: dict = {r["floor"]: {"area": r["area"] or 0.0, "rent": r["rent"] or 0, "deposit": r["deposit"] or 0} for r in mrows}
+    for r in trows:   # 팀 입력 층 = 대체(오버레이 우선)
+        sf[r["floor"]] = {"area": r["area"] or 0.0, "rent": r["rent"] or 0, "deposit": r["deposit"] or 0}
     if not sf:
         return None
     floors, applied_rent, applied_deposit, cur_rent, cur_deposit = [], 0, 0, 0, 0
     for fl in sorted(sf, key=_floor_key):
-        s = sf[fl]; m = mkt.get(fl)
-        cur_rent += s["rent"]; cur_deposit += s["deposit"]
+        s = sf[fl]; m = mkt.get(fl); scur = round(s["rent"])
+        cur_rent += scur; cur_deposit += round(s["deposit"])
         if m and s["area"] > 0:
             mr, md, cnt = round(m["per_rent"] * s["area"]), round(m["per_deposit"] * s["area"]), m["count"]
         else:
-            mr, md, cnt = s["rent"], s["deposit"], 0   # 그 층 주변사례 없음 → 현재 폴백
+            mr, md, cnt = scur, round(s["deposit"]), 0   # 그 층 주변사례 없음 → 현재 폴백
         applied_rent += mr; applied_deposit += md
-        floors.append({"floor": fl, "cur": s["rent"], "mkt": mr, "diff": mr - s["rent"], "count": cnt})
+        floors.append({"floor": fl, "cur": scur, "mkt": mr, "diff": mr - scur, "count": cnt})
     return {"floors": floors, "applied_rent": applied_rent, "applied_deposit": applied_deposit,
             "cur_rent": cur_rent, "cur_deposit": cur_deposit}
 

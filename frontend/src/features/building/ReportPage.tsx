@@ -153,7 +153,8 @@ export function ReportPage() {
   // 매도희망가 = 건물주 호가(기본정보 필드로만 표시). 매매가·협의(중개인 판단)는 브리핑 소관 — 본 보고서 제외
   const ask = pv?.ask_price ?? num(b.ask_price) ?? null;
   const rent = pv?.applied_rent ?? sub?.total_rent ?? null;
-  const curRent = sub?.total_rent ?? null;
+  const _floors0 = (pv?.rent_floors ?? []) as RentFloor[];
+  const curRent = _floors0.length ? _floors0.reduce((s, f) => s + f.cur, 0) : (sub?.total_rent ?? null);  // 현재 총임대료 = 층별 현재(대장 추정) 합
   const totalArea = sub?.total_area ?? num(b.total_area);
   const landArea = num(b.land_area);
   const totalP = totalArea ? totalArea / P : null;
@@ -172,7 +173,7 @@ export function ReportPage() {
   const _perVals = comps.map((c) => c.per_now).filter((v): v is number => !!v);   // comp 연면적당 평단가(원/평)
   const compMin = _perVals.length ? Math.round(Math.min(..._perVals) / 1e4) : null;
   const compMax = _perVals.length ? Math.round(Math.max(..._perVals) / 1e4) : null;
-  const floors = (pv?.rent_floors ?? []) as RentFloor[];
+  const floors = _floors0;
   const roiFair = rent && fair ? (rent * 12 / fair) * 100 : null;   // 적정가 기준 예상수익률(리포트용)
 
   const loading = (reportId != null && rq.isLoading) || (needLive && cq.isLoading) || (!!pk && bq.isLoading);
