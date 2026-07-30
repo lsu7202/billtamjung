@@ -399,7 +399,7 @@ export function ReportPage() {
               ["건물 규모", `지하 ${b.floors_below ?? "—"} · 지상 ${b.floors_above ?? "—"}층`, `임대 분석 ${rFloors}개 층`],
               ["총 월임대료", `${man(curRent)}만원`, `연 ${eok(curRent ? curRent * 12 : null)}억`],
               ["예상 보증금", rCurDep ? `${eok(rCurDep, 0)}억원` : "—", "층별 보증금 합계"],
-              ["평균 평당 임대료", perPyRent ? `${(perPyRent / 1e4).toFixed(1)}만원` : "—", "연면적 기준 · 월"],
+              ["평균 평당 임대료", perPyRent ? `${(perPyRent / 1e4).toFixed(1)}만원` : "—", perPyRent ? `연 약 ${Math.round(perPyRent * 12 / 1e4).toLocaleString()}만원 · 연면적 기준` : "연면적 기준 · 월"],
               ["적정가 기준 예상수익률", roiFair != null ? `${roiFair.toFixed(2)}%` : "—", "연 임대수익 ÷ 적정가"],
             ] as [string, string, string][]).map(([k, v, d]) => (
               <div key={k} style={{ flex: 1, borderTop: "2px solid var(--navy)", paddingTop: ".7cqw" }}>
