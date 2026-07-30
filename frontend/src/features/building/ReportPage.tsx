@@ -372,7 +372,7 @@ export function ReportPage() {
               <div className="rs-fbox" style={{ textAlign: "center" }}><div className="k">공시총액 (공시지가 × 대지면적)</div><div className="v">{gTotal ? eok(gTotal) : "—"}<span style={{ fontSize: "1cqw", color: "var(--rmuted)" }}>억</span></div></div>
               <div style={{ fontSize: "1.08cqw", lineHeight: 1.7, color: "var(--rink)" }}>
                 {landPremium != null
-                  ? <>이 건물이 앉은 땅은 최근 공시지가 기준 주변 실거래 평균보다 {landPremium >= 0 ? "높아 상대적으로 입지 우위가 드러납니다" : "낮아 주변 대비 저평가 상태입니다"}. 실거래가 공시가의 몇 배에 형성되는지(공시배율)는 적정가 산정의 한 축으로 반영됩니다.</>
+                  ? <>이 건물이 앉은 땅의 공시지가는 <b style={{ color: "var(--blue)" }}>{Math.round(gLatest! / 1e4).toLocaleString()}만원/㎡</b>로, 주변 실거래 평균 <b>{Math.round(nbhdGongsi! / 1e4).toLocaleString()}만원/㎡</b>보다 <b style={{ color: "var(--blue)" }}>약 {Math.abs(landPremium).toFixed(0)}% {landPremium >= 0 ? "높습니다" : "낮습니다"}</b>. {landPremium >= 0 ? "상대적으로 입지가 우수한 땅입니다. " : "주변 대비 저평가 상태입니다. "}실거래가 공시가의 몇 배에 형성되는지(공시배율)는 적정가 산정의 한 축으로 반영됩니다.</>
                   : <>공시지가와 실거래 배율을 함께 반영해 적정가를 산정합니다.</>}
               </div>
             </div>
