@@ -397,14 +397,15 @@ export function ReportPage() {
           <div style={{ display: "flex", gap: "2cqw" }}>
             {([
               ["건물 규모", `지하 ${b.floors_below ?? "—"} · 지상 ${b.floors_above ?? "—"}층`, `임대 분석 ${rFloors}개 층`],
-              ["본매물 총 월임대료", `${man(curRent)}만원`, `연 ${eok(curRent ? curRent * 12 : null)}억`],
+              ["총 월임대료", `${man(curRent)}만원`, `연 ${eok(curRent ? curRent * 12 : null)}억`],
+              ["예상 보증금", rCurDep ? `${eok(rCurDep, 0)}억원` : "—", "층별 보증금 합계"],
               ["평균 평당 임대료", perPyRent ? `${(perPyRent / 1e4).toFixed(1)}만원` : "—", "연면적 기준 · 월"],
               ["적정가 기준 예상수익률", roiFair != null ? `${roiFair.toFixed(2)}%` : "—", "연 임대수익 ÷ 적정가"],
             ] as [string, string, string][]).map(([k, v, d]) => (
               <div key={k} style={{ flex: 1, borderTop: "2px solid var(--navy)", paddingTop: ".7cqw" }}>
-                <div style={{ fontSize: "1.02cqw", fontWeight: 700, color: "var(--navy)" }}>{k}</div>
-                <div style={{ fontSize: "2.3cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.05, margin: ".15cqw 0" }}>{v}</div>
-                <div style={{ fontSize: ".9cqw", color: "var(--rmuted)" }}>{d}</div>
+                <div style={{ fontSize: ".95cqw", fontWeight: 700, color: "var(--navy)" }}>{k}</div>
+                <div style={{ fontSize: "1.85cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.05, margin: ".15cqw 0" }}>{v}</div>
+                <div style={{ fontSize: ".85cqw", color: "var(--rmuted)" }}>{d}</div>
               </div>
             ))}
           </div>
@@ -436,17 +437,21 @@ export function ReportPage() {
       <Slide key={6} n="07" foot="종합 결론" rno={rno} date={date}
         title="종합 결론" desc="적정가와 수익성을 종합한 본 매물의 최종 결론입니다.">
         <div style={{ display: "flex", flexDirection: "column", gap: "1.1cqw", width: "100%", height: "100%", justifyContent: "center" }}>
-          <div style={{ fontSize: "1cqw", fontWeight: 700, color: "var(--navy)", textAlign: "center" }}>실거래·공시지가·임대수익을 종합해 적정가를 산정했습니다</div>
-          <div style={{ display: "flex", gap: "2cqw", alignItems: "stretch" }}>
+          <div className="rs-fade" style={{ fontSize: "1.1cqw", fontWeight: 700, color: "var(--navy)", textAlign: "center", ["--d" as string]: "40ms" }}>실거래·공시지가·임대수익을 종합해 적정가를 산정했습니다</div>
+          <div style={{ display: "flex", gap: "1.6cqw", alignItems: "stretch" }}>
             {([
-              ["실거래가", "주축", compMin && compMax ? `평당 ${compMin.toLocaleString()}~${compMax.toLocaleString()}만` : "인근 유사 거래", "공시·대지·연면적 3방식 환산"],
-              ["공시지가", "", gmult ? `공시가의 약 ${gmult.toFixed(1)}배` : "공시배율 반영", "실거래가 공시총액 대비"],
-              ["임대수익", "", rent ? `연 ${eok(rent * 12)}억` : "임대수익 반영", "수익환원으로 약 20% 가미"],
-            ] as [string, string, string, string][]).map(([k, tag, v, d]) => (
-              <div key={k} style={{ flex: 1, borderTop: "2px solid var(--navy)", paddingTop: ".5cqw" }}>
-                <div style={{ fontSize: "1.05cqw", fontWeight: 800, color: "var(--navy)" }}>{k}{tag && <span style={{ fontSize: ".78cqw", color: "#fff", background: "var(--blue)", borderRadius: "1cqw", padding: ".1cqw .55cqw", marginLeft: ".4cqw", fontWeight: 700 }}>{tag}</span>}</div>
-                <div style={{ fontSize: "1.3cqw", fontWeight: 800, color: "var(--blue)", margin: ".12cqw 0" }}>{v}</div>
-                <div style={{ fontSize: ".82cqw", color: "var(--rmuted)", lineHeight: 1.35 }}>{d}</div>
+              ["1", "실거래가", "주축", compMin && compMax ? `평당 ${compMin.toLocaleString()}~${compMax.toLocaleString()}만` : "인근 유사 거래", "공시·대지·연면적 3방식으로 환산"],
+              ["2", "공시지가", "", gmult ? `공시가의 약 ${gmult.toFixed(1)}배` : "공시배율 반영", "실거래가 공시총액 대비 수준"],
+              ["3", "임대수익", "", rent ? `연 ${eok(rent * 12)}억` : "임대수익 반영", "수익환원으로 약 20% 가미"],
+            ] as [string, string, string, string, string][]).map(([n, k, tag, v, d], i) => (
+              <div key={k} className="rs-fade" style={{ flex: 1, ["--d" as string]: `${200 + i * 170}ms`, background: "color-mix(in srgb,var(--navy) 4%,transparent)", border: "1px solid var(--rl)", borderLeft: `.35cqw solid ${n === "1" ? "var(--blue)" : "var(--navy)"}`, borderRadius: ".8cqw", padding: "1cqw 1.2cqw", display: "flex", flexDirection: "column", gap: ".35cqw" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: ".6cqw" }}>
+                  <span style={{ width: "2cqw", height: "2cqw", borderRadius: "50%", background: "var(--navy)", color: "#fff", fontSize: "1.1cqw", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>{n}</span>
+                  <span style={{ fontSize: "1.4cqw", fontWeight: 800, color: "var(--navy)" }}>{k}</span>
+                  {tag && <span style={{ fontSize: ".8cqw", color: "#fff", background: "var(--blue)", borderRadius: "1cqw", padding: ".1cqw .6cqw", fontWeight: 700 }}>{tag}</span>}
+                </div>
+                <div style={{ fontSize: "2cqw", fontWeight: 800, color: "var(--blue)", lineHeight: 1.05 }}>{v}</div>
+                <div style={{ fontSize: ".88cqw", color: "var(--rmuted)", lineHeight: 1.35 }}>{d}</div>
               </div>
             ))}
           </div>
