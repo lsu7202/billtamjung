@@ -177,3 +177,44 @@
 .st-prog .arw { color: #2b5aa8; font-size: clamp(20px,2.4vw,30px); }
 @media (max-width: 820px) { .st-grid2, .st-cols { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .story-sec { opacity: 1; transform: none; } }
+
+/* ── 스토리 v2 — 다크 북엔드·스크롤 레일·성격 키워드 ── */
+.story-sec > * { opacity: 0; transform: translateY(26px); transition: opacity .8s cubic-bezier(.22,1,.36,1), transform .8s cubic-bezier(.22,1,.36,1); }
+.story-sec.in > * { opacity: 1; transform: none; }
+.story-sec.in > *:nth-child(2) { transition-delay: .08s; }
+.story-sec.in > *:nth-child(3) { transition-delay: .16s; }
+.story-sec.in > *:nth-child(4) { transition-delay: .24s; }
+.story-sec.in > *:nth-child(5) { transition-delay: .32s; }
+.story-sec.in > *:nth-child(6) { transition-delay: .40s; }
+.story-dark { background: #0b1224; color: #fff; }
+.story-dark .story-kicker { color: #8fb0e0; }
+.story-dark .story-h { color: #fff; } .story-dark .story-h b { color: #5fe0a8; }
+.story-dark .story-big { color: #fff; }
+.story-dark .story-big .unit { color: #7f92b5; }
+.story-dark .story-sub { color: #aab6cc; }
+.story-dark .st-row { border-color: rgba(255,255,255,.12); }
+.story-dark .st-row .k { color: #9fb0cc; } .story-dark .st-row .v { color: #eaf0fa; } .story-dark .st-row .v.hl { color: #6ea0e6; }
+.story-dark .story-note { color: #5f6d86; }
+
+.story-prog { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, #2b5aa8, #5fe0a8); z-index: 30; }
+.story-rail { position: fixed; right: 24px; top: 50%; transform: translateY(-50%); z-index: 25; display: flex; flex-direction: column; gap: 13px; }
+.story-rail button { display: flex; align-items: center; gap: 10px; background: none; border: none; cursor: pointer; color: #9aa4b4; padding: 2px; }
+.story-rail .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .38; transition: transform .3s, opacity .3s; }
+.story-rail .lab { font-size: 11px; letter-spacing: .02em; opacity: 0; transform: translateX(6px); transition: opacity .3s, transform .3s; white-space: nowrap; }
+.story-rail button:hover { color: #2b5aa8; } .story-rail button:hover .lab { opacity: .7; transform: none; }
+.story-rail button.on { color: #2b5aa8; } .story-rail button.on .dot { opacity: 1; transform: scale(1.7); }
+.story-rail button.on .lab { opacity: 1; transform: none; font-weight: 700; }
+
+.story-kw { display: flex; justify-content: center; align-items: center; gap: 5vw; margin-top: 5vh; }
+.story-kw .kw-lab { font-size: 13px; font-weight: 700; letter-spacing: .1em; color: #7f92b5; margin-bottom: .5em; text-align: center; }
+.story-kw .kw-val { font-size: clamp(30px,4.4vw,60px); font-weight: 800; line-height: 1; letter-spacing: -.01em; text-align: center; }
+.story-kw .kw-ex { font-size: clamp(13px,1.3vw,16px); font-weight: 700; opacity: .85; margin-top: .5em; text-align: center; }
+.story-kw .kw-div { width: 1px; height: clamp(48px,5vw,72px); background: rgba(255,255,255,.16); }
+.story-bars { display: flex; flex-direction: column; gap: 2.4vh; margin-top: 3.5vh; max-width: 680px; }
+.story-bar-t { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: .5em; }
+.story-bar-t .n { font-size: clamp(15px,1.6vw,19px); font-weight: 700; color: #1a1f2b; }
+.story-bar-t .s { font-size: clamp(22px,2.4vw,30px); font-weight: 800; font-variant-numeric: tabular-nums; }
+.story-bar-track { height: 10px; border-radius: 6px; background: #eceef2; overflow: hidden; }
+.story-bar-fill { height: 100%; border-radius: 6px; transform-origin: left; transition: transform 1s cubic-bezier(.22,1,.36,1); }
+.story-bar-sub { font-size: clamp(12px,1.2vw,14px); color: #828a99; margin-top: .5em; }
+@media (prefers-reduced-motion: reduce) { .story-sec > * { opacity: 1; transform: none; } }
