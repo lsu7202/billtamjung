@@ -4,7 +4,7 @@ import { reportsApi } from "../../shared/api/endpoints";
 import { ScoreRadar, CompareBar } from "./ReportPrimitives";
 import { Logo, Seal, Icon, ScoreRing, BuildingArt, CountUp } from "./ReportAssets";
 import { ReportMap } from "./ReportMap";
-import { useReportModel, AXIS, num, eok, man, py, word, type Seg } from "./reportModel";
+import { useReportModel, AXIS, num, eok, py, word, type Seg } from "./reportModel";
 import "./reportslide.css";
 
 /** 분석 보고서 — R_example.pptx 8슬라이드를 웹으로(네이비 코퍼레이트·16:9·cqw 스케일). 내용은 reportModel 단일 소스.
@@ -57,12 +57,14 @@ export function ReportPage() {
   // ── 모든 값·의견·서술은 reportModel 단일 소스(애니메이션 모드와 동일) ──
   const {
     pk, sub, b, loading, isError, canDownload, rno, date,
-    fair, ask, rent, curRent, totalArea, landArea, avgPer, comps, moreCount, avgPerNow,
-    gLatest, gTotal, nbhdGongsi, gmult, landPremium, compMin, compMax,
-    roiFair, rs, rFloors, rCurDep, perPyRent, upsidePct, nbhdRoi,
+    fair, rent, curRent, totalArea, avgPer, comps, moreCount, avgPerNow,
+    gLatest, gTotal, nbhdGongsi, gmult, compMin, compMax,
+    roiFair, rs, nbhdRoi,
     ut, officeApt, fut, useZone, mainUse, grade, score, gradeCol, shortAddr, opinions, conclusion,
+    SLIDES: SLIDE_META, summaryRows, summaryTail, basicInfo, gongsiMetrics, gongsiProse, rentMetrics, rentProse, rentNote,
   } = m;
   const gc = (s: number) => s >= 70 ? "var(--blue)" : "var(--rmuted)";
+  const SM = Object.fromEntries(SLIDE_META.map((s) => [s.key, s])) as Record<string, typeof SLIDE_META[number]>;
 
   if (loading && !sub) return <div style={{ padding: 40, color: "var(--muted)" }}>보고서 계산 중…</div>;
   if (!sub && isError) return <div style={{ padding: 40, color: "var(--up)" }}>보고서를 불러오지 못했습니다.</div>;
@@ -102,17 +104,15 @@ export function ReportPage() {
           </div>
         </div>
       </div>,
-      <Slide key={0} n="01" foot="핵심 요약" rno={rno} date={date}
-        title="핵심 요약" desc="본 매물의 빌탐정 적정가·수익성과 매력도를 한눈에 확인하세요.">
+      <Slide key={0} n={SM.summary.n} foot={SM.summary.foot} rno={rno} date={date}
+        title={SM.summary.title} desc={SM.summary.desc}>
         <div style={{ display: "flex", gap: "3cqw", width: "100%", alignItems: "stretch" }}>
           <div className="rs-fade" style={{ flex: "0 0 33%", borderRadius: "1.2cqw", background: "linear-gradient(135deg,#dfe4ec,#c3cbd8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7688", fontSize: "1.3cqw", fontWeight: 700 }}>건물 사진</div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "1.8cqw" }}>
             <div className="rs-fade" style={{ display: "flex", alignItems: "center", gap: "2.6cqw" }}>
               <ScoreRing score={score} grade={grade} gradeColor={gradeCol} size={13.5} />
               <div style={{ flex: 1 }}>
-                {[{ k: "빌탐정 적정가", s: "시스템 산정", v: fair ? `${eok(fair)}억원` : "—", c: "var(--navy)" },
-                  { k: "적정가 기준 예상수익률", s: "연 임대수익 기준", v: roiFair != null ? `${roiFair.toFixed(2)}%` : "—", c: "var(--purple)" },
-                  { k: "매력도 등급", s: "입지·건물 매력도 (적정가와 별개)", v: `${grade}등급`, c: "var(--blue)" }].map((r, i) => (
+                {summaryRows.map((r, i) => (
                   <div key={r.k} className="rs-fade" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: ".9cqw .2cqw", borderBottom: i < 2 ? "1px solid var(--rl)" : "none", ["--d" as string]: `${(i + 1) * 90}ms` }}>
                     <div><div style={{ fontSize: "1.55cqw", fontWeight: 700, color: "var(--navy)" }}>{r.k}</div><div style={{ fontSize: ".9cqw", color: "var(--rmuted)" }}>{r.s}</div></div>
                     <div className="num" style={{ fontSize: "2.8cqw", fontWeight: 800, color: r.c, lineHeight: 1 }}>{r.v}</div>
@@ -121,36 +121,29 @@ export function ReportPage() {
               </div>
             </div>
             <div className="rs-fade" style={{ display: "flex", alignItems: "center", gap: "2.6cqw", paddingTop: "1.3cqw", borderTop: "1px solid var(--rl)", fontSize: "1.1cqw", color: "var(--rmuted)", ["--d" as string]: "360ms" }}>
-              {ut ? <span>투자 유형 <b style={{ color: "var(--blue)" }}>{ut.primary}</b>{officeApt && <span style={{ fontSize: ".8cqw", color: "#fff", background: "var(--navy)", borderRadius: "1cqw", padding: ".1cqw .6cqw", marginLeft: ".4cqw", fontWeight: 700 }}>사옥 적합</span>}</span> : null}
-              <span>평당 적정가 <b style={{ color: "var(--navy)" }}>{avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만원` : "—"}</b></span>
-              <span>연면적 <b style={{ color: "var(--navy)" }}>{py(totalArea)}평</b></span>
+              {summaryTail.primary ? <span>투자 유형 <b style={{ color: "var(--blue)" }}>{summaryTail.primary}</b>{summaryTail.officeApt && <span style={{ fontSize: ".8cqw", color: "#fff", background: "var(--navy)", borderRadius: "1cqw", padding: ".1cqw .6cqw", marginLeft: ".4cqw", fontWeight: 700 }}>사옥 적합</span>}</span> : null}
+              <span>평당 적정가 <b style={{ color: "var(--navy)" }}>{summaryTail.avgPerMan}</b></span>
+              <span>연면적 <b style={{ color: "var(--navy)" }}>{summaryTail.totalPy}</b></span>
             </div>
           </div>
         </div>
       </Slide>,
-      <Slide key={1} n="02" foot="매물 기본정보" rno={rno} date={date}
-        title="매물 기본정보" desc="해당 건물의 기본정보 및 입지 정보 (토지이용계획확인원 및 건축물대장 기준)">
+      <Slide key={1} n={SM.basic.n} foot={SM.basic.foot} rno={rno} date={date}
+        title={SM.basic.title} desc={SM.basic.desc}>
         <div style={{ display: "flex", gap: "2.5cqw", width: "100%" }}>
           <div style={{ flex: "0 0 46%", alignSelf: "flex-start", display: "flex", flexDirection: "column", gap: "1cqw" }}>
             <div style={{ fontSize: "2.1cqw", fontWeight: 800, color: "var(--navy)", letterSpacing: "-.01em", lineHeight: 1.1 }}>{shortAddr}</div>
             <table className="rs-tbl rs-kv"><tbody>
-              <tr><td>대지면적</td><td>{py(landArea)}평 ({landArea ?? "—"}㎡)</td></tr>
-              <tr><td>연면적</td><td>{py(totalArea)}평 ({totalArea ?? "—"}㎡)</td></tr>
-              <tr><td>용도지역</td><td>{useZone}</td></tr>
-              <tr><td>건축물용도</td><td>{mainUse}</td></tr>
-              <tr><td>층수</td><td>지하 {b.floors_below ?? "—"}층 / 지상 {b.floors_above ?? "—"}층</td></tr>
-              <tr><td>사용승인일</td><td>{b.approval_ymd ? String(b.approval_ymd).slice(0, 10).replace(/-/g, ".") : "—"}</td></tr>
-              <tr><td>주차</td><td>{b.parking != null ? `${b.parking}대` : "—"}</td></tr>
-              <tr><td>엘리베이터</td><td>{b.elevator != null ? (Number(b.elevator) > 0 ? `${b.elevator}대` : "없음") : "—"}</td></tr>
-              <tr><td>도로접면</td><td>{b.road_frontage ?? "—"}</td></tr>
-              <tr><td>매도희망가</td><td className="blue b">{ask ? `${eok(ask)}억 원` : "—"}</td></tr>
+              {basicInfo.map(([k, v]) => (
+                <tr key={k}><td>{k}</td><td className={k === "매도희망가" ? "blue b" : undefined}>{v}</td></tr>
+              ))}
             </tbody></table>
           </div>
           <ReportMap lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom} />
         </div>
       </Slide>,
-      <Slide key={2} n="03" foot="매력도 분석" rno={rno} date={date}
-        title="매력도 분석" desc="입지·교통·건물 상태 등을 종합 평가한 이 건물의 매력도(장단점) 지표입니다. 적정가 산정과는 별개입니다.">
+      <Slide key={2} n={SM.appeal.n} foot={SM.appeal.foot} rno={rno} date={date}
+        title={SM.appeal.title} desc={SM.appeal.desc}>
         <div style={{ display: "flex", gap: "2.5cqw", width: "100%" }}>
           <table className="rs-tbl" style={{ flex: "0 0 52%", alignSelf: "flex-start" }}>
             <thead><tr><th>평가 항목</th><th>평가 결과</th><th>분석 의견</th></tr></thead>
@@ -174,8 +167,8 @@ export function ReportPage() {
           </div>
         </div>
       </Slide>,
-      <Slide key={3} n="04" foot="실거래가 분석" rno={rno} date={date}
-        title="실거래가 분석" desc={`${shortAddr} 인근의 유사 실거래를 바탕으로 본 매물의 적정매매가를 분석했습니다.`}>
+      <Slide key={3} n={SM.deal.n} foot={SM.deal.foot} rno={rno} date={date}
+        title={SM.deal.title} desc={SM.deal.desc}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%", height: "100%" }}>
           <table className="rs-tbl">
             <thead><tr><th>사례</th><th>주소</th><th className="r">거리</th><th>거래일</th><th className="r">매매가</th><th className="r">연면적</th><th className="r">평단가</th><th className="r">시점보정</th></tr></thead>
@@ -226,20 +219,17 @@ export function ReportPage() {
           </div>
         </div>
       </Slide>,
-      <Slide key={4} n="05" foot="공시지가" rno={rno} date={date}
-        title="공시지가 분석" desc={`${shortAddr}의 공시지가 추이와, 실거래가 공시가 대비 형성되는 수준(공시배율)을 반영합니다.`}>
+      <Slide key={4} n={SM.gongsi.n} foot={SM.gongsi.foot} rno={rno} date={date}
+        title={SM.gongsi.title} desc={SM.gongsi.desc}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.4cqw", width: "100%", height: "100%" }}>
           <div style={{ display: "flex", gap: "2.5cqw" }}>
-            <div style={{ flex: 1, borderTop: "2px solid var(--navy)", paddingTop: ".7cqw" }}>
-              <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)" }}>주변 대비 땅값 (공시지가)</div>
-              <div style={{ fontSize: "3.2cqw", fontWeight: 800, color: "var(--blue)", lineHeight: 1.05 }}>{landPremium != null ? `${landPremium >= 0 ? "+" : ""}${landPremium.toFixed(0)}%` : "—"}</div>
-              <div style={{ fontSize: ".92cqw", color: "var(--rmuted)" }}>주변 실거래 사례 평균 대비 {landPremium != null && landPremium >= 0 ? "높음 · 입지 우위" : "낮음"}</div>
-            </div>
-            <div style={{ flex: 1, borderTop: "2px solid var(--navy)", paddingTop: ".7cqw" }}>
-              <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)" }}>공시배율 <span style={{ color: "var(--rmuted)", fontWeight: 400 }}>(실거래 ÷ 공시총액)</span></div>
-              <div style={{ fontSize: "3.2cqw", fontWeight: 800, color: "var(--blue)", lineHeight: 1.05 }}>{gmult != null ? `${gmult.toFixed(1)}배` : "—"}</div>
-              <div style={{ fontSize: ".92cqw", color: "var(--rmuted)" }}>시장이 공시가보다 이만큼 높게 값을 매김</div>
-            </div>
+            {gongsiMetrics.map((g) => (
+              <div key={g.k} style={{ flex: 1, borderTop: "2px solid var(--navy)", paddingTop: ".7cqw" }}>
+                <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)" }}>{g.k} {g.sub && <span style={{ color: "var(--rmuted)", fontWeight: 400 }}>{g.sub}</span>}</div>
+                <div style={{ fontSize: "3.2cqw", fontWeight: 800, color: "var(--blue)", lineHeight: 1.05 }}>{g.v}</div>
+                <div style={{ fontSize: ".92cqw", color: "var(--rmuted)" }}>{g.cap}</div>
+              </div>
+            ))}
           </div>
           <div style={{ display: "flex", gap: "2.5cqw", flex: 1, alignItems: "center" }}>
             <div style={{ flex: "0 0 46%" }}>
@@ -253,25 +243,17 @@ export function ReportPage() {
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".9cqw" }}>
               <div className="rs-fbox" style={{ textAlign: "center" }}><div className="k">공시총액 (공시지가 × 대지면적)</div><div className="v">{gTotal ? eok(gTotal) : "—"}<span style={{ fontSize: "1cqw", color: "var(--rmuted)" }}>억</span></div></div>
               <div style={{ fontSize: "1.08cqw", lineHeight: 1.7, color: "var(--rink)" }}>
-                {landPremium != null
-                  ? <>이 건물이 앉은 땅의 공시지가는 <b style={{ color: "var(--blue)" }}>{Math.round(gLatest! / 1e4).toLocaleString()}만원/㎡</b>로, 주변 실거래 평균 <b>{Math.round(nbhdGongsi! / 1e4).toLocaleString()}만원/㎡</b>보다 <b style={{ color: "var(--blue)" }}>약 {Math.abs(landPremium).toFixed(0)}% {landPremium >= 0 ? "높습니다" : "낮습니다"}</b>. {landPremium >= 0 ? "상대적으로 입지가 우수한 땅입니다. " : "주변 대비 저평가 상태입니다. "}실거래가 공시가의 몇 배에 형성되는지(공시배율)는 적정가 산정의 한 축으로 반영됩니다.</>
-                  : <>공시지가와 실거래 배율을 함께 반영해 적정가를 산정합니다.</>}
+                {gongsiProse.map((s: Seg, i: number) => s.b ? <b key={i} style={{ color: "var(--blue)" }}>{s.t}</b> : <Fragment key={i}>{s.t}</Fragment>)}
               </div>
             </div>
           </div>
         </div>
       </Slide>,
-      <Slide key={5} n="06" foot="임대수익 분석" rno={rno} date={date}
-        title="임대수익 분석" desc="주변 임대시세로 임대수익을 추정하고, 이를 수익가치(수익환원)로 적정가에 반영합니다.">
+      <Slide key={5} n={SM.rent.n} foot={SM.rent.foot} rno={rno} date={date}
+        title={SM.rent.title} desc={SM.rent.desc}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.6cqw", width: "100%", height: "100%", justifyContent: "center" }}>
           <div style={{ display: "flex", gap: "2cqw" }}>
-            {([
-              ["건물 규모", `지하 ${b.floors_below ?? "—"} · 지상 ${b.floors_above ?? "—"}층`, `임대 분석 ${rFloors}개 층`],
-              ["총 월임대료", `${man(curRent)}만원`, `연 ${eok(curRent ? curRent * 12 : null)}억`],
-              ["예상 보증금", rCurDep ? `${eok(rCurDep, 0)}억원` : "—", "층별 보증금 합계"],
-              ["평균 평당 임대료", perPyRent ? `${(perPyRent / 1e4).toFixed(1)}만원` : "—", perPyRent ? `연 약 ${Math.round(perPyRent * 12 / 1e4).toLocaleString()}만원 · 연면적 기준` : "연면적 기준 · 월"],
-              ["적정가 기준 예상수익률", roiFair != null ? `${roiFair.toFixed(2)}%` : "—", "연 임대수익 ÷ 적정가"],
-            ] as [string, string, string][]).map(([k, v, d]) => (
+            {rentMetrics.map(([k, v, d]) => (
               <div key={k} style={{ flex: 1, borderTop: "2px solid var(--navy)", paddingTop: ".7cqw" }}>
                 <div style={{ fontSize: ".95cqw", fontWeight: 700, color: "var(--navy)" }}>{k}</div>
                 <div style={{ fontSize: "1.85cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.05, margin: ".15cqw 0" }}>{v}</div>
@@ -298,23 +280,15 @@ export function ReportPage() {
             </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".8cqw" }}>
               <div style={{ fontSize: "1.12cqw", lineHeight: 1.7, color: "var(--rink)" }}>
-                본 매물의 현재 총 월임대료는 <b>{man(curRent)}만원</b>(연 {eok(curRent ? curRent * 12 : null)}억), 총 보증금은 <b>{rCurDep ? eok(rCurDep, 0) : "—"}억</b> 수준입니다.
-                {upsidePct != null && (upsidePct >= 3
-                  ? <> 주변 임대시세 적용 시 <b style={{ color: "var(--blue)" }}>약 {upsidePct.toFixed(0)}% 상승 여력</b>이 있습니다.</>
-                  : upsidePct <= -3
-                    ? <> 현재 임대료가 주변 시세보다 다소 높아 임대 안정성이 높습니다.</>
-                    : <> 현재 임대료는 주변 시세와 유사한 적정 수준입니다.</>)}
-                {nbhdRoi != null && roiFair != null ? <> 적정가 기준 예상수익률 <b style={{ color: "var(--blue)" }}>{roiFair.toFixed(2)}%</b>는 주변 평균(<b>{nbhdRoi}%</b>)보다 <b style={{ color: roiFair >= nbhdRoi ? "var(--blue)" : "var(--rmuted)" }}>{roiFair >= nbhdRoi ? "높아 수익성 우위" : "다소 낮은 편"}</b>입니다.</> : null}
+                {rentProse.map((s: Seg, i: number) => s.b ? <b key={i} style={{ color: "var(--blue)" }}>{s.t}</b> : <Fragment key={i}>{s.t}</Fragment>)}
               </div>
-              <div style={{ fontSize: ".95cqw", lineHeight: 1.55, color: "var(--rmuted)" }}>
-                이 임대수익은 <b style={{ color: "var(--navy)" }}>수익환원</b>(연 임대수익 ÷ 자치구 환원율)으로 적정가에 반영됩니다. 주변 수익률은 반경 내 건물의 임대추정 ÷ 적정가 중앙값입니다.
-              </div>
+              <div style={{ fontSize: ".95cqw", lineHeight: 1.55, color: "var(--rmuted)" }}>{rentNote}</div>
             </div>
           </div>
         </div>
       </Slide>,
-      <Slide key={6} n="07" foot="투자 유형" rno={rno} date={date}
-        title="투자 유형 분석" desc="용적률·상권·연식 등으로 이 건물의 최적 활용(신축·리모델·수익·사옥)을 판별했습니다.">
+      <Slide key={6} n={SM.usetype.n} foot={SM.usetype.foot} rno={rno} date={date}
+        title={SM.usetype.title} desc={SM.usetype.desc}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1cqw", width: "100%", height: "100%" }}>
           {ut ? <>
             <div style={{ display: "flex", gap: "2.2cqw", flex: 1, alignItems: "stretch", minHeight: 0 }}>
@@ -355,8 +329,8 @@ export function ReportPage() {
           </> : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--rmuted)", fontSize: "1.2cqw" }}>투자 유형 산정에 필요한 데이터가 부족합니다.</div>}
         </div>
       </Slide>,
-      <Slide key={8} n="08" foot="미래가치" rno={rno} date={date}
-        title="미래가치 분석" desc="지가 상승 추세(기본)에 개발여지·임대 상향 여력(추가)을 더해 본 매물의 향후 가치 성장을 평가했습니다.">
+      <Slide key={8} n={SM.future.n} foot={SM.future.foot} rno={rno} date={date}
+        title={SM.future.title} desc={SM.future.desc}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.8cqw", width: "100%", height: "100%", justifyContent: "center" }}>
           {fut && fut.label ? <>
             <div style={{ display: "flex", gap: "2.4cqw", alignItems: "center", minHeight: 0 }}>
@@ -431,8 +405,8 @@ export function ReportPage() {
           </> : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--rmuted)", fontSize: "1.2cqw" }}>미래가치 산정에 필요한 데이터가 부족합니다.</div>}
         </div>
       </Slide>,
-      <Slide key={7} n="09" foot="종합 결론" rno={rno} date={date}
-        title="종합 결론" desc="적정가와 수익성을 종합한 본 매물의 최종 결론입니다.">
+      <Slide key={7} n={SM.conclusion.n} foot={SM.conclusion.foot} rno={rno} date={date}
+        title={SM.conclusion.title} desc={SM.conclusion.desc}>
         <div style={{ display: "flex", flexDirection: "column", gap: ".9cqw", width: "100%", height: "100%", justifyContent: "center" }}>
           {/* 3축 — 작은 supporting 한 줄(결론보다 약하게) */}
           <div className="rs-fade" style={{ display: "flex", justifyContent: "center", gap: "1.6cqw", fontSize: ".98cqw", color: "var(--rmuted)", ["--d" as string]: "60ms" }}>

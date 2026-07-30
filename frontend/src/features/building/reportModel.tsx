@@ -145,6 +145,71 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     ] : []),
   ];
 
+  // ── 슬라이드 메타(제목·설명) — 단일 소스. 덱·애니메이션 동일 문구 ──
+  const SLIDES = [
+    { key: "summary", n: "01", foot: "핵심 요약", title: "핵심 요약", desc: "본 매물의 빌탐정 적정가·수익성과 매력도를 한눈에 확인하세요." },
+    { key: "basic", n: "02", foot: "매물 기본정보", title: "매물 기본정보", desc: "해당 건물의 기본정보 및 입지 정보 (토지이용계획확인원 및 건축물대장 기준)" },
+    { key: "appeal", n: "03", foot: "매력도 분석", title: "매력도 분석", desc: "입지·교통·건물 상태 등을 종합 평가한 이 건물의 매력도(장단점) 지표입니다. 적정가 산정과는 별개입니다." },
+    { key: "deal", n: "04", foot: "실거래가 분석", title: "실거래가 분석", desc: `${shortAddr} 인근의 유사 실거래를 바탕으로 본 매물의 적정매매가를 분석했습니다.` },
+    { key: "gongsi", n: "05", foot: "공시지가", title: "공시지가 분석", desc: `${shortAddr}의 공시지가 추이와, 실거래가 공시가 대비 형성되는 수준(공시배율)을 반영합니다.` },
+    { key: "rent", n: "06", foot: "임대수익 분석", title: "임대수익 분석", desc: "주변 임대시세로 임대수익을 추정하고, 이를 수익가치(수익환원)로 적정가에 반영합니다." },
+    { key: "usetype", n: "07", foot: "투자 유형", title: "투자 유형 분석", desc: "용적률·상권·연식 등으로 이 건물의 최적 활용(신축·리모델·수익·사옥)을 판별했습니다." },
+    { key: "future", n: "08", foot: "미래가치", title: "미래가치 분석", desc: "지가 상승 추세(기본)에 개발여지·임대 상향 여력(추가)을 더해 본 매물의 향후 가치 성장을 평가했습니다." },
+    { key: "conclusion", n: "09", foot: "종합 결론", title: "종합 결론", desc: "적정가와 수익성을 종합한 본 매물의 최종 결론입니다." },
+  ];
+
+  // ── 01 핵심요약 ──
+  const summaryRows = [
+    { k: "빌탐정 적정가", s: "시스템 산정", v: fair ? `${eok(fair)}억원` : "—", c: "var(--navy)" },
+    { k: "적정가 기준 예상수익률", s: "연 임대수익 기준", v: roiFair != null ? `${roiFair.toFixed(2)}%` : "—", c: "var(--purple)" },
+    { k: "매력도 등급", s: "입지·건물 매력도 (적정가와 별개)", v: `${grade}등급`, c: "var(--blue)" },
+  ];
+  const summaryTail = { primary: ut?.primary ?? null, officeApt, avgPerMan: avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만원` : "—", totalPy: `${py(totalArea)}평` };
+
+  // ── 02 기본정보 ──
+  const basicInfo: [string, string][] = [
+    ["대지면적", `${py(landArea)}평 (${landArea ?? "—"}㎡)`],
+    ["연면적", `${py(totalArea)}평 (${totalArea ?? "—"}㎡)`],
+    ["용도지역", useZone], ["건축물용도", mainUse],
+    ["층수", `지하 ${b.floors_below ?? "—"}층 / 지상 ${b.floors_above ?? "—"}층`],
+    ["사용승인일", b.approval_ymd ? String(b.approval_ymd).slice(0, 10).replace(/-/g, ".") : "—"],
+    ["주차", b.parking != null ? `${b.parking}대` : "—"],
+    ["엘리베이터", b.elevator != null ? (Number(b.elevator) > 0 ? `${b.elevator}대` : "없음") : "—"],
+    ["도로접면", b.road_frontage ?? "—"],
+    ["매도희망가", ask ? `${eok(ask)}억 원` : "—"],
+  ];
+
+  // ── 05 공시지가 ──
+  const gongsiMetrics = [
+    { k: "주변 대비 땅값 (공시지가)", sub: "", v: landPremium != null ? `${landPremium >= 0 ? "+" : ""}${landPremium.toFixed(0)}%` : "—", cap: `주변 실거래 사례 평균 대비 ${landPremium != null && landPremium >= 0 ? "높음 · 입지 우위" : "낮음"}` },
+    { k: "공시배율", sub: "(실거래 ÷ 공시총액)", v: gmult != null ? `${gmult.toFixed(1)}배` : "—", cap: "시장이 공시가보다 이만큼 높게 값을 매김" },
+  ];
+  const gongsiProse: Seg[] = landPremium != null
+    ? [{ t: `이 건물이 앉은 땅의 공시지가는 ` }, { t: `${man(gLatest)}만원/㎡`, b: true }, { t: `로, 주변 실거래 평균 ` }, { t: `${man(nbhdGongsi)}만원/㎡`, b: true },
+       { t: `보다 ` }, { t: `약 ${Math.abs(landPremium).toFixed(0)}% ${landPremium >= 0 ? "높습니다" : "낮습니다"}`, b: true },
+       { t: `. ${landPremium >= 0 ? "상대적으로 입지가 우수한 땅입니다. " : "주변 대비 저평가 상태입니다. "}실거래가 공시가의 몇 배에 형성되는지(공시배율)는 적정가 산정의 한 축으로 반영됩니다.` }]
+    : [{ t: `공시지가와 실거래 배율을 함께 반영해 적정가를 산정합니다.` }];
+
+  // ── 06 임대수익(층별 나열 안 함 — 요약 5지표 + 비교) ──
+  const rentMetrics: [string, string, string][] = [
+    ["건물 규모", `지하 ${b.floors_below ?? "—"} · 지상 ${b.floors_above ?? "—"}층`, `임대 분석 ${rFloors}개 층`],
+    ["총 월임대료", `${man(curRent)}만원`, `연 ${eok(curRent ? curRent * 12 : null)}억`],
+    ["예상 보증금", rCurDep ? `${eok(rCurDep, 0)}억원` : "—", "층별 보증금 합계"],
+    ["평균 평당 임대료", perPyRent ? `${(perPyRent / 1e4).toFixed(1)}만원` : "—", perPyRent ? `연 약 ${Math.round(perPyRent * 12 / 1e4).toLocaleString()}만원 · 연면적 기준` : "연면적 기준 · 월"],
+    ["적정가 기준 예상수익률", roiFair != null ? `${roiFair.toFixed(2)}%` : "—", "연 임대수익 ÷ 적정가"],
+  ];
+  const rentProse: Seg[] = [
+    { t: `본 매물의 현재 총 월임대료는 ` }, { t: `${man(curRent)}만원`, b: true }, { t: `(연 ${eok(curRent ? curRent * 12 : null)}억), 총 보증금은 ` }, { t: `${rCurDep ? eok(rCurDep, 0) : "—"}억`, b: true }, { t: ` 수준입니다.` },
+    ...(upsidePct != null ? (upsidePct >= 3
+      ? [{ t: ` 주변 임대시세 적용 시 ` }, { t: `약 ${upsidePct.toFixed(0)}% 상승 여력`, b: true }, { t: `이 있습니다.` }]
+      : upsidePct <= -3 ? [{ t: ` 현재 임대료가 주변 시세보다 다소 높아 임대 안정성이 높습니다.` }]
+      : [{ t: ` 현재 임대료는 주변 시세와 유사한 적정 수준입니다.` }]) : []),
+    ...(nbhdRoi != null && roiFair != null
+      ? [{ t: ` 적정가 기준 예상수익률 ` }, { t: `${roiFair.toFixed(2)}%`, b: true }, { t: `는 주변 평균(${nbhdRoi}%)보다 ` }, { t: roiFair >= nbhdRoi ? "높아 수익성 우위" : "다소 낮은 편", b: true }, { t: `입니다.` }]
+      : []),
+  ];
+  const rentNote = "이 임대수익은 수익환원(연 임대수익 ÷ 자치구 환원율)으로 적정가에 반영됩니다. 주변 수익률은 반경 내 건물의 임대추정 ÷ 적정가 중앙값입니다.";
+
   const loading = (reportId != null && rq.isLoading) || (needLive && cq.isLoading) || (!!pk && bq.isLoading);
   const isError = cq.isError || rq.isError;
   const rno = reportId != null ? `BT-${new Date(rq.data?.created_at ?? "2026-01-01").getFullYear()}-${String(reportId).padStart(6, "0")}` : "미리보기";
@@ -157,6 +222,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     gLatest, gTotal, gctx, nbhdGongsi, gmult, landPremium, compMin, compMax, floors,
     roiFair, rs, rFloors, rCurDep, perPyRent, upsidePct, nbhdRoi, topStrengths,
     ut, officeApt, fut, useZone, mainUse, grade, score, gradeCol, addr, shortAddr,
-    opinions, conclusion,
+    opinions, conclusion, SLIDES, summaryRows, summaryTail, basicInfo,
+    gongsiMetrics, gongsiProse, rentMetrics, rentProse, rentNote,
   };
 }
