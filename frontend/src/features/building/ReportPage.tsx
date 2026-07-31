@@ -4,7 +4,7 @@ import { reportsApi } from "../../shared/api/endpoints";
 import { ScoreRadar, CompareBar } from "./ReportPrimitives";
 import { Logo, Seal, Icon, ScoreRing, BuildingArt, CountUp } from "./ReportAssets";
 import { ReportMap } from "./ReportMap";
-import { useReportModel, AXIS, num, eokman, eokManParts, py, word, type Seg } from "./reportModel";
+import { useReportModel, AXIS, num, man, eokman, eokManParts, py, word, type Seg } from "./reportModel";
 import "./reportslide.css";
 
 /** 분석 보고서 — R_example.pptx 8슬라이드를 웹으로(네이비 코퍼레이트·16:9·cqw 스케일). 내용은 reportModel 단일 소스.
@@ -389,7 +389,7 @@ export function ReportPage() {
             <span style={{ color: "var(--rl)" }}>|</span>
             <span>공시배율 {gmult ? <b style={{ color: "var(--navy)" }}>×{gmult.toFixed(1)}</b> : "—"}</span>
             <span style={{ color: "var(--rl)" }}>|</span>
-            <span>임대수익 <b style={{ color: "var(--navy)" }}>연 {rent ? eokman(rent * 12) : "—"}</b></span>
+            <span>월임대료 <b style={{ color: "var(--navy)" }}>{rent ? `${man(rent)}만원` : "—"}</b></span>
             <span style={{ color: "var(--rmuted)" }}>을 종합</span>
           </div>
           {/* 결론 — 적정가 초대형(팝인+카운트업) */}
@@ -404,7 +404,7 @@ export function ReportPage() {
           <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
             {([
               ["예상수익률", <CountUp key="r" end={roiFair ?? 0} dur={1000} delay={1200} fmt={(v) => v.toFixed(2)} />, "%", nbhdRoi ? `주변 평균 ${nbhdRoi}%` : "적정가 기준"],
-              ["예상 연임대수익", rent ? eokman(rent * 12) : "—", "", "주변 임대시세 적용"],
+              ["예상 월임대수익", rent ? `${man(rent)}만원` : "—", "", "주변 임대시세 적용"],
               ["매력도", grade, "등급", `가치점수 ${score}점`],
             ] as [string, React.ReactNode, string, string][]).map(([k, v, u, d], i) => (
               <div key={k} className="rs-fade" style={{ textAlign: "center", padding: "0 2.8cqw", borderRight: i < 2 ? "1px solid var(--rl)" : "none", ["--d" as string]: `${1100 + i * 200}ms` }}>

@@ -9,10 +9,10 @@ export const num = (x: unknown): number | null => (x == null || x === "" ? null 
 export const eok = (v: number | null | undefined, d = 0) => (v ? `${(v / 1e8).toFixed(d)}` : "—");
 export const man = (v: number | null | undefined) => (v ? `${Math.round(v / 1e4).toLocaleString()}` : "—");
 export const py = (m2: number | null | undefined) => (m2 ? (m2 / P).toFixed(2) : "—");
-/** 원 → "X억 Y,YYY만원"(만 단위까지, 0이면 생략). 억에서 자르지 않음. */
+/** 원 → "X억 Y,YYY만원"(항상 만 단위까지, 정확한 금액). 0 자리는 생략. */
 export const eokman = (won: number | null | undefined) => {
   if (won == null || won === 0) return "—";
-  const neg = won < 0; let w = Math.abs(won);
+  const neg = won < 0, w = Math.abs(won);
   let e = Math.floor(w / 1e8), mn = Math.round((w - e * 1e8) / 1e4);
   if (mn >= 10000) { e += 1; mn -= 10000; }
   const s = e && mn ? `${e.toLocaleString()}억 ${mn.toLocaleString()}만원` : e ? `${e.toLocaleString()}억원` : `${mn.toLocaleString()}만원`;
@@ -21,7 +21,7 @@ export const eokman = (won: number | null | undefined) => {
 /** 원 → [억 정수, 만 정수] — 카운트업 헤드라인용(억은 애니메이션, 만은 정적). */
 export const eokManParts = (won: number | null | undefined): [number, number] => {
   if (!won) return [0, 0];
-  const neg = won < 0; const w = Math.abs(won);
+  const neg = won < 0, w = Math.abs(won);
   let e = Math.floor(w / 1e8), mn = Math.round((w - e * 1e8) / 1e4);
   if (mn >= 10000) { e += 1; mn -= 10000; }
   return [neg ? -e : e, mn];
@@ -148,7 +148,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     ...(nbhdRoi != null
       ? [{ t: `로 주변 평균(${nbhdRoi}%)보다 ` }, { t: `${roiFair != null && roiFair >= nbhdRoi ? "높은" : "낮은"}`, b: true }, { t: ` 수준이며,` }]
       : [{ t: `로,` }]),
-    { t: ` 연 약 ` }, { t: `${rent ? eokman(rent * 12) : "—"}`, b: true }, { t: `의 임대수익이 기대됩니다.` },
+    { t: ` 월 약 ` }, { t: `${rent ? man(rent) + "만원" : "—"}`, b: true }, { t: `의 임대수익이 기대됩니다.` },
     ...(ut ? [
       { t: ` 활용 측면에서는 ` }, { t: `${ut.primary}`, b: true },
       ...(officeApt ? [{ t: `이 최적이며, 업무 상권·역세권이라 ` }, { t: `사옥으로도 적합`, b: true }, { t: `합니다.` }]
@@ -210,13 +210,13 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   // ── 06 임대수익(층별 나열 안 함 — 요약 5지표 + 비교) ──
   const rentMetrics: [string, string, string][] = [
     ["건물 규모", `지하 ${b.floors_below ?? "—"} · 지상 ${b.floors_above ?? "—"}층`, `임대 분석 ${rFloors}개 층`],
-    ["총 월임대료", `${man(curRent)}만원`, `연 ${curRent ? eokman(curRent * 12) : "—"}`],
+    ["총 월임대료", `${man(curRent)}만원`, "층별 합계 · 월 기준"],
     ["예상 보증금", rCurDep ? eokman(rCurDep) : "—", "층별 보증금 합계"],
     ["평균 평당 임대료", perPyRent ? `${(perPyRent / 1e4).toFixed(1)}만원` : "—", perPyRent ? `연 약 ${Math.round(perPyRent * 12 / 1e4).toLocaleString()}만원 · 연면적 기준` : "연면적 기준 · 월"],
     ["적정가 기준 예상수익률", roiFair != null ? `${roiFair.toFixed(2)}%` : "—", "연 임대수익 ÷ 적정가"],
   ];
   const rentProse: Seg[] = [
-    { t: `본 매물의 현재 총 월임대료는 ` }, { t: `${man(curRent)}만원`, b: true }, { t: `(연 ${curRent ? eokman(curRent * 12) : "—"}), 총 보증금은 ` }, { t: `${rCurDep ? eokman(rCurDep) : "—"}`, b: true }, { t: ` 수준입니다.` },
+    { t: `본 매물의 현재 총 월임대료는 ` }, { t: `${man(curRent)}만원`, b: true }, { t: `, 총 보증금은 ` }, { t: `${rCurDep ? eokman(rCurDep) : "—"}`, b: true }, { t: ` 수준입니다.` },
     ...(upsidePct != null ? (upsidePct >= 3
       ? [{ t: ` 주변 임대시세 적용 시 ` }, { t: `약 ${upsidePct.toFixed(0)}% 상승 여력`, b: true }, { t: `이 있습니다.` }]
       : upsidePct <= -3 ? [{ t: ` 현재 임대료가 주변 시세보다 다소 높아 임대 안정성이 높습니다.` }]
@@ -245,7 +245,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     { key: "upside", label: "임대 상향 여력", c: "var(--blue)",
       value: _rentDiff == null ? "—" : `${_sign(_rentDiff)}${Math.abs(Math.round(_rentDiff / 1e4)).toLocaleString()}만원/월`,
       sub: fut.cur_rent && fut.mkt_rent != null && _rentDiff != null
-        ? `현재 ${man(fut.cur_rent)}만 → 주변 ${man(fut.mkt_rent)}만/월 · 연 ${_sign(_rentDiff)}${Math.abs(Math.round(_rentDiff * 12 / 1e4)).toLocaleString()}만원 (${_sign(fut.upside_pct ?? 0)}${Math.abs(fut.upside_pct ?? 0)}%)`
+        ? `현재 ${man(fut.cur_rent)}만 → 주변시세 ${man(fut.mkt_rent)}만/월 (${_sign(fut.upside_pct ?? 0)}${Math.abs(fut.upside_pct ?? 0)}%)`
         : "주변 임대시세 대비" },
     { key: "land", label: "지가 상승 추세", c: "var(--purple)",
       value: _gAnnualWon != null ? `연 +${eokman(_gAnnualWon)}` : fut.land_rate5 != null ? `+${fut.land_rate5}%` : "—",

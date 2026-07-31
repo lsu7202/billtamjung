@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { CountUp, BuildingArt } from "./ReportAssets";
 import { ScoreRadar, CompareBar } from "./ReportPrimitives";
 import { ReportMap, ZONE_COLOR } from "./ReportMap";
-import { useReportModel, AXIS, num, eokman, eokManParts, py, type Seg } from "./reportModel";
+import { useReportModel, AXIS, num, man, eokman, eokManParts, py, type Seg } from "./reportModel";
 
 /** 몰입형 스크롤 보고서 — 덱(/report)과 동일한 reportModel(값·문구·슬라이드 내용 단일 소스)을 쓰고 디자인만 다르게.
  * 내용(제목·설명·표시 항목·의견·서술)은 덱과 100% 동일, 표현(다크 북엔드·스크롤·모션)만 다름. */
@@ -283,7 +283,7 @@ export function ReportStory() {
         </div>
         <div className="story-row">
           {[["예상수익률", roiFair != null ? `${roiFair.toFixed(2)}%` : "—", nbhdRoi != null ? `주변 평균 ${nbhdRoi}%` : "적정가 기준"],
-            ["예상 연임대수익", rent ? eokman(rent * 12) : "—", "주변 임대시세 적용"],
+            ["예상 월임대수익", rent ? `${man(rent)}만원` : "—", "주변 임대시세 적용"],
             ["매력도", `${grade}등급`, `가치점수 ${score}점`]].map(([k, v, s], i) => (
             <div key={i} className="story-cell">
               <div className="k" style={{ color: "#9fb0cc" }}>{k}</div>
