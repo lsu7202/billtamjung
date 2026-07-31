@@ -4,7 +4,7 @@ import { reportsApi } from "../../shared/api/endpoints";
 import { ScoreRadar, CompareBar } from "./ReportPrimitives";
 import { Logo, Seal, Icon, ScoreRing, BuildingArt, CountUp } from "./ReportAssets";
 import { ReportMap } from "./ReportMap";
-import { useReportModel, AXIS, num, eok, py, word, type Seg } from "./reportModel";
+import { useReportModel, AXIS, num, eokman, eokManParts, py, word, type Seg } from "./reportModel";
 import "./reportslide.css";
 
 /** 분석 보고서 — R_example.pptx 8슬라이드를 웹으로(네이비 코퍼레이트·16:9·cqw 스케일). 내용은 reportModel 단일 소스.
@@ -178,7 +178,7 @@ export function ReportPage() {
                 <td className="b" style={{ maxWidth: "16cqw", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{shortAddr}</td>
                 <td className="r">—</td>
                 <td>—</td>
-                <td className="r b blue">{fair ? `${eok(fair, 1)}억` : "—"}<span style={{ fontSize: ".82cqw", color: "var(--rmuted)", fontWeight: 500 }}> 적정가</span></td>
+                <td className="r b blue">{fair ? eokman(fair) : "—"}<span style={{ fontSize: ".82cqw", color: "var(--rmuted)", fontWeight: 500 }}> 적정가</span></td>
                 <td className="r">{py(totalArea)}평</td>
                 <td className="r b blue">{avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만` : "—"}</td>
                 <td className="r">—</td>
@@ -189,7 +189,7 @@ export function ReportPage() {
                   <td style={{ maxWidth: "16cqw", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(c.addr ?? "").replace(/^서울특별시\s*/, "")}</td>
                   <td className="r">{c.weight ? `${Math.max(0, Math.round(1 / c.weight - 50))}m` : "—"}</td>
                   <td>{c.contract_ym ?? "—"}</td>
-                  <td className="r">{eok(c.price, 1)}억</td>
+                  <td className="r">{eokman(c.price)}</td>
                   <td className="r">{c.area_py ?? "—"}평</td>
                   <td className="r b blue">{c.per_now ? `${Math.round(c.per_now / 1e4).toLocaleString()}만` : "—"}</td>
                   <td className="r">{c.time_adj != null ? `${c.time_adj >= 0 ? "+" : ""}${Math.round(c.time_adj * 100)}%` : "—"}</td>
@@ -241,7 +241,7 @@ export function ReportPage() {
                 : <div style={{ color: "var(--rmuted)", fontSize: "1.1cqw", padding: "2cqw 0" }}>주변 사례 공시지가 데이터가 부족합니다.</div>}
             </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".9cqw" }}>
-              <div className="rs-fbox" style={{ textAlign: "center" }}><div className="k">공시총액 (공시지가 × 대지면적)</div><div className="v">{gTotal ? eok(gTotal) : "—"}<span style={{ fontSize: "1cqw", color: "var(--rmuted)" }}>억</span></div></div>
+              <div className="rs-fbox" style={{ textAlign: "center" }}><div className="k">공시총액 (공시지가 × 대지면적)</div><div className="v">{gTotal ? eokman(gTotal) : "—"}</div></div>
               <div style={{ fontSize: "1.08cqw", lineHeight: 1.7, color: "var(--rink)" }}>
                 {gongsiProse.map((s: Seg, i: number) => s.b ? <b key={i} style={{ color: "var(--blue)" }}>{s.t}</b> : <Fragment key={i}>{s.t}</Fragment>)}
               </div>
@@ -389,14 +389,14 @@ export function ReportPage() {
             <span style={{ color: "var(--rl)" }}>|</span>
             <span>공시배율 {gmult ? <b style={{ color: "var(--navy)" }}>×{gmult.toFixed(1)}</b> : "—"}</span>
             <span style={{ color: "var(--rl)" }}>|</span>
-            <span>임대수익 <b style={{ color: "var(--navy)" }}>연 {rent ? eok(rent * 12) : "—"}억</b></span>
+            <span>임대수익 <b style={{ color: "var(--navy)" }}>연 {rent ? eokman(rent * 12) : "—"}</b></span>
             <span style={{ color: "var(--rmuted)" }}>을 종합</span>
           </div>
           {/* 결론 — 적정가 초대형(팝인+카운트업) */}
           <div className="rs-pop" style={{ textAlign: "center", ["--d" as string]: "260ms" }}>
             <div style={{ fontSize: "1.2cqw", color: "var(--rmuted)", fontWeight: 700, letterSpacing: ".06em" }}>빌탐정 적정가</div>
             <div style={{ fontSize: "5.4cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1, letterSpacing: "-.02em" }}>
-              <CountUp end={fair ? fair / 1e8 : 0} dur={1300} delay={400} fmt={(v) => Math.round(v).toLocaleString()} /><span style={{ fontSize: "2.4cqw" }}>억 원</span>
+              <CountUp end={eokManParts(fair)[0]} dur={1300} delay={400} fmt={(v) => Math.round(v).toLocaleString()} /><span style={{ fontSize: "2.4cqw" }}>억{eokManParts(fair)[1] ? ` ${eokManParts(fair)[1].toLocaleString()}만원` : "원"}</span>
             </div>
             <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)" }}>평당 약 {avgPer ? Math.round(avgPer / 1e4).toLocaleString() : "—"}만원 · 연면적 {py(totalArea)}평</div>
           </div>
@@ -404,7 +404,7 @@ export function ReportPage() {
           <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
             {([
               ["예상수익률", <CountUp key="r" end={roiFair ?? 0} dur={1000} delay={1200} fmt={(v) => v.toFixed(2)} />, "%", nbhdRoi ? `주변 평균 ${nbhdRoi}%` : "적정가 기준"],
-              ["예상 연임대수익", <CountUp key="l" end={rent ? rent * 12 / 1e8 : 0} dur={1000} delay={1400} fmt={(v) => Math.round(v).toLocaleString()} />, "억", "주변 임대시세 적용"],
+              ["예상 연임대수익", rent ? eokman(rent * 12) : "—", "", "주변 임대시세 적용"],
               ["매력도", grade, "등급", `가치점수 ${score}점`],
             ] as [string, React.ReactNode, string, string][]).map(([k, v, u, d], i) => (
               <div key={k} className="rs-fade" style={{ textAlign: "center", padding: "0 2.8cqw", borderRight: i < 2 ? "1px solid var(--rl)" : "none", ["--d" as string]: `${1100 + i * 200}ms` }}>

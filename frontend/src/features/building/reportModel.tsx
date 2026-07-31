@@ -9,6 +9,23 @@ export const num = (x: unknown): number | null => (x == null || x === "" ? null 
 export const eok = (v: number | null | undefined, d = 0) => (v ? `${(v / 1e8).toFixed(d)}` : "—");
 export const man = (v: number | null | undefined) => (v ? `${Math.round(v / 1e4).toLocaleString()}` : "—");
 export const py = (m2: number | null | undefined) => (m2 ? (m2 / P).toFixed(2) : "—");
+/** 원 → "X억 Y,YYY만원"(만 단위까지, 0이면 생략). 억에서 자르지 않음. */
+export const eokman = (won: number | null | undefined) => {
+  if (won == null || won === 0) return "—";
+  const neg = won < 0; let w = Math.abs(won);
+  let e = Math.floor(w / 1e8), mn = Math.round((w - e * 1e8) / 1e4);
+  if (mn >= 10000) { e += 1; mn -= 10000; }
+  const s = e && mn ? `${e.toLocaleString()}억 ${mn.toLocaleString()}만원` : e ? `${e.toLocaleString()}억원` : `${mn.toLocaleString()}만원`;
+  return (neg ? "−" : "") + s;
+};
+/** 원 → [억 정수, 만 정수] — 카운트업 헤드라인용(억은 애니메이션, 만은 정적). */
+export const eokManParts = (won: number | null | undefined): [number, number] => {
+  if (!won) return [0, 0];
+  const neg = won < 0; const w = Math.abs(won);
+  let e = Math.floor(w / 1e8), mn = Math.round((w - e * 1e8) / 1e4);
+  if (mn >= 10000) { e += 1; mn -= 10000; }
+  return [neg ? -e : e, mn];
+};
 export const word = (s: number) => s >= 90 ? "매우 우수" : s >= 80 ? "우수" : s >= 70 ? "양호" : s >= 60 ? "보통" : "미흡";
 
 export const AXIS: [string, string][] = [
@@ -120,7 +137,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   // ── 종합 의견 — 서술 세그먼트(문구 단일 소스, 강조 위치 공용) ──
   const conclusion: Seg[] = [
     { t: `인근 실거래를 공시지가·대지·연면적으로 교차 분석하고 주변 임대수익을 반영해 적정가 ` },
-    { t: `약 ${eok(fair)}억원`, b: true }, { t: `으로 산정됩니다.` },
+    { t: `약 ${eokman(fair)}`, b: true }, { t: `으로 산정됩니다.` },
     ...(landPremium != null && landPremium >= 10
       ? [{ t: ` 이 땅의 공시지가가 주변 평균보다 ` }, { t: `약 ${landPremium.toFixed(0)}% 높아`, b: true }, { t: ` 입지 경쟁력이 뚜렷하고,` }]
       : []),
@@ -131,7 +148,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     ...(nbhdRoi != null
       ? [{ t: `로 주변 평균(${nbhdRoi}%)보다 ` }, { t: `${roiFair != null && roiFair >= nbhdRoi ? "높은" : "낮은"}`, b: true }, { t: ` 수준이며,` }]
       : [{ t: `로,` }]),
-    { t: ` 연 약 ` }, { t: `${rent ? eok(rent * 12) : "—"}억원`, b: true }, { t: `의 임대수익이 기대됩니다.` },
+    { t: ` 연 약 ` }, { t: `${rent ? eokman(rent * 12) : "—"}`, b: true }, { t: `의 임대수익이 기대됩니다.` },
     ...(ut ? [
       { t: ` 활용 측면에서는 ` }, { t: `${ut.primary}`, b: true },
       ...(officeApt ? [{ t: `이 최적이며, 업무 상권·역세권이라 ` }, { t: `사옥으로도 적합`, b: true }, { t: `합니다.` }]
@@ -160,7 +177,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
 
   // ── 01 핵심요약 ──
   const summaryRows = [
-    { k: "빌탐정 적정가", s: "시스템 산정", v: fair ? `${eok(fair)}억원` : "—", c: "var(--navy)" },
+    { k: "빌탐정 적정가", s: "시스템 산정", v: fair ? eokman(fair) : "—", c: "var(--navy)" },
     { k: "적정가 기준 예상수익률", s: "연 임대수익 기준", v: roiFair != null ? `${roiFair.toFixed(2)}%` : "—", c: "var(--purple)" },
     { k: "매력도 등급", s: "입지·건물 매력도 (적정가와 별개)", v: `${grade}등급`, c: "var(--blue)" },
   ];
@@ -176,7 +193,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     ["주차", b.parking != null ? `${b.parking}대` : "—"],
     ["엘리베이터", b.elevator != null ? (Number(b.elevator) > 0 ? `${b.elevator}대` : "없음") : "—"],
     ["도로접면", b.road_frontage ?? "—"],
-    ["매도희망가", ask ? `${eok(ask)}억 원` : "—"],
+    ["매도희망가", ask ? eokman(ask) : "—"],
   ];
 
   // ── 05 공시지가 ──
@@ -193,13 +210,13 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   // ── 06 임대수익(층별 나열 안 함 — 요약 5지표 + 비교) ──
   const rentMetrics: [string, string, string][] = [
     ["건물 규모", `지하 ${b.floors_below ?? "—"} · 지상 ${b.floors_above ?? "—"}층`, `임대 분석 ${rFloors}개 층`],
-    ["총 월임대료", `${man(curRent)}만원`, `연 ${eok(curRent ? curRent * 12 : null)}억`],
-    ["예상 보증금", rCurDep ? `${eok(rCurDep, 0)}억원` : "—", "층별 보증금 합계"],
+    ["총 월임대료", `${man(curRent)}만원`, `연 ${curRent ? eokman(curRent * 12) : "—"}`],
+    ["예상 보증금", rCurDep ? eokman(rCurDep) : "—", "층별 보증금 합계"],
     ["평균 평당 임대료", perPyRent ? `${(perPyRent / 1e4).toFixed(1)}만원` : "—", perPyRent ? `연 약 ${Math.round(perPyRent * 12 / 1e4).toLocaleString()}만원 · 연면적 기준` : "연면적 기준 · 월"],
     ["적정가 기준 예상수익률", roiFair != null ? `${roiFair.toFixed(2)}%` : "—", "연 임대수익 ÷ 적정가"],
   ];
   const rentProse: Seg[] = [
-    { t: `본 매물의 현재 총 월임대료는 ` }, { t: `${man(curRent)}만원`, b: true }, { t: `(연 ${eok(curRent ? curRent * 12 : null)}억), 총 보증금은 ` }, { t: `${rCurDep ? eok(rCurDep, 0) : "—"}억`, b: true }, { t: ` 수준입니다.` },
+    { t: `본 매물의 현재 총 월임대료는 ` }, { t: `${man(curRent)}만원`, b: true }, { t: `(연 ${curRent ? eokman(curRent * 12) : "—"}), 총 보증금은 ` }, { t: `${rCurDep ? eokman(rCurDep) : "—"}`, b: true }, { t: ` 수준입니다.` },
     ...(upsidePct != null ? (upsidePct >= 3
       ? [{ t: ` 주변 임대시세 적용 시 ` }, { t: `약 ${upsidePct.toFixed(0)}% 상승 여력`, b: true }, { t: `이 있습니다.` }]
       : upsidePct <= -3 ? [{ t: ` 현재 임대료가 주변 시세보다 다소 높아 임대 안정성이 높습니다.` }]
@@ -210,21 +227,32 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   ];
   const rentNote = "이 임대수익은 수익환원(연 임대수익 ÷ 자치구 환원율)으로 적정가에 반영됩니다. 주변 수익률은 반경 내 건물의 임대추정 ÷ 적정가 중앙값입니다.";
 
-  // ── 08 미래가치 — 점수 아닌 '실제 값'으로 설명 ──
+  // ── 08 미래가치 — "그래서 얼마?" 실제 돈·양으로 설명 ──
+  const _sign = (v: number) => (v >= 0 ? "+" : "−");
+  const _rentDiff = fut && fut.cur_rent && fut.mkt_rent != null ? fut.mkt_rent - fut.cur_rent : null;          // 월 임대 차액(원)
+  const _overPct = fut && fut.far && fut.legal_far ? (fut.far / fut.legal_far - 1) * 100 : null;               // 법정 대비 초과 %
+  const _buildP = fut && fut.headroom_far && fut.headroom_far > 0 && landArea ? landArea * (fut.headroom_far / 100) / P : null;  // 증축 가능 연면적(평)
+  const _g5AgoWon = fut && fut.land_rate5 != null && gTotal ? gTotal / (1 + fut.land_rate5 / 100) : null;       // 5년 전 공시총액(원)
+  const _gAnnualWon = _g5AgoWon != null && gTotal ? (gTotal - _g5AgoWon) / 5 : null;                           // 연평균 상승액(원)
   const futureAxes = fut ? [
     { key: "dev", label: "개발여지", c: "var(--navy)",
-      value: fut.headroom_far == null ? "—" : fut.headroom_far > 0 ? `+${fut.headroom_far}%p` : "여지 없음",
+      value: fut.headroom_far == null ? "—" : fut.headroom_far > 0 ? (_buildP ? `약 ${Math.round(_buildP).toLocaleString()}평` : `+${fut.headroom_far}%p`) : "여지 없음",
       sub: fut.far != null && fut.legal_far != null
-        ? (fut.headroom_far! > 0 ? `현재 용적률 ${fut.far}% / 법정 ${fut.legal_far}% — 증축 여지` : `현재 용적률 ${fut.far}% · 법정 ${fut.legal_far}% (이미 초과)`)
+        ? (fut.headroom_far! > 0
+            ? `현재 용적률 ${fut.far}% / 법정 ${fut.legal_far}% → +${fut.headroom_far}%p 증축 여지`
+            : `현재 용적률 ${fut.far}% · 법정 ${fut.legal_far}% (법정 대비 약 ${_overPct!.toFixed(0)}% 초과)`)
         : "용적률 정보 없음" },
     { key: "upside", label: "임대 상향 여력", c: "var(--blue)",
-      value: fut.upside_pct == null ? "—" : `${fut.upside_pct >= 0 ? "+" : ""}${fut.upside_pct}%`,
-      sub: fut.cur_rent && fut.mkt_rent != null
-        ? `현재 ${man(fut.cur_rent)}만 → 주변시세 ${man(fut.mkt_rent)}만/월${Math.abs(fut.upside_pct ?? 0) < 3 ? " · 유사" : ""}`
+      value: _rentDiff == null ? "—" : `${_sign(_rentDiff)}${Math.abs(Math.round(_rentDiff / 1e4)).toLocaleString()}만원/월`,
+      sub: fut.cur_rent && fut.mkt_rent != null && _rentDiff != null
+        ? `현재 ${man(fut.cur_rent)}만 → 주변 ${man(fut.mkt_rent)}만/월 · 연 ${_sign(_rentDiff)}${Math.abs(Math.round(_rentDiff * 12 / 1e4)).toLocaleString()}만원 (${_sign(fut.upside_pct ?? 0)}${Math.abs(fut.upside_pct ?? 0)}%)`
         : "주변 임대시세 대비" },
     { key: "land", label: "지가 상승 추세", c: "var(--purple)",
-      value: fut.land_rate5 == null ? "—" : `${fut.land_rate5 >= 0 ? "+" : ""}${fut.land_rate5}%`,
-      sub: fut.land_rate5 == null ? "지가 시계열 없음" : `최근 5년 · 연평균 약 ${fut.land_annual ?? "—"}%` },
+      value: _gAnnualWon != null ? `연 +${eokman(_gAnnualWon)}` : fut.land_rate5 != null ? `+${fut.land_rate5}%` : "—",
+      sub: fut.land_rate5 == null ? "지가 시계열 없음"
+        : gTotal != null
+          ? `최근 5년 +${fut.land_rate5}%(연 ${fut.land_annual}%) · 현재 공시총액 ${eokman(gTotal)} 기준`
+          : `최근 5년 +${fut.land_rate5}% · 연평균 약 ${fut.land_annual ?? "—"}%` },
   ] : [];
 
   const loading = (reportId != null && rq.isLoading) || (needLive && cq.isLoading) || (!!pk && bq.isLoading);
