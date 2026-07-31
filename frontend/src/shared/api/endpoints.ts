@@ -181,7 +181,9 @@ export interface ReportPreview {
   gongsi_ctx?: { nbhd_per_m2: number | null; mult: number | null; n: number } | null;
   rent_summary?: { floor_count: number; cur_rent: number; mkt_rent: number; cur_deposit: number; mkt_deposit: number; nearby_roi: number | null } | null;
   use_type?: { primary: string; scores: Record<string, number>; office_fit: number; util: number | null; reason: string; market: Record<string, number>; zones?: { geojson: unknown; cat: string; count: number }[];
-    future?: { score: number | null; label: string | null; dev: number | null; upside: number | null; land: number | null; land_rate5: number | null; reason: string } } | null;
+    future?: { score: number | null; label: string | null; dev: number | null; upside: number | null; land: number | null; reason: string;
+      far: number | null; legal_far: number | null; util: number | null; headroom_far: number | null;
+      cur_rent: number | null; mkt_rent: number | null; upside_pct: number | null; land_rate5: number | null; land_annual: number | null } } | null;
 }
 export interface CompsResponse {
   subject: { addr: string; score: number; grade: string; items?: Record<string, number>;

@@ -111,9 +111,19 @@ def future_value(far: float | None, legal_far: float | None, land_use: str | Non
     parts = [(land, 0.5), (dev, 0.3), (up, 0.2)]
     avail = [(s, w) for s, w in parts if s is not None]
     score = round(sum(s * w for s, w in avail) / sum(w for _, w in avail)) if avail else None
-    return {"score": score, "label": label, "dev": dev, "upside": up, "land": land,
-            "land_rate5": round(land_rate5) if land_rate5 is not None else None,
-            "reason": reason}
+    # ── 실제 값(점수 아닌 실측) — 화면은 이 값으로 설명 ──
+    util = util_ratio(far, legal_far)                    # 활용률(현재÷법정 %)
+    headroom_far = (legal_far - far) if (far is not None and legal_far is not None) else None  # 증축 여지(용적률 %p, 음수=초과)
+    upside_pct = round((mkt_rent - cur_rent) / cur_rent * 100, 1) if (cur_rent and mkt_rent is not None) else None  # 임대 상향여력 %
+    land_annual = None
+    if land_rate5 is not None and (1 + land_rate5 / 100) > 0:
+        land_annual = round(((1 + land_rate5 / 100) ** (1 / 5) - 1) * 100, 1)  # 지가 연평균 상승률(CAGR)
+    return {"score": score, "label": label, "dev": dev, "upside": up, "land": land, "reason": reason,
+            "far": round(far) if far is not None else None, "legal_far": round(legal_far) if legal_far is not None else None,
+            "util": round(util) if util is not None else None, "headroom_far": round(headroom_far) if headroom_far is not None else None,
+            "cur_rent": round(cur_rent) if cur_rent else None, "mkt_rent": round(mkt_rent) if mkt_rent is not None else None,
+            "upside_pct": upside_pct,
+            "land_rate5": round(land_rate5) if land_rate5 is not None else None, "land_annual": land_annual}
 
 
 def _future_type(land: int | None, active: int | None, dev: int | None, up: int | None):

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { CountUp, BuildingArt } from "./ReportAssets";
 import { ScoreRadar, CompareBar } from "./ReportPrimitives";
 import { ReportMap, ZONE_COLOR } from "./ReportMap";
-import { useReportModel, AXIS, num, eok, man, py, type Seg } from "./reportModel";
+import { useReportModel, AXIS, num, eok, py, type Seg } from "./reportModel";
 
 /** 몰입형 스크롤 보고서 — 덱(/report)과 동일한 reportModel(값·문구·슬라이드 내용 단일 소스)을 쓰고 디자인만 다르게.
  * 내용(제목·설명·표시 항목·의견·서술)은 덱과 100% 동일, 표현(다크 북엔드·스크롤·모션)만 다름. */
@@ -22,7 +22,7 @@ export function ReportStory() {
     sub, b, fair, rent, curRent, totalArea, avgPer, usedComps, comps, compMin, compMax,
     gLatest, nbhdGongsi, gTotal, roiFair, nbhdRoi, ut, officeApt, fut, useZone, mainUse,
     grade, score, gradeCol, shortAddr, opinions, conclusion,
-    SLIDES, summaryTail, basicInfo, gongsiMetrics, gongsiProse, rentMetrics, rentProse, rentNote,
+    SLIDES, summaryTail, basicInfo, gongsiMetrics, gongsiProse, rentMetrics, rentProse, rentNote, futureAxes,
   } = m;
   const SM = Object.fromEntries(SLIDES.map((s) => [s.key, s])) as Record<string, typeof SLIDES[number]>;
   const addr = shortAddr === "—" ? "매물 분석" : shortAddr;
@@ -259,18 +259,18 @@ export function ReportStory() {
         <h2 className="story-h">미래가치 <b style={{ color: "#6E56CF" }}>{fut?.label ?? "—"}</b></h2>
         {fut ? <>
           <p className="story-sub" style={{ maxWidth: 820 }}>{fut.reason}</p>
-          <div className="story-bars">
-            {[{ n: "개발여지", v: fut.dev, c: "#1e2a4a", s: `법정 용적률 대비 미사용분 (나지=최대)` },
-              { n: "임대 상향 여력", v: fut.upside, c: "#2b5aa8", s: rentMetricsUpsideSub(m) },
-              { n: "지가 상승 추세", v: fut.land, c: "#6E56CF", s: fut.land_rate5 != null ? `최근 5년 공시지가 ${fut.land_rate5 >= 0 ? "+" : ""}${fut.land_rate5}% 변동` : "지가 시계열 없음" }].map((x) => (
-              <div key={x.n}>
-                <div className="story-bar-t"><span className="n">{x.n}</span><span className="s" style={{ color: x.c }}>{x.v != null ? x.v : "—"}<span style={{ fontSize: ".55em", color: "#828a99" }}>{x.v != null ? "점" : ""}</span></span></div>
-                <div className="story-bar-track"><div className="story-bar-fill" style={{ background: x.c, transform: `scaleX(${shown[8] ? Math.max(x.v ?? 0, 2) / 100 : 0})` }} /></div>
-                <div className="story-bar-sub">{x.s}</div>
+          <div style={{ marginTop: "3vh", maxWidth: 760 }}>
+            {futureAxes.map((x, i) => (
+              <div key={x.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 20, padding: "16px 0", borderTop: i === 0 ? "none" : "1px solid #ececef" }}>
+                <div>
+                  <div style={{ fontSize: "clamp(15px,1.6vw,19px)", fontWeight: 700, color: "#1a1f2b" }}>{x.label}</div>
+                  <div style={{ fontSize: "clamp(12.5px,1.25vw,15px)", color: "#828a99", marginTop: 3 }}>{x.sub}</div>
+                </div>
+                <div style={{ fontSize: "clamp(26px,3vw,40px)", fontWeight: 800, color: x.c, lineHeight: 1, whiteSpace: "nowrap" }}>{x.value}</div>
               </div>
             ))}
           </div>
-          <p className="story-note" style={{ marginTop: "3vh" }}>※ 미래가치 = 개발여지(40%) + 임대 상향 여력(30%) + 지가 상승 추세(30%) 블렌드. 현재가치(적정가)와 별개의 상승 잠재력 지표입니다.</p>
+          <p className="story-note" style={{ marginTop: "3vh" }}>※ 미래가치 = 개발여지 + 임대 상향 여력 + 지가 상승 추세를 종합해 유형을 판정합니다. 현재가치(적정가)와 별개의 상승 잠재력 지표입니다.</p>
         </> : <p className="story-sub">미래가치 산정 데이터가 부족합니다.</p>}
       </section>
 
@@ -303,11 +303,6 @@ export function ReportStory() {
       </section>
     </div>
   );
-}
-
-function rentMetricsUpsideSub(m: ReturnType<typeof useReportModel>): string {
-  const rs = m.rs;
-  return rs?.cur_rent && rs?.mkt_rent ? `현재 ${man(rs.cur_rent)}만 → 주변 ${man(rs.mkt_rent)}만/월` : "주변 임대시세 대비";
 }
 
 /** 성격 키워드 밴드 — 중앙 양옆(다크). items=[{lab,val,extra,c}]. */

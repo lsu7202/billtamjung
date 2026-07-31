@@ -210,6 +210,23 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   ];
   const rentNote = "이 임대수익은 수익환원(연 임대수익 ÷ 자치구 환원율)으로 적정가에 반영됩니다. 주변 수익률은 반경 내 건물의 임대추정 ÷ 적정가 중앙값입니다.";
 
+  // ── 08 미래가치 — 점수 아닌 '실제 값'으로 설명 ──
+  const futureAxes = fut ? [
+    { key: "dev", label: "개발여지", c: "var(--navy)",
+      value: fut.headroom_far == null ? "—" : fut.headroom_far > 0 ? `+${fut.headroom_far}%p` : "여지 없음",
+      sub: fut.far != null && fut.legal_far != null
+        ? (fut.headroom_far! > 0 ? `현재 용적률 ${fut.far}% / 법정 ${fut.legal_far}% — 증축 여지` : `현재 용적률 ${fut.far}% · 법정 ${fut.legal_far}% (이미 초과)`)
+        : "용적률 정보 없음" },
+    { key: "upside", label: "임대 상향 여력", c: "var(--blue)",
+      value: fut.upside_pct == null ? "—" : `${fut.upside_pct >= 0 ? "+" : ""}${fut.upside_pct}%`,
+      sub: fut.cur_rent && fut.mkt_rent != null
+        ? `현재 ${man(fut.cur_rent)}만 → 주변시세 ${man(fut.mkt_rent)}만/월${Math.abs(fut.upside_pct ?? 0) < 3 ? " · 유사" : ""}`
+        : "주변 임대시세 대비" },
+    { key: "land", label: "지가 상승 추세", c: "var(--purple)",
+      value: fut.land_rate5 == null ? "—" : `${fut.land_rate5 >= 0 ? "+" : ""}${fut.land_rate5}%`,
+      sub: fut.land_rate5 == null ? "지가 시계열 없음" : `최근 5년 · 연평균 약 ${fut.land_annual ?? "—"}%` },
+  ] : [];
+
   const loading = (reportId != null && rq.isLoading) || (needLive && cq.isLoading) || (!!pk && bq.isLoading);
   const isError = cq.isError || rq.isError;
   const rno = reportId != null ? `BT-${new Date(rq.data?.created_at ?? "2026-01-01").getFullYear()}-${String(reportId).padStart(6, "0")}` : "미리보기";
@@ -223,6 +240,6 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     roiFair, rs, rFloors, rCurDep, perPyRent, upsidePct, nbhdRoi, topStrengths,
     ut, officeApt, fut, useZone, mainUse, grade, score, gradeCol, addr, shortAddr,
     opinions, conclusion, SLIDES, summaryRows, summaryTail, basicInfo,
-    gongsiMetrics, gongsiProse, rentMetrics, rentProse, rentNote,
+    gongsiMetrics, gongsiProse, rentMetrics, rentProse, rentNote, futureAxes,
   };
 }

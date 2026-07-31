@@ -59,9 +59,9 @@ export function ReportPage() {
     pk, sub, b, loading, isError, canDownload, rno, date,
     fair, rent, curRent, totalArea, avgPer, comps, moreCount, avgPerNow,
     gLatest, gTotal, nbhdGongsi, gmult, compMin, compMax,
-    roiFair, rs, nbhdRoi,
+    roiFair, nbhdRoi,
     ut, officeApt, fut, useZone, mainUse, grade, score, gradeCol, shortAddr, opinions, conclusion,
-    SLIDES: SLIDE_META, summaryRows, summaryTail, basicInfo, gongsiMetrics, gongsiProse, rentMetrics, rentProse, rentNote,
+    SLIDES: SLIDE_META, summaryRows, summaryTail, basicInfo, gongsiMetrics, gongsiProse, rentMetrics, rentProse, rentNote, futureAxes,
   } = m;
   const gc = (s: number) => s >= 70 ? "var(--blue)" : "var(--rmuted)";
   const SM = Object.fromEntries(SLIDE_META.map((s) => [s.key, s])) as Record<string, typeof SLIDE_META[number]>;
@@ -333,47 +333,22 @@ export function ReportPage() {
         title={SM.future.title} desc={SM.future.desc}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.8cqw", width: "100%", height: "100%", justifyContent: "center" }}>
           {fut && fut.label ? <>
-            <div style={{ display: "flex", gap: "2.4cqw", alignItems: "center", minHeight: 0 }}>
-              {/* 좌: 미래가치 유형(성격) + 구성 요약 */}
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "1.3cqw" }}>
+            <div style={{ display: "flex", gap: "2.8cqw", alignItems: "center", minHeight: 0 }}>
+              {/* 좌: 미래가치 유형 */}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 <div className="rs-pop" style={{ ["--d" as string]: "150ms" }}>
                   <div style={{ fontSize: "1.1cqw", color: "var(--rmuted)", fontWeight: 700 }}>미래가치 유형</div>
-                  <div style={{ fontSize: "3cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.1 }}>{fut.label}</div>
-                  <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)", marginTop: ".4cqw", lineHeight: 1.55 }}>{fut.reason}</div>
-                </div>
-                {/* 구성 요약 — 기본 상승(지가) + 추가 여력(개발·임대) */}
-                <div style={{ display: "flex", gap: "1cqw" }}>
-                  {[{ t: "기본 상승", v: fut.land_rate5 != null ? `지가 ${fut.land_rate5 >= 0 ? "+" : ""}${fut.land_rate5}%` : "—", s: "최근 5년 공시지가" },
-                    { t: "추가 여력", v: Math.max(fut.dev ?? 0, fut.upside ?? 0) >= 45 ? "있음" : Math.max(fut.dev ?? 0, fut.upside ?? 0) >= 20 ? "일부" : "제한적", s: "개발·임대" }].map((x) => (
-                    <div key={x.t} style={{ flex: 1, background: "var(--rbg, #f6f7f9)", borderRadius: ".6cqw", padding: ".7cqw .9cqw" }}>
-                      <div style={{ fontSize: ".85cqw", color: "var(--rmuted)", fontWeight: 700 }}>{x.t}</div>
-                      <div style={{ fontSize: "1.35cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.2 }}>{x.v}</div>
-                      <div style={{ fontSize: ".78cqw", color: "var(--rmuted)" }}>{x.s}</div>
-                    </div>
-                  ))}
+                  <div style={{ fontSize: "3.2cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.1 }}>{fut.label}</div>
+                  <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)", marginTop: ".5cqw", lineHeight: 1.6 }}>{fut.reason}</div>
                 </div>
               </div>
-              {/* 우: 2축 상세 */}
-              <div style={{ flex: 1.3, display: "flex", flexDirection: "column", justifyContent: "center", gap: "1.4cqw" }}>
-                {[{ k: "개발여지", v: fut.dev, c: "var(--navy)",
-                    sub: `활용률 ${ut?.util != null ? `${ut.util}%` : "—"} · 법정 용적률 대비 미사용분 (나지=최대)` },
-                  { k: "임대 상향 여력", v: fut.upside, c: "var(--blue)",
-                    sub: rs && rs.cur_rent && rs.mkt_rent
-                      ? `현재 ${Math.round(rs.cur_rent / 1e4).toLocaleString()}만 → 주변시세 ${Math.round(rs.mkt_rent / 1e4).toLocaleString()}만/월`
-                      : "주변 임대시세 대비 상향분" },
-                  { k: "지가 상승 추세", v: fut.land, c: "var(--purple)",
-                    sub: fut.land_rate5 != null
-                      ? `최근 5년 공시지가 ${fut.land_rate5 >= 0 ? "+" : ""}${fut.land_rate5}% 변동`
-                      : "지가 시계열 데이터 없음" }].map((x) => (
-                  <div key={x.k}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: ".35cqw" }}>
-                      <span style={{ fontSize: "1.15cqw", fontWeight: 700, color: "var(--navy)" }}>{x.k}</span>
-                      <span style={{ fontSize: "1.6cqw", fontWeight: 800, color: x.c }}>{x.v != null ? x.v : "—"}<span style={{ fontSize: ".9cqw", color: "var(--rmuted)", fontWeight: 700 }}>{x.v != null ? "점" : ""}</span></span>
-                    </div>
-                    <div style={{ height: ".9cqw", background: "var(--rl)", borderRadius: "1cqw", overflow: "hidden" }}>
-                      <div className="rs-fade" style={{ width: `${Math.max(x.v ?? 0, 2)}%`, height: "100%", background: x.c, borderRadius: "1cqw", ["--d" as string]: "550ms" }} />
-                    </div>
-                    <div style={{ fontSize: ".85cqw", color: "var(--rmuted)", marginTop: ".3cqw" }}>{x.sub}</div>
+              {/* 우: 3축 실제 값(점수 아님) */}
+              <div style={{ flex: 1.25, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                {futureAxes.map((x, i) => (
+                  <div key={x.key} className="rs-fade" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1cqw", padding: ".9cqw 0", borderBottom: i < 2 ? "1px solid var(--rl)" : "none", ["--d" as string]: `${300 + i * 130}ms` }}>
+                    <div><div style={{ fontSize: "1.2cqw", fontWeight: 700, color: "var(--navy)" }}>{x.label}</div>
+                      <div style={{ fontSize: ".88cqw", color: "var(--rmuted)", marginTop: ".2cqw" }}>{x.sub}</div></div>
+                    <div style={{ fontSize: "2.4cqw", fontWeight: 800, color: x.c, lineHeight: 1, whiteSpace: "nowrap" }}>{x.value}</div>
                   </div>
                 ))}
               </div>

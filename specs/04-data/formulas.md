@@ -319,6 +319,7 @@ F-11 자기자본수익률 = (현재 총임대료 − 대출이자) × 12 ÷ 자
    · 폴백: 자치구 지가변동률 누적팩터(master.land_adjust, yr=2020) → (adj−1)×100
 ```
 - 코드: `use_type.future_value()`·`land_trend_score()`·`_future_type()` (순수함수·demo 검증) · `generate_report._land_rate5()`(시계열/폴백 조회)·`_attach_future` 조립.
+- **표시 = 점수 아닌 실제 값**(2026-08-01): future_value가 far·legal_far·util·headroom_far(증축 여지 %p)·cur_rent·mkt_rent·upside_pct·land_rate5·land_annual(CAGR) 반환. 화면(덱 08·애니메이션)은 "여지 없음/현재 957%·법정 800%", "−0.2%", "+20%·연 3.8%"처럼 실측값으로 설명. 점수는 유형 판정 내부용.
 - 캘리브레이션 TBD: 40%/5년 컷·유형 임계(active 45·지가 35/15)는 서울 분포로 확정 예정.
 - 157-36 검증: 개발여지 0·임대상향 0·**지가상승 51(5년 +20%)** → **"안정 성장형"**(제한적 아님) = 개발·임대 여력 없어도 지가 상승으로 보유 시 안정적 성장(오독 방지).
 
