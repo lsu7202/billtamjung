@@ -98,6 +98,74 @@ class Filters(BaseModel):
     gongsi_max: int | None = None
     age_min: int | None = None               # 연식(년) — 사용승인일 기준
     age_max: int | None = None
+    # ── 추가 마스터 컬럼 ──
+    parcel_area_min: float | None = None     # 토지면적(㎡)
+    parcel_area_max: float | None = None
+    far_area_min: float | None = None        # 용적률산정용연면적(㎡)
+    far_area_max: float | None = None
+    remodel_years_min: int | None = None     # 대수선 경과연수
+    remodel_years_max: int | None = None
+    legal_bcr_min: float | None = None       # 법정건폐율(%)
+    legal_bcr_max: float | None = None
+    legal_far_min: float | None = None       # 법정용적률(%)
+    legal_far_max: float | None = None
+    bcr_slack_min: float | None = None       # 건폐율 여유분(%p)
+    bcr_slack_max: float | None = None
+    far_slack_min: float | None = None       # 용적률 여유분(%p)
+    far_slack_max: float | None = None
+    # ── classified 계산값(매매가·수익률·평단가·공시·실거래·집계) ──
+    price_min: int | None = None             # 매매가(원)
+    price_max: int | None = None
+    roi_min: float | None = None             # 수익률 만실(%)
+    roi_max: float | None = None
+    roi_exvac_min: float | None = None       # 수익률 공실제외(%)
+    roi_exvac_max: float | None = None
+    pp_land_min: int | None = None           # 평단가 대지(원/평)
+    pp_land_max: int | None = None
+    pp_total_min: int | None = None          # 평단가 연면적(원/평)
+    pp_total_max: int | None = None
+    deposit_total_min: int | None = None     # 총보증금(원)
+    deposit_total_max: int | None = None
+    rent_total_min: int | None = None        # 총임대료(월, 원)
+    rent_total_max: int | None = None
+    mgmt_total_min: int | None = None        # 총관리비(월, 원)
+    mgmt_total_max: int | None = None
+    vacant: str | None = None                # 총공실 있음/없음
+    gongsi_total_min: int | None = None      # 공시지가 총액(원)
+    gongsi_total_max: int | None = None
+    gongsi_ratio_min: float | None = None    # 총공시/매매가(%)
+    gongsi_ratio_max: float | None = None
+    gongsi_up5_min: float | None = None      # 공시 상승률 5년(%)
+    gongsi_up5_max: float | None = None
+    gongsi_up10_min: float | None = None     # 공시 상승률 10년(%)
+    gongsi_up10_max: float | None = None
+    sale_pnl_min: float | None = None        # 실거래손익(%)
+    sale_pnl_max: float | None = None
+    sale_count_min: int | None = None        # 실거래횟수
+    sale_count_max: int | None = None
+    float_pops: list[str] | None = None      # 유동인구 등급(proxy)
+    # ── 업무(app.listings 오버레이) ──
+    statuses: list[str] | None = None        # 진행상태
+    urgencies: list[str] | None = None       # 긴급도
+    grades: list[str] | None = None          # 등급
+    ipjis: list[str] | None = None           # 입지
+    owner_types: list[str] | None = None     # 소유자타입
+    relations: list[str] | None = None       # 관계
+    cooperations: list[str] | None = None    # 협조도
+    kindnesses: list[str] | None = None      # 친절도
+    building_uses: list[str] | None = None    # 건물용도(활용)
+    meongdos: list[str] | None = None        # 명도
+    use_changes: list[str] | None = None     # 용도변경
+    myeolsils: list[str] | None = None       # 멸실
+    nohudos: list[str] | None = None         # 노후도
+    assignees: list[int] | None = None       # 담당자(account_id)
+    owner_name: str | None = None            # 소유자명(부분일치)
+    listing_no: str | None = None            # 매물번호(부분일치)
+    intent: str | None = None                # 매수의향서 원함/원치않음
+    has_phone: str | None = None             # 전화번호 있음/없음
+    has_photo: str | None = None             # 사진 있음/없음
+    received_from: str | None = None         # 접수일 YYYY-MM-DD
+    received_to: str | None = None
 
 
 class SearchIn(BaseModel):
@@ -151,117 +219,241 @@ async def parcel_for_building(building_pk: str, _: CurrentUser = Depends(current
     return {"polygon": json.loads(gj) if gj else None}
 
 
-def _filter_sql(f: Filters, args: list) -> str:
-    """속성 필터 → WHERE 절. args에 파라미터 추가."""
-    conds = []
-    def add(cond: str, val):
+def _filter_sql(f: Filters, args: list) -> tuple[str, str]:
+    """속성 필터 → (마스터 WHERE절, 외부 WHERE절). 마스터=classified 내부(b.·조인) / 외부=classified 계산값 필터.
+    반환 두 절 모두 앞에 ' AND '가 붙어 바로 이어붙이기 가능(빈 문자열이면 없음)."""
+    m: list[str] = []   # classified 내부(b. 컬럼·조인 l.)
+    o: list[str] = []   # 외부(classified SELECT 계산값 별칭)
+
+    def add(lst, cond, val):
         args.append(val)
-        conds.append(cond.format(i=len(args)))
-    def rng(col: str, lo, hi):
-        if lo is not None: add(f"b.{col} >= ${{i}}", lo)
-        if hi is not None: add(f"b.{col} <= ${{i}}", hi)
-    def anyof(col: str, vals):
-        if vals: add(f"b.{col} = ANY(${{i}})", vals)
+        lst.append(cond.format(i=len(args)))
+    def rng(lst, col, lo, hi):
+        if lo is not None: add(lst, f"{col} >= ${{i}}", lo)
+        if hi is not None: add(lst, f"{col} <= ${{i}}", hi)
+    def anyof(lst, col, vals):
+        if vals: add(lst, f"{col} = ANY(${{i}})", vals)
 
+    # ── 마스터(b.) — classified WHERE ──
     if f.bjd_code:
-        add("b.bjd_code LIKE ${i} || '%'", f.bjd_code)
-    anyof("use_zone", f.use_zones)
-    anyof("jimok", f.jimoks)
-    anyof("road_frontage", f.road_frontages)
-    anyof("shape", f.shapes)
-    anyof("slope", f.slopes)
-    anyof("land_use", f.land_uses)
-    anyof("main_use", f.main_uses)
+        add(m, "b.bjd_code LIKE ${i} || '%'", f.bjd_code)
+    anyof(m, "b.use_zone", f.use_zones)
+    anyof(m, "b.jimok", f.jimoks)
+    anyof(m, "b.road_frontage", f.road_frontages)
+    anyof(m, "b.shape", f.shapes)
+    anyof(m, "b.slope", f.slopes)
+    anyof(m, "b.land_use", f.land_uses)
+    anyof(m, "b.main_use_name", f.main_uses)   # UI=주용도명 · DB main_use_name과 직접 일치(코드매핑 불필요)
     if f.etc_use:
-        add("b.etc_use ILIKE '%' || ${i} || '%'", f.etc_use)
-    rng("land_area", f.land_area_min, f.land_area_max)
-    rng("total_area", f.total_area_min, f.total_area_max)
-    rng("build_area", f.build_area_min, f.build_area_max)
-    rng("floors_above", f.floors_above_min, f.floors_above_max)
-    rng("floors_below", f.floors_below_min, f.floors_below_max)
-    rng("bcr", f.bcr_min, f.bcr_max)
-    rng("far", f.far_min, f.far_max)
-    rng("elevator", f.elevator_min, f.elevator_max)
-    rng("parking", f.parking_min, f.parking_max)
+        add(m, "b.etc_use ILIKE '%' || ${i} || '%'", f.etc_use)
+    rng(m, "b.land_area", f.land_area_min, f.land_area_max)
+    rng(m, "b.total_area", f.total_area_min, f.total_area_max)
+    rng(m, "b.build_area", f.build_area_min, f.build_area_max)
+    rng(m, "b.parcel_area", f.parcel_area_min, f.parcel_area_max)
+    rng(m, "b.far_area", f.far_area_min, f.far_area_max)
+    rng(m, "b.floors_above", f.floors_above_min, f.floors_above_max)
+    rng(m, "b.floors_below", f.floors_below_min, f.floors_below_max)
+    rng(m, "b.bcr", f.bcr_min, f.bcr_max)
+    rng(m, "b.far", f.far_min, f.far_max)
+    rng(m, "b.elevator", f.elevator_min, f.elevator_max)
+    rng(m, "b.parking", f.parking_min, f.parking_max)
     if f.station_dist_max is not None:
-        add("b.station_dist <= ${i}", f.station_dist_max)
-    rng("last_sale_price", f.last_sale_min, f.last_sale_max)
-    # 실거래일(최근 N년): last_sale_ym 'YYYYMM' ≥ 오늘−N년. NULL(실거래 없음)은 자동 제외.
+        add(m, "b.station_dist <= ${i}", f.station_dist_max)
+    rng(m, "b.last_sale_price", f.last_sale_min, f.last_sale_max)
     if f.last_sale_years_max is not None:
-        add("b.last_sale_ym >= to_char(CURRENT_DATE - make_interval(years => ${i}), 'YYYYMM')", f.last_sale_years_max)
+        add(m, "b.last_sale_ym >= to_char(CURRENT_DATE - make_interval(years => ${i}), 'YYYYMM')", f.last_sale_years_max)
     if f.last_sale_years_min is not None:
-        add("b.last_sale_ym <= to_char(CURRENT_DATE - make_interval(years => ${i}), 'YYYYMM')", f.last_sale_years_min)
-    rng("gongsi_latest", f.gongsi_min, f.gongsi_max)
-    # 연식(년): approval_ymd 기준. age≤max → 지은지 max년 이내 → approval_ymd ≥ 오늘-max년
+        add(m, "b.last_sale_ym <= to_char(CURRENT_DATE - make_interval(years => ${i}), 'YYYYMM')", f.last_sale_years_min)
+    rng(m, "b.gongsi_latest", f.gongsi_min, f.gongsi_max)
     if f.age_max is not None:
-        add("b.approval_ymd >= (CURRENT_DATE - make_interval(years => ${i}))", f.age_max)
+        add(m, "b.approval_ymd >= (CURRENT_DATE - make_interval(years => ${i}))", f.age_max)
     if f.age_min is not None:
-        add("b.approval_ymd <= (CURRENT_DATE - make_interval(years => ${i}))", f.age_min)
-    return (" AND " + " AND ".join(conds)) if conds else ""
+        add(m, "b.approval_ymd <= (CURRENT_DATE - make_interval(years => ${i}))", f.age_min)
+    if f.remodel_years_max is not None:
+        add(m, "b.remodel_ymd >= (CURRENT_DATE - make_interval(years => ${i}))", f.remodel_years_max)
+    if f.remodel_years_min is not None:
+        add(m, "b.remodel_ymd <= (CURRENT_DATE - make_interval(years => ${i}))", f.remodel_years_min)
+
+    # ── 외부(classified 계산값 별칭) ──
+    rng(o, "legal_bcr", f.legal_bcr_min, f.legal_bcr_max)
+    rng(o, "legal_far", f.legal_far_min, f.legal_far_max)
+    rng(o, "bcr_slack", f.bcr_slack_min, f.bcr_slack_max)
+    rng(o, "far_slack", f.far_slack_min, f.far_slack_max)
+    rng(o, "price", f.price_min, f.price_max)
+    rng(o, "roi", f.roi_min, f.roi_max)
+    rng(o, "roi_exvac", f.roi_exvac_min, f.roi_exvac_max)
+    rng(o, "pp_land", f.pp_land_min, f.pp_land_max)
+    rng(o, "pp_total", f.pp_total_min, f.pp_total_max)
+    rng(o, "deposit_total", f.deposit_total_min, f.deposit_total_max)
+    rng(o, "rent_total", f.rent_total_min, f.rent_total_max)
+    rng(o, "mgmt_total", f.mgmt_total_min, f.mgmt_total_max)
+    if f.vacant == "있음": o.append("vacant_cnt > 0")
+    elif f.vacant == "없음": o.append("COALESCE(vacant_cnt,0) = 0")
+    rng(o, "gongsi_total", f.gongsi_total_min, f.gongsi_total_max)
+    rng(o, "gongsi_ratio", f.gongsi_ratio_min, f.gongsi_ratio_max)
+    rng(o, "gongsi_up5", f.gongsi_up5_min, f.gongsi_up5_max)
+    rng(o, "gongsi_up10", f.gongsi_up10_min, f.gongsi_up10_max)
+    rng(o, "sale_pnl", f.sale_pnl_min, f.sale_pnl_max)
+    rng(o, "sale_cnt", f.sale_count_min, f.sale_count_max)
+    anyof(o, "float_pop", f.float_pops)
+    # 업무(listings) — classified가 별칭으로 SELECT
+    anyof(o, "status", f.statuses)
+    anyof(o, "urgency", f.urgencies)
+    anyof(o, "grade", f.grades)
+    anyof(o, "ipji", f.ipjis)
+    anyof(o, "owner_type", f.owner_types)
+    anyof(o, "relation", f.relations)
+    anyof(o, "cooperation", f.cooperations)
+    anyof(o, "kindness", f.kindnesses)
+    anyof(o, "building_use", f.building_uses)
+    anyof(o, "meongdo", f.meongdos)
+    anyof(o, "use_change", f.use_changes)
+    anyof(o, "myeolsil", f.myeolsils)
+    anyof(o, "nohudo", f.nohudos)
+    if f.assignees:
+        add(o, "assignee_account_id = ANY(${i})", f.assignees)
+    if f.owner_name:
+        add(o, "owner_name ILIKE '%' || ${i} || '%'", f.owner_name)
+    if f.listing_no:
+        add(o, "listing_no ILIKE '%' || ${i} || '%'", f.listing_no)
+    if f.intent:
+        add(o, "intent = ${i}", f.intent)
+    if f.has_phone == "있음": o.append("(owner_phone IS NOT NULL AND owner_phone <> '')")
+    elif f.has_phone == "없음": o.append("(owner_phone IS NULL OR owner_phone = '')")
+    if f.has_photo == "있음": o.append("has_photo")
+    elif f.has_photo == "없음": o.append("NOT has_photo")
+    if f.received_from:
+        add(o, "received_on >= ${i}::date", f.received_from)
+    if f.received_to:
+        add(o, "received_on <= ${i}::date", f.received_to)
+
+    ms = (" AND " + " AND ".join(m)) if m else ""
+    os_ = (" AND " + " AND ".join(o)) if o else ""
+    return ms, os_
 
 
-def _build_base(body: SearchIn, user: CurrentUser) -> tuple[str, list]:
-    """3열 분류 CTE(classified) + args 구성 — search(페이징)·pins(전체) 공용."""
+def _build_base(body: SearchIn, user: CurrentUser) -> tuple[str, list, str]:
+    """raw(조인·원자료) → classified(계산값) CTE + args. 반환 (base, args, outer_sql).
+    마스터 필터=raw WHERE / 계산값 필터=outer_sql(호출부가 classified SELECT에 이어붙임)."""
     args: list = [user.team_id]
     poly_sql = ""
     if body.polygon:
         args.append(json.dumps(body.polygon))
         poly_sql = f" AND ST_Within(b.geom, ST_MakeValid(ST_GeomFromGeoJSON(${len(args)}::text)))"
-    filt_sql = _filter_sql(body.filters, args)
+    master_filt, outer_sql = _filter_sql(body.filters, args)
     args.append(user.account_id)   # 즐겨찾기 조인용
     acct_i = len(args)
     fav_join = f"LEFT JOIN app.favorites fv ON fv.building_pk=b.building_pk AND fv.account_id=${acct_i}"
     fav_where = "AND fv.building_pk IS NOT NULL" if body.fav_only else ""
 
+    # 유동인구 proxy = (도로접면 점수 + 역거리 점수)/2 버킷 — value_score.float_pop_label과 동일.
+    road_score = ("CASE b.road_frontage WHEN '광대소각' THEN 90 WHEN '광대세각' THEN 83 WHEN '광대로한면' THEN 76"
+                  " WHEN '중로각지' THEN 69 WHEN '중로한면' THEN 54 WHEN '소로각지' THEN 51 WHEN '소로한면' THEN 32"
+                  " WHEN '세로각지(가)' THEN 28 WHEN '세로한면(가)' THEN 17 WHEN '세로각지(불)' THEN 10"
+                  " WHEN '세로한면(불)' THEN 3 WHEN '맹지' THEN 0 ELSE 0 END")
+    # 용도지역별 법정 건폐율/용적률(서울시 도시계획조례 표준) — 여유분 계산용.
+    legal_bcr = ("CASE b.use_zone WHEN '제1종전용주거지역' THEN 50 WHEN '제2종전용주거지역' THEN 40"
+                 " WHEN '제1종일반주거지역' THEN 60 WHEN '제2종일반주거지역' THEN 60 WHEN '제3종일반주거지역' THEN 50"
+                 " WHEN '준주거지역' THEN 60 WHEN '중심상업지역' THEN 60 WHEN '일반상업지역' THEN 60"
+                 " WHEN '근린상업지역' THEN 60 WHEN '유통상업지역' THEN 60 WHEN '전용공업지역' THEN 60"
+                 " WHEN '일반공업지역' THEN 60 WHEN '준공업지역' THEN 60 WHEN '보전녹지지역' THEN 20"
+                 " WHEN '생산녹지지역' THEN 20 WHEN '자연녹지지역' THEN 20 ELSE NULL END")
+    legal_far = ("CASE b.use_zone WHEN '제1종전용주거지역' THEN 100 WHEN '제2종전용주거지역' THEN 120"
+                 " WHEN '제1종일반주거지역' THEN 150 WHEN '제2종일반주거지역' THEN 200 WHEN '제3종일반주거지역' THEN 250"
+                 " WHEN '준주거지역' THEN 400 WHEN '중심상업지역' THEN 1000 WHEN '일반상업지역' THEN 800"
+                 " WHEN '근린상업지역' THEN 600 WHEN '유통상업지역' THEN 600 WHEN '전용공업지역' THEN 200"
+                 " WHEN '일반공업지역' THEN 200 WHEN '준공업지역' THEN 400 WHEN '보전녹지지역' THEN 80"
+                 " WHEN '생산녹지지역' THEN 100 WHEN '자연녹지지역' THEN 100 ELSE NULL END")
+    station_score = ("CASE WHEN b.station_dist IS NULL THEN 0"
+                     " WHEN GREATEST(0, b.station_dist-100) <= 10 THEN 100 WHEN GREATEST(0, b.station_dist-100) <= 80 THEN 90"
+                     " WHEN GREATEST(0, b.station_dist-100) <= 160 THEN 85 WHEN GREATEST(0, b.station_dist-100) <= 240 THEN 78"
+                     " WHEN GREATEST(0, b.station_dist-100) <= 320 THEN 68 WHEN GREATEST(0, b.station_dist-100) <= 400 THEN 58"
+                     " WHEN GREATEST(0, b.station_dist-100) <= 480 THEN 40 WHEN GREATEST(0, b.station_dist-100) <= 560 THEN 28"
+                     " WHEN GREATEST(0, b.station_dist-100) <= 640 THEN 18 WHEN GREATEST(0, b.station_dist-100) <= 720 THEN 10"
+                     " WHEN GREATEST(0, b.station_dist-100) <= 800 THEN 4 ELSE 0 END")
+
     base = f"""
-      WITH team_rent AS (   -- 팀 층별임대 합계(수익률 추정용, S01 §3.5)
-        SELECT building_pk, SUM(rent) AS monthly_rent
-        FROM app.floor_rents
-        WHERE team_id = $1 AND deleted_at IS NULL AND rent IS NOT NULL
-        GROUP BY building_pk
+      WITH rent_agg AS (   -- 팀 층별임대 집계(임대료·보증금·관리비·공실)
+        SELECT building_pk, SUM(rent) AS rent_total, SUM(deposit) AS deposit_total,
+               SUM(maintenance) AS mgmt_total,
+               SUM(rent) FILTER (WHERE is_vacant IS NOT TRUE) AS rent_nonvac,
+               count(*) FILTER (WHERE is_vacant) AS vacant_cnt
+        FROM app.floor_rents WHERE team_id = $1 AND deleted_at IS NULL GROUP BY building_pk
       ),
-      sale_ov AS (     -- 팀 수기 매매가(sale_price 오버레이) — 매매가 소스(실거래 아님)
+      sale_ov AS (     -- 팀 수기 매매가(sale_price 오버레이)
         SELECT target_id AS building_pk, value::bigint AS sale_price
         FROM app.overlays
         WHERE team_id = $1 AND target_type = 'building' AND field = 'sale_price' AND value ~ '^[0-9]+$'
       ),
-      classified AS (
-        SELECT b.building_pk, b.addr, b.land_area, b.total_area,
+      sales_agg AS (   -- 실거래 횟수·최근 2건(손익)
+        SELECT building_pk, count(*) AS sale_cnt,
+               (array_agg(price ORDER BY contract_ym DESC))[1] AS p_last,
+               (array_agg(price ORDER BY contract_ym DESC))[2] AS p_prev
+        FROM master.sales_history WHERE price > 0 GROUP BY building_pk
+      ),
+      photo_ex AS (SELECT DISTINCT building_pk FROM app.photos),
+      raw AS (
+        SELECT b.building_pk, b.addr, b.land_area, b.total_area, b.gongsi_latest,
                b.floors_above, b.floors_below, b.use_zone,
                ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat,
                b.last_sale_price, b.last_sale_ym,
-               se.sale_est,
-               l.assignee_account_id,
-               (fv.building_pk IS NOT NULL) AS is_fav,
-               CASE
-                 WHEN l.assignee_account_id IS NOT NULL THEN 'mine'
-                 ELSE 'normal'
-               END AS col,
-               -- 매매가 = 팀 수기값(sale_price 오버레이), 없으면 빌탐정 적정가(마스터 기본). 체인: 매매가 기본=적정가.
-               COALESCE(so.sale_price, se.sale_est) AS price,
-               (so.sale_price IS NULL) AS price_is_est,   -- 매매가 미입력 → 적정가 대체(표시 명시용)
-               -- 수익률 = 연임대(팀 층별임대 오버레이, 없으면 마스터 추정 rent_est) ÷ 매매가(=적정가 기본) × 100.
-               -- 수익률은 매매가 추종 — 적정가 직접 분모 아님(매매가 기본값이 적정가일 뿐).
-               CASE
-                 WHEN COALESCE(tr.monthly_rent * 12.0, re.annual_rent) > 0
-                      AND COALESCE(so.sale_price, se.sale_est) > 0
-                 THEN round(COALESCE(tr.monthly_rent * 12.0, re.annual_rent)
-                            / COALESCE(so.sale_price, se.sale_est) * 100, 2)
-                 ELSE NULL
-               END AS roi
+               so.sale_price, se.sale_est, re.annual_rent,
+               ra.rent_total, ra.deposit_total, ra.mgmt_total, ra.rent_nonvac, ra.vacant_cnt,
+               l.assignee_account_id, l.status, l.urgency, l.grade, l.ipji, l.owner_type,
+               l.relation, l.cooperation, l.kindness, l.building_use, l.meongdo, l.use_change,
+               l.myeolsil, l.nohudo, l.owner_phone, l.owner_name, l.listing_no, l.intent, l.received_on,
+               sa.sale_cnt, sa.p_last, sa.p_prev,
+               (ph.building_pk IS NOT NULL) AS has_photo,
+               g5.price AS g5, g10.price AS g10, b.bcr, b.far,
+               {legal_bcr} AS legal_bcr, {legal_far} AS legal_far,
+               {road_score} AS road_score, {station_score} AS station_score,
+               (fv.building_pk IS NOT NULL) AS is_fav
         FROM master.buildings b
         LEFT JOIN sale_ov so ON so.building_pk = b.building_pk
         LEFT JOIN master.building_sale_est se ON se.building_pk = b.building_pk
         LEFT JOIN master.building_rent_est re ON re.building_pk = b.building_pk
-        LEFT JOIN team_rent tr ON tr.building_pk = b.building_pk
-        LEFT JOIN app.listings l
-          ON l.building_pk = b.building_pk AND l.team_id = $1
-             AND l.assignee_account_id IS NOT NULL
+        LEFT JOIN rent_agg ra ON ra.building_pk = b.building_pk
+        LEFT JOIN app.listings l ON l.building_pk = b.building_pk AND l.team_id = $1
+        LEFT JOIN sales_agg sa ON sa.building_pk = b.building_pk
+        LEFT JOIN photo_ex ph ON ph.building_pk = b.building_pk
+        LEFT JOIN master.gongsi_series g5 ON g5.pnu = b.pnu AND g5.year = EXTRACT(YEAR FROM CURRENT_DATE)::int - 5
+        LEFT JOIN master.gongsi_series g10 ON g10.pnu = b.pnu AND g10.year = EXTRACT(YEAR FROM CURRENT_DATE)::int - 10
         {fav_join}
-        WHERE TRUE {poly_sql} {filt_sql} {fav_where}
+        WHERE TRUE {poly_sql} {master_filt} {fav_where}
+      ),
+      classified AS (
+        SELECT building_pk, addr, land_area, total_area, floors_above, floors_below, use_zone,
+               lng, lat, last_sale_price, last_sale_ym, sale_est, assignee_account_id, is_fav,
+               status, urgency, grade, ipji, owner_type, relation, cooperation, kindness,
+               building_use, meongdo, use_change, myeolsil, nohudo,
+               owner_phone, owner_name, listing_no, intent, received_on, has_photo,
+               COALESCE(sale_cnt, 0) AS sale_cnt,
+               CASE WHEN assignee_account_id IS NOT NULL THEN 'mine' ELSE 'normal' END AS col,
+               COALESCE(sale_price, sale_est) AS price,
+               (sale_price IS NULL) AS price_is_est,
+               CASE WHEN COALESCE(rent_total * 12.0, annual_rent) > 0 AND COALESCE(sale_price, sale_est) > 0
+                    THEN round(COALESCE(rent_total * 12.0, annual_rent) / COALESCE(sale_price, sale_est) * 100, 2) END AS roi,
+               CASE WHEN COALESCE(rent_nonvac * 12.0, annual_rent) > 0 AND COALESCE(sale_price, sale_est) > 0
+                    THEN round(COALESCE(rent_nonvac * 12.0, annual_rent) / COALESCE(sale_price, sale_est) * 100, 2) END AS roi_exvac,
+               deposit_total, rent_total, mgmt_total, vacant_cnt,
+               CASE WHEN land_area > 0 THEN round(COALESCE(sale_price, sale_est) * 3.305785 / land_area) END AS pp_land,
+               CASE WHEN total_area > 0 THEN round(COALESCE(sale_price, sale_est) * 3.305785 / total_area) END AS pp_total,
+               (gongsi_latest * land_area) AS gongsi_total,
+               CASE WHEN COALESCE(sale_price, sale_est) > 0 THEN round((gongsi_latest * land_area) / COALESCE(sale_price, sale_est)::numeric * 100, 2) END AS gongsi_ratio,
+               CASE WHEN g5 > 0 THEN round((gongsi_latest - g5) / g5::numeric * 100, 2) END AS gongsi_up5,
+               CASE WHEN g10 > 0 THEN round((gongsi_latest - g10) / g10::numeric * 100, 2) END AS gongsi_up10,
+               CASE WHEN p_prev > 0 THEN round((p_last - p_prev) / p_prev::numeric * 100, 2) END AS sale_pnl,
+               CASE WHEN (road_score + station_score) / 2.0 >= 80 THEN '매우높음'
+                    WHEN (road_score + station_score) / 2.0 >= 60 THEN '높음'
+                    WHEN (road_score + station_score) / 2.0 >= 40 THEN '보통'
+                    WHEN (road_score + station_score) / 2.0 >= 20 THEN '낮음' ELSE '매우낮음' END AS float_pop,
+               legal_bcr, legal_far,
+               CASE WHEN legal_bcr IS NOT NULL AND bcr IS NOT NULL THEN GREATEST(0, legal_bcr - bcr) END AS bcr_slack,
+               CASE WHEN legal_far IS NOT NULL AND far IS NOT NULL THEN GREATEST(0, legal_far - far) END AS far_slack
+        FROM raw
       )
     """
-    return base, args
+    return base, args, outer_sql
 
 
 @router.post("")
@@ -271,7 +463,7 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
     분류(§3.4·상태 종속): 내매물 = 팀 담당자 지정 · 일반 = 나머지.
     매매가(§3.5): 내매물=팀 수기 sale_price / 일반=NULL(후순위).
     """
-    base, args = _build_base(body, user)
+    base, args, outer_sql = _build_base(body, user)
     # 정렬 = 매매가순 / 수익률순만(S01 §3.3). 값 없는 항목은 후순위(NULLS LAST).
     order = {
         "price": "price DESC NULLS LAST, addr",
@@ -282,7 +474,7 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
         off = (page - 1) * body.per_page
         rows = await pool().fetch(
             base + f"""SELECT *, count(*) OVER() AS total FROM classified
-                       WHERE col = '{name}' ORDER BY {order}
+                       WHERE col = '{name}' {outer_sql} ORDER BY {order}
                        LIMIT {body.per_page} OFFSET {off}""",
             *args,
         )
@@ -304,11 +496,11 @@ async def pins(body: SearchIn, user: CurrentUser = Depends(current_user)):
     """지도 핀 — 페이징 없이 조건에 맞는 매물(경량: 좌표·분류·가격).
     프론트가 뷰포트 컬링(화면 안 핀만 렌더)하므로 넉넉히 반환하되, 3000개 상한(응답 크기·극단 방지).
     가격 있는 매물 우선(NULLS LAST) → 상한에 걸려도 유의미한 핀부터."""
-    base, args = _build_base(body, user)
+    base, args, outer_sql = _build_base(body, user)
     rows = await pool().fetch(
-        base + """SELECT building_pk, addr, lng, lat, col, price, roi,
+        base + f"""SELECT building_pk, addr, lng, lat, col, price, roi,
                          last_sale_price, sale_est, is_fav
-                  FROM classified WHERE lng IS NOT NULL
+                  FROM classified WHERE lng IS NOT NULL {outer_sql}
                   ORDER BY price DESC NULLS LAST, building_pk LIMIT 3000""",
         *args,
     )

@@ -195,7 +195,7 @@ function Control({ f, value, onChange, unit }: { f: Field; value: Val | undefine
 // 용도지역: 모달 짧은형 → 마스터 풀형("...지역"). 도시지역미지정=미지정.
 const ZONE_MAP: Record<string, string> = { "도시지역미지정": "미지정", "전용주거": "", "일반주거": "" };
 const toZone = (z: string) => (z in ZONE_MAP ? ZONE_MAP[z] : `${z}지역`);
-function toFilters(v: Values): AttrFilters {
+function toFilters(v: Values, members: { account_id: number; name: string }[] = []): AttrFilters {
   const sl = (label: string) => (v[label] as SliderVal | undefined) ?? {};
   const ms = (label: string) => (v[label] as string[] | undefined) ?? [];
   const area = (n?: number) => (n == null ? null : Math.round(n * PY));           // 평(native)→㎡
@@ -203,37 +203,73 @@ function toFilters(v: Values): AttrFilters {
   const man = (n?: number) => (n == null ? null : Math.round(n * 1e4));           // 만원→원
   const num = (n?: number) => n ?? null;
   const arr = (a: string[]) => (a.length ? a : null);
-  const la = sl("대지면적"), ta = sl("연면적");
+  const txt = (label: string) => ((v[label] as string | undefined)?.trim() || null);
+  const seg1 = (label: string) => { const a = ms(label); return a.length === 1 ? a[0] : null; };  // 있음/없음 단일 선택만
+  const la = sl("대지면적"), ta = sl("연면적"), ba = sl("건축면적"), pa = sl("토지면적"), fla = sl("용적률산정용연면적");
   const fa = sl("규모 지상"), fb = sl("규모 지하"), bc = sl("건폐율"), fr = sl("용적률");
-  const st = sl("역과의거리"), price = sl("실거래가"), gongsi = sl("최신 공시지가"), age = sl("사용승인일");
-  const deal = sl("실거래일");
-  const ba = sl("건축면적"), el = sl("엘리베이터"), pkg = sl("주차장");
-  const etc = (v["기타용도"] as string | undefined)?.trim();
+  const lbc = sl("법정건폐율"), lfr = sl("법정용적률"), bslk = sl("건폐율 여유분"), fslk = sl("용적률 여유분");
+  const st = sl("역과의거리"), age = sl("사용승인일"), rm = sl("대수선 경과연수"), el = sl("엘리베이터"), pkg = sl("주차장");
+  const price = sl("매매가"), roi = sl("수익률(만실)"), roiv = sl("수익률(공실제외)");
+  const ppl = sl("평단가(대지)"), ppt = sl("평단가(연면적)");
+  const dep = sl("총보증금"), rent = sl("총임대료"), mgmt = sl("총관리비");
+  const realPrice = sl("실거래가"), deal = sl("실거래일"), pnl = sl("실거래손익"), scnt = sl("실거래횟수");
+  const gongsi = sl("최신 공시지가"), up5 = sl("공시지가 상승률 5년"), up10 = sl("공시지가 상승률 10년");
+  const gratio = sl("총공시지가/매매가"), gtot = sl("공시지가 기준"), recv = sl("접수일");
   const zones = ms("용도지역").map(toZone).filter(Boolean);
-  // 서버 필터 매핑 — 값이 DB(master.buildings)와 그대로 일치하는 필드(대조 확인).
-  // 용도지역만 toZone 변환. 주용도는 DB가 코드 저장이라 매핑 전까지 미연결.
+  const assignees = ms("담당자").map((nm) => members.find((m) => m.name === nm)?.account_id).filter((x): x is number => x != null);
   return {
-    use_zones: arr(zones),
-    jimoks: arr(ms("지목")),
-    land_uses: arr(ms("토지이용상황")),      // 섹터/디벨롭 선택값 = land_use 명
-    shapes: arr(ms("지형형상")),
-    road_frontages: arr(ms("도로접면")),
-    slopes: arr(ms("지세")),
+    use_zones: arr(zones), jimoks: arr(ms("지목")), land_uses: arr(ms("토지이용상황")),
+    shapes: arr(ms("지형형상")), road_frontages: arr(ms("도로접면")), slopes: arr(ms("지세")),
+    main_uses: arr(ms("주용도")),                          // DB main_use_name과 직접 일치
+    etc_use: txt("기타용도"),
     land_area_min: area(la.lo), land_area_max: area(la.hi),
     total_area_min: area(ta.lo), total_area_max: area(ta.hi),
     build_area_min: area(ba.lo), build_area_max: area(ba.hi),
+    parcel_area_min: area(pa.lo), parcel_area_max: area(pa.hi),
+    far_area_min: area(fla.lo), far_area_max: area(fla.hi),
     elevator_min: num(el.lo), elevator_max: num(el.hi),
     parking_min: num(pkg.lo), parking_max: num(pkg.hi),
-    etc_use: etc || null,
     floors_above_min: num(fa.lo), floors_above_max: num(fa.hi),
     floors_below_min: num(fb.lo), floors_below_max: num(fb.hi),
     bcr_min: num(bc.lo), bcr_max: num(bc.hi),
     far_min: num(fr.lo), far_max: num(fr.hi),
+    legal_bcr_min: num(lbc.lo), legal_bcr_max: num(lbc.hi),
+    legal_far_min: num(lfr.lo), legal_far_max: num(lfr.hi),
+    bcr_slack_min: num(bslk.lo), bcr_slack_max: num(bslk.hi),
+    far_slack_min: num(fslk.lo), far_slack_max: num(fslk.hi),
     station_dist_max: num(st.hi),
-    last_sale_min: eok(price.lo), last_sale_max: eok(price.hi),
-    last_sale_years_min: num(deal.lo), last_sale_years_max: num(deal.hi),
-    gongsi_min: man(gongsi.lo), gongsi_max: man(gongsi.hi),
     age_min: num(age.lo), age_max: num(age.hi),
+    remodel_years_min: num(rm.lo), remodel_years_max: num(rm.hi),
+    // 금액·수익
+    price_min: eok(price.lo), price_max: eok(price.hi),
+    roi_min: num(roi.lo), roi_max: num(roi.hi),
+    roi_exvac_min: num(roiv.lo), roi_exvac_max: num(roiv.hi),
+    pp_land_min: man(ppl.lo), pp_land_max: man(ppl.hi),
+    pp_total_min: man(ppt.lo), pp_total_max: man(ppt.hi),
+    deposit_total_min: man(dep.lo), deposit_total_max: man(dep.hi),
+    rent_total_min: man(rent.lo), rent_total_max: man(rent.hi),
+    mgmt_total_min: man(mgmt.lo), mgmt_total_max: man(mgmt.hi),
+    vacant: seg1("총공실"),
+    // 공시·실거래
+    gongsi_min: man(gongsi.lo), gongsi_max: man(gongsi.hi),
+    gongsi_up5_min: num(up5.lo), gongsi_up5_max: num(up5.hi),
+    gongsi_up10_min: num(up10.lo), gongsi_up10_max: num(up10.hi),
+    gongsi_ratio_min: num(gratio.lo), gongsi_ratio_max: num(gratio.hi),
+    gongsi_total_min: eok(gtot.lo), gongsi_total_max: eok(gtot.hi),
+    last_sale_min: eok(realPrice.lo), last_sale_max: eok(realPrice.hi),
+    last_sale_years_min: num(deal.lo), last_sale_years_max: num(deal.hi),
+    sale_pnl_min: num(pnl.lo), sale_pnl_max: num(pnl.hi),
+    sale_count_min: num(scnt.lo), sale_count_max: num(scnt.hi),
+    float_pops: arr(ms("유동인구")),
+    // 업무(listings)
+    statuses: arr(ms("진행상태")), urgencies: arr(ms("긴급도")), grades: arr(ms("등급")), ipjis: arr(ms("입지")),
+    owner_types: arr(ms("소유자타입")), relations: arr(ms("관계")), cooperations: arr(ms("협조도")), kindnesses: arr(ms("친절도")),
+    building_uses: arr(ms("건물용도")), meongdos: arr(ms("명도")), use_changes: arr(ms("용도변경")), myeolsils: arr(ms("멸실")),
+    assignees: assignees.length ? assignees : null,
+    owner_name: txt("소유자명"), listing_no: txt("매물번호"),
+    intent: seg1("매수의향서"), has_phone: seg1("전화번호"), has_photo: seg1("사진"),
+    received_from: recv.lo != null ? `${Math.round(recv.lo)}-01-01` : null,
+    received_to: recv.hi != null ? `${Math.round(recv.hi)}-12-31` : null,
   };
 }
 
@@ -386,7 +422,7 @@ export function FilterModal({
             <span className="applied">적용 조건 <b>{count}</b>개</span>
             <span className="sp" />
             <button className="cancel" onClick={onClose}>취소</button>
-            <button className="apply" onClick={() => { onApply({ values, regions, filters: toFilters(values), polygon: pgon }); onClose(); }}>적용</button>
+            <button className="apply" onClick={() => { onApply({ values, regions, filters: toFilters(values, membersQ.data ?? []), polygon: pgon }); onClose(); }}>적용</button>
           </div>
         </div>
       </div>

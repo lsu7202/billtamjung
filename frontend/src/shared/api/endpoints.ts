@@ -47,6 +47,36 @@ export interface AttrFilters {
   last_sale_years_min?: number | null; last_sale_years_max?: number | null;
   gongsi_min?: number | null; gongsi_max?: number | null;
   age_min?: number | null; age_max?: number | null;
+  parcel_area_min?: number | null; parcel_area_max?: number | null;
+  far_area_min?: number | null; far_area_max?: number | null;
+  remodel_years_min?: number | null; remodel_years_max?: number | null;
+  legal_bcr_min?: number | null; legal_bcr_max?: number | null;
+  legal_far_min?: number | null; legal_far_max?: number | null;
+  bcr_slack_min?: number | null; bcr_slack_max?: number | null;
+  far_slack_min?: number | null; far_slack_max?: number | null;
+  price_min?: number | null; price_max?: number | null;
+  roi_min?: number | null; roi_max?: number | null;
+  roi_exvac_min?: number | null; roi_exvac_max?: number | null;
+  pp_land_min?: number | null; pp_land_max?: number | null;
+  pp_total_min?: number | null; pp_total_max?: number | null;
+  deposit_total_min?: number | null; deposit_total_max?: number | null;
+  rent_total_min?: number | null; rent_total_max?: number | null;
+  mgmt_total_min?: number | null; mgmt_total_max?: number | null;
+  vacant?: string | null;
+  gongsi_total_min?: number | null; gongsi_total_max?: number | null;
+  gongsi_ratio_min?: number | null; gongsi_ratio_max?: number | null;
+  gongsi_up5_min?: number | null; gongsi_up5_max?: number | null;
+  gongsi_up10_min?: number | null; gongsi_up10_max?: number | null;
+  sale_pnl_min?: number | null; sale_pnl_max?: number | null;
+  sale_count_min?: number | null; sale_count_max?: number | null;
+  float_pops?: string[] | null;
+  statuses?: string[] | null; urgencies?: string[] | null; grades?: string[] | null; ipjis?: string[] | null;
+  owner_types?: string[] | null; relations?: string[] | null; cooperations?: string[] | null; kindnesses?: string[] | null;
+  building_uses?: string[] | null; meongdos?: string[] | null; use_changes?: string[] | null; myeolsils?: string[] | null; nohudos?: string[] | null;
+  assignees?: number[] | null;
+  owner_name?: string | null; listing_no?: string | null; intent?: string | null;
+  has_phone?: string | null; has_photo?: string | null;
+  received_from?: string | null; received_to?: string | null;
 }
 
 export interface MapPinDTO {

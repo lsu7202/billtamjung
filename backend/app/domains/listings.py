@@ -12,6 +12,7 @@ BIZ_FIELDS = {
     "status", "urgency", "grade", "ipji", "owner_type", "owner_name",
     "relation", "cooperation", "kindness", "intent",
     "owner_phone", "listing_no", "received_on",
+    "meongdo", "use_change", "myeolsil", "nohudo", "building_use",   # S02 업무탭·S01b 필터
 }
 
 
