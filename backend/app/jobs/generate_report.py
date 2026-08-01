@@ -165,8 +165,19 @@ _ADJ_FACTOR = 0.7                                                # 인접 섹터
 
 
 def _sector_of(lu: str | None, mu: str | None = None) -> str | None:
-    s = next((s for s, items in _SECTORS.items() if lu in items), None)
-    return s if s is not None else (_MU_SECTOR.get(str(mu)[:2]) if mu else None)
+    """건물 성격(comp 매칭 섹터). main_use(법정 주용도, 결측 0·신뢰 최고)를 우선하고,
+    land_use는 상가주택(주용도=단독/공동주택이지만 상업 혼합) 판정에만 보조로 씀.
+    land_use는 오분류가 많음(업무빌딩인데 '주거기타/상업나지') → 단독 신호로 쓰면 오라우팅."""
+    msec = _MU_SECTOR.get(str(mu)[:2]) if mu else None
+    if msec == "commercial":
+        return "mixed" if lu in _SECTORS["mixed"] else "commercial"   # 주용도 상업 → commercial(상가주택 토지면 mixed)
+    if msec == "resi":
+        # 주용도 단독/공동주택 — 토지이용이 상업/주상이면 상가주택(mixed), 아니면 순수 주거.
+        return "mixed" if (lu in _SECTORS["mixed"] or lu in _SECTORS["commercial"]) else "resi"
+    if msec == "industrial":
+        return "industrial"
+    # 주용도가 특수(종교·교육·의료 등)·결측 → land_use로 폴백(기존 로직).
+    return next((s for s, items in _SECTORS.items() if lu in items), None)
 
 
 def _comp_type_filter(subject_lu: str | None, subject_mu: str | None = None):
