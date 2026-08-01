@@ -38,6 +38,7 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
   const roadDiv = useRef<HTMLDivElement>(null);
   const mapObj = useRef<any>(null);
   const panoRef = useRef<any>(null);
+  const coneRef = useRef<any>(null);   // 지도 위 시야 부채꼴(영속)
   const [roadBig, setRoadBig] = useState(false);   // 로드뷰 확대(지도↔로드뷰 크기 스왑)
   const [mapReady, setMapReady] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -74,48 +75,42 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
     if (!mapReady || !roadDiv.current) return;
     const naver = window.naver;
     const map = mapObj.current;
-    let pano: any = null, cone: any = null;
+    const pos = new naver.maps.LatLng(lat, lng);
+    // ★ 파노라마 영속(재사용) — S01 RoadviewMini와 동일. StrictMode 이중 마운트 시 재생성 안 함(경합 방지).
+    if (panoRef.current) { panoRef.current.setPosition(pos); return; }
+    let pano: any;
     try {
       pano = new naver.maps.Panorama(roadDiv.current, {
-        position: new naver.maps.LatLng(lat, lng), pov: { pan: 0, tilt: 0, fov: 100 },   // fov 클수록 넓게(축소)
+        position: pos, pov: { pan: 0, tilt: 0, fov: 100 },   // fov 클수록 넓게(축소)
         flightSpot: false, aroundControl: false, zoomControl: false,
       });
     } catch { setNoPano(true); return; }
     panoRef.current = pano;
-    // 최초 1회: 파노라마(도로) 위치에서 본매물로의 방위각으로 시야를 맞춤(로드뷰가 매물을 바라보게)
+    // 최초 1회: 파노라마(도로) 위치 → 본매물 방위각으로 시야 보정(로드뷰가 매물을 바라보게)
     let oriented = false;
     const orient = () => {
       if (oriented) return;
       const p = pano.getPosition?.(); if (!p) return;
       oriented = true;
       const dLat = lat - p.lat(), dLng = (lng - p.lng()) * Math.cos((p.lat() * Math.PI) / 180);
-      if (Math.abs(dLat) < 1e-9 && Math.abs(dLng) < 1e-9) return;   // 파노라마=매물이면 유지
-      pano.setPov({ pan: (Math.atan2(dLng, dLat) * 180) / Math.PI, tilt: 0, fov: 100 });   // 북=0·동=90(conePath와 동일)
+      if (Math.abs(dLat) < 1e-9 && Math.abs(dLng) < 1e-9) return;
+      pano.setPov({ pan: (Math.atan2(dLng, dLat) * 180) / Math.PI, tilt: 0, fov: 100 });
     };
     const sync = () => {
       const p = pano.getPosition?.(); const pov = pano.getPov?.() ?? { pan: 0, fov: 90 };
       if (!p) return;
-      cone?.setMap(null);
-      cone = new naver.maps.Polygon({
+      coneRef.current?.setMap(null);
+      coneRef.current = new naver.maps.Polygon({
         map, paths: [conePath(naver, p.lat(), p.lng(), pov.pan, pov.fov)], clickable: false,
         fillColor: "#3A5DA8", fillOpacity: 0.25, strokeColor: "#3A5DA8", strokeWeight: 1, zIndex: 90,
       });
     };
-    // 리스너 추적 → cleanup에서 전부 제거(이중 마운트 시 옛 파노라마가 부채꼴 하나 더 그리는 것 방지)
-    const ls = [
-      naver.maps.Event.addListener(pano, "pano_status", (s: any) => setNoPano(String(s) !== "OK")),
-      naver.maps.Event.addListener(pano, "pano_changed", orient),
-      naver.maps.Event.addListener(pano, "pano_changed", sync),
-      naver.maps.Event.addListener(pano, "pov_changed", sync),
-    ];
-    const t = setTimeout(sync, 500);
-    return () => {
-      clearTimeout(t);
-      ls.forEach((l) => naver.maps.Event.removeListener(l));   // 리스너만 제거 → 옛 파노라마가 부채꼴 안 그림
-      cone?.setMap(null); panoRef.current = null;
-      if (roadDiv.current) roadDiv.current.innerHTML = "";
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    naver.maps.Event.addListener(pano, "pano_status", (s: any) => setNoPano(String(s) !== "OK"));
+    naver.maps.Event.addListener(pano, "pano_changed", orient);
+    naver.maps.Event.addListener(pano, "pano_changed", sync);
+    naver.maps.Event.addListener(pano, "pov_changed", sync);
+    setTimeout(sync, 500);
+    // cleanup 없음 — 파노라마 영속(리스너·부채꼴 하나만 존재). 컴포넌트 언마운트 시 DOM과 함께 정리됨.
   }, [mapReady, lat, lng]);
 
   // 로드뷰 확대/축소 전환 → 컨테이너 크기 바뀌면 파노라마·지도 리사이즈(naver는 생성시 크기 고정)
