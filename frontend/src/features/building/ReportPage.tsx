@@ -73,7 +73,7 @@ export function ReportPage() {
     <div className="deck-top">
       <button className="btn" onClick={() => nav(`/buildings/${pk}`)} style={{ padding: "6px 12px" }}>← 매물로</button>
       <span className="ttl">분석 보고서 · {rno}</span>
-      <button className="btn" style={{ marginLeft: "auto", padding: "6px 12px" }} onClick={() => window.open(`/buildings/${pk}/story`, "_blank")} title="애니메이션 모드(새 탭)">✨ 애니메이션 모드</button>
+      <button className="btn" style={{ marginLeft: "auto", padding: "6px 12px" }} onClick={() => { document.documentElement.requestFullscreen?.().catch(() => {}); nav(`/buildings/${pk}/story`); }} title="애니메이션 모드(전체화면)">✨ 애니메이션 모드</button>
       <button className="btn" style={{ padding: "6px 12px" }} onClick={toggleFs} title="전체화면 (발표 모드)">⛶ 전체화면</button>
       {canDownload
         ? <button className="btn primary" style={{ padding: "6px 12px" }}

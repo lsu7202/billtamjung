@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, Fragment } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { CountUp, BuildingArt } from "./ReportAssets";
 import { ScoreRadar, CompareBar } from "./ReportPrimitives";
 import { ReportMap, ZONE_COLOR } from "./ReportMap";
@@ -16,7 +16,14 @@ function Prose({ segs, bold }: { segs: Seg[]; bold: string }) {
 
 export function ReportStory() {
   const { pk = "" } = useParams();
+  const nav = useNavigate();
   const m = useReportModel(null, pk);
+  // 전체화면(애니메이션 모드)에서 ESC로 나가면 덱으로 복귀
+  useEffect(() => {
+    const onFs = () => { if (!document.fullscreenElement) nav(`/buildings/${pk}/report`); };
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, [pk]);
   const {
     sub, b, fair, rent, curRent, totalArea, avgPer, comps, compMin, compMax,
     gLatest, nbhdGongsi, gTotal, roiFair, nbhdRoi, ut, officeApt, fut, useZone, mainUse,
@@ -54,6 +61,7 @@ export function ReportStory() {
     const h = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === "PageDown") { e.preventDefault(); goto(active + 1); }
       if (e.key === "ArrowLeft" || e.key === "ArrowUp" || e.key === "PageUp") { e.preventDefault(); goto(active - 1); }
+      if (e.key === "Escape" && !document.fullscreenElement) nav(`/buildings/${pk}/report`);   // 전체화면 아닐 때 ESC=덱 복귀
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);

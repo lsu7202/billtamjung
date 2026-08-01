@@ -161,7 +161,7 @@
 .rslide-root:fullscreen .deck-counter { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.2); color: #fff; }
 
 /* ── 몰입형 스크롤 스토리(프로토타입) ── */
-.story-root { height: 100%; overflow-y: auto; overflow-x: hidden; background: #0a0e17; -webkit-font-smoothing: antialiased;
+.story-root { height: 100dvh; overflow-y: auto; overflow-x: hidden; background: #0a0e17; -webkit-font-smoothing: antialiased;
   font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", "Segoe UI", sans-serif; }
 @keyframes story-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(7px); } }
 .story-sec { height: 100vh; min-height: 100vh; box-sizing: border-box; background: #fff; display: flex; flex-direction: column; justify-content: center; padding: 6vh 7vw; overflow: hidden;
