@@ -5,6 +5,7 @@ import { openDetail } from "../../shared/map/geo";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
 import { FilterModal, activeCount, conditionChips, type Values, type RegionPick } from "./FilterModal";
 import { PriceTrendChart, buildTrendSeries } from "../../shared/ui/PriceTrendChart";
+import { useReportModel } from "../building/reportModel";
 import { RoadviewMini } from "../../shared/map/Roadview";
 import "./search.css";
 
@@ -29,18 +30,19 @@ const won = (n: number | null) =>
 const PY = 3.3058;                                    // ㎡→평
 const py = (m2?: number | null) => (m2 == null ? "—" : (m2 / PY).toFixed(m2 / PY < 100 ? 1 : 0));
 
-/** 지도 선택 매물 요약 카드 — 목업 .sel-card(로드뷰 스트립·계기판·시계열·상세보기) */
+/** 지도 선택 매물 요약 카드 — 리포트 핵심 수치(적정가·수익률·매력도·투자유형·미래가치) + 가격추이. */
 function SelCard({ picked, bldg, trend, onDetail, onFav }: {
   picked: MapPin; bldg?: Record<string, unknown>; trend: Parameters<typeof PriceTrendChart>[0]["series"];
   onDetail: () => void; onFav: () => void;
 }) {
+  const rm = useReportModel(null, picked.building_pk);   // 분석보고서 단일 소스(수치)
   const num = (k: string) => (bldg && bldg[k] != null ? Number(bldg[k]) : null);
   const land = num("land_area") ?? picked.land_area ?? null;
   const total = num("total_area");
-  const build = num("build_area");
   const fa = num("floors_above") ?? picked.floors_above ?? null;
   const fb = num("floors_below") ?? picked.floors_below ?? null;
-  const ppy = picked.price && land ? won(picked.price / (land / PY)) : "—";  // 대지 평단가
+  const fair = rm.fair ?? picked.price ?? null;
+  const eok1 = (v: number | null) => v == null ? "—" : v >= 1e8 ? `${(v / 1e8).toFixed(0)}억` : `${Math.round(v / 1e4).toLocaleString()}만`;
   return (
     <div className="sel-card">
       {picked.lng && picked.lat
@@ -51,13 +53,16 @@ function SelCard({ picked, bldg, trend, onDetail, onFav }: {
           <span className={`ml-tag ${picked.col}`}>{picked.col === "mine" ? "내" : "일반"}</span>
           <span className="star" style={{ color: picked.is_fav ? "#f5a623" : "var(--line-2)" }} onClick={onFav}>★</span>
         </div>
+        {/* 리포트 핵심 수치(설명 최소·수치 위주) */}
         <div className="sel-metrics">
-          <div className="m"><div className="mk">매매가</div><div className="mv">{won(picked.price)}</div></div>
-          <div className="m"><div className="mk">수익률(만실)</div><div className="mv">{picked.roi == null ? "—" : `${picked.roi}%`}</div></div>
-          <div className="m"><div className="mk">평단가(대지)</div><div className="mv">{ppy}</div></div>
+          <div className="m"><div className="mk">빌탐정 적정가</div><div className="mv" style={{ color: "var(--signal)" }}>{eok1(fair)}</div></div>
+          <div className="m"><div className="mk">예상수익률</div><div className="mv">{rm.roiFair != null ? `${rm.roiFair.toFixed(1)}%` : (picked.roi == null ? "—" : `${picked.roi}%`)}</div></div>
+          <div className="m"><div className="mk">매력도</div><div className="mv">{rm.sub ? `${rm.grade}` : "—"}<small style={{ fontWeight: 400, color: "var(--muted)" }}>{rm.sub ? ` ${rm.score}점` : ""}</small></div></div>
           <div className="m"><div className="mk">층수</div><div className="mv">{fb ? `B${fb}` : ""}{fb ? "/" : ""}{fa != null ? `${fa}F` : "—"}</div></div>
+          <div className="m"><div className="mk">투자 유형</div><div className="mv" style={{ fontSize: 15 }}>{rm.ut?.primary ?? "—"}</div></div>
+          <div className="m"><div className="mk">미래가치</div><div className="mv" style={{ fontSize: 15, color: "var(--purple)" }}>{rm.fut?.label ?? "—"}</div></div>
           <div className="m wide"><div className="mk">면적 (평)</div>
-            <div className="sel-area"><span><i>대지</i>{py(land)}</span><span><i>연면적</i>{py(total)}</span><span><i>건축</i>{py(build)}</span></div>
+            <div className="sel-area"><span><i>대지</i>{py(land)}</span><span><i>연면적</i>{py(total)}</span></div>
           </div>
         </div>
         <div className="sel-spark">
