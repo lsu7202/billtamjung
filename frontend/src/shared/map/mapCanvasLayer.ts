@@ -6,10 +6,7 @@ import { PIN_COLORS, priceLabel } from "./naver";
 export interface CanvasPin {
   building_pk: string; lng: number; lat: number;
   col: "mine" | "normal"; price: number | null; last_sale_price?: number | null; sale_est?: number | null;
-  land_use?: string | null;
 }
-// 적정가 산정 대상 성격(배치 build_sale_est.py SECT와 동일). 그 외(주거)는 회색 점.
-const SALE_EST_SECT = new Set(["상업용", "업무용", "상업기타", "주상용", "주상기타"]);
 export type PriceMode = "fair" | "real";   // 핀 태그 가격: 적정가 / 실거래가
 type Item =
   | { t: "pin"; cx: number; cy: number; p: CanvasPin }
@@ -90,10 +87,8 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
     if (it.t === "cluster") drawCluster(it.cx, it.cy, it.n, hover);
     else {
       const sel = it.p.building_pk === selected;
-      const commercial = !it.p.land_use || SALE_EST_SECT.has(it.p.land_use);
-      // fair(적정가): 상업만 값 · 실거래: 실제 거래가(있으면). 값 없으면 회색 점(주거·비대상).
-      const pv = mode === "real" ? (it.p.last_sale_price ?? null)
-        : (commercial ? (it.p.sale_est ?? it.p.price ?? null) : null);
+      // fair(적정가)=배치 sale_est(상업만 적재됨) 또는 팀 매매가 · 실거래=실제 거래가. 값 없으면 회색 점(주거·비대상).
+      const pv = mode === "real" ? (it.p.last_sale_price ?? null) : (it.p.sale_est ?? it.p.price ?? null);
       if (pv == null) drawDot(it.cx, it.cy, hover, sel);
       else drawPin(it.cx, it.cy, priceLabel(pv), PIN_COLORS[it.p.col], hover, sel);
     }

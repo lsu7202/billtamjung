@@ -5,8 +5,13 @@ import { useQuery } from "@tanstack/react-query";
 import { reportsApi, buildingsApi, type CompUsed, type RentFloor } from "../../shared/api/endpoints";
 
 export const P = 3.305785;
-// 적정가 산정 대상 성격(상업/업무). 배치(build_sale_est.py SECT)와 동일 — 라이브 경로 게이팅용.
+// 적정가 산정 대상 = 토지이용(SECT) ∪ 건물주용도(main_use 앞2자리). 배치 build_sale_est.py와 동일 정의.
+// land_use가 부정확(예: 업무빌딩인데 '상업나지')한 걸 main_use로 보완 — 라이브 경로 게이팅용.
 export const SALE_EST_SECT = ["상업용", "업무용", "상업기타", "주상용", "주상기타"];
+export const SALE_EST_COMM_MU = ["03", "04", "05", "07", "09", "13", "14", "15", "16"];
+export const isSaleEstTarget = (landUse?: string | null, mainUse?: string | null) =>
+  (!!landUse && SALE_EST_SECT.includes(landUse)) ||
+  (!!mainUse && SALE_EST_COMM_MU.includes(String(mainUse).slice(0, 2)));
 export const num = (x: unknown): number | null => (x == null || x === "" ? null : Number(x));
 export const eok = (v: number | null | undefined, d = 0) => (v ? `${(v / 1e8).toFixed(d)}` : "—");
 export const man = (v: number | null | undefined) => (v ? `${Math.round(v / 1e4).toLocaleString()}` : "—");
@@ -86,7 +91,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   // ── 값(단일 계산) ──
   // 적정가 산정 대상 = 상업/업무 성격만(우리 산식이 상업 comp+오피스 cap rate 기반). 주거는 대상 아님.
   // land_use 로딩 전(undefined)엔 막지 않음 → 로딩되면 비상업은 fair=null + nonCommercial 플래그.
-  const nonCommercial = !!b.land_use && !SALE_EST_SECT.includes(b.land_use);
+  const nonCommercial = !!(b.land_use || b.main_use) && !isSaleEstTarget(b.land_use, b.main_use);
   const saleEst = num(b.sale_est);
   const fair = nonCommercial ? null
     : reportId == null ? (saleEst ?? pv?.fair_price ?? null) : (pv?.fair_price ?? saleEst ?? null);

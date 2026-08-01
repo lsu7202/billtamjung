@@ -20,7 +20,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "backend"
 import report_calc  # noqa: E402  (fastapi 의존 없음)
 
 DSN = os.environ.get("RENT_DSN", "postgresql://postgres:test@localhost:55432/billtamjung")
-SECT = ('상업용', '업무용', '상업기타', '주상용', '주상기타')
+SECT = ('상업용', '업무용', '상업기타', '주상용', '주상기타')   # 토지이용상황(land_use) 상업 성격
+# 건물 주용도(main_use 앞2자리) 상업 성격 — 03/04근생·05문화집회·07판매·09의료·13운동·14업무·15숙박·16위락.
+# land_use가 부정확(예: 업무빌딩인데 '상업나지')한 걸 main_use로 보완 → 합집합이 '적정가 대상'.
+COMM_MU = ('03', '04', '05', '07', '09', '13', '14', '15', '16')
+_MU_IN = ",".join(f"'{c}'" for c in COMM_MU)
+COMM_SQL = f"(b.land_use = ANY($1) OR substr(b.main_use,1,2) IN ({_MU_IN}))"
 CELL = 500.0      # 그리드 버킷 크기(m) — 후보 수집용
 RADIUS = 500.0    # comp 반경(m) — 라이브 _market_spatial 기본과 동일
 
@@ -77,7 +82,7 @@ async def main():
               sh.price::float pr, sh.land_area::float la, sh.total_area::float ta,
               b.gongsi_latest::float*sh.land_area gt, sh.contract_ym
             FROM master.sales_history sh JOIN master.buildings b USING(building_pk)
-            WHERE b.bjd_code LIKE '11%' AND b.land_use = ANY($1)
+            WHERE b.bjd_code LIKE '11%' AND {COMM_SQL}
               AND sh.contract_ym >= to_char(now()-interval '5 years','YYYYMM')
               AND sh.price>0 AND sh.land_area>0 AND sh.total_area>0 AND b.gongsi_latest>0""",
         list(SECT))
@@ -89,8 +94,8 @@ async def main():
              float(r['gt']), float(r['la']), float(r['ta']), r['contract_ym']))
     print(f"comp 풀 {len(comps)}건 · 그리드셀 {len(grid)}")
 
-    # 계산 대상 = 상업/업무 성격(SECT)만 — 우리 산정법(상업 comp+오피스 cap rate)이 유효한 범위.
-    # 주거(단독·다세대·아파트 등)는 산정 대상 아님 → 핀·상세 모두 '상업 매물 아님'으로 게이팅(라이브 경로도 동일).
+    # 계산 대상 = 상업/업무 성격(land_use SECT ∪ main_use 상업코드) — 산정법이 유효한 범위.
+    # 주거(단독·공동주택 등)는 대상 아님 → 핀·상세 모두 '상업 매물 아님'으로 게이팅(라이브 경로도 동일 정의).
     subs = await c.fetch(
         f"""SELECT b.building_pk pk, ST_X(b.geom) lng, ST_Y(b.geom) lat,
               b.gongsi_latest::float g, b.land_area::float la, b.total_area::float ta,
@@ -98,7 +103,7 @@ async def main():
             FROM master.buildings b
             LEFT JOIN master.building_rent_est e ON e.building_pk=b.building_pk
             LEFT JOIN master.income_cap ic ON ic.gu=substr(b.bjd_code,1,5)
-            WHERE b.bjd_code LIKE '11%' AND b.land_use=ANY($1)
+            WHERE b.bjd_code LIKE '11%' AND {COMM_SQL}
               AND b.gongsi_latest>0 AND b.land_area>0 AND b.total_area>0""",
         list(SECT))
 
