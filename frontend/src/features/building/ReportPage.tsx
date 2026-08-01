@@ -78,7 +78,7 @@ export function ReportPage() {
       <button className="btn" style={{ padding: "6px 12px" }} onClick={toggleFs} title="전체화면 (발표 모드)">⛶ 전체화면</button>
       {canDownload
         ? <button className="btn primary" style={{ padding: "6px 12px" }}
-            onClick={() => reportsApi.download(reportId!, "analysis").catch((e) => alert(String(e?.message ?? e)))}>PPT 내보내기</button>
+            onClick={() => reportsApi.download(reportId!).catch((e) => alert(String(e?.message ?? e)))}>PPT 내보내기</button>
         : <button className="btn" disabled style={{ padding: "6px 12px", opacity: .6 }} title="생성 완료 후 다운로드">PPT 내보내기</button>}
     </div>
   );

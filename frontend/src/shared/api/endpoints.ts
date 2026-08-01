@@ -9,7 +9,7 @@ export interface FloorRent {
   deposit: number; rent: number; maintenance: number; is_vacant: boolean | null;   // null=미지정·false=임대중·true=공실
 }
 export interface Report {
-  id: number; building_pk: string; kind: "briefing" | "analysis";
+  id: number; building_pk: string; kind: "analysis";
   status: "pending" | "generating" | "done" | "failed";
   credits_spent?: number; file_path?: string; created_at: string;
   is_stale?: boolean; addr?: string; failed_reason?: string;
@@ -196,16 +196,16 @@ export interface CompsResponse {
 }
 
 export const reportsApi = {
-  create: (building_pk: string, kind: "briefing" | "analysis", options: Record<string, unknown> = {}) =>
+  create: (building_pk: string, kind: "analysis" = "analysis", options: Record<string, unknown> = {}) =>
     api<{ report_id: number }>("/reports", { method: "POST", body: JSON.stringify({ building_pk, kind, options }) }),
   get: (id: number) => api<Report>(`/reports/${id}`),
   list: () => api<Report[]>("/reports"),
-  download: async (id: number, kind: "briefing" | "analysis") => {
+  download: async (id: number) => {
     const blob = await apiBlob(`/reports/${id}/download`);
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `빌탐정_${kind === "analysis" ? "분석보고서" : "브리핑"}_${id}.pptx`;
+    a.download = `빌탐정_분석보고서_${id}.pptx`;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
   },

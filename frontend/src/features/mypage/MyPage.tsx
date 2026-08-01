@@ -16,7 +16,7 @@ export function MyPage() {
   const saved = useQuery({ queryKey: ["saved"], queryFn: savedApi.list });
 
   const regen = useMutation({
-    mutationFn: (r: { building_pk: string; kind: "briefing" | "analysis" }) => reportsApi.create(r.building_pk, r.kind),
+    mutationFn: (r: { building_pk: string; kind: "analysis" }) => reportsApi.create(r.building_pk, r.kind),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["reports"] }); qc.invalidateQueries({ queryKey: ["credits"] }); },
   });
   const delSaved = useMutation({
@@ -50,7 +50,7 @@ export function MyPage() {
             {(reports.data ?? []).map((r) => (
               <tr key={r.id}>
                 <td className="num">{new Date(r.created_at).toLocaleDateString("ko")}</td>
-                <td>{r.kind === "analysis" ? "매물분석" : "브리핑"}</td>
+                <td>매물분석</td>
                 <td style={{ cursor: "pointer" }} onClick={() => openDetail(r.building_pk)}>{r.addr ?? r.building_pk}</td>
                 <td className="num">{r.credits_spent ?? "—"}</td>
                 <td>{r.status === "done"
@@ -58,13 +58,11 @@ export function MyPage() {
                   : <span style={{ color: "var(--muted)" }}>{r.status === "failed" ? "실패" : "생성 중…"}</span>}</td>
                 <td style={{ textAlign: "right" }}>
                   {r.status === "done" && <>
-                    {r.kind === "analysis" && <button className="btn" style={{ marginRight: 6 }}
-                      onClick={() => nav(`/reports/${r.id}`)}>웹으로 보기</button>}
+                    <button className="btn" style={{ marginRight: 6 }} onClick={() => nav(`/reports/${r.id}`)}>웹으로 보기</button>
                     <button className="btn" style={{ marginRight: 6 }}
-                      onClick={() => reportsApi.download(r.id, r.kind).catch((e) => alert(String(e.message ?? e)))}>PPT 받기</button>
+                      onClick={() => reportsApi.download(r.id).catch((e) => alert(String(e.message ?? e)))}>PPT 받기</button>
                     {r.is_stale && <button className="btn primary" disabled={regen.isPending}
-                      onClick={() => regen.mutate({ building_pk: r.building_pk, kind: r.kind })}>
-                      재생성 ({r.kind === "analysis" ? 30 : 10})</button>}
+                      onClick={() => regen.mutate({ building_pk: r.building_pk, kind: "analysis" })}>재생성 (30)</button>}
                   </>}
                 </td>
               </tr>

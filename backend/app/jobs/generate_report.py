@@ -796,8 +796,8 @@ def _bind_analysis_template(path: str, report_id: int, b: dict, vs: dict, syn: d
 
 def _make_pptx(path: str, kind: str, b: dict, vs: dict | None, syn: dict | None = None,
                report_id: int = 0) -> int:
-    """python-pptx로 보고서 생성. 반환=슬라이드 수.
-    analysis = R_example.pptx 서식 바인딩 / briefing = 텍스트 슬라이드(전용 서식 없음)."""
+    """python-pptx로 분석보고서 생성. 반환=슬라이드 수.
+    R_example.pptx 서식 바인딩(있으면) / 없으면 텍스트 슬라이드 폴백. (브리핑 폐지)"""
     from pptx import Presentation
     from pptx.util import Inches, Pt
 
@@ -820,55 +820,42 @@ def _make_pptx(path: str, kind: str, b: dict, vs: dict | None, syn: dict | None 
             p.font.size = Pt(14)
 
     addr = b.get("addr", "")
-    if kind == "briefing":  # 7슬라이드(R §4)
-        slide("빌탐정 브리핑 자료", [addr])
-        slide("매물 기본정보", [
-            f"대지면적 {b.get('land_area','—')}㎡ · 연면적 {b.get('total_area','—')}㎡",
-            f"층수 지상{b.get('floors_above','—')}/지하{b.get('floors_below','—')} · 용적률 {b.get('far','—')}%",
-        ])
-        slide("위치 · 지도", ["(Static Map — 프로덕션 연동)"])
-        slide("로드뷰 / 사진", ["(Panorama — 프로덕션 연동)"])
-        slide("임대 내역", [
-            f"총보증금 {b['total_deposit']:,}원 · 총임대료 {b['total_rent']:,}원 · 공실 {b['vacant_count']}건",
-        ])
-        slide("추가 사진", ["—"])
-        slide("마무리", ["빌탐정 BILLTAMJUNG"])
-    else:  # analysis 8슬라이드(R §5)
-        assert vs is not None
-        slide("매물분석보고서", [addr, f"가치점수 {vs['score']} · {vs['grade']}등급"])
-        slide("매물 기본정보", [
-            f"대지 {b.get('land_area','—')}㎡ · 연면적 {b.get('total_area','—')}㎡ · 용적률 {b.get('far','—')}%",
-        ])
-        slide("분석 흐름", ["STEP1 가치점수 → STEP2 매매사례 → STEP3 주변임대 → STEP4 수익률"])
-        slide("STEP1 가치점수", [
-            f"총점 {vs['score']} / 100 · {vs['grade']}등급",
-            *[f"{k}: {v}" for k, v in vs["items"].items()],
-        ])
-        syn = syn or {}
-        used = syn.get("comps_used") or []
-        fair = syn.get("fair_price")
-        slide("STEP2 매매사례 시세분석", [
-            f"유효 사례 {len(used)}건 · 가중평균 평단가 {syn.get('avg_per_pyeong') or '—'}원/평",
-            *[f"{u.get('addr') or u['building_pk']} · {u['contract_ym']} · "
-              f"{u['price']:,}원 · 가치 {u['score']} · 가중 {u['weight']}" for u in used[:12]],
-        ])
-        if syn.get("market_applied"):
-            step3 = [f"적용 총임대료 {syn['applied_rent']:,}원 (주변 임대시세 반영)"]
-            step3 += [f"{f['floor']}: 현재 {f['cur']:,} → 주변 {f['mkt']:,} (차이 {f['diff']:+,}, 사례 {f['count']}건)"
-                      for f in (syn.get("rent_floors") or [])]
-        else:
-            step3 = [f"적용 총임대료 {b['total_rent']:,}원 (현재 임대 기준 · 주변시세 제외)"]
-        slide("STEP3 주변임대시세", step3)
-        slide("STEP4 적정매매가·예상수익률", [
-            f"적정매매가 {fair:,}원" if fair else "적정매매가 — (유효 매매사례 없음)",
-            f"예상수익률 {syn.get('expected_roi')}%" if syn.get("expected_roi") is not None else "예상수익률 —",
-            f"협의 필요금액 {syn.get('gap'):,}원" if syn.get("gap") is not None else "협의 필요금액 —",
-        ])
-        slide("최종 요약", [
-            f"가치점수 {vs['score']}({vs['grade']}) · 적정매매가 {fair:,}원" if fair
-            else f"가치점수 {vs['score']}({vs['grade']})",
-            "빌탐정 BILLTAMJUNG",
-        ])
+    # 분석 8슬라이드 폴백(R_example 템플릿 미존재 시). 브리핑 폐지 — analysis 전용.
+    assert vs is not None
+    slide("매물분석보고서", [addr, f"가치점수 {vs['score']} · {vs['grade']}등급"])
+    slide("매물 기본정보", [
+        f"대지 {b.get('land_area','—')}㎡ · 연면적 {b.get('total_area','—')}㎡ · 용적률 {b.get('far','—')}%",
+    ])
+    slide("분석 흐름", ["STEP1 가치점수 → STEP2 매매사례 → STEP3 주변임대 → STEP4 수익률"])
+    slide("STEP1 가치점수", [
+        f"총점 {vs['score']} / 100 · {vs['grade']}등급",
+        *[f"{k}: {v}" for k, v in vs["items"].items()],
+    ])
+    syn = syn or {}
+    used = syn.get("comps_used") or []
+    fair = syn.get("fair_price")
+    slide("STEP2 매매사례 시세분석", [
+        f"유효 사례 {len(used)}건 · 가중평균 평단가 {syn.get('avg_per_pyeong') or '—'}원/평",
+        *[f"{u.get('addr') or u['building_pk']} · {u['contract_ym']} · "
+          f"{u['price']:,}원 · 가치 {u['score']} · 가중 {u['weight']}" for u in used[:12]],
+    ])
+    if syn.get("market_applied"):
+        step3 = [f"적용 총임대료 {syn['applied_rent']:,}원 (주변 임대시세 반영)"]
+        step3 += [f"{f['floor']}: 현재 {f['cur']:,} → 주변 {f['mkt']:,} (차이 {f['diff']:+,}, 사례 {f['count']}건)"
+                  for f in (syn.get("rent_floors") or [])]
+    else:
+        step3 = [f"적용 총임대료 {b['total_rent']:,}원 (현재 임대 기준 · 주변시세 제외)"]
+    slide("STEP3 주변임대시세", step3)
+    slide("STEP4 적정매매가·예상수익률", [
+        f"적정매매가 {fair:,}원" if fair else "적정매매가 — (유효 매매사례 없음)",
+        f"예상수익률 {syn.get('expected_roi')}%" if syn.get("expected_roi") is not None else "예상수익률 —",
+        f"협의 필요금액 {syn.get('gap'):,}원" if syn.get("gap") is not None else "협의 필요금액 —",
+    ])
+    slide("최종 요약", [
+        f"가치점수 {vs['score']}({vs['grade']}) · 적정매매가 {fair:,}원" if fair
+        else f"가치점수 {vs['score']}({vs['grade']})",
+        "빌탐정 BILLTAMJUNG",
+    ])
 
     prs.save(path)
     return len(prs.slides.__iter__.__self__._sldIdLst)  # noqa: SLF001
@@ -924,7 +911,7 @@ async def run_generate(report_id: int, team_id: int) -> dict:
                             "rent_floors": syn.get("rent_floors"), "comps_used": syn.get("comps_used")},
             }
 
-        cost = settings.cost_analysis if rep["kind"] == "analysis" else settings.cost_briefing
+        cost = settings.cost_analysis   # 분석보고서만(브리핑 폐지)
         async with tx() as conn:  # 성공 트랜잭션: 차감+완료+워터마크 원자
             await conn.execute("SELECT app.deduct_credit($1,$2,$3)", rep["account_id"], cost, report_id)
             await conn.execute(

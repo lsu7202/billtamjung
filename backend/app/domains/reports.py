@@ -16,7 +16,7 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 class CreateIn(BaseModel):
     building_pk: str
-    kind: str                      # briefing|analysis
+    kind: str = "analysis"         # analysis만 지원(브리핑 폐지)
     options: dict = {}
 
 
@@ -94,8 +94,8 @@ async def preview(body: PreviewIn, user: CurrentUser = Depends(current_user)):
 
 @router.post("", status_code=202)
 async def create(body: CreateIn, bg: BackgroundTasks, user: CurrentUser = Depends(current_user)):
-    if body.kind not in ("briefing", "analysis"):
-        raise HTTPException(422, "kind는 briefing|analysis")
+    if body.kind != "analysis":   # 브리핑 자료 폐지 — 분석보고서만 생성
+        raise HTTPException(422, "kind는 analysis만 지원합니다")
     rid = await pool().fetchval(
         """INSERT INTO app.reports(account_id,building_pk,kind,options_json)
            VALUES($1,$2,$3::app.report_kind,$4) RETURNING id""",
@@ -115,7 +115,7 @@ async def download(report_id: int, user: CurrentUser = Depends(current_user)):
         raise HTTPException(404, "다운로드할 보고서가 없습니다")
     if not os.path.exists(row["file_path"]):
         raise HTTPException(410, "파일이 만료되었습니다 — 재생성해 주세요")
-    name = f"빌탐정_{'분석보고서' if row['kind'] == 'analysis' else '브리핑'}_{report_id}.pptx"
+    name = f"빌탐정_분석보고서_{report_id}.pptx"
     return FileResponse(
         row["file_path"], filename=name,
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation")

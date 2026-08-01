@@ -15,7 +15,6 @@ class Settings(BaseSettings):
     billing_enforced: bool = False
     trial_credits: int = 60
     cost_analysis: int = 30
-    cost_briefing: int = 10
 
     cors_origins: str = "http://localhost:5173"
 
