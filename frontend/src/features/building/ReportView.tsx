@@ -5,6 +5,7 @@ import { circleToGeoJSON } from "../../shared/map/geo";
 import { won, wonShort, perPyMan } from "../../shared/format";
 import { StatTile, ScoreRadar, CompareBar, Grade, ReportCard } from "./ReportPrimitives";
 import { TrendChart } from "./TrendChart";
+import { useReportModel, type Seg } from "./reportModel";
 
 /** 리포트 뷰 — 매물 핵심가치 한눈에(매물분석보고서 세미버전). 라이브 comps(적정가·점수) + 마스터 시세.
  * 설계: features/building/DESIGN.md P1~P6. 그래프 합치기는 여기서만.
@@ -29,6 +30,7 @@ export function ReportView({ pk, b, price, tRent, tDeposit, roiFull, gongsiSerie
 }) {
   const q = useQuery({ queryKey: ["report-comps", pk], queryFn: () => reportsApi.comps(pk) });
   const sub = q.data?.subject, pv = q.data?.preview;
+  const rm = useReportModel(null, pk);   // 분석보고서 단일 소스 — 투자유형·미래가치·종합의견 동일 반영
   // 주변 임대시세(주변임대시세 카드와 동일 소스 = 팀 실입력 + 마스터 추정). 리포트 임대료 비교용.
   const lng = Number(b.lng), lat = Number(b.lat);
   const outlineQ = useQuery({ queryKey: ["floor-outline", pk], queryFn: () => rentsApi.outline(pk) });
@@ -174,37 +176,40 @@ export function ReportView({ pk, b, price, tRent, tDeposit, roiFull, gongsiSerie
         )}
       </ReportCard>
 
-      {/* P6 투자 적합도(규칙 요약) */}
-      <ReportCard title="투자 적합도" span2>
-        <div style={{ display: "flex", gap: 28, flexWrap: "wrap", alignItems: "center" }}>
-          <FitBadge label="임대" ok={roi != null && roi >= 3.5} note={roi != null ? (roi >= 3.5 ? "안정 수익" : "수익 낮음") : "임대 정보 필요"} />
-          <FitBadge label="리모델링" ok={ageYears(b) != null && ageYears(b)! >= 15} note={ageYears(b) != null ? `연식 ${ageYears(b)!.toFixed(0)}년` : "연식 미상"} />
-          <FitBadge label="신축" ok={farRoom(b)} note={farRoom(b) ? "용적 여유" : "용적 여유 적음"} />
-          <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--muted)" }}>상세 판단은 [매물 분석하기]에서</div>
-        </div>
+      {/* 투자 유형(F-20) — 분석보고서와 동일 */}
+      <ReportCard title="투자 유형" right={rm.ut ? `${rm.ut.primary}${rm.officeApt ? " · 사옥 적합" : ""}` : undefined}>
+        {rm.ut ? <>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>{rm.ut.reason}</div>
+          <CompareBar height={128} fmt={(v) => `${Math.round(v)}`}
+            items={[{ label: "신축", value: Math.max(rm.ut.scores["신축용"] ?? 0, 1), color: "var(--ink-2)" },
+                    { label: "리모델", value: Math.max(rm.ut.scores["리모델링용"] ?? 0, 1), color: "var(--ink-2)" },
+                    { label: "수익", value: Math.max(rm.ut.scores["수익형"] ?? 0, 1), color: "var(--signal)", strong: true },
+                    { label: "사옥적합", value: Math.max(rm.ut.office_fit ?? 0, 1), color: "#6E56CF" }]} />
+        </> : <p style={{ color: "var(--muted)", fontSize: 13, textAlign: "center", padding: "24px 0" }}>{q.isLoading ? "계산 중…" : "데이터 없음"}</p>}
       </ReportCard>
+
+      {/* 미래가치(F-21) — 실제 값(점수 아님), 분석보고서와 동일 */}
+      <ReportCard title="미래가치" right={rm.fut?.label ?? undefined}>
+        {rm.fut ? <>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>{rm.fut.reason}</div>
+          {rm.futureAxes.map((x) => (
+            <div key={x.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, padding: "8px 0", borderTop: "1px solid var(--line)" }}>
+              <div><div style={{ fontWeight: 700, fontSize: 13 }}>{x.label}</div><div style={{ fontSize: 11, color: "var(--muted)", marginTop: 1 }}>{x.sub}</div></div>
+              <div style={{ fontWeight: 800, fontSize: 16, color: x.c, whiteSpace: "nowrap" }}>{x.value}</div>
+            </div>
+          ))}
+        </> : <p style={{ color: "var(--muted)", fontSize: 13, textAlign: "center", padding: "24px 0" }}>{q.isLoading ? "계산 중…" : "데이터 없음"}</p>}
+      </ReportCard>
+
+      {/* 종합 의견 — 분석보고서 종합결론과 동일 문구 */}
+      {rm.conclusion?.length > 0 && (
+        <ReportCard title="종합 의견" span2>
+          <p style={{ fontSize: 13.5, lineHeight: 1.7, color: "var(--ink)", margin: 0 }}>
+            {rm.conclusion.map((s: Seg, i: number) => s.b ? <b key={i} style={{ color: "var(--signal)" }}>{s.t}</b> : <span key={i}>{s.t}</span>)}
+          </p>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>상세 근거·편집은 <b>[매물 분석하기]</b>에서 보고서로 확인하세요.</div>
+        </ReportCard>
+      )}
     </div>
   );
-}
-
-function FitBadge({ label, ok, note }: { label: string; ok: boolean; note: string }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 14 }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: ok ? "var(--green)" : "var(--muted)", display: "inline-block" }} />
-        {label} <span style={{ fontSize: 12, fontWeight: 600, color: ok ? "var(--green)" : "var(--muted)" }}>{ok ? "적합" : "검토"}</span>
-      </span>
-      <span style={{ fontSize: 12, color: "var(--muted)" }}>{note}</span>
-    </div>
-  );
-}
-
-function ageYears(b: Record<string, unknown>): number | null {
-  const ymd = String(b.approval_ymd ?? "").slice(0, 4);
-  const y = parseInt(ymd, 10);
-  return y > 1900 ? new Date().getFullYear() - y : null;
-}
-function farRoom(b: Record<string, unknown>): boolean {
-  const far = Number(b.far), legal = Number(b.legal_far ?? b.far_legal ?? 0);
-  return far > 0 && legal > 0 && far < legal * 0.8;
 }
