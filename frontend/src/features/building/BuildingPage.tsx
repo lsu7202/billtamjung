@@ -1,3 +1,4 @@
+import { Loading } from "../../shared/ui/Spinner";
 import { useState, useEffect, useRef, Fragment } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -122,7 +123,7 @@ export function BuildingPage() {
   const ymdDisp = (v: unknown) => (v ? String(v).replace(/-/g, "/") : "");                    // 저장 YYYY-MM-DD → 표시 YYYY/MM/DD
   const parseYmd = (v: string) => { const d = v.replace(/\D/g, ""); return d.length === 8 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}` : v; };   // 입력 → 저장 ISO
 
-  if (building.isLoading) return <p>불러오는 중…</p>;
+  if (building.isLoading) return <Loading label="매물 정보 불러오는 중" minHeight="60vh" />;
   if (building.isError) return <p>건물을 찾을 수 없습니다</p>;
 
   const show = (grp: Scope) => scope === "all" || scope === grp;

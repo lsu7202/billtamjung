@@ -1,3 +1,4 @@
+import { LoadingOverlay } from "../../shared/ui/Spinner";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { searchApi, buildingsApi, listingsApi, type AttrFilters } from "../../shared/api/endpoints";
@@ -286,6 +287,7 @@ export function SearchPage() {
           </div>
           {/* 우: 지도 + 범례 */}
           <div className="map-canvas">
+            {mapPins.isFetching && <LoadingOverlay label="매물 불러오는 중" />}
             {/* 핀 태그 가격 토글 — 좌상단 */}
             <div className="segmented" style={{ position: "absolute", top: 12, left: 12, zIndex: 5, background: "#fff", boxShadow: "0 1px 8px rgba(0,0,0,.15)" }}>
               <button className={priceMode === "fair" ? "active" : ""} onClick={() => setPriceMode("fair")}>적정가</button>

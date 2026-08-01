@@ -139,3 +139,11 @@
 /* 지도 매물 태그(핀) — 호버 시 확대·부양(애니메이션). 앵커=좌하단 꼬리 기준 */
 .map-pin { transition: transform .16s cubic-bezier(.34,1.56,.64,1), box-shadow .16s ease; transform-origin: 0 100%; cursor: pointer; }
 .map-pin:hover { transform: scale(1.22); box-shadow: 0 8px 20px rgba(15,26,46,.5); position: relative; z-index: 20; }
+
+/* ── 로딩(재사용): Spinner / Loading / LoadingOverlay ── */
+.bt-spinner { display: inline-block; box-sizing: border-box; border-style: solid; border-color: var(--line); border-top-color: var(--signal); border-radius: 50%; animation: bt-spin .7s linear infinite; }
+@keyframes bt-spin { to { transform: rotate(360deg); } }
+.bt-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; width: 100%; }
+.bt-loading-label { font-size: 13px; color: var(--muted); font-weight: 500; letter-spacing: .01em; }
+.bt-loading-overlay { position: absolute; inset: 0; z-index: 30; background: color-mix(in srgb, var(--surface, #fff) 72%, transparent); backdrop-filter: blur(1px); }
+@media (prefers-reduced-motion: reduce) { .bt-spinner { animation-duration: 1.6s; } }

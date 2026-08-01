@@ -1,3 +1,4 @@
+import { Loading } from "../../shared/ui/Spinner";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../shared/api/client";
@@ -91,7 +92,7 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZo
 
   const area = num(p?.area);
 
-  if (q.isLoading) return null;
+  if (q.isLoading) return <Loading label="필지 정보 불러오는 중" minHeight={120} />;
   if (parcels.length === 0) return null;
 
   const summary = q.data?.reg_summary ?? {};

@@ -1,3 +1,4 @@
+import { Loading } from "../../shared/ui/Spinner";
 import { type SeriesPt } from "../../shared/api/endpoints";
 import { CountUp } from "./ReportAssets";
 import { ScoreRadar, CompareBar } from "./ReportPrimitives";
@@ -37,7 +38,7 @@ export function ReportView({ pk, b, realSeries }: {
   const { sub, loading, nonCommercial, shortAddr, useZone, mainUse, fair, avgPer, roiFair, nbhdRoi, grade, score,
     gTotal, curRent, rent, ut, officeApt, fut, futureAxes, topStrengths } = rm;
 
-  if (loading && !sub) return <div className="panel" style={{ padding: 40, color: MUTED }}>리포트 계산 중…</div>;
+  if (loading && !sub) return <div className="panel"><Loading label="리포트 계산 중" minHeight={220} /></div>;
   if (nonCommercial) return <div className="panel" style={{ padding: 40, color: MUTED, lineHeight: 1.6 }}>
     <b style={{ color: INK }}>적정가 분석 대상이 아닙니다.</b><br />빌탐정 적정가는 상업·업무 성격 건물({useZone} · {mainUse})을 대상으로 산정합니다. 주거용 건물은 산정 방식이 달라 제공하지 않습니다.
   </div>;

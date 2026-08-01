@@ -1,3 +1,4 @@
+import { Loading } from "../../shared/ui/Spinner";
 import { useState, useEffect, useRef, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { reportsApi } from "../../shared/api/endpoints";
@@ -67,7 +68,7 @@ export function ReportPage() {
   const gc = (s: number) => s >= 70 ? "var(--blue)" : "var(--rmuted)";
   const SM = Object.fromEntries(SLIDE_META.map((s) => [s.key, s])) as Record<string, typeof SLIDE_META[number]>;
 
-  if (loading && !sub) return <div style={{ padding: 40, color: "var(--muted)" }}>보고서 계산 중…</div>;
+  if (loading && !sub) return <Loading label="보고서 계산 중" minHeight="60vh" />;
   if (!sub && isError) return <div style={{ padding: 40, color: "var(--up)" }}>보고서를 불러오지 못했습니다.</div>;
 
   const toolbar = (

@@ -1,3 +1,4 @@
+import { Loading } from "../../shared/ui/Spinner";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -82,7 +83,7 @@ export function ReportModal({ pk, credits, onClose, onDone }: Props) {
         </div>
 
         {isLoading || !data || !s ? (
-          <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>주변 사례 불러오는 중…</div>
+          <Loading label="주변 사례 불러오는 중" minHeight={220} />
         ) : (
           <div className="rm-body">
             {/* 상권 지도(읽기전용) */}
