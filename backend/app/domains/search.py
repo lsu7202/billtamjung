@@ -228,6 +228,7 @@ def _build_base(body: SearchIn, user: CurrentUser) -> tuple[str, list]:
                b.floors_above, b.floors_below, b.use_zone,
                ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat,
                b.last_sale_price, b.last_sale_ym,
+               se.sale_est,
                l.assignee_account_id,
                (fv.building_pk IS NOT NULL) AS is_fav,
                CASE
@@ -245,6 +246,7 @@ def _build_base(body: SearchIn, user: CurrentUser) -> tuple[str, list]:
                END AS roi
         FROM master.buildings b
         LEFT JOIN sale_ov so ON so.building_pk = b.building_pk
+        LEFT JOIN master.building_sale_est se ON se.building_pk = b.building_pk
         LEFT JOIN team_rent tr ON tr.building_pk = b.building_pk
         LEFT JOIN app.listings l
           ON l.building_pk = b.building_pk AND l.team_id = $1

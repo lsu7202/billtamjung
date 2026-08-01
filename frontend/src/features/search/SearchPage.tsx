@@ -80,6 +80,7 @@ export function SearchPage() {
   const [q, setQ] = useState("");
   const [active, setActive] = useState(-1);
   const [view, setView] = useState<"list" | "map">("map");   // 기본 = 지도 우선
+  const [priceMode, setPriceMode] = useState<"fair" | "real">("fair");   // 핀 태그 가격: 적정가/실거래가
   const [polygon, setPolygon] = useState<object | null>(null);
   const [picked, setPicked] = useState<MapPin | null>(null);
   const [centerReq, setCenterReq] = useState<{ lng: number; lat: number } | null>(null);  // 지도 중심 이동 요청
@@ -129,7 +130,7 @@ export function SearchPage() {
     await extrasApi.favToggle(pk);
     qc.invalidateQueries({ queryKey: ["search3"] });
   }
-  function toMap(h: Hit, key: "ad" | "mine" | "normal") {   // 목록 [지도위치] → 지도뷰 + 그 매물로 중심 이동
+  function toMap(h: Hit, key: "mine" | "normal") {   // 목록 [지도위치] → 지도뷰 + 그 매물로 중심 이동
     setPicked({ ...h, col: key });
     if (h.lng && h.lat) setCenterReq({ lng: h.lng, lat: h.lat });
     setView("map");
@@ -271,6 +272,11 @@ export function SearchPage() {
           </div>
           {/* 우: 지도 + 범례 */}
           <div className="map-canvas">
+            {/* 핀 태그 가격 토글 — 좌상단 */}
+            <div className="segmented" style={{ position: "absolute", top: 12, left: 12, zIndex: 5, background: "#fff", boxShadow: "0 1px 8px rgba(0,0,0,.15)" }}>
+              <button className={priceMode === "fair" ? "active" : ""} onClick={() => setPriceMode("fair")}>적정가</button>
+              <button className={priceMode === "real" ? "active" : ""} onClick={() => setPriceMode("real")}>실거래가</button>
+            </div>
             <MapPanel
               pins={mapPinList}
               polygon={polygon}
@@ -278,6 +284,7 @@ export function SearchPage() {
               selectedPk={picked?.building_pk ?? null}
               selectedCol={picked?.col ?? null}
               centerReq={centerReq}
+              priceMode={priceMode}
               onParcelClick={(pk) => { if (pk) selectBuilding(pk); }}
               onPick={(pk) => setPicked(mapPinList.find((p) => p.building_pk === pk) ?? null)}
               onPolygon={(g) => { setPolygon(g); setPages({ mine: 1, normal: 1 }); }}

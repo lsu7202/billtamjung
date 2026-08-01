@@ -5,8 +5,9 @@ import { PIN_COLORS, priceLabel } from "./naver";
 
 export interface CanvasPin {
   building_pk: string; lng: number; lat: number;
-  col: "ad" | "mine" | "normal"; price: number | null; last_sale_price?: number | null;
+  col: "mine" | "normal"; price: number | null; last_sale_price?: number | null; sale_est?: number | null;
 }
+export type PriceMode = "fair" | "real";   // 핀 태그 가격: 적정가 / 실거래가
 type Item =
   | { t: "pin"; cx: number; cy: number; p: CanvasPin }
   | { t: "cluster"; cx: number; cy: number; n: number; lat: number; lng: number };
@@ -18,12 +19,14 @@ const DPR = Math.min(window.devicePixelRatio || 1, 2);
 export interface CanvasLayer {
   setPins(pins: CanvasPin[]): void;
   setSelected(pk: string | null): void;
+  setPriceMode(mode: PriceMode): void;
   destroy(): void;
 }
 
 export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) => void): CanvasLayer {
   let pins: CanvasPin[] = [];
   let selected: string | null = null;
+  let mode: PriceMode = "fair";
   let items: Item[] = [];
   let hoverIdx = -1;
   let raf = 0;
@@ -84,7 +87,8 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
     if (it.t === "cluster") drawCluster(it.cx, it.cy, it.n, hover);
     else {
       const sel = it.p.building_pk === selected;
-      drawPin(it.cx, it.cy, priceLabel(it.p.price ?? it.p.last_sale_price ?? null), PIN_COLORS[it.p.col], hover, sel);
+      const pv = mode === "real" ? (it.p.last_sale_price ?? null) : (it.p.sale_est ?? it.p.price ?? null);
+      drawPin(it.cx, it.cy, priceLabel(pv), PIN_COLORS[it.p.col], hover, sel);
     }
   }
 
@@ -170,6 +174,7 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
       if (proj) { compute(proj); render(); }
     },
     setSelected(pk) { selected = pk; render(); },
+    setPriceMode(m) { mode = m; render(); },
     destroy() {
       if (raf) cancelAnimationFrame(raf);
       naver.maps.Event.removeListener(mv);

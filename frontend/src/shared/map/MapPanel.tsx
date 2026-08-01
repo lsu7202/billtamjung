@@ -13,9 +13,10 @@ export interface MapPin {
   addr: string;
   lng: number;
   lat: number;
-  col: "ad" | "mine" | "normal";
+  col: "mine" | "normal";
   price: number | null;
   last_sale_price?: number | null;
+  sale_est?: number | null;
   roi?: number | null;
   is_fav?: boolean;
   land_area?: number | null;
@@ -41,7 +42,7 @@ function conePath(naver: any, lat: number, lng: number, pan: number, fov: number
 }
 
 export function MapPanel({
-  pins, onPick, onPolygon, polygon, polygonActive, selectedPk, selectedCol, onParcelClick, centerReq,
+  pins, onPick, onPolygon, polygon, polygonActive, selectedPk, selectedCol, onParcelClick, centerReq, priceMode = "fair",
 }: {
   pins: MapPin[];
   onPick: (pk: string) => void;
@@ -49,9 +50,10 @@ export function MapPanel({
   polygon?: object | null;                    // 외부 주입 영역(불러오기 등) — 지도에 표시
   polygonActive: boolean;
   selectedPk?: string | null;                 // 선택 건물(필지 분류색 오버레이)
-  selectedCol?: "ad" | "mine" | "normal" | null;
+  selectedCol?: "mine" | "normal" | null;
   onParcelClick?: (building_pk: string | null, pnu: string) => void;  // 필지 클릭(부동산플래닛식)
   centerReq?: { lng: number; lat: number } | null;  // 지도 중심 이동 요청(사이드바·지도위치 선택 시)
+  priceMode?: "fair" | "real";               // 핀 태그 가격: 적정가/실거래가
 }) {
   const divRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -107,6 +109,7 @@ export function MapPanel({
     return () => { layer.destroy(); pinLayerRef.current = null; };
   }, [ready]);
   useEffect(() => { pinLayerRef.current?.setPins(pins as CanvasPin[]); }, [pins, ready]);
+  useEffect(() => { pinLayerRef.current?.setPriceMode(priceMode); }, [priceMode, ready]);
   useEffect(() => { pinLayerRef.current?.setSelected(selectedPk ?? null); }, [selectedPk, ready]);
 
   // 선택 매물 좌표로 지도 중심 이동(줌 유지). 사이드바 목록·지도위치 선택 시 요청됨
