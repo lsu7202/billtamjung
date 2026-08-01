@@ -13,6 +13,7 @@ import "./search.css";
 
 interface Hit {
   building_pk: string; addr: string; price: number | null; last_sale_price: number | null; roi: number | null;
+  price_is_est?: boolean;   // 매매가가 적정가 대체(팀 매매가 미입력)
   lng: number; lat: number; is_fav?: boolean;
   land_area: number | null; floors_above: number | null; floors_below: number | null;
 }
@@ -41,7 +42,7 @@ function SelCard({ picked, bldg, trend, onDetail, onFav }: {
   const total = num("total_area");
   const fa = num("floors_above") ?? picked.floors_above ?? null;
   const fb = num("floors_below") ?? picked.floors_below ?? null;
-  const fair = picked.sale_est ?? picked.price ?? null;   // 적정가=배치값(핀에 이미 실림) → 즉시
+  const fair = picked.sale_est ?? null;   // 적정가=배치값만(핀에 이미 실림) → 즉시. 매매가와 구분.
   const eok1 = (v: number | null) => v == null ? "—" : v >= 1e8 ? `${(v / 1e8).toFixed(0)}억` : `${Math.round(v / 1e4).toLocaleString()}만`;
   return (
     <div className="sel-card">
@@ -295,6 +296,10 @@ export function SearchPage() {
 
       {/* 2열 결과(내매물/일반) — 주소/실거래/매매가/수익률 */}
       {view === "list" && (result.data ? (
+        <>
+        <div className="wf-note" style={{ fontSize: 12, color: "var(--muted)", padding: "2px 4px 8px" }}>
+          매매가·수익률은 시스템 추정 기준 · 매매가 미입력 시 빌탐정 적정가(<b>적정</b>) 사용 · 팀 오버레이 미반영
+        </div>
         <div className="result-cols wf-list s01">
           {COLS.map(({ key, label }) => {
             const col = result.data![key];
@@ -316,7 +321,7 @@ export function SearchPage() {
                         onClick={(e) => { e.stopPropagation(); toggleFav(h.building_pk); }}>★</span>
                       <span>{h.addr.replace("서울특별시 ", "").replace("번지", "")}</span>
                       <span className="num" style={{ color: "var(--muted)" }}>{won(h.last_sale_price)}</span>
-                      <span className="num">{won(h.price)}</span>
+                      <span className="num">{won(h.price)}{h.price_is_est && <small style={{ color: "var(--muted)", fontWeight: 400 }}> 적정</small>}</span>
                       <span className="num" style={{ color: h.roi == null ? "var(--muted)" : undefined }}>{h.roi == null ? "—" : `${h.roi}%`}</span>
                       <span className="row-actions">
                         <button className="btn primary" onClick={(e) => { e.stopPropagation(); go(h.building_pk); }}>상세보기</button>
@@ -341,6 +346,7 @@ export function SearchPage() {
             );
           })}
         </div>
+        </>
       ) : (
         <div className="panel" style={{ padding: 24, color: "var(--muted)", fontSize: 13 }}>
           주소를 검색하거나 [필터]에서 지역을 선택하면 내 매물 / 일반 2열로 매물이 표시됩니다.

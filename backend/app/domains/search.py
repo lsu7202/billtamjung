@@ -235,18 +235,22 @@ def _build_base(body: SearchIn, user: CurrentUser) -> tuple[str, list]:
                  WHEN l.assignee_account_id IS NOT NULL THEN 'mine'
                  ELSE 'normal'
                END AS col,
-               -- 매매가 = 팀 수기값(sale_price). 실거래가는 매매가가 아님 → 제외.
-               so.sale_price AS price,
-               -- 수익률(추정) = 연임대료 / (매매가, 없으면 실거래로 추정)
+               -- 매매가 = 팀 수기값(sale_price 오버레이), 없으면 빌탐정 적정가(마스터 기본). 체인: 매매가 기본=적정가.
+               COALESCE(so.sale_price, se.sale_est) AS price,
+               (so.sale_price IS NULL) AS price_is_est,   -- 매매가 미입력 → 적정가 대체(표시 명시용)
+               -- 수익률 = 연임대(팀 층별임대 오버레이, 없으면 마스터 추정 rent_est) ÷ 매매가(=적정가 기본) × 100.
+               -- 수익률은 매매가 추종 — 적정가 직접 분모 아님(매매가 기본값이 적정가일 뿐).
                CASE
-                 WHEN tr.monthly_rent IS NOT NULL AND COALESCE(so.sale_price, b.last_sale_price) > 0
-                 THEN round((tr.monthly_rent * 12.0)
-                            / COALESCE(so.sale_price, b.last_sale_price) * 100, 2)
+                 WHEN COALESCE(tr.monthly_rent * 12.0, re.annual_rent) > 0
+                      AND COALESCE(so.sale_price, se.sale_est) > 0
+                 THEN round(COALESCE(tr.monthly_rent * 12.0, re.annual_rent)
+                            / COALESCE(so.sale_price, se.sale_est) * 100, 2)
                  ELSE NULL
                END AS roi
         FROM master.buildings b
         LEFT JOIN sale_ov so ON so.building_pk = b.building_pk
         LEFT JOIN master.building_sale_est se ON se.building_pk = b.building_pk
+        LEFT JOIN master.building_rent_est re ON re.building_pk = b.building_pk
         LEFT JOIN team_rent tr ON tr.building_pk = b.building_pk
         LEFT JOIN app.listings l
           ON l.building_pk = b.building_pk AND l.team_id = $1

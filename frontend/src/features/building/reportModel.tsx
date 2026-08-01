@@ -118,7 +118,8 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   const compMin = _perVals.length ? Math.round(Math.min(..._perVals) / 1e4) : null;
   const compMax = _perVals.length ? Math.round(Math.max(..._perVals) / 1e4) : null;
   const floors = _floors0;
-  const roiFair = rent && fair ? (rent * 12 / fair) * 100 : null;
+  // 예상수익률 = synthesize 정본(rent ÷ 매매가, 매매가 기본=적정가). 적정가 직접 분모 아님(매매가 추종).
+  const roiFair = pv?.expected_roi ?? null;
   const rs = pv?.rent_summary ?? null;
   const rFloors = rs?.floor_count ?? floors.length;
   const rCurDep = rs?.cur_deposit ?? null;
@@ -155,7 +156,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     ...(topStrengths.length
       ? [{ t: ` ` }, { t: `${topStrengths.join("·")}`, b: true }, { t: ` 등에서 우수해 매력도 ` }, { t: `${grade}등급`, b: true }, { t: `으로 평가됩니다.` }]
       : [{ t: ` 매력도는 ` }, { t: `${grade}등급`, b: true }, { t: `입니다.` }]),
-    { t: ` 적정가 기준 예상수익률은 ` }, { t: `${roiFair != null ? roiFair.toFixed(2) : "—"}%`, b: true },
+    { t: ` 예상수익률은 ` }, { t: `${roiFair != null ? roiFair.toFixed(2) : "—"}%`, b: true },
     ...(nbhdRoi != null
       ? [{ t: `로 주변 평균(${nbhdRoi}%)보다 ` }, { t: `${roiFair != null && roiFair >= nbhdRoi ? "높은" : "낮은"}`, b: true }, { t: ` 수준이며,` }]
       : [{ t: `로,` }]),
@@ -189,7 +190,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   // ── 01 핵심요약 ──
   const summaryRows = [
     { k: "빌탐정 적정가", s: "시스템 산정", v: fair ? eokman(fair) : "—", c: "var(--navy)" },
-    { k: "적정가 기준 예상수익률", s: "연 임대수익 기준", v: roiFair != null ? `${roiFair.toFixed(2)}%` : "—", c: "var(--purple)" },
+    { k: "예상수익률", s: "매매가 기준 · 연 임대수익 (매매가 미입력 시 적정가)", v: roiFair != null ? `${roiFair.toFixed(2)}%` : "—", c: "var(--purple)" },
     { k: "매력도 등급", s: "입지·건물 매력도 (적정가와 별개)", v: `${grade}등급`, c: "var(--blue)" },
   ];
   const summaryTail = { primary: ut?.primary ?? null, officeApt, avgPerMan: avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만원` : "—", totalPy: `${py(totalArea)}평` };
@@ -224,7 +225,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     ["총 월임대료", `${man(curRent)}만원`],
     ["예상 보증금", rCurDep ? eokman(rCurDep) : "—"],
     ["평균 평당 임대료", perPyRent ? `${(perPyRent / 1e4).toFixed(1)}만원` : "—"],
-    ["적정가 기준 예상수익률", roiFair != null ? `${roiFair.toFixed(2)}%` : "—"],
+    ["예상수익률", roiFair != null ? `${roiFair.toFixed(2)}%` : "—"],
   ];
   const rentProse: Seg[] = [
     { t: `본 매물의 현재 총 월임대료는 ` }, { t: `${man(curRent)}만원`, b: true }, { t: `, 총 보증금은 ` }, { t: `${rCurDep ? eokman(rCurDep) : "—"}`, b: true }, { t: ` 수준입니다.` },
@@ -233,7 +234,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
       : upsidePct <= -3 ? [{ t: ` 현재 임대료가 주변 시세보다 다소 높아 임대 안정성이 높습니다.` }]
       : [{ t: ` 현재 임대료는 주변 시세와 유사한 적정 수준입니다.` }]) : []),
     ...(nbhdRoi != null && roiFair != null
-      ? [{ t: ` 적정가 기준 예상수익률 ` }, { t: `${roiFair.toFixed(2)}%`, b: true }, { t: `는 주변 평균(${nbhdRoi}%)보다 ` }, { t: roiFair >= nbhdRoi ? "높아 수익성 우위" : "다소 낮은 편", b: true }, { t: `입니다.` }]
+      ? [{ t: ` 예상수익률 ` }, { t: `${roiFair.toFixed(2)}%`, b: true }, { t: `는 주변 평균(${nbhdRoi}%)보다 ` }, { t: roiFair >= nbhdRoi ? "높아 수익성 우위" : "다소 낮은 편", b: true }, { t: `입니다.` }]
       : []),
   ];
 
