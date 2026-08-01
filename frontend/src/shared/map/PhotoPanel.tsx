@@ -82,7 +82,6 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
       });
     } catch { setNoPano(true); return; }
     panoRef.current = pano;
-    naver.maps.Event.addListener(pano, "pano_status", (s: any) => setNoPano(String(s) !== "OK"));
     // 최초 1회: 파노라마(도로) 위치에서 본매물로의 방위각으로 시야를 맞춤(로드뷰가 매물을 바라보게)
     let oriented = false;
     const orient = () => {
@@ -93,7 +92,6 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
       if (Math.abs(dLat) < 1e-9 && Math.abs(dLng) < 1e-9) return;   // 파노라마=매물이면 유지
       pano.setPov({ pan: (Math.atan2(dLng, dLat) * 180) / Math.PI, tilt: 0, fov: 90 });   // 북=0·동=90(conePath와 동일)
     };
-    naver.maps.Event.addListener(pano, "pano_changed", orient);
     const sync = () => {
       const p = pano.getPosition?.(); const pov = pano.getPov?.() ?? { pan: 0, fov: 90 };
       if (!p) return;
@@ -103,10 +101,21 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
         fillColor: "#3A5DA8", fillOpacity: 0.25, strokeColor: "#3A5DA8", strokeWeight: 1, zIndex: 90,
       });
     };
-    naver.maps.Event.addListener(pano, "pano_changed", sync);
-    naver.maps.Event.addListener(pano, "pov_changed", sync);
+    // 리스너 추적 → cleanup에서 전부 제거(이중 마운트 시 옛 파노라마가 부채꼴 하나 더 그리는 것 방지)
+    const ls = [
+      naver.maps.Event.addListener(pano, "pano_status", (s: any) => setNoPano(String(s) !== "OK")),
+      naver.maps.Event.addListener(pano, "pano_changed", orient),
+      naver.maps.Event.addListener(pano, "pano_changed", sync),
+      naver.maps.Event.addListener(pano, "pov_changed", sync),
+    ];
     const t = setTimeout(sync, 500);
-    return () => { clearTimeout(t); cone?.setMap(null); panoRef.current = null; if (roadDiv.current) roadDiv.current.innerHTML = ""; };
+    return () => {
+      clearTimeout(t);
+      ls.forEach((l) => naver.maps.Event.removeListener(l));
+      pano.destroy?.();
+      cone?.setMap(null); panoRef.current = null;
+      if (roadDiv.current) roadDiv.current.innerHTML = "";
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, lat, lng]);
 
