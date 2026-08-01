@@ -101,7 +101,7 @@ export function BuildingPage() {
   // (추정 여부는 필드명 대신 화면 하단 공통 주의사항으로 안내 — 유저 오버레이 시 라벨이 이상해지지 않게)
   const fullRent = total?.rent_full ?? (estMonthly || 0);
   const fullDeposit = total?.deposit_full ?? (estDeposit || 0);
-  // 매매가 = 수기 sale_price 우선, 없으면 적정가 추정(F-17 v2 배치 sale_est). 실거래·광고가는 시계열 별도.
+  // 매매가 = 수기 sale_price 우선, 없으면 적정가 추정(F-17 v2 배치 sale_est). 실거래는 시계열 별도.
   // 3층 가격(specs data-overview): 빌탐정 적정가(sale_est·시스템) / 매매가(sale_price·중개인, 기본=적정가) / 매도희망가(ask_price·건물주)
   const priceActual = b.sale_price != null && b.sale_price !== "" ? Number(b.sale_price) : null;   // 매매가(중개인 오버레이)
   const priceEst = b.sale_est != null && b.sale_est !== "" ? Number(b.sale_est) : null;             // 빌탐정 적정가
@@ -335,7 +335,7 @@ export function BuildingPage() {
             {/* 시세 추이(§3.7): 실거래·광고 각각 별도 카드. 겹쳐 비교는 리포트 탭 */}
             {show("deal") && (
             <MarketTrend pk={pk} fmt={(v) => eok(v)} areaPy={totalP}
-              data={series.data ?? { gongsi: [], real: [], ad: [] }}
+              data={series.data ?? { gongsi: [], real: [] }}
               refresh={() => qc.invalidateQueries({ queryKey: ["series", pk] })} />
             )}
           </div>
@@ -651,5 +651,3 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
     </div>
   );
 }
-
-/* 광고 정보 입력(집단지성 §3.7) */

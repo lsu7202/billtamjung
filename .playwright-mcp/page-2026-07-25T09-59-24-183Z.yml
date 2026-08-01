@@ -1,0 +1,27 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "입력" [level=4] [ref=e5]
+      - paragraph [ref=e6]: 본매물 정보+ 주변 실거래사례(comps)
+      - paragraph [ref=e7]: 상권 반경·본매물 층 기준 자동 수집
+    - generic [ref=e8]: →
+    - generic [ref=e9]:
+      - generic [ref=e10]: STEP 1
+      - heading "가치점수" [level=4] [ref=e11]
+      - paragraph [ref=e12]: 도로접면·역거리·용도지역·지형·연식 등 8개 핵심 지표를 가중합해 점수·등급(S/A/B/C) 산출
+    - generic [ref=e13]: →
+    - generic [ref=e14]:
+      - generic [ref=e15]: STEP 2
+      - heading "적정매매가" [level=4] [ref=e16]
+      - paragraph [ref=e17]: 사례별 평단가 → 시점보정 → 유사도 가중평균 × 본매물 연면적
+    - generic [ref=e18]: →
+    - generic [ref=e19]:
+      - generic [ref=e20]: STEP 3
+      - heading "예상수익률" [level=4] [ref=e21]
+      - paragraph [ref=e22]: 적용 임대료 × 12÷ 적정매매가
+      - paragraph [ref=e23]: 협의 필요금액도 함께 제시
+    - generic [ref=e24]: →
+    - generic [ref=e25]:
+      - heading "분석보고서" [level=4] [ref=e26]
+      - paragraph [ref=e27]: 산정 근거·검토 포인트를 담은 8페이지 보고서 자동 생성
+  - generic [ref=e28]: 빌탐정 가치분석 엔진 — '왜 이 값인가'를 항목별 근거로 설명하는 설득형 분석

@@ -4,8 +4,8 @@ import { TrendChart } from "./TrendChart";
 import { MetricStack } from "./ReportPrimitives";
 import { perPyMan } from "../../shared/format";
 
-/** 거래 시세 — 실거래·광고를 각각 별도 카드로 나란히. 카드별 단일계열 그래프 + 편집표 + 상승률.
- * 공시지가는 토지 섹션(ParcelBlock)에 값+추이로 통합. 그래프 겹쳐 비교는 '리포트' 탭. specs S02 §3.7.
+/** 거래 시세 — 실거래 단일계열 카드(그래프 + 편집표 + 상승률).
+ * 공시지가는 토지 섹션(ParcelBlock)에 값+추이로 통합. specs S02 §3.7.
  */
 const validX = (x: string) => /^\d{4}([/-]\d{1,2}([/-]\d{1,2})?)?$/.test(x.trim());
 const fmtDate = (s: string): string => {
@@ -15,13 +15,11 @@ const fmtDate = (s: string): string => {
 const perPyFmt = (y: number, areaPy?: number) => perPyMan(y, areaPy);
 
 export function MarketTrend({ pk, data, fmt, refresh, areaPy }: {
-  pk: string; data: Record<"gongsi" | "real" | "ad", SeriesPt[]>; fmt: (n: number) => string; refresh: () => void; areaPy?: number | null;
+  pk: string; data: Record<"gongsi" | "real", SeriesPt[]>; fmt: (n: number) => string; refresh: () => void; areaPy?: number | null;
 }) {
-  // 실거래 = 주카드(항상). 광고 = 거의 안 쓰므로 접이식(데이터 없으면 접힘, 클릭해 입력).
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <SeriesCard pk={pk} kind="real" name="실거래가" color="var(--c-real)" perPy pts={data.real ?? []} fmt={fmt} refresh={refresh} areaPy={areaPy ?? undefined} />
-      <SeriesCard pk={pk} kind="ad" name="광고가" color="var(--c-ad)" dashed perPy pts={data.ad ?? []} fmt={fmt} refresh={refresh} areaPy={areaPy ?? undefined} collapsible />
     </div>
   );
 }

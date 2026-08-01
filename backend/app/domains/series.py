@@ -1,5 +1,5 @@
-"""시세 시계열 팀 오버레이 — 공시지가(총)·실거래·광고. 마스터 점 불변 + 팀 오버레이 override/추가.
-값 y=원(카드 표시단위). 광고는 마스터 없음(오버레이 전용). specs S02 §3.7."""
+"""시세 시계열 팀 오버레이 — 공시지가(총)·실거래. 마스터 점 불변 + 팀 오버레이 override/추가.
+값 y=원(카드 표시단위). specs S02 §3.7."""
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from ..core.db import pool
@@ -7,7 +7,7 @@ from ..core.deps import current_user, CurrentUser
 
 router = APIRouter(prefix="/buildings/{building_pk}/series", tags=["series"])
 
-KINDS = ("gongsi", "real", "ad")
+KINDS = ("gongsi", "real")
 
 
 def _merge(master: list[dict], overlay: list[dict]) -> list[dict]:
@@ -47,7 +47,6 @@ async def get_series(building_pk: str, user: CurrentUser = Depends(current_user)
     return {
         "gongsi": _merge(gongsi_m, ov["gongsi"]),
         "real": _merge(real_m, ov["real"]),
-        "ad": _merge([], ov["ad"]),
     }
 
 
@@ -60,7 +59,7 @@ class PointIn(BaseModel):
 @router.put("")
 async def upsert_point(building_pk: str, body: PointIn, user: CurrentUser = Depends(current_user)):
     if body.kind not in KINDS:
-        raise HTTPException(422, "kind는 gongsi|real|ad")
+        raise HTTPException(422, "kind는 gongsi|real")
     if not body.x.strip():
         raise HTTPException(422, "시점(x) 필수")
     await pool().execute(

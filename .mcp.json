@@ -1,5 +1,9 @@
 {
   "mcpServers": {
+    "hwpx": {
+      "command": "node",
+      "args": ["/Users/iseung-ug/mcp-servers/hwpx-mcp/mcp-server/dist/index.js"]
+    },
     "notion": {
       "type": "http",
       "url": "https://mcp.notion.com/mcp"

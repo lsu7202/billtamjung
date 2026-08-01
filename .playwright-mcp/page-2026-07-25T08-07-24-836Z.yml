@@ -1,0 +1,59 @@
+- generic [ref=f1e2]:
+  - generic [ref=f1e3]:
+    - generic [ref=f1e4]: 공공데이터 (국가중점데이터)
+    - generic [ref=f1e5]:
+      - generic [ref=f1e6]:
+        - heading "건축HUB 마트" [level=4] [ref=f1e7]
+        - paragraph [ref=f1e8]: 건물·호실·전유부·용도
+      - generic [ref=f1e9]:
+        - heading "실거래가 공개시스템" [level=4] [ref=f1e10]
+        - paragraph [ref=f1e11]: 상업용 실거래 21년치
+      - generic [ref=f1e12]:
+        - heading "브이월드 연속주제도" [level=4] [ref=f1e13]
+        - paragraph [ref=f1e14]: 필지·용도지역·개발제한
+      - generic [ref=f1e15]:
+        - heading "공시지가" [level=4] [ref=f1e16]
+        - paragraph [ref=f1e17]: 11개년 시계열
+  - generic [ref=f1e18]: ▼
+  - generic [ref=f1e19]:
+    - generic [ref=f1e20]: 데이터 파이프라인 (재현 가능)
+    - generic [ref=f1e21]:
+      - generic [ref=f1e22]:
+        - heading "합법 확보·정제" [level=4] [ref=f1e23]
+        - paragraph [ref=f1e24]: 파일 기반 수집, 표준화
+      - generic [ref=f1e25]:
+        - heading "공간분석" [level=4] [ref=f1e26]
+        - paragraph [ref=f1e27]: 필지 걸침 면적가중, 규제 매칭
+      - generic [ref=f1e28]:
+        - heading "실거래 매칭" [level=4] [ref=f1e29]
+        - paragraph [ref=f1e30]: 건물별 추정 실거래이력
+      - generic [ref=f1e31]:
+        - heading "교차검증" [level=4] [ref=f1e32]
+        - paragraph [ref=f1e33]: 토지이음 대조
+  - generic [ref=f1e34]: ▼
+  - generic [ref=f1e35]:
+    - generic [ref=f1e36]: 통합 데이터베이스
+    - generic [ref=f1e37]:
+      - generic [ref=f1e38]:
+        - heading "마스터 (불변)" [level=4] [ref=f1e39]
+        - paragraph [ref=f1e40]: 서울 전 건물 586,343동 · 필지 898,800개
+      - generic [ref=f1e41]:
+        - heading "유저 오버레이" [level=4] [ref=f1e42]
+        - paragraph [ref=f1e43]: 개인화 데이터·수정이력 (팀 공유)
+      - generic [ref=f1e44]:
+        - heading "레지스트리" [level=4] [ref=f1e45]
+        - paragraph [ref=f1e46]: 산식·enum 버전 관리
+  - generic [ref=f1e47]: ▼
+  - generic [ref=f1e48]:
+    - generic [ref=f1e49]: 빌탐정 서비스 (해자)
+    - generic [ref=f1e50]:
+      - generic [ref=f1e51]:
+        - heading "🔎 통합검색" [level=4] [ref=f1e52]
+        - paragraph [ref=f1e53]: 58개 조건 · 지도 영역 그리기 · 3열 분류
+      - generic [ref=f1e54]:
+        - heading "📊 가치분석 보고서" [level=4] [ref=f1e55]
+        - paragraph [ref=f1e56]: 가치점수·적정매매가·예상수익률 자동산출
+      - generic [ref=f1e57]:
+        - heading "🗂️ 매물관리" [level=4] [ref=f1e58]
+        - paragraph [ref=f1e59]: 내 매물·진행상태·집단지성 위키
+  - generic [ref=f1e60]: 빌탐정 데이터·서비스 아키텍처 — 가장 어려운 데이터 인프라를 이미 구축

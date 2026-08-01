@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { AuthGuard } from "./AuthGuard";
 import { Shell } from "./Shell";
 import { refresh } from "../shared/api/client";
@@ -8,6 +8,7 @@ import { LoginPage } from "../features/auth/LoginPage";
 import { SearchPage } from "../features/search/SearchPage";
 import { BuildingPage } from "../features/building/BuildingPage";
 import { ReportPage } from "../features/building/ReportPage";
+import { ReportStory } from "../features/building/ReportStory";
 import { MyPage } from "../features/mypage/MyPage";
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 10_000 } } });
@@ -26,9 +27,13 @@ export function App() {
           <Route element={<AuthGuard><Shell /></AuthGuard>}>
             <Route path="/search" element={<SearchPage />} />
             <Route path="/buildings/:pk" element={<BuildingPage />} />
-            <Route path="/buildings/:pk/report" element={<ReportPage />} />
-            <Route path="/reports/:id" element={<ReportPage />} />
             <Route path="/mypage" element={<MyPage />} />
+          </Route>
+          {/* 보고서 = 헤더 없는 전체화면(새 탭으로 여는 독립 뷰) */}
+          <Route element={<AuthGuard><div style={{ height: "100vh", overflow: "hidden" }}><Outlet /></div></AuthGuard>}>
+            <Route path="/buildings/:pk/report" element={<ReportPage />} />
+            <Route path="/buildings/:pk/story" element={<ReportStory />} />
+            <Route path="/reports/:id" element={<ReportPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/search" replace />} />
         </Routes>

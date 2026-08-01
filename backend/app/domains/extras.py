@@ -1,4 +1,4 @@
-"""부가 도메인: 즐겨찾기·저장검색·위키·메모·광고가. specs S01·S02·S0M."""
+"""부가 도메인: 즐겨찾기·저장검색·위키·메모. specs S01·S02·S0M."""
 import json
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -202,38 +202,3 @@ async def memo_delete(building_pk: str, memo_id: int, user: CurrentUser = Depend
         memo_id, user.account_id,
     )
     return {"ok": True}
-
-
-# ── 광고가(집단지성·공용 시계열) ─────────────────────
-class AdPriceIn(BaseModel):
-    observed_on: str        # YYYY-MM-DD
-    price: int | None       # NULL='광고없음' 관측
-    is_mine: bool = False
-
-
-@router.post("/buildings/{building_pk}/ad-prices")
-async def ad_price_add(building_pk: str, body: AdPriceIn, user: CurrentUser = Depends(current_user)):
-    import datetime as dt
-    try:
-        observed = dt.date.fromisoformat(body.observed_on)
-    except ValueError:
-        raise HTTPException(422, "observed_on은 YYYY-MM-DD")
-    await pool().execute(
-        """INSERT INTO app.ad_prices(building_pk,observed_on,price,is_mine,reporter_account_id)
-           VALUES($1,$2,$3,$4,$5)""",
-        building_pk, observed, body.price, body.is_mine, user.account_id,
-    )
-    return {"ok": True}
-
-
-@router.get("/buildings/{building_pk}/ad-prices")
-async def ad_price_list(building_pk: str, _: CurrentUser = Depends(current_user)):
-    rows = await pool().fetch(
-        """SELECT observed_on, price, is_mine,
-                  count(*) OVER (PARTITION BY observed_on, price) AS confirms
-           FROM app.ad_prices
-           WHERE building_pk=$1 AND deleted_at IS NULL
-           ORDER BY observed_on DESC""",
-        building_pk,
-    )
-    return [dict(r) for r in rows]

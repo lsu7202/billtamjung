@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { listingsApi, extrasApi, overlaysApi, seriesApi, buildingsApi } from "../../shared/api/endpoints";
+import { listingsApi, extrasApi, overlaysApi, buildingsApi } from "../../shared/api/endpoints";
 import { KV, wonToEok, vPos, formatPhone } from "./KV";
 import { api } from "../../shared/api/client";
 import { useEnums } from "../../shared/hooks/useEnums";
@@ -57,7 +57,6 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
   const en = useEnums();
   const members = useQuery({ queryKey: ["team-members"], queryFn: listingsApi.members });
   const me = useQuery({ queryKey: ["me"], queryFn: () => api<{ account_id: number }>("/auth/me") });
-  const series = useQuery({ queryKey: ["series", pk], queryFn: () => seriesApi.get(pk) });
   const building = useQuery({ queryKey: ["building", pk], queryFn: () => buildingsApi.get(pk) });
   const bd = building.data as Record<string, unknown> | undefined;
   async function saveOv(field: string, wonStr: string) {   // 원 입력 → 원 저장(오버레이)
@@ -68,8 +67,6 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
   const assignee = listing?.assignee_account_id != null ? Number(listing.assignee_account_id) : null;
   const val = (k: string) => (listing?.[k] != null ? String(listing[k]) : "");
   const status = val("status") || "미지정";
-  const adPts = series.data?.ad ?? [];
-  const myAd = adPts.length ? adPts[adPts.length - 1] : null;   // 내 광고(최신 팀 오버레이 점)
 
   async function save(k: string, v: string) {
     await listingsApi.patchBiz(pk, { [k]: v || null });
@@ -95,7 +92,7 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
 
   return (
     <div style={{ display: "grid", gap: 8, fontSize: 13 }}>
-      {/* 진행상태(segmented) + 내 광고 뱃지 — 목업 .wk-status 상단 */}
+      {/* 진행상태(segmented) — 목업 .wk-status 상단 */}
       <div className="kv" style={{ alignItems: "flex-start" }}>
         <span className="k">진행상태</span>
         <span style={{ display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "flex-end" }}>
@@ -104,11 +101,6 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
               style={{ padding: "3px 8px", fontSize: 12 }} onClick={() => save("status", o.code)}>{o.label}</button>
           ))}
         </span>
-      </div>
-      <div className="kv" style={{ alignItems: "center" }}>
-        <span className="k">내 광고</span>
-        {myAd ? <span className="tag" style={{ background: "var(--green)", color: "#fff", fontWeight: 700 }}>{(Number(myAd.y) / 1e8).toFixed(1)}억</span>
-              : <span style={{ color: "var(--muted)" }}>없음</span>}
       </div>
 
       <div style={{ margin: "6px 0 2px", fontWeight: 700 }}>업무 정보</div>

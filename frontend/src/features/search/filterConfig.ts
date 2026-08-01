@@ -100,9 +100,8 @@ export const GROUPS: Group[] = [
       M("용도변경", ["나대지(주차장)", "근생", "상가주택", "다가구주택", "다세대주택", "가능", "불가", "협의가능", "조건부"]),
       M("멸실", ["불가", "협조가능", "잔금전멸실", "나대지(주차장)", "협의가능", "조건부"]),
     ] },
-  { t: "공시지가·실거래·광고",
+  { t: "공시지가·실거래",
     reps: [
-      S("광고가", { min: 0, max: 200, unit: "억", inf: true, ticks: "0,50,100" }),
       S("실거래일", { min: 0, max: 30, unit: "년", inf: true, handle: "right", ticks: "0,10,20", le: "이내", chips: [["최근 5년↓", 0, 5], ["최근 10년↓", 0, 10], ["10년↑ 미거래", 10, ""]] }),
     ],
     body: [
@@ -111,8 +110,6 @@ export const GROUPS: Group[] = [
       S("공시지가 상승률 10년", { min: 0, max: 200, unit: "%", inf: true, handle: "left", ticks: "0,50,100" }),
       S("총공시지가/매매가", { min: 0, max: 200, unit: "%", inf: true, ticks: "0,50,100" }),
       S("공시지가 기준", { min: 0, max: 200, unit: "억", inf: true, ticks: "0,50,100,150" }),
-      S("광고 상승률", { min: -50, max: 100, unit: "%", inf: true, inflo: true, ticks: "-50,0,50" }),
-      T("광고 상태", ["광고중", "광고없음"]),
       S("실거래가", { min: 0, max: 200, unit: "억", inf: true, ticks: "0,50,100" }),
       S("실거래손익", { min: -50, max: 200, unit: "%", inf: true, inflo: true, ticks: "-50,0,50,100" }),
       S("실거래횟수", { min: 0, max: 10, unit: "건", inf: true, handle: "left", ticks: "0,3,6" }),

@@ -1,4 +1,4 @@
-"""검색: 주소 자동완성 + 3열 목록(광고/내매물/일반) + 영역(폴리곤) 검색.
+"""검색: 주소 자동완성 + 2열 목록(내매물/일반) + 영역(폴리곤) 검색.
 specs S01 §3.1a(자동완성)·§3.4(3열·열별 페이징)·§3.5(표시값)·§3.6c(영역).
 """
 import json
@@ -103,8 +103,7 @@ class SearchIn(BaseModel):
     filters: Filters = Filters()
     sort: str = "price"               # price|roi|addr
     fav_only: bool = False            # 즐겨찾기 빠른 필터(§3.2a)
-    page_ad: int = 1                  # 열별 독립 페이징(§3.4)
-    page_mine: int = 1
+    page_mine: int = 1                # 열별 독립 페이징(§3.4)
     page_normal: int = 1
     per_page: int = 20
 
@@ -213,12 +212,7 @@ def _build_base(body: SearchIn, user: CurrentUser) -> tuple[str, list]:
     fav_where = "AND fv.building_pk IS NOT NULL" if body.fav_only else ""
 
     base = f"""
-      WITH latest_ad AS (
-        SELECT DISTINCT ON (building_pk) building_pk, price
-        FROM app.ad_prices WHERE deleted_at IS NULL
-        ORDER BY building_pk, observed_on DESC
-      ),
-      team_rent AS (   -- 팀 층별임대 합계(수익률 추정용, S01 §3.5)
+      WITH team_rent AS (   -- 팀 층별임대 합계(수익률 추정용, S01 §3.5)
         SELECT building_pk, SUM(rent) AS monthly_rent
         FROM app.floor_rents
         WHERE team_id = $1 AND deleted_at IS NULL AND rent IS NOT NULL
@@ -234,25 +228,22 @@ def _build_base(body: SearchIn, user: CurrentUser) -> tuple[str, list]:
                b.floors_above, b.floors_below, b.use_zone,
                ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat,
                b.last_sale_price, b.last_sale_ym,
-               la.price AS ad_price,
                l.assignee_account_id,
                (fv.building_pk IS NOT NULL) AS is_fav,
                CASE
-                 WHEN la.price IS NOT NULL THEN 'ad'
                  WHEN l.assignee_account_id IS NOT NULL THEN 'mine'
                  ELSE 'normal'
                END AS col,
-               -- 매매가 = 광고가 or 팀 수기값. 실거래가는 매매가가 아님 → 제외.
-               COALESCE(la.price, so.sale_price) AS price,
+               -- 매매가 = 팀 수기값(sale_price). 실거래가는 매매가가 아님 → 제외.
+               so.sale_price AS price,
                -- 수익률(추정) = 연임대료 / (매매가, 없으면 실거래로 추정)
                CASE
-                 WHEN tr.monthly_rent IS NOT NULL AND COALESCE(la.price, so.sale_price, b.last_sale_price) > 0
+                 WHEN tr.monthly_rent IS NOT NULL AND COALESCE(so.sale_price, b.last_sale_price) > 0
                  THEN round((tr.monthly_rent * 12.0)
-                            / COALESCE(la.price, so.sale_price, b.last_sale_price) * 100, 2)
+                            / COALESCE(so.sale_price, b.last_sale_price) * 100, 2)
                  ELSE NULL
                END AS roi
         FROM master.buildings b
-        LEFT JOIN latest_ad la ON la.building_pk = b.building_pk
         LEFT JOIN sale_ov so ON so.building_pk = b.building_pk
         LEFT JOIN team_rent tr ON tr.building_pk = b.building_pk
         LEFT JOIN app.listings l
@@ -267,10 +258,10 @@ def _build_base(body: SearchIn, user: CurrentUser) -> tuple[str, list]:
 
 @router.post("")
 async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
-    """3열 목록(광고/내매물/일반) + 열별 독립 페이징. 무크레딧.
+    """2열 목록(내매물/일반) + 열별 독립 페이징. 무크레딧.
 
-    분류(§3.4·상태 종속): 광고 = 최신 광고가 존재 · 내매물 = 팀 담당자 지정 · 일반 = 나머지.
-    매매가(§3.5): 광고=광고가 / 내매물=광고가|최근매각 / 일반=추정 매각가(없으면 NULL→후순위).
+    분류(§3.4·상태 종속): 내매물 = 팀 담당자 지정 · 일반 = 나머지.
+    매매가(§3.5): 내매물=팀 수기 sale_price / 일반=NULL(후순위).
     """
     base, args = _build_base(body, user)
     # 정렬 = 매매가순 / 수익률순만(S01 §3.3). 값 없는 항목은 후순위(NULLS LAST).
@@ -295,7 +286,6 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
                 "pages": max(1, -(-total // body.per_page))}
 
     return {
-        "ad": await col("ad", body.page_ad),
         "mine": await col("mine", body.page_mine),
         "normal": await col("normal", body.page_normal),
     }

@@ -1,12 +1,12 @@
 import { useMemo, useRef, useState } from "react";
 
-/** 가격추이 차트 — 실거래·총공시지가·광고가 3종 시계열을 한 축(총액)에 겹침.
+/** 가격추이 차트 — 실거래·총공시지가 2종 시계열을 한 축(총액)에 겹침.
  *  S01 지도 요약카드(개요·겹침)와 S02 상세가 공유(색·툴팁 언어 동일, 명세 S01 §3.6).
  *  단위 통일: 공시지가(원/㎡)는 총공시지가(=개별공시지가×대지면적)로 환산해 억원 축에 표기.
- *  색 = 공통 토큰: 실거래 --c-real(잉크) · 공시지가 --c-gongsi(시그널블루) · 광고가 --c-ad(퍼플·점선). */
+ *  색 = 공통 토큰: 실거래 --c-real(잉크) · 공시지가 --c-gongsi(시그널블루). */
 
 export interface TrendPoint { year: number; value: number } // value = 총액(원)
-export interface TrendSeries { real: TrendPoint[]; gongsi: TrendPoint[]; ad: TrendPoint[] }
+export interface TrendSeries { real: TrendPoint[]; gongsi: TrendPoint[] }
 
 const W = 320, H = 168, L = 20, R = 12, T = 12, B = 22;
 const PW = W - L - R, PH = H - T - B;
@@ -17,7 +17,6 @@ const eok = (n: number) =>
 const SERIES: { key: keyof TrendSeries; label: string; color: string; dash?: string }[] = [
   { key: "real", label: "실거래", color: "var(--c-real)" },
   { key: "gongsi", label: "공시지가", color: "var(--c-gongsi)" },
-  { key: "ad", label: "광고가", color: "var(--c-ad)", dash: "4 3" },
 ];
 
 export function PriceTrendChart({ series }: { series: TrendSeries }) {
@@ -25,7 +24,7 @@ export function PriceTrendChart({ series }: { series: TrendSeries }) {
   const [hoverYear, setHoverYear] = useState<number | null>(null);
 
   const { years, minY, maxY, maxV, has } = useMemo(() => {
-    const all = [...series.real, ...series.gongsi, ...series.ad];
+    const all = [...series.real, ...series.gongsi];
     const ys = [...new Set(all.map((p) => p.year))].sort((a, b) => a - b);
     const vs = all.map((p) => p.value).filter((v) => v > 0);
     return {
@@ -107,10 +106,9 @@ export function PriceTrendChart({ series }: { series: TrendSeries }) {
   );
 }
 
-/** building.get(gongsi_series·sales_history) + adPrices + land_area → 3계열 조립. */
+/** building.get(gongsi_series·sales_history) + land_area → 실거래·공시 2계열 조립. */
 export function buildTrendSeries(
   building: Record<string, unknown> | undefined,
-  adPrices: { observed_on: string; price: number | null }[] | undefined,
 ): TrendSeries {
   const landArea = Number(building?.land_area) || 0;
 
@@ -128,15 +126,8 @@ export function buildTrendSeries(
     ? gongsiRaw.filter(([, p]) => p > 0).map(([yr, p]) => ({ year: Number(yr), value: p * landArea }))
     : [];
 
-  // 광고가: adPrices [{observed_on, price}] → 연도별 최신 총액
-  const adByYear = new Map<number, number>();
-  for (const a of adPrices ?? []) {
-    const yr = Number(String(a.observed_on ?? "").slice(0, 4));
-    if (yr && a.price) adByYear.set(yr, a.price);
-  }
-
   const toPoints = (m: Map<number, number>): TrendPoint[] =>
     [...m.entries()].map(([year, value]) => ({ year, value })).sort((a, b) => a.year - b.year);
 
-  return { real: toPoints(realByYear), gongsi, ad: toPoints(adByYear) };
+  return { real: toPoints(realByYear), gongsi };
 }

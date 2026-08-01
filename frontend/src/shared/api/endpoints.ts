@@ -141,7 +141,7 @@ export const rentsApi = {
 
 export interface SeriesPt { x: string; y: number; ov: boolean; master: boolean }
 export const seriesApi = {
-  get: (pk: string) => api<Record<"gongsi" | "real" | "ad", SeriesPt[]>>(`/buildings/${pk}/series`),
+  get: (pk: string) => api<Record<"gongsi" | "real", SeriesPt[]>>(`/buildings/${pk}/series`),
   upsert: (pk: string, kind: string, x: string, y: number) =>
     api(`/buildings/${pk}/series`, { method: "PUT", body: JSON.stringify({ kind, x, y }) }),
   del: (pk: string, kind: string, x: string) =>
@@ -223,9 +223,6 @@ export const metaApi = {
 
 export const extrasApi = {
   favToggle: (pk: string) => api<{ favorited: boolean }>(`/favorites/${pk}`, { method: "PUT" }),
-  adPrices: (pk: string) => api<{ observed_on: string; price: number | null; is_mine: boolean; confirms: number }[]>(`/buildings/${pk}/ad-prices`),
-  adPriceAdd: (pk: string, observed_on: string, price: number | null, is_mine: boolean) =>
-    api(`/buildings/${pk}/ad-prices`, { method: "POST", body: JSON.stringify({ observed_on, price, is_mine }) }),
   wikiList: (pk: string) => api<Record<string, unknown>[]>(`/buildings/${pk}/wiki`),
   wikiPost: (pk: string, body: string, category?: string) =>
     api(`/buildings/${pk}/wiki`, { method: "POST", body: JSON.stringify({ body, category }) }),

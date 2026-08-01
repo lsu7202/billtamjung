@@ -16,10 +16,9 @@ interface Hit {
   land_area: number | null; floors_above: number | null; floors_below: number | null;
 }
 interface Col { items: Hit[]; total: number; page: number; pages: number }
-interface SearchResult { ad: Col; mine: Col; normal: Col }
+interface SearchResult { mine: Col; normal: Col }
 
 const COLS = [
-  { key: "ad" as const, label: "광고", color: "var(--green)" },
   { key: "mine" as const, label: "내 매물", color: "var(--blue)" },
   { key: "normal" as const, label: "일반", color: "var(--purple)" },
 ];
@@ -49,7 +48,7 @@ function SelCard({ picked, bldg, trend, onDetail, onFav }: {
         : <div className="sel-road" />}
       <div className="sel-body">
         <div className="sel-addr">{picked.addr.replace("서울특별시 ", "").replace("번지", "")}
-          <span className={`ml-tag ${picked.col}`}>{picked.col === "ad" ? "광고" : picked.col === "mine" ? "내" : "일반"}</span>
+          <span className={`ml-tag ${picked.col}`}>{picked.col === "mine" ? "내" : "일반"}</span>
           <span className="star" style={{ color: picked.is_fav ? "#f5a623" : "var(--line-2)" }} onClick={onFav}>★</span>
         </div>
         <div className="sel-metrics">
@@ -86,10 +85,10 @@ export function SearchPage() {
   const [fRegions, setFRegions] = useState<RegionPick[]>([]);   // 지역 앵커(필터에서 선택)
   const [showFilter, setShowFilter] = useState(false);
   const [barCollapsed, setBarCollapsed] = useState(false);      // 검색바 접기(공간 절약)
-  const [pages, setPages] = useState({ ad: 1, mine: 1, normal: 1 });
+  const [pages, setPages] = useState({ mine: 1, normal: 1 });
   const bjd = fRegions[0]?.bjd_code ?? "";                       // 단일지역(멀티는 백엔드 확장 예정)
   const filterCount = activeCount(fValues, fRegions);
-  const resetPages = () => setPages({ ad: 1, mine: 1, normal: 1 });
+  const resetPages = () => setPages({ mine: 1, normal: 1 });
   const doSearch = () => { resetPages(); result.refetch(); };   // 명시적 재조회(페이지 1 + 강제 refetch)
 
   const suggest = useQuery({
@@ -104,7 +103,7 @@ export function SearchPage() {
       searchApi.list({
         bjd_code: polygon ? undefined : bjd || undefined,
         polygon: polygon ?? undefined, filters, sort, fav_only: favOnly,
-        page_ad: pages.ad, page_mine: pages.mine, page_normal: pages.normal,
+        page_mine: pages.mine, page_normal: pages.normal,
       }) as Promise<SearchResult>,
     enabled: !!bjd || !!polygon,
   });
@@ -164,13 +163,9 @@ export function SearchPage() {
     queryKey: ["pickBldg", picked?.building_pk],
     queryFn: () => buildingsApi.get(picked!.building_pk), enabled: !!picked,
   });
-  const pickedAds = useQuery({
-    queryKey: ["pickAds", picked?.building_pk],
-    queryFn: () => extrasApi.adPrices(picked!.building_pk), enabled: !!picked,
-  });
-  const trend = useMemo(() => buildTrendSeries(pickedBldg.data, pickedAds.data), [pickedBldg.data, pickedAds.data]);
+  const trend = useMemo(() => buildTrendSeries(pickedBldg.data), [pickedBldg.data]);
 
-  const total = result.data ? result.data.ad.total + result.data.mine.total + result.data.normal.total : 0;
+  const total = result.data ? result.data.mine.total + result.data.normal.total : 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 10 }}>
@@ -261,7 +256,7 @@ export function SearchPage() {
             {mapPinList.slice(0, 100).map((p) => (
               <div key={p.building_pk} className={`ml-row ${picked?.building_pk === p.building_pk ? "on" : ""}`} onClick={() => { setPicked(p); if (p.lng && p.lat) setCenterReq({ lng: p.lng, lat: p.lat }); }}>
                 <span className="ml-a">{p.addr.replace("서울특별시 ", "").replace("번지", "")}
-                  <span className={`ml-tag ${p.col}`}>{p.col === "ad" ? "광고" : p.col === "mine" ? "내" : "일반"}</span>
+                  <span className={`ml-tag ${p.col}`}>{p.col === "mine" ? "내" : "일반"}</span>
                 </span>
                 <span className="ml-nums">{won(p.price)}{p.roi != null && <small> · {p.roi}%</small>}</span>
               </div>
@@ -280,10 +275,9 @@ export function SearchPage() {
               centerReq={centerReq}
               onParcelClick={(pk) => { if (pk) selectBuilding(pk); }}
               onPick={(pk) => setPicked(mapPinList.find((p) => p.building_pk === pk) ?? null)}
-              onPolygon={(g) => { setPolygon(g); setPages({ ad: 1, mine: 1, normal: 1 }); }}
+              onPolygon={(g) => { setPolygon(g); setPages({ mine: 1, normal: 1 }); }}
             />
             <div className="map-legend">
-              <span><b style={{ background: "var(--green)" }} />광고</span>
               <span><b style={{ background: "var(--blue)" }} />내 매물</span>
               <span><b style={{ background: "var(--purple)" }} />일반</span>
             </div>
@@ -291,7 +285,7 @@ export function SearchPage() {
         </div>
       )}
 
-      {/* 3열 결과 — 목업 S01.html 정본(이음새 병합·주소/매매가/수익률) */}
+      {/* 2열 결과(내매물/일반) — 주소/실거래/매매가/수익률 */}
       {view === "list" && (result.data ? (
         <div className="result-cols wf-list s01">
           {COLS.map(({ key, label }) => {
@@ -341,7 +335,7 @@ export function SearchPage() {
         </div>
       ) : (
         <div className="panel" style={{ padding: 24, color: "var(--muted)", fontSize: 13 }}>
-          주소를 검색하거나 [필터]에서 지역을 선택하면 광고 / 내 매물 / 일반 3열로 매물이 표시됩니다.
+          주소를 검색하거나 [필터]에서 지역을 선택하면 내 매물 / 일반 2열로 매물이 표시됩니다.
           지도 탭에서 영역을 직접 그려 검색할 수도 있습니다.
         </div>
       ))}
