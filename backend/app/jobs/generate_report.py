@@ -150,22 +150,36 @@ _SECTORS = {
     "resi": {"단독", "연립", "다세대", "아파트", "주거기타"},
     "industrial": {"공업용", "공업기타"},
 }
+# 건물 주용도(main_use 앞2자리) → 섹터 폴백. land_use가 애매/오분류(예: 업무빌딩인데 '상업나지')일 때 사용.
+# [[sale-est-commercial-gate]] 합집합 정의와 정합 — 근생·판매·업무·숙박·문화·의료·운동·위락 = commercial.
+_MU_SECTOR = {
+    "03": "commercial", "04": "commercial", "05": "commercial", "07": "commercial",
+    "09": "commercial", "13": "commercial", "14": "commercial", "15": "commercial", "16": "commercial",
+    "01": "resi", "02": "resi", "17": "industrial", "18": "industrial",
+}
+_SECTOR_MU: dict[str, set[str]] = {}
+for _c, _s in _MU_SECTOR.items():
+    _SECTOR_MU.setdefault(_s, set()).add(_c)
 _ADJACENT = {"commercial": {"mixed"}, "mixed": {"commercial"}}   # 소득형 인접(상호 comp 허용, 감점)
 _ADJ_FACTOR = 0.7                                                # 인접 섹터 유사도 가중 감점
 
 
-def _sector_of(lu: str | None) -> str | None:
-    return next((s for s, items in _SECTORS.items() if lu in items), None)
+def _sector_of(lu: str | None, mu: str | None = None) -> str | None:
+    s = next((s for s, items in _SECTORS.items() if lu in items), None)
+    return s if s is not None else (_MU_SECTOR.get(str(mu)[:2]) if mu else None)
 
 
-def _comp_type_filter(subject_lu: str | None):
-    """반환 (allowed_land_uses|None, adjacent_set). None=분류 불가(나지·특수·미분류) → 성격 필터 미적용."""
-    sec = _sector_of(subject_lu)
+def _comp_type_filter(subject_lu: str | None, subject_mu: str | None = None):
+    """반환 (allowed_land_uses|None, allowed_mu_codes|None, adjacent_set). None=분류 불가 → 성격 필터 미적용.
+    comp은 land_use ∈ allowed_lu OR main_use[:2] ∈ allowed_mu 로 인정(land_use 오분류 보완)."""
+    sec = _sector_of(subject_lu, subject_mu)
     if sec is None:
-        return None, set()
-    same = _SECTORS[sec]
+        return None, None, set()
+    secs = {sec} | _ADJACENT.get(sec, set())
     adj = set().union(*[_SECTORS[a] for a in _ADJACENT.get(sec, set())]) if _ADJACENT.get(sec) else set()
-    return sorted(same | adj), adj
+    allowed_lu = sorted(set().union(*[_SECTORS[s] for s in secs]))
+    allowed_mu = sorted(set().union(*[_SECTOR_MU.get(s, set()) for s in secs]))
+    return allowed_lu, allowed_mu, adj
 
 
 async def _fetch_comps(building_pk: str, subject: dict, params: dict,
@@ -181,7 +195,7 @@ async def _fetch_comps(building_pk: str, subject: dict, params: dict,
     if clng is None and geom:
         clng, clat = geom["lng"], geom["lat"]
 
-    allowed, adj = _comp_type_filter(subject.get("land_use"))   # 성격(섹터) 필터. None=미적용
+    allowed, allowed_mu, adj = _comp_type_filter(subject.get("land_use"), subject.get("main_use"))   # 성격(섹터) 필터. None=미적용
     rows = await pool().fetch(
         f"""SELECT DISTINCT ON (sh.building_pk)
                   sh.building_pk, sh.contract_ym, sh.price, sh.total_area, sh.land_area,
@@ -195,10 +209,10 @@ async def _fetch_comps(building_pk: str, subject: dict, params: dict,
            JOIN master.buildings b ON b.building_pk = sh.building_pk
            WHERE sh.contract_ym >= to_char(now() - interval '5 years', 'YYYYMM')
              AND sh.building_pk <> $4 AND sh.price > 0 AND sh.total_area > 0
-             AND ($6::text[] IS NULL OR b.land_use = ANY($6))
+             AND ($6::text[] IS NULL OR b.land_use = ANY($6) OR substr(b.main_use,1,2) = ANY($7))
              AND {_COMP_SPATIAL}
            ORDER BY sh.building_pk, sh.contract_ym DESC""",
-        clng, clat, radius, building_pk, json.dumps(poly) if poly else None, allowed,
+        clng, clat, radius, building_pk, json.dumps(poly) if poly else None, allowed, allowed_mu,
     )
     comps = []
     for r in rows:
