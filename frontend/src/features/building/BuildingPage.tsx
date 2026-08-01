@@ -108,7 +108,6 @@ export function BuildingPage() {
   const price = priceActual ?? priceEst;                                                            // 매매가 = 오버레이 or 적정가
   const landP = b.land_area ? Number(b.land_area) / P : null;
   const totalP = b.total_area ? Number(b.total_area) / P : null;
-  const buildP = b.build_area ? Number(b.build_area) / P : null;
   // 🔀 파생값(data-overview §수정모드): 오버레이 직접입력이 있으면 그 값, 없으면 자동집계.
   const ovr = (field: string, computed: number | null): number | null => {
     const o = b[field];
@@ -159,14 +158,15 @@ export function BuildingPage() {
       <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>{label}</div>
     </div>
   );
-  // 면적 값 — 3값(대지/연/건축) 미니 라벨 병기. 슬래시 나열의 모호함 제거.
+  // 면적 값 — 3값(대지/연/건축) 미니 라벨 병기. 단위(평/㎡) 토글 반영.
   const areaVal = () => {
-    const c = (lbl: string, py: number | null) => py == null ? null : (
+    const c = (lbl: string, m2: number | null) => m2 == null ? null : (
       <span style={{ display: "inline-flex", alignItems: "baseline", gap: 3 }}>
-        <span style={{ fontSize: 10, color: "var(--muted)", fontWeight: 600 }}>{lbl}</span>{Math.round(py).toLocaleString()}
+        <span style={{ fontSize: 10, color: "var(--muted)", fontWeight: 600 }}>{lbl}</span>{Math.round(unit === "py" ? m2 / P : m2).toLocaleString()}
       </span>
     );
-    return <span style={{ display: "inline-flex", gap: 11 }}>{c("대지", landP)}{c("연", totalP)}{c("건축", buildP)}</span>;
+    const n = (x: unknown) => (x != null && x !== "" ? Number(x) : null);
+    return <span style={{ display: "inline-flex", gap: 11 }}>{c("대지", n(b.land_area))}{c("연", n(b.total_area))}{c("건축", n(b.build_area))}</span>;
   };
 
   // 입지: 지하철·버스(적재된 JSON)
@@ -195,7 +195,7 @@ export function BuildingPage() {
           {stat("매매가", price ? wonShort(price) : "", { hero: true, accent: true, first: true })}
           {stat("수익률 · 만실/공실제외", roiFull != null ? `${roiFull.toFixed(1)}%${roiExVac != null ? ` / ${roiExVac.toFixed(1)}%` : ""}` : "")}
           {stat("평단가 · 대지", ppLand ? won(ppLand) : "")}
-          {stat("면적 (평)", areaVal())}
+          {stat(`면적 (${unit === "py" ? "평" : "㎡"})`, areaVal())}
           {stat("층수", `${Number(b.floors_below) > 0 ? `B${b.floors_below}F/` : ""}${b.floors_above != null ? `${b.floors_above}F` : ""}`)}
         </div>
         <div style={{ display: "flex", gap: 10 }}>
