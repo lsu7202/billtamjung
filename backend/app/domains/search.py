@@ -301,7 +301,7 @@ async def pins(body: SearchIn, user: CurrentUser = Depends(current_user)):
     base, args = _build_base(body, user)
     rows = await pool().fetch(
         base + """SELECT building_pk, addr, lng, lat, col, price, roi,
-                         last_sale_price, is_fav
+                         last_sale_price, sale_est, is_fav
                   FROM classified WHERE lng IS NOT NULL
                   ORDER BY price DESC NULLS LAST, building_pk LIMIT 3000""",
         *args,
