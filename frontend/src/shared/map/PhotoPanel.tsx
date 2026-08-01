@@ -327,7 +327,7 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
           <div ref={roadDiv} style={{ position: "absolute", inset: 0 }} />
           {noPano && <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#e7ecf2", fontSize: 12, fontWeight: 600 }}>이 위치 로드뷰 없음</div>}
           <button className="btn" title={roadBig ? "지도 크게" : "로드뷰 크게"} style={{ position: "absolute", top: 8, left: 8, zIndex: 3, padding: "4px 10px", fontSize: 12, background: "#fff", boxShadow: "0 2px 8px rgba(0,0,0,.25)" }}
-            onClick={() => setRoadBig((v) => !v)}>{roadBig ? "⤡ 지도 크게" : "⤢ 로드뷰 크게"}</button>
+            onClick={() => setRoadBig((v) => !v)}>{roadBig ? "⤡" : "⤢"}</button>
           <div style={{ position: "absolute", left: 8, bottom: 6, fontSize: 10, fontWeight: 700, color: "#fff", background: "rgba(15,26,46,.6)", padding: "2px 7px", borderRadius: 5, pointerEvents: "none" }}>로드뷰 · 돌려서 매물 방향 확인</div>
         </div>
         {defining && (
