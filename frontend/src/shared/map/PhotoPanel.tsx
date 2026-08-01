@@ -77,8 +77,8 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
     let pano: any = null, cone: any = null;
     try {
       pano = new naver.maps.Panorama(roadDiv.current, {
-        position: new naver.maps.LatLng(lat, lng), pov: { pan: 0, tilt: 0, fov: 90 },
-        flightSpot: false, aroundControl: false, zoomControl: false,
+        position: new naver.maps.LatLng(lat, lng), pov: { pan: 0, tilt: 0, fov: 100 },   // fov 클수록 넓게(축소)
+        flightSpot: false, aroundControl: false, zoomControl: true,   // 줌 컨트롤(배율) 노출
       });
     } catch { setNoPano(true); return; }
     panoRef.current = pano;
@@ -90,7 +90,7 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
       oriented = true;
       const dLat = lat - p.lat(), dLng = (lng - p.lng()) * Math.cos((p.lat() * Math.PI) / 180);
       if (Math.abs(dLat) < 1e-9 && Math.abs(dLng) < 1e-9) return;   // 파노라마=매물이면 유지
-      pano.setPov({ pan: (Math.atan2(dLng, dLat) * 180) / Math.PI, tilt: 0, fov: 90 });   // 북=0·동=90(conePath와 동일)
+      pano.setPov({ pan: (Math.atan2(dLng, dLat) * 180) / Math.PI, tilt: 0, fov: 100 });   // 북=0·동=90(conePath와 동일)
     };
     const sync = () => {
       const p = pano.getPosition?.(); const pov = pano.getPov?.() ?? { pan: 0, fov: 90 };
