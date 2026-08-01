@@ -42,7 +42,7 @@ function SelCard({ picked, bldg, trend, onDetail, onFav }: {
   const total = num("total_area");
   const fa = num("floors_above") ?? picked.floors_above ?? null;
   const fb = num("floors_below") ?? picked.floors_below ?? null;
-  const fair = rm.fair ?? picked.price ?? null;
+  const fair = picked.sale_est ?? rm.fair ?? picked.price ?? null;   // 적정가=배치값(핀에 이미 실림) → 리포트 로딩 안 기다림
   const eok1 = (v: number | null) => v == null ? "—" : v >= 1e8 ? `${(v / 1e8).toFixed(0)}억` : `${Math.round(v / 1e4).toLocaleString()}만`;
   return (
     <div className="sel-card">
