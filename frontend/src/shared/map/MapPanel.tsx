@@ -479,8 +479,8 @@ export function MapPanel({
         }}>
           <div ref={panoDivRef} style={{ position: "absolute", inset: 0 }} />
           <div style={{ position: "absolute", top: 8, right: 8, zIndex: 2, display: "flex", gap: 6 }}>
-            <button className="btn" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setPanoBig(!panoBig)}>{panoBig ? "⤡ 지도로" : "⤢ 전체화면"}</button>
-            <button className="btn" style={{ padding: "5px 10px", fontSize: 12, color: "var(--up)" }} onClick={() => setRoadview(null)}>✕ 닫기</button>
+            <button className="btn" title={panoBig ? "지도로" : "전체화면"} style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setPanoBig(!panoBig)}>{panoBig ? "⤡" : "⤢"}</button>
+            <button className="btn" title="닫기" style={{ padding: "5px 10px", fontSize: 12, color: "var(--up)" }} onClick={() => setRoadview(null)}>✕</button>
           </div>
           {rvOpen && <div style={{ position: "absolute", bottom: 8, left: "50%", transform: "translateX(-50%)", zIndex: 2, background: "rgba(15,26,46,.72)", color: "#fff", fontSize: 11, padding: "4px 10px", borderRadius: 999, whiteSpace: "nowrap" }}>화면을 더블클릭해 이동</div>}
         </div>
