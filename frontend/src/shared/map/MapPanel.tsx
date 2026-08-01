@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { loadNaver, PIN_COLORS } from "./naver";
 import { makeCanvasPinLayer, type CanvasLayer, type CanvasPin } from "./mapCanvasLayer";
-import { meters, areaM2, geoToPaths, circleToGeoJSON } from "./geo";
+import { meters, areaM2, geoToPaths, circleToGeoJSON, conePath } from "./geo";
 import { makeRuler, Ruler } from "./ruler";
 import { searchApi } from "../api/endpoints";
 
@@ -28,18 +28,6 @@ type DrawMode = "off" | "free" | "poly" | "magnet" | "circle" | "ruler";
 
 const fmtDist = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(2)}km` : `${Math.round(m)}m`);
 const fmtArea = (a: number) => `${a >= 10000 ? `${(a / 10000).toFixed(2)}ha` : `${Math.round(a).toLocaleString()}㎡`} (${Math.round(a / 3.3058).toLocaleString()}평)`;
-
-/** 로드뷰 시야 부채꼴: 위치+heading(pan°, 북=0 시계방향)+fov로 반경 R(m) 섹터 LatLng 경로. */
-function conePath(naver: any, lat: number, lng: number, pan: number, fov: number, R = 45): any[] {
-  const pts = [new naver.maps.LatLng(lat, lng)];
-  const mLat = R / 111320, mLng = R / (111320 * Math.cos((lat * Math.PI) / 180));
-  const half = Math.min(fov, 120) / 2;
-  for (let a = pan - half; a <= pan + half; a += 6) {
-    const r = (a * Math.PI) / 180;
-    pts.push(new naver.maps.LatLng(lat + Math.cos(r) * mLat, lng + Math.sin(r) * mLng));
-  }
-  return pts;
-}
 
 export function MapPanel({
   pins, onPick, onPolygon, polygon, polygonActive, selectedPk, selectedCol, onParcelClick, centerReq, priceMode = "fair",

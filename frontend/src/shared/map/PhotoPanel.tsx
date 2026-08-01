@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { loadNaver } from "./naver";
 import { photosApi, searchApi } from "../api/endpoints";
 import { useAuth } from "../store/auth";
-import { MarketArea, CompPoint, meters, areaM2, geoToPaths, fmtArea, fmtDist, openDetail } from "./geo";
+import { MarketArea, CompPoint, meters, areaM2, geoToPaths, fmtArea, fmtDist, openDetail, conePath } from "./geo";
 import { makeRuler, Ruler } from "./ruler";
 
 const COMP_COLOR = { sale: "var(--c-real)", rent: "var(--c-rent)" };   // 실거래=주황(시세추이와 통일) · 임대=초록 · 본매물=네이비(별도)
@@ -37,7 +37,7 @@ function eastPoint(naver: any, c: any, radius_m: number) {
 export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
   lng: number; lat: number; pk?: string; area?: MarketArea; onArea?: (a: MarketArea) => void; comps?: CompPoint[];
 }) {
-  const [tab, setTab] = useState<"map" | "road" | "upload">("map");
+  const [tab, setTab] = useState<"map" | "upload">("map");
   const mapDiv = useRef<HTMLDivElement>(null);
   const roadDiv = useRef<HTMLDivElement>(null);
   const mapObj = useRef<any>(null);
@@ -70,16 +70,40 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
           inited.current.map = true;
           setMapReady(true);
         }
-        if (tab === "road" && roadDiv.current && !inited.current.road) {
-          try {
-            new naver.maps.Panorama(roadDiv.current, { position: new naver.maps.LatLng(lat, lng), pov: { pan: 0, tilt: 0, fov: 100 } });
-            inited.current.road = true;
-          } catch { setNoPano(true); }
-        }
       })
       .catch((e) => setErr((e as Error).message));
     return () => { dead = true; };
   }, [tab, lng, lat]);
+
+  // 로드뷰 인셋 + 지도 위 시야 부채꼴(S01 MapPanel의 conePath·pov_changed 재사용).
+  // 로드뷰를 돌리면 부채꼴이 회전 → 로드뷰가 본매물을 향하는지 확인용(이동 없음).
+  useEffect(() => {
+    if (!mapReady || !roadDiv.current) return;
+    const naver = window.naver;
+    const map = mapObj.current;
+    let pano: any = null, cone: any = null;
+    try {
+      pano = new naver.maps.Panorama(roadDiv.current, {
+        position: new naver.maps.LatLng(lat, lng), pov: { pan: 0, tilt: 0, fov: 90 },
+        flightSpot: false, aroundControl: false, zoomControl: false,
+      });
+    } catch { setNoPano(true); return; }
+    naver.maps.Event.addListener(pano, "pano_status", (s: any) => setNoPano(String(s) !== "OK"));
+    const sync = () => {
+      const p = pano.getPosition?.(); const pov = pano.getPov?.() ?? { pan: 0, fov: 90 };
+      if (!p) return;
+      cone?.setMap(null);
+      cone = new naver.maps.Polygon({
+        map, paths: [conePath(naver, p.lat(), p.lng(), pov.pan, pov.fov)], clickable: false,
+        fillColor: "#3A5DA8", fillOpacity: 0.25, strokeColor: "#3A5DA8", strokeWeight: 1, zIndex: 90,
+      });
+    };
+    naver.maps.Event.addListener(pano, "pano_changed", sync);
+    naver.maps.Event.addListener(pano, "pov_changed", sync);
+    const t = setTimeout(sync, 500);
+    return () => { clearTimeout(t); cone?.setMap(null); if (roadDiv.current) roadDiv.current.innerHTML = ""; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady, lat, lng]);
 
   // 본매물 필지 색칠(네이비 오버레이)
   useEffect(() => {
@@ -242,7 +266,7 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
 
   const resetArea = () => onArea?.({ kind: "circle", radius_m: 500 });   // 원·폴리곤 모두 기본 원으로 초기화(삭제)
 
-  const tabBtn = (t: "map" | "road" | "upload", label: string) => (
+  const tabBtn = (t: "map" | "upload", label: string) => (
     <button className={`btn ${tab === t ? "primary" : ""}`} onClick={() => setTab(t)}>{label}</button>
   );
   const drawBtn = (on: boolean): React.CSSProperties => ({
@@ -258,7 +282,7 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
     <div className="panel">
       {!defining && (
         <div style={{ display: "flex", gap: 8, padding: "12px 14px 0" }}>
-          {tabBtn("map", "지도")}{tabBtn("road", "로드뷰")}{pk && tabBtn("upload", "업로드 사진")}
+          {tabBtn("map", "지도·로드뷰")}{pk && tabBtn("upload", "업로드 사진")}
           {tab === "map" && onArea && (
             <button className="btn" style={{ marginLeft: "auto", ...drawBtn(false) }} onClick={() => { setTab("map"); setDraw("circle"); setDefining(true); }}>◎ 주변상권 정의하기</button>
           )}
@@ -267,10 +291,16 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
       <div style={{ ...mapBox, overflow: "hidden" }}>
         {err && <div style={{ padding: 20, color: "var(--up)", fontSize: 13 }}>{err}</div>}
         <div ref={mapDiv} style={{ position: "absolute", inset: 0, display: tab === "map" ? "block" : "none" }} />
-        <div ref={roadDiv} style={{ position: "absolute", inset: 0, display: tab === "road" ? "block" : "none" }} />
-        {tab === "road" && noPano && (
-          <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "var(--muted)", fontSize: 13 }}>로드뷰 없음 — 이 위치 주변에 파노라마가 없습니다</div>
-        )}
+        {/* 로드뷰 인셋(PiP) — 돌리면 지도의 시야 부채꼴이 회전 = 로드뷰가 본매물을 향하는지 확인 */}
+        <div style={{
+          position: "absolute", top: 12, right: 12, width: 264, height: 168, zIndex: 7,
+          borderRadius: 10, overflow: "hidden", boxShadow: "0 3px 12px rgba(15,26,46,.35)", border: "2px solid #fff",
+          background: "#5f6b7a", display: tab === "map" && !defining ? "block" : "none",
+        }}>
+          <div ref={roadDiv} style={{ position: "absolute", inset: 0 }} />
+          {noPano && <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#e7ecf2", fontSize: 12, fontWeight: 600 }}>이 위치 로드뷰 없음</div>}
+          <div style={{ position: "absolute", left: 8, bottom: 6, fontSize: 10, fontWeight: 700, color: "#fff", background: "rgba(15,26,46,.6)", padding: "2px 7px", borderRadius: 5, pointerEvents: "none" }}>로드뷰 · 돌려서 매물 방향 확인</div>
+        </div>
         {defining && (
           <>
             <div style={{ position: "absolute", top: 12, left: 12, zIndex: 5, display: "flex", gap: 2, background: "#fff", borderRadius: 10, padding: 4, boxShadow: "var(--shadow)" }}>
