@@ -13,6 +13,8 @@ router = APIRouter(prefix="/search", tags=["search"])
 class Suggestion(BaseModel):
     building_pk: str
     addr: str
+    lng: float | None = None
+    lat: float | None = None
 
 
 @router.get("/suggest", response_model=list[Suggestion])
@@ -20,13 +22,13 @@ async def suggest(q: str = Query(min_length=1), _: CurrentUser = Depends(current
     """통합뷰 주소 인덱스 접두검색(외부 지오코딩 미사용). 상위 7건."""
     norm = q.replace(" ", "")
     rows = await pool().fetch(
-        """SELECT building_pk, addr FROM master.buildings
+        """SELECT building_pk, addr, ST_X(geom) AS lng, ST_Y(geom) AS lat FROM master.buildings
            WHERE jibun_norm LIKE $1 || '%' OR jibun_norm LIKE '%' || $1 || '%'
            ORDER BY (jibun_norm LIKE $1 || '%') DESC, addr
            LIMIT 7""",
         norm,
     )
-    return [Suggestion(building_pk=r["building_pk"], addr=r["addr"]) for r in rows]
+    return [Suggestion(building_pk=r["building_pk"], addr=r["addr"], lng=r["lng"], lat=r["lat"]) for r in rows]
 
 
 _regions_cache: dict = {}   # master_version 키 캐시(적재 시에만 변함)

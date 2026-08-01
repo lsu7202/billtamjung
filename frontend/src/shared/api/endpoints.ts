@@ -1,7 +1,7 @@
 import { api, apiBlob } from "./client";
 
 export interface TokenOut { access_token: string; tier: string }
-export interface Suggestion { building_pk: string; addr: string }
+export interface Suggestion { building_pk: string; addr: string; lng?: number | null; lat?: number | null }
 export interface Balance { total: number; monthly: number; earned: number; purchased: number }
 export interface FloorRent {
   id?: number; floor: string; unit_no: string; use?: string | null;

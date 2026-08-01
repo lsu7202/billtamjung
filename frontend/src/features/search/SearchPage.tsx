@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { searchApi, buildingsApi, extrasApi, listingsApi, type AttrFilters } from "../../shared/api/endpoints";
 import { openDetail } from "../../shared/map/geo";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
+import { geocode } from "../../shared/map/naver";
 import { FilterModal, activeCount, conditionChips, type Values, type RegionPick } from "./FilterModal";
 import { buildTrendSeries, type TrendSeries } from "../../shared/ui/PriceTrendChart";
 import { TrendChart } from "../building/TrendChart";
@@ -125,6 +126,19 @@ export function SearchPage() {
 
   const items = suggest.data ?? [];
   const go = (pk: string) => openDetail(pk);   // 리다이렉트=새탭(사이트 규칙)
+
+  // 자동완성 주소 선택 → 상세 이동이 아니라 지도 중심이동 + 그 매물 선택(사이드바 표시)
+  function pickFromSuggest(s: { building_pk: string; lng?: number | null; lat?: number | null }) {
+    setQ(""); setActive(-1);
+    setView("map");
+    if (s.lng && s.lat) setCenterReq({ lng: s.lng, lat: s.lat });
+    selectBuilding(s.building_pk);   // picked 세팅(핀에 있으면 그 핀, 없으면 조회)
+  }
+  // 대표 지명(강남역 등) → 지오코딩으로 지도만 중심이동
+  async function geocodeCenter(query: string) {
+    const r = await geocode(query);
+    if (r) { setView("map"); setActive(-1); setCenterReq(r); }
+  }
   async function toggleFav(pk: string) {
     await extrasApi.favToggle(pk);
     qc.invalidateQueries({ queryKey: ["search3"] });
@@ -158,10 +172,13 @@ export function SearchPage() {
   }
 
   function onKey(e: React.KeyboardEvent) {
-    if (!items.length) return;
-    if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, items.length - 1)); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
-    else if (e.key === "Enter" && active >= 0) { e.preventDefault(); go(items[active].building_pk); }
+    if (e.key === "ArrowDown" && items.length) { e.preventDefault(); setActive((a) => Math.min(a + 1, items.length - 1)); }
+    else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      if (active >= 0 && items[active]) pickFromSuggest(items[active]);   // 주소 선택 → 중심이동+선택
+      else if (q.trim()) geocodeCenter(q.trim());                          // 지명(강남역 등) → 중심이동
+    }
     else if (e.key === "Escape") setQ("");
   }
 
@@ -187,16 +204,20 @@ export function SearchPage() {
         ) : (<>
         <div className="toolbar">
           <div className="ac-wrap" style={{ flex: "1 1 300px", maxWidth: 420 }}>
-            <input className="input" style={{ width: "100%", minWidth: 0 }}
+            <input className="input" style={{ width: "100%", minWidth: 0 }} placeholder="주소 또는 지명 입력 (예: 강남역)"
               value={q} onChange={(e) => { setQ(e.target.value); setActive(-1); }} onKeyDown={onKey} autoComplete="off" />
-            {items.length > 0 && (
+            {q.trim() && (
               <div className="ac-drop">
                 {items.map((s, i) => (
                   <div key={s.building_pk} className={`ac-item ${i === active ? "active" : ""}`}
-                    onMouseDown={() => go(s.building_pk)} onMouseEnter={() => setActive(i)}>
+                    onMouseDown={() => pickFromSuggest(s)} onMouseEnter={() => setActive(i)}>
                     <span className="ac-addr">{s.addr.replace("서울특별시 ", "")}</span>
                   </div>
                 ))}
+                <div className="ac-item" style={{ color: "var(--muted)", fontSize: 13, borderTop: items.length ? "1px solid var(--line)" : undefined }}
+                  onMouseDown={() => geocodeCenter(q.trim())} onMouseEnter={() => setActive(-1)}>
+                  📍 ‘{q.trim()}’ 위치로 지도 이동
+                </div>
               </div>
             )}
           </div>
