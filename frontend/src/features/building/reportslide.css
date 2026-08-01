@@ -153,8 +153,10 @@
 /* 전체화면 발표 모드 — 사이드바·툴바 숨기고 슬라이드만, 다크 배경 */
 .rslide-root:fullscreen { background: #0b0e16; height: 100%; }
 .rslide-root:fullscreen .deck-top, .rslide-root:fullscreen .deck-nav { display: none; }
-.rslide-root:fullscreen .deck-stage { background: #0b0e16; padding: 4vh 7vw; }
-.rslide-root:fullscreen .stage-slide { max-width: calc((100vh - 8vh) * 16 / 9); }
+.rslide-root:fullscreen .deck-main { height: 100vh; }
+.rslide-root:fullscreen .deck-stage { background: #0b0e16; padding: 0; }
+/* 비율(16:9) 유지하며 화면 꽉차게 — 폭·높이 중 작은 쪽에 맞춤 */
+.rslide-root:fullscreen .stage-slide { width: 100%; max-width: calc(100vh * 16 / 9); max-height: 100vh; }
 .rslide-root:fullscreen .deck-arrow { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.2); color: #fff; }
 .rslide-root:fullscreen .deck-counter { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.2); color: #fff; }
 
