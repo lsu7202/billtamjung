@@ -4,6 +4,7 @@ import { reportsApi } from "../../shared/api/endpoints";
 import { ScoreRadar, CompareBar } from "./ReportPrimitives";
 import { Logo, Seal, Icon, ScoreRing, BuildingArt, CountUp } from "./ReportAssets";
 import { ReportMap } from "./ReportMap";
+import { BuildingPhoto } from "./BuildingPhoto";
 import { useReportModel, AXIS, num, man, eokman, eokManParts, py, word, type Seg } from "./reportModel";
 import "./reportslide.css";
 
@@ -107,7 +108,7 @@ export function ReportPage() {
       <Slide key={0} n={SM.summary.n} foot={SM.summary.foot} rno={rno} date={date}
         title={SM.summary.title} desc={SM.summary.desc}>
         <div style={{ display: "flex", gap: "3cqw", width: "100%", alignItems: "stretch" }}>
-          <div className="rs-fade" style={{ flex: "0 0 33%", borderRadius: "1.2cqw", background: "linear-gradient(135deg,#dfe4ec,#c3cbd8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7688", fontSize: "1.3cqw", fontWeight: 700 }}>건물 사진</div>
+          <div className="rs-fade" style={{ flex: "0 0 33%", borderRadius: "1.2cqw", overflow: "hidden", background: "linear-gradient(135deg,#dfe4ec,#c3cbd8)" }}><BuildingPhoto pk={pk} /></div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "1.8cqw" }}>
             <div className="rs-fade" style={{ display: "flex", alignItems: "center", gap: "2.6cqw" }}>
               <ScoreRing score={score} grade={grade} gradeColor={gradeCol} size={13.5} />

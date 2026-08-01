@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { CountUp, BuildingArt } from "./ReportAssets";
 import { ScoreRadar, CompareBar } from "./ReportPrimitives";
 import { ReportMap, ZONE_COLOR } from "./ReportMap";
+import { BuildingPhoto } from "./BuildingPhoto";
 import { useReportModel, AXIS, num, man, eokman, eokManParts, py, type Seg } from "./reportModel";
 
 /** 몰입형 스크롤 보고서 — 덱(/report)과 동일한 reportModel(값·문구·슬라이드 내용 단일 소스)을 쓰고 디자인만 다르게.
@@ -99,17 +100,22 @@ export function ReportStory() {
         </div>
       </section>
 
-      {/* 1 ── 핵심 요약(다크) — 적정가·수익률·매력도 + 투자유형 ── */}
+      {/* 1 ── 핵심 요약(다크) — 실 건물 사진 + 적정가·수익률·매력도 + 투자유형 ── */}
       <section data-i={1} ref={setRef(1)} className={cls(1, true)}>
-        <div className="story-kicker">{SM.summary.title}</div>
-        <h2 className="story-h">{addr}의 <b>빌탐정 적정가</b></h2>
-        <div className="story-big">
-          {shown[1] && fair ? <CountUp end={eokManParts(fair)[0]} dur={1400} fmt={(v) => Math.round(v).toLocaleString()} /> : eokManParts(fair)[0].toLocaleString()}<span className="unit">억{eokManParts(fair)[1] ? ` ${eokManParts(fair)[1].toLocaleString()}만원` : "원"}</span>
+        <div style={{ display: "flex", gap: "4vw", alignItems: "center", width: "100%" }}>
+          <div style={{ flex: 1 }}>
+            <div className="story-kicker">{SM.summary.title}</div>
+            <h2 className="story-h">{addr}의 <b>빌탐정 적정가</b></h2>
+            <div className="story-big">
+              {shown[1] && fair ? <CountUp end={eokManParts(fair)[0]} dur={1400} fmt={(v) => Math.round(v).toLocaleString()} /> : eokManParts(fair)[0].toLocaleString()}<span className="unit">억{eokManParts(fair)[1] ? ` ${eokManParts(fair)[1].toLocaleString()}만원` : "원"}</span>
+            </div>
+            <p className="story-sub">
+              매력도 <b style={{ color: "#5fe0a8" }}>{grade}등급 · {score}점</b> · 적정가 기준 예상수익률 <b style={{ color: "#5fe0a8" }}>{roiFair != null ? roiFair.toFixed(2) : "—"}%</b> · 평당 적정가 {summaryTail.avgPerMan} · 연면적 {summaryTail.totalPy}
+            </p>
+            <KeywordBand items={summaryTail.primary ? [{ lab: "투자 유형", val: summaryTail.primary, extra: officeApt ? "사옥 적합" : null, c: "#7FB0FF" }] : []} />
+          </div>
+          <div style={{ flex: "0 0 30%", aspectRatio: "3 / 4", maxHeight: "72vh", borderRadius: 18, overflow: "hidden", boxShadow: "0 16px 50px rgba(0,0,0,.45)" }}><BuildingPhoto pk={pk} /></div>
         </div>
-        <p className="story-sub">
-          매력도 <b style={{ color: "#5fe0a8" }}>{grade}등급 · {score}점</b> · 적정가 기준 예상수익률 <b style={{ color: "#5fe0a8" }}>{roiFair != null ? roiFair.toFixed(2) : "—"}%</b> · 평당 적정가 {summaryTail.avgPerMan} · 연면적 {summaryTail.totalPy}
-        </p>
-        <KeywordBand items={summaryTail.primary ? [{ lab: "투자 유형", val: summaryTail.primary, extra: officeApt ? "사옥 적합" : null, c: "#7FB0FF" }] : []} />
       </section>
 
       {/* 2 ── 매물 기본정보 ── */}
