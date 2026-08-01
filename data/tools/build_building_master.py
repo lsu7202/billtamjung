@@ -4,9 +4,39 @@
 FK: PNU(조립) → 토지 마스터. 층별 임대정보 프리필용 층별개요는 별도.
 출력: _building_master.jsonl + 커버리지 리포트.
 """
-import sys, json, glob, collections
+import sys, json, glob, collections, re, csv
 sys.path.insert(0,'data/tools')
 from dbf_inspect import read_dbf
+
+# ── 엘리베이터 보정: 한국승강기안전공단 설치현황(대장보다 정확) ──
+# 대장(p[45])이 없음(0/빈값)인 건물을 승강기공단 데이터로 채움. 승강기고유번호=행=1대(대수 정확).
+# 도로명 매칭 — 한 도로명에 복수 건물이면 대수 배분 불가 → '있음'(1)만(과다계상 방지).
+_EL_FILES=["data/raw/한국승강기안전공단_승강기 설치 현황_2016년 이후.csv",
+           "data/raw/한국승강기안전공단_승강기 설치 현황_2015년 이전.csv"]
+_EL_EXCLUDE=("에스컬레이터","자동차용")   # 사람 승강기 아님
+_EL_STATUS=("운행중","휴지")             # 폐지 제외
+_paren=re.compile(r"\(.*?\)"); _ws=re.compile(r"\s+")
+def norm_road(a):
+    if not a: return None
+    return _ws.sub("", _paren.sub("", a)) or None
+def load_kelisa():
+    cnt=collections.Counter()
+    for fn in _EL_FILES:
+        with open(fn, encoding='utf-8-sig') as f:
+            for row in csv.DictReader(f):
+                if row.get('시도')!='서울': continue
+                if any(t in (row.get('승강기종류') or '') for t in _EL_EXCLUDE): continue
+                if (row.get('승강기상태') or '') not in _EL_STATUS: continue
+                k=norm_road(row.get('건물주소'))
+                if k: cnt[k]+=1
+    return cnt
+def _elev(p, kel, multi):
+    """대장 승용승강기(p[45]) 우선. 없음(0)이면 승강기공단 보정(도로명 단일=대수, 복수=있음)."""
+    v=int(fnum(p[45])) or None
+    if v: return v
+    k=norm_road(p[6]); cnt=kel.get(k) if k else None
+    if not cnt: return None
+    return cnt if multi.get(k,0)<=1 else 1
 
 MP={'0':'1','1':'2','2':'1'}
 def mkpnu(sgg,emd,dg,bon,bu):
@@ -63,6 +93,16 @@ def main():
     print("대수선 로드…"); ds=load_daesuseon()
     print("토지면적 로드…"); larea=load_land_area()
     landset=set(larea)
+    print("승강기공단 로드…"); kel=load_kelisa()
+    print(f"  정규화 주소 {len(kel):,}건 · 총 {sum(kel.values()):,}대")
+    print("도로명 다중도 프리패스…")   # 같은 도로명 건물 수(복수면 대수 배분 불가 → 있음만)
+    elmulti=collections.Counter()
+    with open("data/raw/seoul/mart_djy_03_seoul.txt",'rb') as f:
+        for line in f:
+            p=line.rstrip(b'\r\n').split(b'|')
+            if len(p)>6:
+                k=norm_road(p[6].decode('utf-8',errors='replace'))
+                if k: elmulti[k]+=1
     print("표제부 조립…")
     out=open("data/tools/_building_master.jsonl","w")
     N=0; src=collections.Counter(); clean_cnt=collections.Counter()
@@ -103,7 +143,7 @@ def main():
                 '대지건폐용적_출처':s,'건폐용적_클린':clean,
                 '연면적':fnum(p[28]), '주용도코드':p[34],'주용도':p[35],'기타용도':p[36],
                 '구조':p[32], '지상층수':int(fnum(p[43])),'지하층수':int(fnum(p[44])),
-                '엘리베이터':int(fnum(p[45])) or None,           # 0·빈값(fnum→0) = 없음/미지정 = NULL 통일
+                '엘리베이터':_elev(p, kel, elmulti),             # 대장(p[45]) 우선, 없으면 승강기공단 보정
                 '주차':int(fnum(p[50])+fnum(p[52])+fnum(p[54])+fnum(p[56])) or None,
                 '용적률산정연면적':round(용적산정,2) if 용적산정>0 else None,
                 '사용승인일':sd,

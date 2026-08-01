@@ -1,11 +1,19 @@
-"""master.buildings.elevator 보정 — 한국승강기안전공단 설치현황(건축물대장보다 정확).
+"""master.buildings.elevator 재계산 — 대장(표제부) 원본 + 한국승강기안전공단 보정(멱등).
 
-건축물대장 기반 elevator가 NULL/0인 서울 건물을, 승강기공단 데이터의 도로명주소 매칭으로 채운다.
-- 대상 승강기: 종류에서 에스컬레이터·자동차용 제외(사람 엘리베이터), 상태 운행중/휴지(폐지 제외)
-- 매칭: 도로명주소 정규화(괄호(동) 제거·공백 제거) → building.road_addr 동일 정규화와 대조
-- 갱신: elevator IS NULL OR elevator=0 인 건물만(기존 대장 양수값은 보존)
+승강기공단 설치현황이 건축물대장보다 정확(대장은 승강기 누락 다수). 대장 원본을 기준으로,
+대장이 없음(NULL/0)인 건물만 승강기공단 데이터로 채운다. 대장 원본에서 재계산하므로 몇 번 돌려도 동일.
+
+- 대장 원본: data/raw/seoul/mart_djy_03_seoul.txt (PK=p[0], 승용승강기=p[45]) ← build_building_master와 동일
+- 승강기공단: 종류에서 에스컬레이터·자동차용 제외(사람 승강기), 상태 운행중/휴지, 승강기고유번호=행 단위(대수 정확)
+- 매칭: 도로명주소 정규화. 단, 한 도로명에 여러 건물이면 대수를 건물별로 못 나눔 →
+    · 도로명 = 단일 건물: 정확 대수
+    · 도로명 = 복수 건물: 과다계상 방지 위해 '있음'(1)만
+- 갱신: 대장 양수는 원본 보존, NULL/0만 승강기공단으로
+
     backend/.venv/bin/python scripts/elevator/fill_elevator.py
-※ 지속화: 재적재(loader) 후 소실되므로, 정착 시 loader 파이프라인 단계로 편입 필요.
+
+★ 파이프라인 편입: 이 보정은 build_building_master.py가 마스터 CSV를 만들 때 넣어야 재적재에도 유지됨.
+  (현재는 이 스크립트가 live master를 직접 재계산 — build_building_master의 elevator 로직과 동일 규칙)
 """
 import os
 import re
@@ -16,9 +24,10 @@ import collections
 import asyncpg
 
 DSN = os.environ.get("RENT_DSN", "postgresql://postgres:test@localhost:55432/billtamjung")
-RAW = os.path.join(os.path.dirname(__file__), "..", "..", "data", "raw")
-FILES = ["한국승강기안전공단_승강기 설치 현황_2016년 이후.csv",
-         "한국승강기안전공단_승강기 설치 현황_2015년 이전.csv"]
+ROOT = os.path.join(os.path.dirname(__file__), "..", "..")
+DAEJANG = os.path.join(ROOT, "data", "raw", "seoul", "mart_djy_03_seoul.txt")
+ELEV_FILES = [os.path.join(ROOT, "data", "raw", "한국승강기안전공단_승강기 설치 현황_2016년 이후.csv"),
+              os.path.join(ROOT, "data", "raw", "한국승강기안전공단_승강기 설치 현황_2015년 이전.csv")]
 EXCLUDE_TYPE = ("에스컬레이터", "자동차용")   # 사람 승강기 아님
 KEEP_STATUS = ("운행중", "휴지")              # 폐지 제외(물리적 존재)
 
@@ -26,19 +35,36 @@ _paren = re.compile(r"\(.*?\)")
 _ws = re.compile(r"\s+")
 
 
-def norm(addr: str | None) -> str | None:
-    """도로명주소 정규화 — 괄호(동)·모든 공백 제거. CSV·DB 동일 적용."""
+def norm(addr):
     if not addr:
         return None
     a = _ws.sub("", _paren.sub("", addr))
     return a or None
 
 
-def load_csv_counts() -> dict[str, int]:
-    """정규화 도로명주소 → 엘리베이터 대수(서울)."""
-    cnt: dict[str, int] = collections.Counter()
-    for fn in FILES:
-        path = os.path.join(RAW, fn)
+def _fnum(s):
+    try:
+        return float(s)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def load_daejang_elevator():
+    """대장 원본 elevator: building_pk → 승용승강기(대). build_building_master.py와 동일(p[45])."""
+    out = {}
+    with open(DAEJANG, "rb") as f:
+        for line in f:
+            p = [x.decode("utf-8", errors="replace") for x in line.rstrip(b"\r\n").split(b"|")]
+            if len(p) < 46:
+                continue
+            out[p[0]] = int(_fnum(p[45])) or 0
+    return out
+
+
+def load_kelisa_counts():
+    """승강기공단: 정규화 도로명 → 엘리베이터 대수(서울)."""
+    cnt = collections.Counter()
+    for path in ELEV_FILES:
         with open(path, encoding="utf-8-sig") as f:
             for row in csv.DictReader(f):
                 if row.get("시도") != "서울":
@@ -54,36 +80,40 @@ def load_csv_counts() -> dict[str, int]:
 
 
 async def main():
-    counts = load_csv_counts()
-    print(f"승강기 주소(정규화) {len(counts):,}건 · 총 엘리베이터 {sum(counts.values()):,}대")
+    print("대장 원본 로드…")
+    dj = load_daejang_elevator()
+    print(f"  표제부 {len(dj):,}동 · 대장 elevator>0 {sum(1 for v in dj.values() if v):,}")
+    print("승강기공단 로드…")
+    kel = load_kelisa_counts()
+    print(f"  정규화 주소 {len(kel):,}건 · 총 {sum(kel.values()):,}대")
 
     c = await asyncpg.connect(DSN)
     rows = await c.fetch(
-        """SELECT building_pk, road_addr, elevator FROM master.buildings
-           WHERE bjd_code LIKE '11%' AND road_addr IS NOT NULL""")
-    # 정규화 주소 → building_pk 리스트(동일 도로명 복수 건물 대비)
-    updates = []
-    matched_addr = set()
+        "SELECT building_pk, road_addr FROM master.buildings WHERE bjd_code LIKE '11%'")
+    # 도로명 다중도(같은 도로명에 몇 개 건물) — 복수면 대수 배분 불가 → 있음(1)만
+    multi = collections.Counter(norm(r["road_addr"]) for r in rows if r["road_addr"])
+
+    updates, filled, from_dj = [], 0, 0
     for r in rows:
-        if r["elevator"] not in (None, 0):
-            continue   # 대장 양수값 보존
-        k = norm(r["road_addr"])
-        n = counts.get(k) if k else None
-        if n:
-            updates.append((r["building_pk"], n))
-            matched_addr.add(k)
+        pk = r["building_pk"]
+        orig = dj.get(pk, 0)
+        if orig and orig > 0:
+            final = orig
+            from_dj += 1
+        else:
+            k = norm(r["road_addr"])
+            cnt = kel.get(k) if k else None
+            if cnt:
+                final = cnt if multi.get(k, 0) <= 1 else 1   # 단일 도로명=대수 / 복수=있음
+                filled += 1
+            else:
+                final = None
+        updates.append((pk, final))
 
     await c.executemany(
         "UPDATE master.buildings SET elevator=$2 WHERE building_pk=$1", updates)
-    print(f"보정 건물 {len(updates):,}동 · 매칭 주소 {len(matched_addr):,}건 "
-          f"(승강기주소 중 {len(matched_addr)/max(1,len(counts))*100:.1f}% 활용)")
-
-    # 검증 리포트
-    seoul_null = await c.fetchval(
-        "SELECT count(*) FROM master.buildings WHERE bjd_code LIKE '11%' AND (elevator IS NULL OR elevator=0)")
-    seoul_has = await c.fetchval(
-        "SELECT count(*) FROM master.buildings WHERE bjd_code LIKE '11%' AND elevator>0")
-    print(f"보정 후 서울: 엘리베이터 있음 {seoul_has:,}동 · 없음/미상 {seoul_null:,}동")
+    has = await c.fetchval("SELECT count(*) FROM master.buildings WHERE bjd_code LIKE '11%' AND elevator>0")
+    print(f"재계산 완료 — 대장 원본 {from_dj:,}동 + 승강기공단 보정 {filled:,}동 = 엘리베이터 있음 {has:,}동")
     await c.close()
 
 
