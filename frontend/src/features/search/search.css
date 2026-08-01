@@ -13,7 +13,7 @@
 .result-cols.s01 .col-body { flex: 1; min-height: 0; overflow-y: auto; }
 
 /* 행 그리드: ★ 20 · 주소 1fr · 매매가 58 · 수익률 48 (components.css 기본 3열 override) */
-.result-cols.s01 .wf-head, .result-cols.s01 .wf-row { grid-template-columns: 18px minmax(0,1fr) 52px 52px 42px; }
+.result-cols.s01 .wf-head, .result-cols.s01 .wf-row { grid-template-columns: minmax(0,1fr) 52px 52px 42px; }
 .wf-head .est { font-size: 10px; color: #aab2bf; font-weight: 600; margin-left: 3px; }
 .wf-row .dash { color: #c0c6d0; }
 

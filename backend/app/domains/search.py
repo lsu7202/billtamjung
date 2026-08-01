@@ -172,7 +172,6 @@ class SearchIn(BaseModel):
     polygon: dict | None = None       # GeoJSON — 있으면 지역범위 대체(§3.6c)
     filters: Filters = Filters()
     sort: str = "price"               # price|roi|addr
-    fav_only: bool = False            # 즐겨찾기 빠른 필터(§3.2a)
     page_mine: int = 1                # 열별 독립 페이징(§3.4)
     page_normal: int = 1
     per_page: int = 20
@@ -341,10 +340,6 @@ def _build_base(body: SearchIn, user: CurrentUser) -> tuple[str, list, str]:
         args.append(json.dumps(body.polygon))
         poly_sql = f" AND ST_Within(b.geom, ST_MakeValid(ST_GeomFromGeoJSON(${len(args)}::text)))"
     master_filt, outer_sql = _filter_sql(body.filters, args)
-    args.append(user.account_id)   # 즐겨찾기 조인용
-    acct_i = len(args)
-    fav_join = f"LEFT JOIN app.favorites fv ON fv.building_pk=b.building_pk AND fv.account_id=${acct_i}"
-    fav_where = "AND fv.building_pk IS NOT NULL" if body.fav_only else ""
 
     # 유동인구 proxy = (도로접면 점수 + 역거리 점수)/2 버킷 — value_score.float_pop_label과 동일.
     road_score = ("CASE b.road_frontage WHEN '광대소각' THEN 90 WHEN '광대세각' THEN 83 WHEN '광대로한면' THEN 76"
@@ -406,8 +401,7 @@ def _build_base(body: SearchIn, user: CurrentUser) -> tuple[str, list, str]:
                (ph.building_pk IS NOT NULL) AS has_photo,
                g5.price AS g5, g10.price AS g10, b.bcr, b.far,
                {legal_bcr} AS legal_bcr, {legal_far} AS legal_far,
-               {road_score} AS road_score, {station_score} AS station_score,
-               (fv.building_pk IS NOT NULL) AS is_fav
+               {road_score} AS road_score, {station_score} AS station_score
         FROM master.buildings b
         LEFT JOIN sale_ov so ON so.building_pk = b.building_pk
         LEFT JOIN master.building_sale_est se ON se.building_pk = b.building_pk
@@ -418,12 +412,11 @@ def _build_base(body: SearchIn, user: CurrentUser) -> tuple[str, list, str]:
         LEFT JOIN photo_ex ph ON ph.building_pk = b.building_pk
         LEFT JOIN master.gongsi_series g5 ON g5.pnu = b.pnu AND g5.year = EXTRACT(YEAR FROM CURRENT_DATE)::int - 5
         LEFT JOIN master.gongsi_series g10 ON g10.pnu = b.pnu AND g10.year = EXTRACT(YEAR FROM CURRENT_DATE)::int - 10
-        {fav_join}
-        WHERE TRUE {poly_sql} {master_filt} {fav_where}
+        WHERE TRUE {poly_sql} {master_filt}
       ),
       classified AS (
         SELECT building_pk, addr, land_area, total_area, floors_above, floors_below, use_zone,
-               lng, lat, last_sale_price, last_sale_ym, sale_est, assignee_account_id, is_fav,
+               lng, lat, last_sale_price, last_sale_ym, sale_est, assignee_account_id,
                status, urgency, grade, ipji, owner_type, relation, cooperation, kindness,
                building_use, meongdo, use_change, myeolsil, nohudo,
                owner_phone, owner_name, listing_no, intent, received_on, has_photo,
@@ -499,7 +492,7 @@ async def pins(body: SearchIn, user: CurrentUser = Depends(current_user)):
     base, args, outer_sql = _build_base(body, user)
     rows = await pool().fetch(
         base + f"""SELECT building_pk, addr, lng, lat, col, price, roi,
-                         last_sale_price, sale_est, is_fav
+                         last_sale_price, sale_est
                   FROM classified WHERE lng IS NOT NULL {outer_sql}
                   ORDER BY price DESC NULLS LAST, building_pk LIMIT 3000""",
         *args,

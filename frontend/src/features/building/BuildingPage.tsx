@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Fragment } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  buildingsApi, overlaysApi, rentsApi, extrasApi, listingsApi, creditsApi, seriesApi, FloorRent,
+  buildingsApi, overlaysApi, rentsApi, listingsApi, creditsApi, seriesApi, FloorRent,
 } from "../../shared/api/endpoints";
 import { PhotoPanel } from "../../shared/map/PhotoPanel";
 import { won, wonShort } from "../../shared/format";
@@ -163,10 +163,7 @@ export function BuildingPage() {
       {/* ── 헤더(S02 §3.1) ── */}
       <div className="panel" style={{ padding: "16px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, position: "sticky", top: 0, zIndex: 20 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 20 }}>
-            {b.addr}
-            <button className="btn" style={{ marginLeft: 10 }} onClick={() => extrasApi.favToggle(pk)}>★</button>
-          </h2>
+          <h2 style={{ margin: 0, fontSize: 20 }}>{b.addr}</h2>
           <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4, display: "flex", gap: 14 }}>
             {(listing.data?.listing_no as string) && <span>매물번호 <b>{String(listing.data?.listing_no)}</b></span>}
             {(listing.data?.received_on as string) && <span>접수일 <b>{String(listing.data?.received_on).slice(0, 10)}</b></span>}

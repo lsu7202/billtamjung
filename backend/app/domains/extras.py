@@ -39,33 +39,6 @@ async def fields(_: CurrentUser = Depends(current_user)):
     return {r["field_key"]: dict(r) for r in rows}
 
 
-# ── 즐겨찾기(개인 전용) ──────────────────────────────
-@router.put("/favorites/{building_pk}")
-async def fav_toggle(building_pk: str, user: CurrentUser = Depends(current_user)):
-    deleted = await pool().fetchval(
-        "DELETE FROM app.favorites WHERE account_id=$1 AND building_pk=$2 RETURNING 1",
-        user.account_id, building_pk,
-    )
-    if deleted:
-        return {"favorited": False}
-    await pool().execute(
-        "INSERT INTO app.favorites(account_id,building_pk) VALUES($1,$2)",
-        user.account_id, building_pk,
-    )
-    return {"favorited": True}
-
-
-@router.get("/favorites")
-async def fav_list(user: CurrentUser = Depends(current_user)):
-    rows = await pool().fetch(
-        """SELECT f.building_pk, b.addr FROM app.favorites f
-           JOIN master.buildings b ON b.building_pk=f.building_pk
-           WHERE f.account_id=$1 ORDER BY f.created_at DESC""",
-        user.account_id,
-    )
-    return [dict(r) for r in rows]
-
-
 # ── 저장한 검색조건(폴리곤 포함) ─────────────────────
 class SavedSearchIn(BaseModel):
     name: str

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { searchApi, buildingsApi, extrasApi, listingsApi, type AttrFilters } from "../../shared/api/endpoints";
+import { useQuery } from "@tanstack/react-query";
+import { searchApi, buildingsApi, listingsApi, type AttrFilters } from "../../shared/api/endpoints";
 import { openDetail } from "../../shared/map/geo";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
 import { geocode } from "../../shared/map/naver";
@@ -15,7 +15,7 @@ import "./search.css";
 interface Hit {
   building_pk: string; addr: string; price: number | null; last_sale_price: number | null; roi: number | null;
   price_is_est?: boolean;   // 매매가가 적정가 대체(팀 매매가 미입력)
-  lng: number; lat: number; is_fav?: boolean;
+  lng: number; lat: number;
   land_area: number | null; floors_above: number | null; floors_below: number | null;
 }
 interface Col { items: Hit[]; total: number; page: number; pages: number }
@@ -35,9 +35,9 @@ const py = (m2?: number | null) => (m2 == null ? "—" : (m2 / PY).toFixed(m2 / 
 /** 지도 선택 매물 요약 카드 — 마스터 즉시값만(적정가·수익률·층수·면적·시세추이). 수익률은 classified가
  *  마스터(rent_est÷매매가)로 산출해 핀에 실려옴(picked.roi). 라이브 계산값(매력도·투자유형·미래가치)만
  *  리포트에서 — 사이드바는 대기 없이 바로 뜨도록 배치/마스터 값으로 한정. */
-function SelCard({ picked, bldg, trend, onDetail, onFav }: {
+function SelCard({ picked, bldg, trend, onDetail }: {
   picked: MapPin; bldg?: Record<string, unknown>; trend: TrendSeries;
-  onDetail: () => void; onFav: () => void;
+  onDetail: () => void;
 }) {
   const num = (k: string) => (bldg && bldg[k] != null ? Number(bldg[k]) : null);
   const land = num("land_area") ?? picked.land_area ?? null;
@@ -54,7 +54,6 @@ function SelCard({ picked, bldg, trend, onDetail, onFav }: {
       <div className="sel-body">
         <div className="sel-addr">{picked.addr.replace("서울특별시 ", "").replace("번지", "")}
           <span className={`ml-tag ${picked.col}`}>{picked.col === "mine" ? "내" : "일반"}</span>
-          <span className="star" style={{ color: picked.is_fav ? "#f5a623" : "var(--line-2)" }} onClick={onFav}>★</span>
         </div>
         {/* 마스터 즉시값만(매력도·투자유형·미래가치는 리포트에서 — 대기 방지) */}
         <div className="sel-metrics">
@@ -76,7 +75,6 @@ function SelCard({ picked, bldg, trend, onDetail, onFav }: {
 }
 
 export function SearchPage() {
-  const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [active, setActive] = useState(-1);
   const [view, setView] = useState<"list" | "map">("map");   // 기본 = 지도 우선
@@ -85,7 +83,6 @@ export function SearchPage() {
   const [picked, setPicked] = useState<MapPin | null>(null);
   const [centerReq, setCenterReq] = useState<{ lng: number; lat: number } | null>(null);  // 지도 중심 이동 요청
   const [sort, setSort] = useState("price");
-  const [favOnly, setFavOnly] = useState(false);
   const [filters, setFilters] = useState<AttrFilters>({});      // 백엔드 쿼리용(모달 산출)
   const [fValues, setFValues] = useState<Values>({});           // 필터 모달 원본값(칩·재편집용)
   const [fRegions, setFRegions] = useState<RegionPick[]>([]);   // 지역 앵커(필터에서 선택)
@@ -104,21 +101,21 @@ export function SearchPage() {
   });
   // 영역(폴리곤)이 있으면 지역범위 대체(S01 §3.6c)
   const result = useQuery<SearchResult>({
-    queryKey: ["search3", bjd, polygon, sort, favOnly, filters, pages],
+    queryKey: ["search3", bjd, polygon, sort, filters, pages],
     queryFn: () =>
       searchApi.list({
         bjd_code: polygon ? undefined : bjd || undefined,
-        polygon: polygon ?? undefined, filters, sort, fav_only: favOnly,
+        polygon: polygon ?? undefined, filters, sort,
         page_mine: pages.mine, page_normal: pages.normal,
       }) as Promise<SearchResult>,
     enabled: !!bjd || !!polygon,
   });
   // 지도 핀 — 리스트는 페이징하되 지도엔 조건에 맞는 '전체' 매물을 표시(페이징 없음)
   const mapPins = useQuery<MapPin[]>({
-    queryKey: ["mapPins", bjd, polygon, sort, favOnly, filters],
+    queryKey: ["mapPins", bjd, polygon, sort, filters],
     queryFn: () => searchApi.pins({
       bjd_code: polygon ? undefined : bjd || undefined,
-      polygon: polygon ?? undefined, filters, sort, fav_only: favOnly,
+      polygon: polygon ?? undefined, filters, sort,
     }) as Promise<MapPin[]>,
     enabled: (!!bjd || !!polygon) && view === "map",
   });
@@ -138,10 +135,6 @@ export function SearchPage() {
   async function geocodeCenter(query: string) {
     const r = await geocode(query);
     if (r) { setView("map"); setActive(-1); setCenterReq(r); }
-  }
-  async function toggleFav(pk: string) {
-    await extrasApi.favToggle(pk);
-    qc.invalidateQueries({ queryKey: ["search3"] });
   }
   function toMap(h: Hit, key: "mine" | "normal") {   // 목록 [지도위치] → 지도뷰 + 그 매물로 중심 이동
     setPicked({ ...h, col: key });
@@ -223,7 +216,6 @@ export function SearchPage() {
           </div>
           <button className={`btn ${filterCount ? "primary" : ""}`} onClick={() => setShowFilter(true)}>필터{filterCount ? ` ${filterCount}` : ""}</button>
           <button className="btn primary" onClick={doSearch}>검색</button>
-          <button className={`btn ${favOnly ? "primary" : ""}`} onClick={() => setFavOnly(!favOnly)}>★ 즐겨찾기</button>
           <span style={{ flex: 1 }} />
           <div className="segmented">
             <button className={view === "list" ? "active" : ""} onClick={() => setView("list")}>매물</button>
@@ -274,7 +266,7 @@ export function SearchPage() {
         <div className="map-split">
           {/* 좌: 선택 매물 요약 + 미니리스트(핀 동기) */}
           <div className="map-list">
-            {picked ? <SelCard picked={picked} bldg={pickedBldg.data} trend={trend} onDetail={() => go(picked.building_pk)} onFav={() => toggleFav(picked.building_pk)} /> : null}
+            {picked ? <SelCard picked={picked} bldg={pickedBldg.data} trend={trend} onDetail={() => go(picked.building_pk)} /> : null}
             <div className="ml-head">
               <span>이 지도 영역 <b className="num">{mapPinList.length}</b>건{
                 mapPins.isFetching ? " · 불러오는 중…"
@@ -335,15 +327,13 @@ export function SearchPage() {
                 </div>
                 <div className="col-body">
                   <div className="wf-head">
-                    <span></span><span>주소</span>
+                    <span>주소</span>
                     <span className="num">실거래</span>
                     <span className="num">매매가</span>
                     <span className="num">수익률</span>
                   </div>
                   {col.items.map((h) => (
                     <div key={h.building_pk} className="wf-row" onClick={() => go(h.building_pk)}>
-                      <span className="star" style={{ fontSize: 15, color: h.is_fav ? "#f5b81f" : "var(--line-2)" }}
-                        onClick={(e) => { e.stopPropagation(); toggleFav(h.building_pk); }}>★</span>
                       <span>{h.addr.replace("서울특별시 ", "").replace("번지", "")}</span>
                       <span className="num" style={{ color: "var(--muted)" }}>{won(h.last_sale_price)}</span>
                       <span className="num">{won(h.price)}{h.price_is_est && <small style={{ color: "var(--muted)", fontWeight: 400 }}> 적정</small>}</span>

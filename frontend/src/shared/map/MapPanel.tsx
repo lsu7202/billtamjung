@@ -18,7 +18,6 @@ export interface MapPin {
   last_sale_price?: number | null;
   sale_est?: number | null;
   roi?: number | null;
-  is_fav?: boolean;
   land_area?: number | null;
   floors_above?: number | null;
   floors_below?: number | null;

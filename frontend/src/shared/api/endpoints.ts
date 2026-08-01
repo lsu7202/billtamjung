@@ -82,29 +82,29 @@ export interface AttrFilters {
 export interface MapPinDTO {
   building_pk: string; addr: string; lng: number; lat: number;
   col: "ad" | "mine" | "normal"; price: number | null;
-  roi: number | null; last_sale_price: number | null; is_fav: boolean;
+  roi: number | null; last_sale_price: number | null;
 }
 
 export const searchApi = {
   suggest: (q: string) => api<Suggestion[]>(`/search/suggest?q=${encodeURIComponent(q)}`),
   regions: () => api<Record<string, { sgg_code: string; dongs: { bjd_code: string; dong: string; count: number }[] }>>("/search/regions"),
-  list: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string; fav_only?: boolean; page_ad?: number; page_mine?: number; page_normal?: number }) =>
+  list: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string; page_ad?: number; page_mine?: number; page_normal?: number }) =>
     api("/search", {
       method: "POST",
       body: JSON.stringify({
         polygon: p.polygon ?? null,
         filters: { bjd_code: p.bjd_code ?? null, ...(p.filters ?? {}) },
-        sort: p.sort ?? "price", fav_only: p.fav_only ?? false,
+        sort: p.sort ?? "price",
         page_ad: p.page_ad ?? 1, page_mine: p.page_mine ?? 1, page_normal: p.page_normal ?? 1,
       }),
     }),
-  pins: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string; fav_only?: boolean }) =>
+  pins: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string }) =>
     api<MapPinDTO[]>("/search/pins", {                // 지도 핀: 페이징 없이 전체 매물(경량)
       method: "POST",
       body: JSON.stringify({
         polygon: p.polygon ?? null,
         filters: { bjd_code: p.bjd_code ?? null, ...(p.filters ?? {}) },
-        sort: p.sort ?? "price", fav_only: p.fav_only ?? false,
+        sort: p.sort ?? "price",
       }),
     }),
   snap: (polygon: object) =>                          // 자석 스냅(후처리): 그린 영역 → 필지 합집합 폴리곤
@@ -252,7 +252,6 @@ export const metaApi = {
 };
 
 export const extrasApi = {
-  favToggle: (pk: string) => api<{ favorited: boolean }>(`/favorites/${pk}`, { method: "PUT" }),
   wikiList: (pk: string) => api<Record<string, unknown>[]>(`/buildings/${pk}/wiki`),
   wikiPost: (pk: string, body: string, category?: string) =>
     api(`/buildings/${pk}/wiki`, { method: "POST", body: JSON.stringify({ body, category }) }),
