@@ -38,6 +38,20 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
         "SELECT sale_est FROM master.building_sale_est WHERE building_pk=$1", building_pk)
     data["sale_est"] = int(se) if se is not None else None
 
+    # 마스터 예상수익률 — 검색(classified)과 동일 체인: rent(팀 total_rent×12 ?? 마스터 rent_est) ÷ 매매가(팀 sale_price ?? 적정가).
+    re = await pool().fetchval(
+        "SELECT annual_rent FROM master.building_rent_est WHERE building_pk=$1", building_pk)
+
+    def _f(x):
+        try:
+            return float(x)
+        except (TypeError, ValueError):
+            return None
+    m_price = _f(data.get("sale_price")) or (float(se) if se is not None else None)
+    _tr = _f(data.get("total_rent"))
+    m_rent = (_tr * 12 if _tr else None) or (float(re) if re is not None else None)
+    data["roi"] = round(m_rent / m_price * 100, 2) if (m_rent and m_price) else None
+
     # 지역 지가 상승률(리포트 맥락) — 자치구별 누적 지가변동률(land_adjust)
     if data.get("bjd_code"):
         gu = str(data["bjd_code"])[:5]

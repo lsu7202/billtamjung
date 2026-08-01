@@ -147,7 +147,9 @@ export function SearchPage() {
         building_pk: pk, addr: String(b.addr ?? ""),
         lng: Number(b.lng), lat: Number(b.lat),
         col: listing?.registered ? "mine" : "normal",
-        price: null, roi: null,
+        price: null,
+        roi: b.roi != null ? Number(b.roi) : null,               // 마스터 수익률(buildings.get)
+        sale_est: b.sale_est != null ? Number(b.sale_est) : null, // 배치 적정가 — 사이드바가 핀과 동일하게 표시
         land_area: b.land_area != null ? Number(b.land_area) : null,
         floors_above: b.floors_above != null ? Number(b.floors_above) : null,
         floors_below: b.floors_below != null ? Number(b.floors_below) : null,
