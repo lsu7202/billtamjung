@@ -207,6 +207,8 @@ function toFilters(v: Values): AttrFilters {
   const fa = sl("규모 지상"), fb = sl("규모 지하"), bc = sl("건폐율"), fr = sl("용적률");
   const st = sl("역과의거리"), price = sl("실거래가"), gongsi = sl("최신 공시지가"), age = sl("사용승인일");
   const deal = sl("실거래일");
+  const ba = sl("건축면적"), el = sl("엘리베이터"), pkg = sl("주차장");
+  const etc = (v["기타용도"] as string | undefined)?.trim();
   const zones = ms("용도지역").map(toZone).filter(Boolean);
   // 서버 필터 매핑 — 값이 DB(master.buildings)와 그대로 일치하는 필드(대조 확인).
   // 용도지역만 toZone 변환. 주용도는 DB가 코드 저장이라 매핑 전까지 미연결.
@@ -219,6 +221,10 @@ function toFilters(v: Values): AttrFilters {
     slopes: arr(ms("지세")),
     land_area_min: area(la.lo), land_area_max: area(la.hi),
     total_area_min: area(ta.lo), total_area_max: area(ta.hi),
+    build_area_min: area(ba.lo), build_area_max: area(ba.hi),
+    elevator_min: num(el.lo), elevator_max: num(el.hi),
+    parking_min: num(pkg.lo), parking_max: num(pkg.hi),
+    etc_use: etc || null,
     floors_above_min: num(fa.lo), floors_above_max: num(fa.hi),
     floors_below_min: num(fb.lo), floors_below_max: num(fb.hi),
     bcr_min: num(bc.lo), bcr_max: num(bc.hi),

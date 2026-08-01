@@ -72,18 +72,7 @@ export function LoginPage() {
             {tab === "login" ? "로그인" : "가입하고 시작하기"}
           </button>
 
-          {/* 소셜 로그인(카카오·네이버) — /start가 제공자 동의화면으로 리다이렉트. 키 미설정 시 백엔드 503 */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "2px 0", color: "var(--muted)", fontSize: 12 }}>
-            <span style={{ flex: 1, height: 1, background: "var(--line)" }} />또는<span style={{ flex: 1, height: 1, background: "var(--line)" }} />
-          </div>
-          <button type="button" onClick={() => { window.location.href = "/api/auth/social/kakao/start"; }}
-            style={{ padding: 12, border: 0, borderRadius: "var(--radius)", background: "#FEE500", color: "#191600", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-            카카오로 시작하기
-          </button>
-          <button type="button" onClick={() => { window.location.href = "/api/auth/social/naver/start"; }}
-            style={{ padding: 12, border: 0, borderRadius: "var(--radius)", background: "#03C75A", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-            네이버로 시작하기
-          </button>
+          {/* 소셜 로그인(카카오·네이버) — 화면에서 임시 숨김. 백엔드(social.py `/auth/social/*`)는 유지, DB 동작 확정 후 UI 복원 예정. */}
 
           {tab === "signup" && (
             <p style={{ fontSize: 11, color: "var(--muted)", textAlign: "center" }}>
