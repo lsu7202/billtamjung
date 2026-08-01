@@ -74,7 +74,7 @@ export function SearchPage() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [active, setActive] = useState(-1);
-  const [view, setView] = useState<"list" | "map">("list");
+  const [view, setView] = useState<"list" | "map">("map");   // 기본 = 지도 우선
   const [polygon, setPolygon] = useState<object | null>(null);
   const [picked, setPicked] = useState<MapPin | null>(null);
   const [centerReq, setCenterReq] = useState<{ lng: number; lat: number } | null>(null);  // 지도 중심 이동 요청
