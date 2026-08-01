@@ -20,10 +20,6 @@ function centroid(naver: any, pts: any[]) {
   let x = 0, y = 0; pts.forEach((p) => { x += p.lng(); y += p.lat(); });
   return new naver.maps.LatLng(y / pts.length, x / pts.length);
 }
-const labelIcon = (naver: any, text: string) => ({
-  content: `<div style="background:rgba(30,90,240,.82);color:#fff;font:600 11px/1.3 sans-serif;padding:3px 8px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-165%)">${text}</div>`,
-  anchor: new naver.maps.Point(0, 0),
-});
 const dotIcon = (naver: any, bg: string, cursor: string, border = "#fff") => ({
   content: `<div style="width:15px;height:15px;border-radius:50%;background:${bg};border:3px solid ${border};box-shadow:0 1px 4px rgba(0,0,0,.45);cursor:${cursor}"></div>`,
   anchor: new naver.maps.Point(7, 7),
@@ -41,10 +37,13 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
   const mapDiv = useRef<HTMLDivElement>(null);
   const roadDiv = useRef<HTMLDivElement>(null);
   const mapObj = useRef<any>(null);
+  const panoRef = useRef<any>(null);
+  const [roadBig, setRoadBig] = useState(false);   // 로드뷰 확대(지도↔로드뷰 크기 스왑)
   const [mapReady, setMapReady] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [noPano, setNoPano] = useState(false);
   const [defining, setDefining] = useState(false);
+  const [areaInfo, setAreaInfo] = useState<string | null>(null);   // 반경/면적 표시(지도 하단 중앙)
   const [draw, setDraw] = useState<Draw>("circle");
   const [rulerOn, setRulerOn] = useState(false);
   const rulerRef = useRef<Ruler | null>(null);
@@ -60,13 +59,7 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
           const pos = new naver.maps.LatLng(lat, lng);
           const map = new naver.maps.Map(mapDiv.current, { center: pos, zoom: 16, minZoom: 15, maxZoom: 17 });   // S02=매물 중심 뷰, 과도한 확대/축소 제한
           mapObj.current = map;
-          new naver.maps.Marker({
-            position: pos, map,
-            icon: {
-              content: `<div style="background:#262320;color:#fff;font:700 12px/1 monospace;padding:6px 11px;border-radius:999px 999px 999px 3px;box-shadow:0 3px 8px rgba(15,26,46,.4)">본매물</div>`,
-              anchor: new naver.maps.Point(10, 30),
-            },
-          });
+          // 본매물 위치는 필지 색칠(네이비 폴리곤)로 표시 — 별도 태그 마커 없음
           inited.current.map = true;
           setMapReady(true);
         }
@@ -88,7 +81,19 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
         flightSpot: false, aroundControl: false, zoomControl: false,
       });
     } catch { setNoPano(true); return; }
+    panoRef.current = pano;
     naver.maps.Event.addListener(pano, "pano_status", (s: any) => setNoPano(String(s) !== "OK"));
+    // 최초 1회: 파노라마(도로) 위치에서 본매물로의 방위각으로 시야를 맞춤(로드뷰가 매물을 바라보게)
+    let oriented = false;
+    const orient = () => {
+      if (oriented) return;
+      const p = pano.getPosition?.(); if (!p) return;
+      oriented = true;
+      const dLat = lat - p.lat(), dLng = (lng - p.lng()) * Math.cos((p.lat() * Math.PI) / 180);
+      if (Math.abs(dLat) < 1e-9 && Math.abs(dLng) < 1e-9) return;   // 파노라마=매물이면 유지
+      pano.setPov({ pan: (Math.atan2(dLng, dLat) * 180) / Math.PI, tilt: 0, fov: 90 });   // 북=0·동=90(conePath와 동일)
+    };
+    naver.maps.Event.addListener(pano, "pano_changed", orient);
     const sync = () => {
       const p = pano.getPosition?.(); const pov = pano.getPov?.() ?? { pan: 0, fov: 90 };
       if (!p) return;
@@ -101,9 +106,21 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
     naver.maps.Event.addListener(pano, "pano_changed", sync);
     naver.maps.Event.addListener(pano, "pov_changed", sync);
     const t = setTimeout(sync, 500);
-    return () => { clearTimeout(t); cone?.setMap(null); if (roadDiv.current) roadDiv.current.innerHTML = ""; };
+    return () => { clearTimeout(t); cone?.setMap(null); panoRef.current = null; if (roadDiv.current) roadDiv.current.innerHTML = ""; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, lat, lng]);
+
+  // 로드뷰 확대/축소 전환 → 컨테이너 크기 바뀌면 파노라마·지도 리사이즈(naver는 생성시 크기 고정)
+  useEffect(() => {
+    if (!mapReady) return;
+    const fit = () => {
+      const wrap = roadDiv.current?.parentElement;
+      if (wrap && panoRef.current) panoRef.current.setSize?.(new window.naver.maps.Size(wrap.clientWidth, wrap.clientHeight));
+      window.dispatchEvent(new Event("resize"));   // 지도 리레이아웃
+    };
+    const a = requestAnimationFrame(fit); const b = setTimeout(fit, 160); const d = setTimeout(fit, 340);
+    return () => { cancelAnimationFrame(a); clearTimeout(b); clearTimeout(d); };
+  }, [roadBig, tab, mapReady]);
 
   // 본매물 필지 색칠(네이비 오버레이)
   useEffect(() => {
@@ -175,10 +192,9 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
     if (area.kind === "polygon") {
       const paths = geoToPaths(naver, area.geojson);
       disp.push(new naver.maps.Polygon({ map, paths, clickable: false, fillColor: "#3A5DA8", fillOpacity: 0.09, strokeColor: "#3A5DA8", strokeWeight: 2 }));
-      const ct = centroid(naver, paths[0]);
-      disp.push(new naver.maps.Marker({ position: ct, map, zIndex: 100, clickable: false, icon: labelIcon(naver, fmtArea(area.area_m2)) }));
-      if (defining && draw === "free") disp.push(new naver.maps.Marker({ position: ct, map, zIndex: 110, clickable: false, icon: dotIcon(naver, "#3A5DA8", "move") }));
-      return clear;
+      setAreaInfo(fmtArea(area.area_m2));
+      if (defining && draw === "free") disp.push(new naver.maps.Marker({ position: centroid(naver, paths[0]), map, zIndex: 110, clickable: false, icon: dotIcon(naver, "#3A5DA8", "move") }));
+      return () => { clear(); setAreaInfo(null); };
     }
 
     // 원 — 중심 자유(area.center 없으면 본매물)
@@ -186,13 +202,12 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
     let c = new naver.maps.LatLng(cc.lat, cc.lng);
     let r = area.radius_m;
     const circle = new naver.maps.Circle({ map, center: c, radius: r, clickable: false, fillColor: "#3A5DA8", fillOpacity: 0.09, strokeColor: "#3A5DA8", strokeWeight: 2 });
-    const label = new naver.maps.Marker({ position: c, map, zIndex: 100, clickable: false, icon: labelIcon(naver, "") });
-    disp.push(circle, label);
-    const setLabel = () => label.setIcon(labelIcon(naver, `반경 ${fmtDist(r)} · ${fmtArea(Math.PI * r ** 2)}`));
+    disp.push(circle);
+    const setLabel = () => setAreaInfo(`반경 ${fmtDist(r)} · ${fmtArea(Math.PI * r ** 2)}`);
     setLabel();
 
     const listeners: any[] = [];
-    const cleanup = () => { listeners.forEach((l) => naver.maps.Event.removeListener(l)); map.setOptions({ draggable: true }); clear(); };
+    const cleanup = () => { listeners.forEach((l) => naver.maps.Event.removeListener(l)); map.setOptions({ draggable: true }); clear(); setAreaInfo(null); };
     if (defining && draw === "circle" && onArea) {
       // 시각 핸들(비드래그) — 실제 드래그는 지도 마우스 이벤트 히트테스트로 처리(팬 유지)
       const centerH = new naver.maps.Marker({ position: c, map, zIndex: 110, clickable: false, icon: dotIcon(naver, "#3A5DA8", "move") });
@@ -200,7 +215,7 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
       disp.push(centerH, edgeH);
       let mode: "" | "center" | "radius" = "", gdLng = 0, gdLat = 0;
       const tol = () => Math.max(40, r * 0.18);   // 잡기 허용 반경(m)
-      const redraw = () => { circle.setCenter(c); circle.setRadius(r); label.setPosition(c); centerH.setPosition(c); edgeH.setPosition(eastPoint(naver, c, r)); setLabel(); };
+      const redraw = () => { circle.setCenter(c); circle.setRadius(r); centerH.setPosition(c); edgeH.setPosition(eastPoint(naver, c, r)); setLabel(); };
       listeners.push(
         naver.maps.Event.addListener(map, "mousedown", (e: any) => {
           const dC = meters(c, e.coord);
@@ -278,27 +293,33 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
     ? { position: "fixed", inset: 0, zIndex: 1000, margin: 0, borderRadius: 0, background: "var(--surface-2)" }
     : { position: "relative", height: 400, margin: 14, borderRadius: 8, background: "var(--surface-2)" };
 
+  // 지도↔로드뷰 크기 스왑: 확대된 쪽=전체, 다른 쪽=우상단 PiP
+  const bigStyle: React.CSSProperties = { position: "absolute", inset: 0, overflow: "hidden" };
+  const pipStyle: React.CSSProperties = { position: "absolute", top: 12, right: 12, width: 264, height: 168, zIndex: 7, borderRadius: 10, overflow: "hidden", boxShadow: "0 3px 12px rgba(15,26,46,.35)", border: "2px solid #fff" };
+  const showRoad = tab === "map" && !defining;   // 로드뷰 인셋 표시(업로드·상권정의 중 숨김)
+
   return (
     <div className="panel">
       {!defining && (
         <div style={{ display: "flex", gap: 8, padding: "12px 14px 0" }}>
           {tabBtn("map", "지도·로드뷰")}{pk && tabBtn("upload", "업로드 사진")}
           {tab === "map" && onArea && (
-            <button className="btn" style={{ marginLeft: "auto", ...drawBtn(false) }} onClick={() => { setTab("map"); setDraw("circle"); setDefining(true); }}>◎ 주변상권 정의하기</button>
+            <button className="btn" style={{ marginLeft: "auto", ...drawBtn(false) }} onClick={() => { setTab("map"); setDraw("circle"); setRoadBig(false); setDefining(true); }}>◎ 주변상권 정의하기</button>
           )}
         </div>
       )}
       <div style={{ ...mapBox, overflow: "hidden" }}>
         {err && <div style={{ padding: 20, color: "var(--up)", fontSize: 13 }}>{err}</div>}
-        <div ref={mapDiv} style={{ position: "absolute", inset: 0, display: tab === "map" ? "block" : "none" }} />
-        {/* 로드뷰 인셋(PiP) — 돌리면 지도의 시야 부채꼴이 회전 = 로드뷰가 본매물을 향하는지 확인 */}
-        <div style={{
-          position: "absolute", top: 12, right: 12, width: 264, height: 168, zIndex: 7,
-          borderRadius: 10, overflow: "hidden", boxShadow: "0 3px 12px rgba(15,26,46,.35)", border: "2px solid #fff",
-          background: "#5f6b7a", display: tab === "map" && !defining ? "block" : "none",
-        }}>
+        {/* 지도 (로드뷰 확대 시 우상단 PiP로 축소) */}
+        <div style={{ ...(!roadBig || defining ? bigStyle : pipStyle), display: tab === "map" ? "block" : "none", background: "var(--surface-2)" }}>
+          <div ref={mapDiv} style={{ position: "absolute", inset: 0 }} />
+        </div>
+        {/* 로드뷰 (기본 PiP, 확대 시 전체) — 돌리면 지도의 시야 부채꼴이 회전 = 로드뷰가 본매물을 향하는지 확인 */}
+        <div style={{ ...(roadBig ? bigStyle : pipStyle), background: "#5f6b7a", display: showRoad ? "block" : "none" }}>
           <div ref={roadDiv} style={{ position: "absolute", inset: 0 }} />
           {noPano && <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#e7ecf2", fontSize: 12, fontWeight: 600 }}>이 위치 로드뷰 없음</div>}
+          <button className="btn" title={roadBig ? "지도 크게" : "로드뷰 크게"} style={{ position: "absolute", top: 8, left: 8, zIndex: 3, padding: "4px 10px", fontSize: 12, background: "#fff", boxShadow: "0 2px 8px rgba(0,0,0,.25)" }}
+            onClick={() => setRoadBig((v) => !v)}>{roadBig ? "⤡ 지도 크게" : "⤢ 로드뷰 크게"}</button>
           <div style={{ position: "absolute", left: 8, bottom: 6, fontSize: 10, fontWeight: 700, color: "#fff", background: "rgba(15,26,46,.6)", padding: "2px 7px", borderRadius: 5, pointerEvents: "none" }}>로드뷰 · 돌려서 매물 방향 확인</div>
         </div>
         {defining && (
@@ -319,13 +340,17 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
             </div>
           </>
         )}
-        {tab === "map" && (comps?.length ?? 0) > 0 && (
+        {/* 반경/면적 — 지도 하단 중앙(겹침 방지) */}
+        {tab === "map" && !roadBig && areaInfo && (
+          <div style={{ position: "absolute", bottom: defining ? 58 : 12, left: "50%", transform: "translateX(-50%)", zIndex: 6, background: "rgba(30,90,240,.92)", color: "#fff", fontSize: 12, fontWeight: 600, padding: "5px 13px", borderRadius: 8, whiteSpace: "nowrap", pointerEvents: "none", boxShadow: "0 2px 8px rgba(0,0,0,.25)" }}>{areaInfo}</div>
+        )}
+        {tab === "map" && !roadBig && (comps?.length ?? 0) > 0 && (
           <div style={{ position: "absolute", bottom: 12, left: 12, zIndex: 6, background: "#fff", borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,.15)", padding: "6px 10px", fontSize: 11, display: "flex", gap: 12 }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: COMP_COLOR.sale }} />실거래</span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: COMP_COLOR.rent }} />임대</span>
           </div>
         )}
-        {tab === "map" && mapReady && (
+        {tab === "map" && !roadBig && mapReady && (
           <button className="btn" title="본매물 위치로 이동" style={{ position: "absolute", bottom: 12, right: 12, zIndex: 6, padding: "6px 12px", fontSize: 12, background: "#fff", boxShadow: "0 2px 8px rgba(0,0,0,.15)" }}
             onClick={() => mapObj.current?.morph(new window.naver.maps.LatLng(lat, lng), 16)}>⌖ 본매물</button>
         )}
