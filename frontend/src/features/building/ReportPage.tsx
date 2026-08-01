@@ -61,7 +61,7 @@ export function ReportPage() {
     gLatest, gTotal, nbhdGongsi, gmult, compMin, compMax,
     roiFair, nbhdRoi,
     ut, officeApt, fut, useZone, mainUse, grade, score, gradeCol, shortAddr, opinions, conclusion,
-    SLIDES: SLIDE_META, summaryRows, summaryTail, basicInfo, gongsiMetrics, gongsiProse, rentMetrics, rentProse, rentNote, futureAxes,
+    SLIDES: SLIDE_META, summaryRows, summaryTail, basicInfo, gongsiMetrics, gongsiProse, rentMetrics, rentProse, futureAxes,
   } = m;
   const gc = (s: number) => s >= 70 ? "var(--blue)" : "var(--rmuted)";
   const SM = Object.fromEntries(SLIDE_META.map((s) => [s.key, s])) as Record<string, typeof SLIDE_META[number]>;
@@ -253,11 +253,10 @@ export function ReportPage() {
         title={SM.rent.title} desc={SM.rent.desc}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.6cqw", width: "100%", height: "100%", justifyContent: "center" }}>
           <div style={{ display: "flex", gap: "2cqw" }}>
-            {rentMetrics.map(([k, v, d]) => (
+            {rentMetrics.map(([k, v]) => (
               <div key={k} style={{ flex: 1, borderTop: "2px solid var(--navy)", paddingTop: ".7cqw" }}>
                 <div style={{ fontSize: ".95cqw", fontWeight: 700, color: "var(--navy)" }}>{k}</div>
-                <div style={{ fontSize: "1.85cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.05, margin: ".15cqw 0" }}>{v}</div>
-                <div style={{ fontSize: ".85cqw", color: "var(--rmuted)" }}>{d}</div>
+                <div style={{ fontSize: "1.85cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.05, marginTop: ".15cqw" }}>{v}</div>
               </div>
             ))}
           </div>
@@ -278,11 +277,10 @@ export function ReportPage() {
                             { label: "주변평균", value: nbhdRoi, color: "var(--navy)" }]} />
                 : <div style={{ color: "var(--rmuted)", fontSize: "1.05cqw", padding: "2cqw 0" }}>주변 수익률 데이터가 부족합니다.</div>}
             </div>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: ".8cqw" }}>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
               <div style={{ fontSize: "1.12cqw", lineHeight: 1.7, color: "var(--rink)" }}>
                 {rentProse.map((s: Seg, i: number) => s.b ? <b key={i} style={{ color: "var(--blue)" }}>{s.t}</b> : <Fragment key={i}>{s.t}</Fragment>)}
               </div>
-              <div style={{ fontSize: ".95cqw", lineHeight: 1.55, color: "var(--rmuted)" }}>{rentNote}</div>
             </div>
           </div>
         </div>

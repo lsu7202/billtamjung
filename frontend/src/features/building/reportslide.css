@@ -148,7 +148,7 @@
 .story-root { height: 100%; overflow-y: auto; overflow-x: hidden; background: #0a0e17; -webkit-font-smoothing: antialiased;
   font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", "Segoe UI", sans-serif; }
 @keyframes story-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(7px); } }
-.story-sec { min-height: 100vh; background: #fff; display: flex; flex-direction: column; justify-content: center; padding: 10vh 9vw;
+.story-sec { height: 100vh; min-height: 100vh; box-sizing: border-box; background: #fff; display: flex; flex-direction: column; justify-content: center; padding: 6vh 7vw; overflow: hidden;
   opacity: 0; transform: translateY(34px); transition: opacity .9s cubic-bezier(.22,1,.36,1), transform .9s cubic-bezier(.22,1,.36,1); }
 .story-sec.in { opacity: 1; transform: none; }
 .story-kicker { font-size: 13px; letter-spacing: .25em; color: #2b5aa8; font-weight: 800; }
@@ -217,4 +217,10 @@
 .story-bar-track { height: 10px; border-radius: 6px; background: #eceef2; overflow: hidden; }
 .story-bar-fill { height: 100%; border-radius: 6px; transform-origin: left; transition: transform 1s cubic-bezier(.22,1,.36,1); }
 .story-bar-sub { font-size: clamp(12px,1.2vw,14px); color: #828a99; margin-top: .5em; }
+/* 스토리 표 — 덱 rs-tbl과 동일 내용, vw 스케일 */
+.story-tbl { width: 100%; border-collapse: collapse; font-size: clamp(12.5px,1.3vw,16px); }
+.story-tbl th { text-align: left; font-size: clamp(11px,1.1vw,13.5px); color: #828a99; font-weight: 700; padding: 0 10px 8px; border-bottom: 2px solid #1e2a4a; }
+.story-tbl td { padding: 9px 10px; border-bottom: 1px solid #ececef; color: #1a1f2b; font-variant-numeric: tabular-nums; }
+.story-tbl .r { text-align: right; } .story-tbl .b { font-weight: 700; } .story-tbl .hl { color: #2b5aa8; }
+.story-tbl tr.sub { background: color-mix(in srgb, #2b5aa8 7%, transparent); }
 @media (prefers-reduced-motion: reduce) { .story-sec > * { opacity: 1; transform: none; } }

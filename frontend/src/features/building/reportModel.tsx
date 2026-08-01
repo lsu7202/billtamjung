@@ -208,12 +208,12 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     : [{ t: `공시지가와 실거래 배율을 함께 반영해 적정가를 산정합니다.` }];
 
   // ── 06 임대수익(층별 나열 안 함 — 요약 5지표 + 비교) ──
-  const rentMetrics: [string, string, string][] = [
-    ["건물 규모", `지하 ${b.floors_below ?? "—"} · 지상 ${b.floors_above ?? "—"}층`, `임대 분석 ${rFloors}개 층`],
-    ["총 월임대료", `${man(curRent)}만원`, "층별 합계 · 월 기준"],
-    ["예상 보증금", rCurDep ? eokman(rCurDep) : "—", "층별 보증금 합계"],
-    ["평균 평당 임대료", perPyRent ? `${(perPyRent / 1e4).toFixed(1)}만원` : "—", perPyRent ? `연 약 ${Math.round(perPyRent * 12 / 1e4).toLocaleString()}만원 · 연면적 기준` : "연면적 기준 · 월"],
-    ["적정가 기준 예상수익률", roiFair != null ? `${roiFair.toFixed(2)}%` : "—", "연 임대수익 ÷ 적정가"],
+  const rentMetrics: [string, string][] = [
+    ["건물 규모", `지하 ${b.floors_below ?? "—"} · 지상 ${b.floors_above ?? "—"}층`],
+    ["총 월임대료", `${man(curRent)}만원`],
+    ["예상 보증금", rCurDep ? eokman(rCurDep) : "—"],
+    ["평균 평당 임대료", perPyRent ? `${(perPyRent / 1e4).toFixed(1)}만원` : "—"],
+    ["적정가 기준 예상수익률", roiFair != null ? `${roiFair.toFixed(2)}%` : "—"],
   ];
   const rentProse: Seg[] = [
     { t: `본 매물의 현재 총 월임대료는 ` }, { t: `${man(curRent)}만원`, b: true }, { t: `, 총 보증금은 ` }, { t: `${rCurDep ? eokman(rCurDep) : "—"}`, b: true }, { t: ` 수준입니다.` },
@@ -225,7 +225,6 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
       ? [{ t: ` 적정가 기준 예상수익률 ` }, { t: `${roiFair.toFixed(2)}%`, b: true }, { t: `는 주변 평균(${nbhdRoi}%)보다 ` }, { t: roiFair >= nbhdRoi ? "높아 수익성 우위" : "다소 낮은 편", b: true }, { t: `입니다.` }]
       : []),
   ];
-  const rentNote = "이 임대수익은 수익환원(연 임대수익 ÷ 자치구 환원율)으로 적정가에 반영됩니다. 주변 수익률은 반경 내 건물의 임대추정 ÷ 적정가 중앙값입니다.";
 
   // ── 08 미래가치 — "그래서 얼마?" 실제 돈·양으로 설명 ──
   const _sign = (v: number) => (v >= 0 ? "+" : "−");
@@ -268,6 +267,6 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     roiFair, rs, rFloors, rCurDep, perPyRent, upsidePct, nbhdRoi, topStrengths,
     ut, officeApt, fut, useZone, mainUse, grade, score, gradeCol, addr, shortAddr,
     opinions, conclusion, SLIDES, summaryRows, summaryTail, basicInfo,
-    gongsiMetrics, gongsiProse, rentMetrics, rentProse, rentNote, futureAxes,
+    gongsiMetrics, gongsiProse, rentMetrics, rentProse, futureAxes,
   };
 }
