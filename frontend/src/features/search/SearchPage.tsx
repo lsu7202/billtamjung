@@ -31,8 +31,9 @@ const won = (n: number | null) =>
 const PY = 3.3058;                                    // ㎡→평
 const py = (m2?: number | null) => (m2 == null ? "—" : (m2 / PY).toFixed(m2 / PY < 100 ? 1 : 0));
 
-/** 지도 선택 매물 요약 카드 — 마스터 즉시값만(적정가·층수·면적·시세추이). 라이브 계산값(수익률·매력도·
- *  투자유형·미래가치)은 리포트에서만 — 사이드바는 대기 없이 바로 뜨도록 배치/마스터 값으로 한정. */
+/** 지도 선택 매물 요약 카드 — 마스터 즉시값만(적정가·수익률·층수·면적·시세추이). 수익률은 classified가
+ *  마스터(rent_est÷매매가)로 산출해 핀에 실려옴(picked.roi). 라이브 계산값(매력도·투자유형·미래가치)만
+ *  리포트에서 — 사이드바는 대기 없이 바로 뜨도록 배치/마스터 값으로 한정. */
 function SelCard({ picked, bldg, trend, onDetail, onFav }: {
   picked: MapPin; bldg?: Record<string, unknown>; trend: TrendSeries;
   onDetail: () => void; onFav: () => void;
@@ -54,9 +55,10 @@ function SelCard({ picked, bldg, trend, onDetail, onFav }: {
           <span className={`ml-tag ${picked.col}`}>{picked.col === "mine" ? "내" : "일반"}</span>
           <span className="star" style={{ color: picked.is_fav ? "#f5a623" : "var(--line-2)" }} onClick={onFav}>★</span>
         </div>
-        {/* 마스터 즉시값만(수익률·매력도·투자유형·미래가치는 리포트에서 — 대기 방지) */}
+        {/* 마스터 즉시값만(매력도·투자유형·미래가치는 리포트에서 — 대기 방지) */}
         <div className="sel-metrics">
           <div className="m"><div className="mk">빌탐정 적정가</div><div className="mv" style={{ color: "var(--signal)" }}>{eok1(fair)}</div></div>
+          <div className="m"><div className="mk">예상수익률</div><div className="mv">{picked.roi == null ? "—" : `${picked.roi}%`}</div></div>
           <div className="m"><div className="mk">층수</div><div className="mv">{fb ? `B${fb}` : ""}{fb ? "/" : ""}{fa != null ? `${fa}F` : "—"}</div></div>
           <div className="m wide"><div className="mk">면적 (평)</div>
             <div className="sel-area"><span><i>대지</i>{py(land)}</span><span><i>연면적</i>{py(total)}</span></div>
