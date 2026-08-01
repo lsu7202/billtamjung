@@ -134,4 +134,7 @@ SANG_SQL = """COALESCE(
      WHERE ST_DWithin(sg.geom::geography, b.geom::geography, 1500)
      ORDER BY sg.geom::geography <-> b.geom::geography LIMIT 1))"""
 # 서울 전체(sido 11). 상업/업무/주상 계열만.
-BLDG_FILTER = "b.bjd_code LIKE '11%' AND b.land_use IN ('상업용','업무용','상업기타','주상용','주상기타')"
+# 임대추정 대상 = 토지이용(상업 SECT) ∪ 건물주용도(근생·판매·업무·숙박·문화·의료·운동·위락).
+# land_use 오분류(예: 근생 상가인데 '주거기타')를 main_use로 보완 — build_sale_est COMM_SQL과 동일 정의.
+BLDG_FILTER = ("b.bjd_code LIKE '11%' AND (b.land_use IN ('상업용','업무용','상업기타','주상용','주상기타') "
+               "OR substr(b.main_use,1,2) IN ('03','04','05','07','09','13','14','15','16'))")
