@@ -7,7 +7,7 @@ import {
 import { PhotoPanel } from "../../shared/map/PhotoPanel";
 import { won, wonShort } from "../../shared/format";
 import { MarketArea, CompPoint } from "../../shared/map/geo";
-import { PriceTrendChart } from "../../shared/ui/PriceTrendChart";
+import { MarketTrend } from "./MarketTrend";
 import { MarketBlock } from "./MarketBlock";
 import { Sidebar } from "./Sidebar";
 import { ReportModal } from "./ReportModal";
@@ -332,15 +332,11 @@ export function BuildingPage() {
               totalGongsi={b.total_gongsi != null ? Number(b.total_gongsi) : null}
               landArea={b.land_area != null ? Number(b.land_area) : null} />
             )}
-            {/* 시세 추이(§3.7): 실거래·공시지가 겹침(S01 선택카드와 동일 컴포넌트) */}
+            {/* 시세 추이(§3.7): 실거래 시세추이(편집 가능) */}
             {show("deal") && (
-            <div className="panel">
-              <div className="sec-head">시세 추이 <small style={{ color: "var(--muted)", fontWeight: 400 }}>실거래 · 공시지가(총액)</small></div>
-              <PriceTrendChart series={{
-                real: (series.data?.real ?? []).map((p) => ({ year: Number(String(p.x).slice(0, 4)), value: p.y })),
-                gongsi: (series.data?.gongsi ?? []).map((p) => ({ year: Number(p.x), value: p.y })),
-              }} />
-            </div>
+            <MarketTrend pk={pk} fmt={(v) => eok(v)} areaPy={totalP}
+              data={series.data ?? { gongsi: [], real: [] }}
+              refresh={() => qc.invalidateQueries({ queryKey: ["series", pk] })} />
             )}
           </div>
           )}

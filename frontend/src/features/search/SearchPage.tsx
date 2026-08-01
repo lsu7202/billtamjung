@@ -4,7 +4,8 @@ import { searchApi, buildingsApi, extrasApi, listingsApi, type AttrFilters } fro
 import { openDetail } from "../../shared/map/geo";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
 import { FilterModal, activeCount, conditionChips, type Values, type RegionPick } from "./FilterModal";
-import { PriceTrendChart, buildTrendSeries } from "../../shared/ui/PriceTrendChart";
+import { buildTrendSeries, type TrendSeries } from "../../shared/ui/PriceTrendChart";
+import { TrendChart } from "../building/TrendChart";
 import { useReportModel } from "../building/reportModel";
 import { RoadviewMini } from "../../shared/map/Roadview";
 import "./search.css";
@@ -32,7 +33,7 @@ const py = (m2?: number | null) => (m2 == null ? "—" : (m2 / PY).toFixed(m2 / 
 
 /** 지도 선택 매물 요약 카드 — 리포트 핵심 수치(적정가·수익률·매력도·투자유형·미래가치) + 가격추이. */
 function SelCard({ picked, bldg, trend, onDetail, onFav }: {
-  picked: MapPin; bldg?: Record<string, unknown>; trend: Parameters<typeof PriceTrendChart>[0]["series"];
+  picked: MapPin; bldg?: Record<string, unknown>; trend: TrendSeries;
   onDetail: () => void; onFav: () => void;
 }) {
   const rm = useReportModel(null, picked.building_pk);   // 분석보고서 단일 소스(수치)
@@ -66,8 +67,8 @@ function SelCard({ picked, bldg, trend, onDetail, onFav }: {
           </div>
         </div>
         <div className="sel-spark">
-          <div className="sh"><span>가격 추이</span></div>
-          <PriceTrendChart series={trend} />
+          <div className="sh"><span>실거래 시세추이</span></div>
+          <TrendChart points={trend.real.map((p) => ({ x: String(p.year), y: p.value }))} color="var(--c-real)" fmt={won} height={110} />
         </div>
         <button className="sel-detail" onClick={onDetail}>상세보기 →</button>
       </div>
