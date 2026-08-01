@@ -78,7 +78,7 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
     try {
       pano = new naver.maps.Panorama(roadDiv.current, {
         position: new naver.maps.LatLng(lat, lng), pov: { pan: 0, tilt: 0, fov: 100 },   // fov 클수록 넓게(축소)
-        flightSpot: false, aroundControl: false, zoomControl: true,   // 줌 컨트롤(배율) 노출
+        flightSpot: false, aroundControl: false, zoomControl: false,
       });
     } catch { setNoPano(true); return; }
     panoRef.current = pano;

@@ -32,7 +32,7 @@ export function RoadviewMini({ lng, lat, className, onExpand }: {
       if (!panoRef.current) {
         panoRef.current = new naver.maps.Panorama(divRef.current, {
           position: pos, pov: { pan: 0, tilt: 0, fov: 100 },   // fov 100 = 네이버 최대 광각(가장 축소)
-          flightSpot: false, aroundControl: false, zoomControl: true,   // 줌 컨트롤(배율) 노출
+          flightSpot: false, aroundControl: false, zoomControl: false,
         });
         naver.maps.Event.addListener(panoRef.current, "pano_status", (s: any) => setNone(String(s) !== "OK"));
         naver.maps.Event.addListener(panoRef.current, "pano_changed", orient);   // 로딩·위치변경 → 방위 보정
