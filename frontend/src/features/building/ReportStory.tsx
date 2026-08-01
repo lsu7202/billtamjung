@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, Fragment } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { CountUp, BuildingArt } from "./ReportAssets";
 import { ScoreRadar, CompareBar } from "./ReportPrimitives";
 import { ReportMap, ZONE_COLOR } from "./ReportMap";
@@ -16,7 +16,6 @@ function Prose({ segs, bold }: { segs: Seg[]; bold: string }) {
 
 export function ReportStory() {
   const { pk = "" } = useParams();
-  const nav = useNavigate();
   const m = useReportModel(null, pk);
   const {
     sub, b, fair, rent, curRent, totalArea, avgPer, comps, compMin, compMax,
@@ -49,7 +48,16 @@ export function ReportStory() {
   }, [m.sub, m.b]);
   const setRef = (i: number) => (el: HTMLElement | null) => { secRefs.current[i] = el; };
   const cls = (i: number, dark = false) => `story-sec${dark ? " story-dark" : ""}${shown[i] ? " in" : ""}`;
-  const goto = (i: number) => secRefs.current[i]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const goto = (i: number) => secRefs.current[Math.max(0, Math.min(RAIL.length - 1, i))]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  // 방향키로 섹션 이동(발표용) — 별도 버튼 없이 키보드만
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === "PageDown") { e.preventDefault(); goto(active + 1); }
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp" || e.key === "PageUp") { e.preventDefault(); goto(active - 1); }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [active]);
   const StoryMap = ({ zones, wide }: { zones?: any; wide?: boolean }) => (
     <div style={{ height: "min(52vh, 460px)", aspectRatio: wide ? "1.5 / 1" : "1 / 1", borderRadius: 14, overflow: "hidden", flex: "none" }}>
       <ReportMap lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom} zones={zones} h="100%" />
@@ -59,7 +67,6 @@ export function ReportStory() {
   return (
     <div ref={scRef} onScroll={onScroll} className="story-root">
       <div className="story-prog" style={{ width: `${prog * 100}%` }} />
-      <button className="btn" style={{ position: "fixed", top: 14, left: 16, zIndex: 30, padding: "6px 12px" }} onClick={() => nav(`/buildings/${pk}/report`)}>← 덱 뷰</button>
       <nav className="story-rail">
         {RAIL.map((l, i) => (
           <button key={i} className={active === i ? "on" : ""} onClick={() => goto(i)} title={l}>
@@ -286,14 +293,17 @@ export function ReportStory() {
       <section data-i={9} ref={setRef(9)} className={cls(9, true)}>
         <div className="story-kicker">{SM.conclusion.title}</div>
         <h2 className="story-h">실거래·공시지가·임대수익을 종합한 <b>빌탐정 적정가</b></h2>
-        <div className="story-big">
-          {shown[9] && fair ? <CountUp end={eokManParts(fair)[0]} dur={1500} fmt={(v) => Math.round(v).toLocaleString()} /> : eokManParts(fair)[0].toLocaleString()}<span className="unit">억{eokManParts(fair)[1] ? ` ${eokManParts(fair)[1].toLocaleString()}만원` : "원"}</span>
+        <div style={{ position: "relative" }}>
+          <div className="cv-glow" />
+          <div className="story-big" style={{ position: "relative" }}>
+            {shown[9] && fair ? <CountUp end={eokManParts(fair)[0]} dur={1500} fmt={(v) => Math.round(v).toLocaleString()} /> : eokManParts(fair)[0].toLocaleString()}<span className="unit">억{eokManParts(fair)[1] ? ` ${eokManParts(fair)[1].toLocaleString()}만원` : "원"}</span>
+          </div>
         </div>
         <div className="story-row">
           {[["예상수익률", roiFair != null ? `${roiFair.toFixed(2)}%` : "—", nbhdRoi != null ? `주변 평균 ${nbhdRoi}%` : "적정가 기준"],
             ["예상 월임대수익", rent ? `${man(rent)}만원` : "—", "주변 임대시세 적용"],
             ["매력도", `${grade}등급`, `가치점수 ${score}점`]].map(([k, v, s], i) => (
-            <div key={i} className="story-cell">
+            <div key={i} className={`story-cell${i === 0 ? " cv-l" : i === 2 ? " cv-r" : ""}`}>
               <div className="k" style={{ color: "#9fb0cc" }}>{k}</div>
               <div className="v" style={{ color: "#eaf0fa" }}>{v}</div>
               <div style={{ fontSize: 12.5, color: "#7f92b5", marginTop: 4 }}>{s}</div>

@@ -56,8 +56,8 @@ export function ScoreRadar({ axes, size = 210, color = "var(--signal)", showValu
       ))}
       {axes.map((_, i) => { const [x, y] = pt(i, 100); return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="var(--line)" strokeWidth={1} vectorEffect="non-scaling-stroke" />; })}
       <polygon points={poly(axes.map((a) => a.score))} fill={color} fillOpacity={0.2} stroke={color} strokeWidth={2} strokeLinejoin="round" vectorEffect="non-scaling-stroke"
-        style={{ transformBox: "fill-box", transformOrigin: "center", animation: "bt-radar-in .7s cubic-bezier(.22,1,.36,1) .15s both" }} />
-      {axes.map((a) => a.score).map((v, i) => { const [x, y] = pt(i, v); return <circle key={i} cx={x} cy={y} r={2.5} fill={color} />; })}
+        style={{ transformBox: "fill-box", transformOrigin: "center", animation: "bt-radar-in .8s cubic-bezier(.34,1.4,.64,1) .15s both" }} />
+      {axes.map((a) => a.score).map((v, i) => { const [x, y] = pt(i, v); return <circle key={i} cx={x} cy={y} r={2.8} fill={color} style={{ transformBox: "fill-box", transformOrigin: "center", animation: `bt-dot-pop .4s cubic-bezier(.34,1.56,.64,1) ${0.55 + i * 0.05}s both` }} />; })}
       {axes.map((ax, i) => {
         const [x, y] = pt(i, showValues ? 128 : 122);
         return (
@@ -110,8 +110,9 @@ export function CompareBar({ items, fmt, height = 178, refLine }: {
       </defs>
       <line x1={0} y1={base} x2={W} y2={base} stroke="var(--line-2)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
       {refLine && refLine.value > 0 ? <>
-        <line x1={0} y1={yOf(refLine.value)} x2={W} y2={yOf(refLine.value)} stroke="var(--blue)" strokeWidth={1.5} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />
-        <text x={W - 2} y={yOf(refLine.value) - 5} textAnchor="end" fontSize="11" fontWeight={700} fill="var(--blue)">{refLine.label} {fmt(refLine.value)}</text>
+        <line x1={0} y1={yOf(refLine.value)} x2={W} y2={yOf(refLine.value)} stroke="var(--blue)" strokeWidth={1.5} strokeDasharray="5 4" vectorEffect="non-scaling-stroke"
+          style={{ transformBox: "fill-box", transformOrigin: "left", animation: "bt-wipe .7s cubic-bezier(.22,1,.36,1) .45s both" }} />
+        <text x={W - 2} y={yOf(refLine.value) - 5} textAnchor="end" fontSize="11" fontWeight={700} fill="var(--blue)" style={{ animation: "bt-fade .4s ease 1s both" }}>{refLine.label} {fmt(refLine.value)}</text>
       </> : null}
       {list.map((it, i) => {
         const h = Math.max(3, (it.value / max) * (base - T));

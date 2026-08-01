@@ -73,7 +73,7 @@ export function ReportPage() {
     <div className="deck-top">
       <button className="btn" onClick={() => nav(`/buildings/${pk}`)} style={{ padding: "6px 12px" }}>← 매물로</button>
       <span className="ttl">분석 보고서 · {rno}</span>
-      <button className="btn" style={{ marginLeft: "auto", padding: "6px 12px" }} onClick={() => nav(`/buildings/${pk}/story`)} title="애니메이션 모드(스크롤)">✨ 애니메이션 모드</button>
+      <button className="btn" style={{ marginLeft: "auto", padding: "6px 12px" }} onClick={() => window.open(`/buildings/${pk}/story`, "_blank")} title="애니메이션 모드(새 탭)">✨ 애니메이션 모드</button>
       <button className="btn" style={{ padding: "6px 12px" }} onClick={toggleFs} title="전체화면 (발표 모드)">⛶ 전체화면</button>
       {canDownload
         ? <button className="btn primary" style={{ padding: "6px 12px" }}
@@ -382,17 +382,18 @@ export function ReportPage() {
         title={SM.conclusion.title} desc={SM.conclusion.desc}>
         <div style={{ display: "flex", flexDirection: "column", gap: ".9cqw", width: "100%", height: "100%", justifyContent: "center" }}>
           {/* 3축 — 작은 supporting 한 줄(결론보다 약하게) */}
-          <div className="rs-fade" style={{ display: "flex", justifyContent: "center", gap: "1.6cqw", fontSize: ".98cqw", color: "var(--rmuted)", ["--d" as string]: "60ms" }}>
-            <span>실거래 {compMin && compMax ? <b style={{ color: "var(--navy)" }}>{compMin.toLocaleString()}~{compMax.toLocaleString()}만/평</b> : "—"}</span>
-            <span style={{ color: "var(--rl)" }}>|</span>
-            <span>공시배율 {gmult ? <b style={{ color: "var(--navy)" }}>×{gmult.toFixed(1)}</b> : "—"}</span>
-            <span style={{ color: "var(--rl)" }}>|</span>
-            <span>월임대료 <b style={{ color: "var(--navy)" }}>{rent ? `${man(rent)}만원` : "—"}</b></span>
-            <span style={{ color: "var(--rmuted)" }}>을 종합</span>
+          <div style={{ display: "flex", justifyContent: "center", gap: "1.6cqw", fontSize: ".98cqw", color: "var(--rmuted)" }}>
+            <span className="cv-l">실거래 {compMin && compMax ? <b style={{ color: "var(--navy)" }}>{compMin.toLocaleString()}~{compMax.toLocaleString()}만/평</b> : "—"}</span>
+            <span className="cv-l" style={{ color: "var(--rl)" }}>|</span>
+            <span className="rs-fade" style={{ ["--d" as string]: "60ms" }}>공시배율 {gmult ? <b style={{ color: "var(--navy)" }}>×{gmult.toFixed(1)}</b> : "—"}</span>
+            <span className="cv-r" style={{ color: "var(--rl)" }}>|</span>
+            <span className="cv-r">월임대료 <b style={{ color: "var(--navy)" }}>{rent ? `${man(rent)}만원` : "—"}</b></span>
+            <span className="cv-r" style={{ color: "var(--rmuted)" }}>을 종합</span>
           </div>
-          {/* 결론 — 적정가 초대형(팝인+카운트업) */}
-          <div className="rs-pop" style={{ textAlign: "center", ["--d" as string]: "260ms" }}>
-            <div style={{ fontSize: "1.2cqw", color: "var(--rmuted)", fontWeight: 700, letterSpacing: ".06em" }}>빌탐정 적정가</div>
+          {/* 결론 — 적정가 초대형(팝인+카운트업+글로우 수렴) */}
+          <div className="rs-pop" style={{ textAlign: "center", position: "relative", ["--d" as string]: "260ms" }}>
+            <div className="cv-glow" />
+            <div style={{ position: "relative", fontSize: "1.2cqw", color: "var(--rmuted)", fontWeight: 700, letterSpacing: ".06em" }}>빌탐정 적정가</div>
             <div style={{ fontSize: "5.4cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1, letterSpacing: "-.02em" }}>
               <CountUp end={eokManParts(fair)[0]} dur={1300} delay={400} fmt={(v) => Math.round(v).toLocaleString()} /><span style={{ fontSize: "2.4cqw" }}>억{eokManParts(fair)[1] ? ` ${eokManParts(fair)[1].toLocaleString()}만원` : "원"}</span>
             </div>
@@ -450,9 +451,7 @@ export function ReportPage() {
           ))}
         </aside>
         <div className="deck-stage">
-          <button className="deck-arrow l" disabled={cur === 0} onClick={() => setCur((c) => Math.max(0, c - 1))} aria-label="이전">‹</button>
           <div className="stage-slide rs-enter" key={cur}>{slides[cur]}</div>
-          <button className="deck-arrow r" disabled={cur === slides.length - 1} onClick={() => setCur((c) => Math.min(slides.length - 1, c + 1))} aria-label="다음">›</button>
           <div className="deck-counter">{cur + 1} / {slides.length}</div>
         </div>
       </div>
