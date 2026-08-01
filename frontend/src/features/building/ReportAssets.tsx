@@ -68,7 +68,13 @@ export function ScoreRing({ score, grade, gradeColor, size = 18 }:
 }
 
 /* 임시 건물 아트 — 야경 유리타워(줌인/표지 공용). 실사 교체 예정. 두 모드(덱·애니메이션)가 공유. */
+/** 표지·인트로 배경 — frontend/public/report-cover.jpg 가 있으면 그 사진, 없으면 기본 SVG.
+ *  ▶ 표지 이미지 바꾸려면: frontend/public/report-cover.jpg (또는 .png) 로 파일만 교체. */
 export function BuildingArt() {
+  const [imgFail, setImgFail] = useState(false);
+  if (!imgFail)
+    return <img src="/report-cover.jpg" alt="" onError={() => setImgFail(true)}
+      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />;
   const cols = 7, rows = 16;
   return (
     <svg viewBox="0 0 400 520" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" style={{ display: "block" }}>
