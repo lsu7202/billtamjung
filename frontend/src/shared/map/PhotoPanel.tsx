@@ -111,8 +111,7 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
     const t = setTimeout(sync, 500);
     return () => {
       clearTimeout(t);
-      ls.forEach((l) => naver.maps.Event.removeListener(l));
-      pano.destroy?.();
+      ls.forEach((l) => naver.maps.Event.removeListener(l));   // 리스너만 제거 → 옛 파노라마가 부채꼴 안 그림
       cone?.setMap(null); panoRef.current = null;
       if (roadDiv.current) roadDiv.current.innerHTML = "";
     };
