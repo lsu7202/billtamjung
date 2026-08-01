@@ -255,12 +255,22 @@ async def _fetch_comps(building_pk: str, subject: dict, params: dict,
     return comps
 
 
+def baseline_comps(comps: list[dict]) -> list[dict]:
+    """무오버레이 기본 comp 선택 — 배치(build_sale_est._iqr_keep + '<3 제외' 가드)와 완전 동일.
+    comp<3=사례부족([] → appraise None) · 이상치 제외 · 제외 후 <3이면 되돌림(표본 보전).
+    ★ 이 함수가 배치=리포트 정합의 단일 기준. 오버레이 없으면 두 경로가 이 규칙으로 같은 값."""
+    if len(comps) < 3:
+        return []
+    kept = [c for c in comps if not c.get("is_outlier")]
+    return kept if len(kept) >= 3 else comps
+
+
 async def _load_comps(building_pk: str, subject: dict, params: dict,
                       exclude: set | None = None, overrides: dict | None = None) -> list[dict]:
-    """생성용: 제외 comp를 뺀 F-17 입력 리스트. exclude=None이면 이상치 기본 제외."""
+    """생성용 F-17 입력 리스트. exclude=None(무오버레이) → 배치 동일 baseline. exclude 지정 → 유저 선택대로."""
     comps = await _fetch_comps(building_pk, subject, params, overrides)
     if exclude is None:
-        exclude = {c["building_pk"] for c in comps if c["is_outlier"]}
+        return baseline_comps(comps)
     return [c for c in comps if c["building_pk"] not in exclude]
 
 
@@ -882,8 +892,9 @@ async def run_generate(report_id: int, team_id: int) -> dict:
         if rep["kind"] == "analysis":   # F-17 적정매매가 · F-18 예상수익률
             opt = rep["options_json"]
             opt = json.loads(opt) if isinstance(opt, str) else (opt or {})
-            exclude = set(opt.get("exclude") or [])
             overrides = opt.get("overrides") or {}
+            # 오버레이(유저 comp 제외) 있으면 그대로, 없으면 무오버레이 baseline(배치 동일).
+            exclude = set(opt["exclude"]) if opt.get("exclude") else None
             comps = await _load_comps(rep["building_pk"], b, params, exclude, overrides)
             rent_apply = None
             if opt.get("include_market", True):   # 토글 ON → 주변임대 적용(STEP3·F-18)

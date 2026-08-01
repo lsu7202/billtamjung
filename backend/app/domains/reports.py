@@ -45,7 +45,7 @@ async def comps(building_pk: str, user: CurrentUser = Depends(current_user)):
     b, vs, params, ta = await _subject_ctx(building_pk, user.team_id)
     comps = await g._fetch_comps(building_pk, b, params)
     rent_apply = await g._nearby_rent_apply(building_pk, b, user.team_id)   # 주변 임대 comp 적용(리포트 임대료 비교·applied_rent)
-    syn = g.synthesize(b, vs["score"], [c for c in comps if not c["is_outlier"]], params, ta, rent_apply)  # 초기=이상치 제외
+    syn = g.synthesize(b, vs["score"], g.baseline_comps(comps), params, ta, rent_apply)  # 초기=배치 동일 baseline(≥3·이상치)
     ut = await g._use_type(building_pk, b)   # F-20 투자 유형
     g._attach_future(ut, syn.get("rent_summary"))   # F-21 미래가치(개발여지+임대상향)
     poly, radius, center = g._market_spatial(b)
