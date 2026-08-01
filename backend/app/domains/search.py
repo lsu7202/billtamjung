@@ -225,7 +225,7 @@ def _build_base(body: SearchIn, user: CurrentUser) -> tuple[str, list]:
       ),
       classified AS (
         SELECT b.building_pk, b.addr, b.land_area, b.total_area,
-               b.floors_above, b.floors_below, b.use_zone,
+               b.floors_above, b.floors_below, b.use_zone, b.land_use,
                ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat,
                b.last_sale_price, b.last_sale_ym,
                se.sale_est,
@@ -301,7 +301,7 @@ async def pins(body: SearchIn, user: CurrentUser = Depends(current_user)):
     base, args = _build_base(body, user)
     rows = await pool().fetch(
         base + """SELECT building_pk, addr, lng, lat, col, price, roi,
-                         last_sale_price, sale_est, is_fav
+                         last_sale_price, sale_est, land_use, is_fav
                   FROM classified WHERE lng IS NOT NULL
                   ORDER BY price DESC NULLS LAST, building_pk LIMIT 3000""",
         *args,

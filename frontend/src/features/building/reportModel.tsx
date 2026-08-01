@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { reportsApi, buildingsApi, type CompUsed, type RentFloor } from "../../shared/api/endpoints";
 
 export const P = 3.305785;
+// 적정가 산정 대상 성격(상업/업무). 배치(build_sale_est.py SECT)와 동일 — 라이브 경로 게이팅용.
+export const SALE_EST_SECT = ["상업용", "업무용", "상업기타", "주상용", "주상기타"];
 export const num = (x: unknown): number | null => (x == null || x === "" ? null : Number(x));
 export const eok = (v: number | null | undefined, d = 0) => (v ? `${(v / 1e8).toFixed(d)}` : "—");
 export const man = (v: number | null | undefined) => (v ? `${Math.round(v / 1e4).toLocaleString()}` : "—");
@@ -82,8 +84,12 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   const b = (bq.data ?? {}) as Record<string, any>;
 
   // ── 값(단일 계산) ──
+  // 적정가 산정 대상 = 상업/업무 성격만(우리 산식이 상업 comp+오피스 cap rate 기반). 주거는 대상 아님.
+  // land_use 로딩 전(undefined)엔 막지 않음 → 로딩되면 비상업은 fair=null + nonCommercial 플래그.
+  const nonCommercial = !!b.land_use && !SALE_EST_SECT.includes(b.land_use);
   const saleEst = num(b.sale_est);
-  const fair = reportId == null ? (saleEst ?? pv?.fair_price ?? null) : (pv?.fair_price ?? saleEst ?? null);
+  const fair = nonCommercial ? null
+    : reportId == null ? (saleEst ?? pv?.fair_price ?? null) : (pv?.fair_price ?? saleEst ?? null);
   const ask = pv?.ask_price ?? num(b.ask_price) ?? null;
   const rent = pv?.applied_rent ?? sub?.total_rent ?? null;
   const _floors0 = (pv?.rent_floors ?? []) as RentFloor[];
@@ -261,7 +267,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   const canDownload = reportId != null && rq.data?.status === "done";
 
   return {
-    pk, reportId, rq, sub, pv, b, loading, isError, canDownload, rno, date,
+    pk, reportId, rq, sub, pv, b, loading, isError, canDownload, rno, date, nonCommercial,
     fair, ask, rent, curRent, totalArea, landArea, totalP, avgPer, usedComps, comps, moreCount, avgPerNow,
     gLatest, gTotal, gctx, nbhdGongsi, gmult, landPremium, compMin, compMax, floors,
     roiFair, rs, rFloors, rCurDep, perPyRent, upsidePct, nbhdRoi, topStrengths,

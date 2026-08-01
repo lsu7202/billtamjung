@@ -89,8 +89,8 @@ async def main():
              float(r['gt']), float(r['la']), float(r['ta']), r['contract_ym']))
     print(f"comp 풀 {len(comps)}건 · 그리드셀 {len(grid)}")
 
-    # 계산 대상 = 서울 전 건물(주거 포함). comp 풀은 상업(SECT) 유지 → 주거도 주변 상업 comp로 appraise.
-    # 라이브(reportsApi.comps) 폴백과 소스 통일 — 핀 태그 == 상세 적정가.
+    # 계산 대상 = 상업/업무 성격(SECT)만 — 우리 산정법(상업 comp+오피스 cap rate)이 유효한 범위.
+    # 주거(단독·다세대·아파트 등)는 산정 대상 아님 → 핀·상세 모두 '상업 매물 아님'으로 게이팅(라이브 경로도 동일).
     subs = await c.fetch(
         f"""SELECT b.building_pk pk, ST_X(b.geom) lng, ST_Y(b.geom) lat,
               b.gongsi_latest::float g, b.land_area::float la, b.total_area::float ta,
@@ -98,8 +98,9 @@ async def main():
             FROM master.buildings b
             LEFT JOIN master.building_rent_est e ON e.building_pk=b.building_pk
             LEFT JOIN master.income_cap ic ON ic.gu=substr(b.bjd_code,1,5)
-            WHERE b.bjd_code LIKE '11%'
-              AND b.gongsi_latest>0 AND b.land_area>0 AND b.total_area>0""")
+            WHERE b.bjd_code LIKE '11%' AND b.land_use=ANY($1)
+              AND b.gongsi_latest>0 AND b.land_area>0 AND b.total_area>0""",
+        list(SECT))
 
     await c.execute("""DROP TABLE IF EXISTS master.building_sale_est;
         CREATE TABLE master.building_sale_est(

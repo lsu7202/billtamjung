@@ -56,7 +56,7 @@ function SelCard({ picked, bldg, trend, onDetail, onFav }: {
         </div>
         {/* 리포트 핵심 수치(설명 최소·수치 위주) */}
         <div className="sel-metrics">
-          <div className="m"><div className="mk">빌탐정 적정가</div><div className="mv" style={{ color: "var(--signal)" }}>{eok1(fair)}</div></div>
+          <div className="m"><div className="mk">빌탐정 적정가</div><div className="mv" style={{ color: rm.nonCommercial ? "var(--muted)" : "var(--signal)" }}>{rm.nonCommercial ? <span style={{ fontSize: 13, fontWeight: 500 }}>상업 매물 아님</span> : eok1(fair)}</div></div>
           <div className="m"><div className="mk">예상수익률</div><div className="mv">{rm.roiFair != null ? `${rm.roiFair.toFixed(1)}%` : (picked.roi == null ? "—" : `${picked.roi}%`)}</div></div>
           <div className="m"><div className="mk">매력도</div><div className="mv">{rm.sub ? `${rm.grade}` : "—"}<small style={{ fontWeight: 400, color: "var(--muted)" }}>{rm.sub ? ` ${rm.score}점` : ""}</small></div></div>
           <div className="m"><div className="mk">층수</div><div className="mv">{fb ? `B${fb}` : ""}{fb ? "/" : ""}{fa != null ? `${fa}F` : "—"}</div></div>

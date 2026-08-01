@@ -34,10 +34,13 @@ export function ReportView({ pk, b, realSeries }: {
   gongsiSeries?: [number, number][]; realSeries?: SeriesPt[]; totalGongsi?: number | null;
 }) {
   const rm = useReportModel(null, pk);
-  const { sub, loading, shortAddr, useZone, mainUse, fair, avgPer, roiFair, nbhdRoi, grade, score,
+  const { sub, loading, nonCommercial, shortAddr, useZone, mainUse, fair, avgPer, roiFair, nbhdRoi, grade, score,
     gTotal, curRent, rent, ut, officeApt, fut, futureAxes, topStrengths } = rm;
 
   if (loading && !sub) return <div className="panel" style={{ padding: 40, color: MUTED }}>리포트 계산 중…</div>;
+  if (nonCommercial) return <div className="panel" style={{ padding: 40, color: MUTED, lineHeight: 1.6 }}>
+    <b style={{ color: INK }}>적정가 분석 대상이 아닙니다.</b><br />빌탐정 적정가는 상업·업무 성격 건물({useZone} · {mainUse})을 대상으로 산정합니다. 주거용 건물은 산정 방식이 달라 제공하지 않습니다.
+  </div>;
 
   const [fe, fm] = eokManParts(fair);
   const realLast = realSeries && realSeries.length ? realSeries[realSeries.length - 1].y : null;
