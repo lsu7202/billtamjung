@@ -26,3 +26,4 @@ frontend/dist/
 frontend/.vite/
 frontend/tsconfig.tsbuildinfo
 data/*.db
+scripts/vworld/cookie.txt
