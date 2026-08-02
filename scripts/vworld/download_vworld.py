@@ -33,6 +33,8 @@ DATASETS = {
     "30564": "연속지적도(LDREG)",
 }
 PICK = "_5174_서울.zip"   # 정확히 전체 '서울' 5174 파일(예: LSMD_CONT_LDREG_5174_서울_중랑구.zip 같은 구단위 제외)
+# NA 카탈로그(무상공급) = 시군구별 다중 파일. dsId(페이지) → 라벨. 다운로드 ds_id는 행마다 문자열(dsFileId).
+NA = {"4": "토지특성(AL_D194, 서울 25구)", "6": "공시지가(AL_D150, 서울)"}
 
 
 def _cookie():
@@ -64,13 +66,49 @@ def find_fileno(dsid, cookie):
     return None, None
 
 
+def find_na_seoul(dsid, cookie):
+    """NA 카탈로그 페이지에서 sigunguNm1='서울' 행의 (dsFileId, fileNo) 전부."""
+    q = urllib.parse.urlencode({"dsId": dsid, "svcCde": "NA", "searchKeyword2": "서울",
+                                "datPageSize": "200", "datPageIndex": "1"})
+    html = _get(f"{BASE}/dtmk_ntads_s002.do?{q}", cookie)
+    out = []
+    for m in re.finditer(r"listFnc\.download\(\s*'([^']+)'\s*,\s*'(\d+)'\s*,\s*'(\d+)'\s*\)", html):
+        ds, fno, _ = m.groups()
+        ctx = html[max(0, m.start() - 750):m.start()]
+        sido = re.search(r"sigunguNm1[^>]*>\s*([^<]+)", ctx)
+        if sido and "서울" in sido.group(1):
+            out.append((ds, fno))
+    return out
+
+
+def _download(ds_id, fno, cookie):
+    req = urllib.request.Request(f"{BASE}/downloadResourceFile.do?ds_id={ds_id}&fileNo={fno}",
+                                 headers={"Cookie": cookie, "User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=300) as r:
+        cd = r.headers.get("Content-Disposition", "")
+        fn = re.search(r'filename="?([^";]+)', cd)
+        return r.read(), (fn.group(1) if fn else f"{ds_id}_{fno}.zip")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="data/raw/_vworld_dl")
     ap.add_argument("--only", help="쉼표구분 dsId만")
+    ap.add_argument("--na", action="store_true", help="NA 카탈로그(토지특성·공시지가, 시군구 다중파일)")
     args = ap.parse_args()
     cookie = _cookie()
     os.makedirs(args.out, exist_ok=True)
+    if args.na:
+        ids = args.only.split(",") if args.only else list(NA)
+        for dsid in ids:
+            files = find_na_seoul(dsid, cookie)
+            print(f"[{dsid}] {NA.get(dsid, dsid)}: 서울 {len(files)}개 파일")
+            for ds, fno in files:
+                data, name = _download(ds, fno, cookie)
+                ok = data[:2] == b"PK"
+                open(os.path.join(args.out, name), "wb").write(data)
+                print(f"    {'✓' if ok else '✗'} {name} ({len(data)//1024:,}KB)")
+        return
     ids = args.only.split(",") if args.only else list(DATASETS)
     for dsid in ids:
         label = DATASETS.get(dsid, dsid)
