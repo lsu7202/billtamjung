@@ -1,5 +1,5 @@
 import { LoadingOverlay } from "../../shared/ui/Spinner";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { searchApi, buildingsApi, listingsApi, type AttrFilters } from "../../shared/api/endpoints";
 import { openDetail } from "../../shared/map/geo";
@@ -75,21 +75,32 @@ function SelCard({ picked, bldg, trend, onDetail }: {
   );
 }
 
+const SESSION_KEY = "s01_search_state_v1";
+
 export function SearchPage() {
-  const [q, setQ] = useState("");
+  // 세션 유지: 검색 조건·뷰·페이지를 sessionStorage에 저장 → 상세 다녀오거나 새로고침해도 복원(S01 [MVP])
+  const [saved] = useState<Record<string, unknown>>(() => {
+    try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || "{}"); } catch { return {}; }
+  });
+  const [q, setQ] = useState((saved.q as string) ?? "");
   const [active, setActive] = useState(-1);
-  const [view, setView] = useState<"list" | "map">("map");   // 기본 = 지도 우선
-  const [priceMode, setPriceMode] = useState<"fair" | "real">("fair");   // 핀 태그 가격: 적정가/실거래가
-  const [polygon, setPolygon] = useState<object | null>(null);
+  const [view, setView] = useState<"list" | "map">((saved.view as "list" | "map") ?? "map");   // 기본 = 지도 우선
+  const [priceMode, setPriceMode] = useState<"fair" | "real">((saved.priceMode as "fair" | "real") ?? "fair");   // 핀 태그 가격
+  const [polygon, setPolygon] = useState<object | null>((saved.polygon as object | null) ?? null);
   const [picked, setPicked] = useState<MapPin | null>(null);
   const [centerReq, setCenterReq] = useState<{ lng: number; lat: number } | null>(null);  // 지도 중심 이동 요청
-  const [sort, setSort] = useState("price");
-  const [filters, setFilters] = useState<AttrFilters>({});      // 백엔드 쿼리용(모달 산출)
-  const [fValues, setFValues] = useState<Values>({});           // 필터 모달 원본값(칩·재편집용)
-  const [fRegions, setFRegions] = useState<RegionPick[]>([]);   // 지역 앵커(필터에서 선택)
+  const [sort, setSort] = useState((saved.sort as string) ?? "price");
+  const [filters, setFilters] = useState<AttrFilters>((saved.filters as AttrFilters) ?? {});      // 백엔드 쿼리용(모달 산출)
+  const [fValues, setFValues] = useState<Values>((saved.fValues as Values) ?? {});           // 필터 모달 원본값(칩·재편집용)
+  const [fRegions, setFRegions] = useState<RegionPick[]>((saved.fRegions as RegionPick[]) ?? []);   // 지역 앵커
   const [showFilter, setShowFilter] = useState(false);
   const [barCollapsed, setBarCollapsed] = useState(false);      // 검색바 접기(공간 절약)
-  const [pages, setPages] = useState({ mine: 1, normal: 1 });
+  const [pages, setPages] = useState<{ mine: number; normal: number }>((saved.pages as { mine: number; normal: number }) ?? { mine: 1, normal: 1 });
+
+  // 조건 변경 시 스냅샷 저장(전환·새로고침 복원용)
+  useEffect(() => {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ q, view, priceMode, polygon, sort, filters, fValues, fRegions, pages }));
+  }, [q, view, priceMode, polygon, sort, filters, fValues, fRegions, pages]);
   const bjd = fRegions[0]?.bjd_code ?? "";                       // 단일지역(멀티는 백엔드 확장 예정)
   const filterCount = activeCount(fValues, fRegions);
   const resetPages = () => setPages({ mine: 1, normal: 1 });
@@ -204,11 +215,17 @@ export function SearchPage() {
               <div className="ac-drop">
                 {items.map((s, i) => (
                   <div key={s.building_pk} className={`ac-item ${i === active ? "active" : ""}`}
-                    onMouseDown={() => pickFromSuggest(s)} onMouseEnter={() => setActive(i)}>
-                    <span className="ac-addr">{s.addr.replace("서울특별시 ", "")}</span>
+                    onMouseDown={() => pickFromSuggest(s)} onMouseEnter={() => setActive(i)}
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {s.is_mine && <span className="tag mine" style={{ fontSize: 10, flex: "0 0 auto" }}>내 매물</span>}
+                    <span className="ac-addr" style={{ flex: 1, minWidth: 0 }}>{s.addr.replace("서울특별시 ", "")}</span>
+                    {s.price ? <span className="num" style={{ fontSize: 12, color: "var(--muted)", flex: "0 0 auto" }}>{(s.price / 1e8).toFixed(1)}억</span> : null}
                   </div>
                 ))}
-                <div className="ac-item" style={{ color: "var(--muted)", fontSize: 13, borderTop: items.length ? "1px solid var(--line)" : undefined }}
+                {items.length === 0 && (
+                  <div className="ac-item" style={{ color: "var(--muted)", fontSize: 13 }}>일치하는 주소가 없습니다</div>
+                )}
+                <div className="ac-item" style={{ color: "var(--muted)", fontSize: 13, borderTop: "1px solid var(--line)" }}
                   onMouseDown={() => geocodeCenter(q.trim())} onMouseEnter={() => setActive(-1)}>
                   📍 ‘{q.trim()}’ 위치로 지도 이동
                 </div>
@@ -316,6 +333,14 @@ export function SearchPage() {
       {/* 2열 결과(내매물/일반) — 주소/실거래/매매가/수익률 */}
       {view === "list" && (result.data ? (
         <>
+        {COLS.every(({ key }) => (result.data![key]?.total ?? 0) === 0) && (
+          <div className="col-empty" style={{ textAlign: "center", padding: 28 }}>
+            조건에 맞는 매물이 없습니다
+            <small>{filterCount ? "필터를 줄이거나 지역을 넓혀 보세요" : "주소·지역을 입력해 검색하세요"}</small>
+            {filterCount > 0 && <button className="btn" style={{ marginTop: 10 }}
+              onClick={() => { setFilters({}); setFValues({}); setFRegions([]); resetPages(); }}>필터 초기화</button>}
+          </div>
+        )}
         <div className="wf-note" style={{ fontSize: 12, color: "var(--muted)", padding: "2px 4px 8px" }}>
           매매가·수익률은 시스템 추정 기준 · 매매가 미입력 시 빌탐정 적정가(<b>적정</b>) 사용 · 팀 오버레이 미반영
         </div>

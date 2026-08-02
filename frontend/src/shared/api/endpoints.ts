@@ -1,7 +1,7 @@
 import { api, apiBlob } from "./client";
 
 export interface TokenOut { access_token: string; tier: string }
-export interface Suggestion { building_pk: string; addr: string; lng?: number | null; lat?: number | null }
+export interface Suggestion { building_pk: string; addr: string; lng?: number | null; lat?: number | null; is_mine?: boolean; price?: number | null }
 export interface Balance { total: number; monthly: number; earned: number; purchased: number }
 export interface FloorRent {
   id?: number; floor: string; unit_no: string; use?: string | null;
@@ -17,11 +17,17 @@ export interface Report {
 }
 
 export const authApi = {
-  signup: (b: { email: string; password: string; name: string; office_name?: string }) =>
+  signup: (b: { email: string; password: string; name: string; office_name?: string; terms_agreed: boolean }) =>
     api<TokenOut>("/auth/signup", { method: "POST", body: JSON.stringify(b) }),
-  login: (b: { email: string; password: string }) =>
+  login: (b: { email: string; password: string; remember?: boolean }) =>
     api<TokenOut>("/auth/login", { method: "POST", body: JSON.stringify(b) }),
   logout: () => api<{ ok: boolean }>("/auth/logout", { method: "POST" }),
+  changePassword: (current: string, next: string) =>
+    api<{ ok: boolean }>("/auth/password", { method: "PATCH", body: JSON.stringify({ current, new: next }) }),
+  resetRequest: (email: string) =>
+    api<{ ok: boolean }>("/auth/password/reset-request", { method: "POST", body: JSON.stringify({ email }) }),
+  resetConfirm: (token: string, next: string) =>
+    api<{ ok: boolean }>("/auth/password/reset-confirm", { method: "POST", body: JSON.stringify({ token, new: next }) }),
 };
 
 export interface AttrFilters {
@@ -159,6 +165,23 @@ export const listingsApi = {
   members: () => api<{ account_id: number; name: string; role: string }[]>("/listings/members"),
 };
 
+export interface TeamMember { account_id: number; name: string; email: string; role: "owner" | "member"; is_me: boolean }
+export interface TeamInvite { id: number; channel: string; target: string; token: string; expires_at: string; created_at: string }
+export interface TeamInfo { id: number; name: string; my_role: "owner" | "member"; member_count: number; members: TeamMember[]; invites: TeamInvite[] }
+
+export const teamApi = {
+  get: () => api<TeamInfo>("/team"),
+  rename: (name: string) => api<{ ok: boolean; name: string }>("/team", { method: "PATCH", body: JSON.stringify({ name }) }),
+  invite: (target: string, channel: "email" | "phone" = "email") =>
+    api<{ id: number; token: string; target: string; expires_at: string }>("/team/invites", { method: "POST", body: JSON.stringify({ target, channel }) }),
+  resend: (id: number) =>
+    api<{ id: number; token: string; target: string; expires_at: string }>(`/team/invites/${id}/resend`, { method: "POST" }),
+  cancelInvite: (id: number) => api(`/team/invites/${id}`, { method: "DELETE" }),
+  accept: (token: string) => api<TokenOut>("/team/invites/accept", { method: "POST", body: JSON.stringify({ token }) }),
+  remove: (accountId: number) => api(`/team/members/${accountId}`, { method: "DELETE" }),
+  leave: () => api<TokenOut>("/team/leave", { method: "POST" }),
+};
+
 export const rentsApi = {
   list: (pk: string) => api<{ items: FloorRent[]; total: Record<string, number> }>(`/buildings/${pk}/floor-rents`),
   upsert: (pk: string, r: FloorRent) =>
@@ -256,7 +279,11 @@ export const extrasApi = {
   wikiPost: (pk: string, body: string, category?: string) =>
     api(`/buildings/${pk}/wiki`, { method: "POST", body: JSON.stringify({ body, category }) }),
   wikiVote: (postId: number) => api<{ voted: boolean }>(`/wiki/${postId}/vote`, { method: "PUT" }),
+  wikiReport: (postId: number, reason?: string) => api<{ ok: boolean }>(`/wiki/${postId}/report`, { method: "POST", body: JSON.stringify({ reason }) }),
   wikiDel: (postId: number) => api(`/wiki/${postId}`, { method: "DELETE" }),
+  commentsList: (postId: number) => api<{ id: number; body: string; author: string; mine: boolean; created_at: string }[]>(`/wiki/${postId}/comments`),
+  commentAdd: (postId: number, body: string) => api<{ id: number }>(`/wiki/${postId}/comments`, { method: "POST", body: JSON.stringify({ body }) }),
+  commentDel: (commentId: number) => api(`/wiki/comments/${commentId}`, { method: "DELETE" }),
   memoList: (pk: string) => api<Record<string, unknown>[]>(`/buildings/${pk}/memos`),
   memoAdd: (pk: string, kind: "team" | "secret", body: string) =>
     api(`/buildings/${pk}/memos`, { method: "PUT", body: JSON.stringify({ kind, body }) }),

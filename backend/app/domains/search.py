@@ -15,20 +15,34 @@ class Suggestion(BaseModel):
     addr: str
     lng: float | None = None
     lat: float | None = None
+    is_mine: bool = False              # 내(팀) 등록 매물 — 자동완성 우선·배지
+    price: int | None = None           # 매매가(팀 수기 ?? 적정가) — 후보에 표시
 
 
 @router.get("/suggest", response_model=list[Suggestion])
-async def suggest(q: str = Query(min_length=1), _: CurrentUser = Depends(current_user)):
-    """통합뷰 주소 인덱스 접두검색(외부 지오코딩 미사용). 상위 7건."""
+async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(current_user)):
+    """통합뷰 주소 인덱스 접두검색(외부 지오코딩 미사용). 상위 7건.
+    정렬 = 접두일치 우선 → 내 매물 우선 → 가나다(S01 §3.1a. 광고 폐지로 tiebreak=내매물>일반)."""
     norm = q.replace(" ", "")
     rows = await pool().fetch(
-        """SELECT building_pk, addr, ST_X(geom) AS lng, ST_Y(geom) AS lat FROM master.buildings
-           WHERE jibun_norm LIKE $1 || '%' OR jibun_norm LIKE '%' || $1 || '%'
-           ORDER BY (jibun_norm LIKE $1 || '%') DESC, addr
+        """SELECT b.building_pk, b.addr, ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat,
+                  (l.assignee_account_id IS NOT NULL) AS is_mine,
+                  COALESCE(so.value::bigint, se.sale_est) AS price
+           FROM master.buildings b
+           LEFT JOIN app.listings l
+             ON l.building_pk = b.building_pk AND l.team_id = $2 AND l.assignee_account_id IS NOT NULL
+           LEFT JOIN app.overlays so
+             ON so.target_id = b.building_pk AND so.team_id = $2 AND so.target_type = 'building'
+                AND so.field = 'sale_price' AND so.value ~ '^[0-9]+$'
+           LEFT JOIN master.building_sale_est se ON se.building_pk = b.building_pk
+           WHERE b.jibun_norm LIKE $1 || '%' OR b.jibun_norm LIKE '%' || $1 || '%'
+           ORDER BY (b.jibun_norm LIKE $1 || '%') DESC,
+                    (l.assignee_account_id IS NOT NULL) DESC, b.addr
            LIMIT 7""",
-        norm,
+        norm, user.team_id,
     )
-    return [Suggestion(building_pk=r["building_pk"], addr=r["addr"], lng=r["lng"], lat=r["lat"]) for r in rows]
+    return [Suggestion(building_pk=r["building_pk"], addr=r["addr"], lng=r["lng"], lat=r["lat"],
+                       is_mine=r["is_mine"], price=r["price"]) for r in rows]
 
 
 _regions_cache: dict = {}   # master_version 키 캐시(적재 시에만 변함)

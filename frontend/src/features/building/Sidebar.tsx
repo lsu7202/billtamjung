@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listingsApi, extrasApi, overlaysApi, buildingsApi } from "../../shared/api/endpoints";
 import { KV, wonToEok, vPos, formatPhone } from "./KV";
@@ -150,28 +150,67 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
 }
 
 const WIKI_CATS = ["권리·명도", "임차인", "개발·도로", "건물상태", "소유자", "기타"];
+/** 위키 댓글 스레드 — 펼칠 때 로드, 등록/삭제 시 재조회 + 목록 카운트 갱신(onChange). */
+function CommentThread({ postId, onChange }: { postId: number; onChange: () => void }) {
+  const [list, setList] = useState<{ id: number; body: string; author: string; mine: boolean }[]>([]);
+  const [txt, setTxt] = useState("");
+  const load = useCallback(async () => setList(await extrasApi.commentsList(postId)), [postId]);
+  useEffect(() => { load(); }, [load]);
+  async function add() { if (!txt.trim()) return; await extrasApi.commentAdd(postId, txt.trim()); setTxt(""); await load(); onChange(); }
+  async function del(id: number) { await extrasApi.commentDel(id); await load(); onChange(); }
+  return (
+    <div style={{ marginTop: 8, paddingLeft: 10, borderLeft: "2px solid var(--line)", display: "grid", gap: 6 }}>
+      {list.map((c) => (
+        <div key={c.id} style={{ fontSize: 12.5, display: "flex", gap: 6, alignItems: "baseline" }}>
+          <span style={{ fontWeight: 600, color: "var(--muted)", flex: "0 0 auto" }}>{c.author}</span>
+          <span style={{ flex: 1, minWidth: 0 }}>{c.body}</span>
+          {c.mine && <button className="tool-btn" style={{ minWidth: 22, height: 22, fontSize: 11, color: "var(--up)", flex: "0 0 auto" }} onClick={() => del(c.id)} title="삭제">✕</button>}
+        </div>
+      ))}
+      {list.length === 0 && <div style={{ fontSize: 12, color: "var(--muted)" }}>첫 댓글을 남겨보세요.</div>}
+      <div style={{ display: "flex", gap: 6 }}>
+        <input className="input" style={{ height: 30, fontSize: 12.5 }} placeholder="댓글" value={txt}
+          onChange={(e) => setTxt(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) add(); }} />
+        <button className="btn" style={{ flex: "0 0 auto" }} onClick={add}>등록</button>
+      </div>
+    </div>
+  );
+}
+
 function WikiTab({ pk, items, refresh }: { pk: string; items: Record<string, unknown>[]; refresh: () => void }) {
   const [body, setBody] = useState("");
   const [cat, setCat] = useState(WIKI_CATS[0]);
   const [showAll, setShowAll] = useState(false);
+  const [openC, setOpenC] = useState<number | null>(null);
   async function vote(id: number) { await extrasApi.wikiVote(id); refresh(); }
   async function del(id: number) { if (!confirm("이 위키 글을 삭제할까요?")) return; await extrasApi.wikiDel(id); refresh(); }
   async function post() { if (!body.trim()) return; await extrasApi.wikiPost(pk, body.trim(), cat); setBody(""); refresh(); }
-  const row = (w: Record<string, unknown>, full: boolean) => (
-    <div key={String(w.id)} style={{ borderBottom: "1px solid var(--line)", padding: "9px 0", display: "flex", gap: 8, alignItems: "flex-start" }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-          <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--signal)", background: "var(--signal-bg)", padding: "1px 8px", borderRadius: 999 }}>{String(w.category ?? "일반")}</span>
-          {full && w.author != null && <span style={{ fontSize: 11, color: "var(--muted)" }}>{String(w.author)}</span>}
+  async function report(id: number) { if (!confirm("이 글을 부적절한 내용으로 신고할까요?")) return; await extrasApi.wikiReport(id); alert("신고가 접수되었습니다."); }
+  const row = (w: Record<string, unknown>, full: boolean) => {
+    const id = Number(w.id);
+    return (
+    <div key={id} style={{ borderBottom: "1px solid var(--line)", padding: "9px 0" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--signal)", background: "var(--signal-bg)", padding: "1px 8px", borderRadius: 999 }}>{String(w.category ?? "일반")}</span>
+            {full && w.author != null && <span style={{ fontSize: 11, color: "var(--muted)" }}>{String(w.author)}</span>}
+          </div>
+          <div style={{ lineHeight: 1.45 }}>{String(w.body)}</div>
         </div>
-        <div style={{ lineHeight: 1.45 }}>{String(w.body)}</div>
+        <div style={{ display: "flex", gap: 4, flex: "0 0 auto" }}>
+          <button className="tool-btn" style={{ minWidth: 46, height: 28, fontSize: 12, background: "var(--surface-2)" }} onClick={() => vote(id)} title="동의(다시 누르면 취소)">👍 {String(w.votes)}</button>
+          <button className="tool-btn" style={{ minWidth: 46, height: 28, fontSize: 12, background: openC === id ? "var(--signal-bg)" : "var(--surface-2)" }} onClick={() => setOpenC(openC === id ? null : id)} title="댓글">💬 {String(w.comments ?? 0)}</button>
+          {Boolean(w.mine)
+            ? <button className="tool-btn" style={{ minWidth: 28, height: 28, fontSize: 12, color: "var(--up)" }} onClick={() => del(id)} title="내 글 삭제">✕</button>
+            : <button className="tool-btn" style={{ minWidth: 28, height: 28, fontSize: 12, color: "var(--muted)" }} onClick={() => report(id)} title="신고">🚩</button>}
+        </div>
       </div>
-      <div style={{ display: "flex", gap: 4, flex: "0 0 auto" }}>
-        <button className="tool-btn" style={{ minWidth: 46, height: 28, fontSize: 12, background: "var(--surface-2)" }} onClick={() => vote(Number(w.id))} title="동의(다시 누르면 취소)">👍 {String(w.votes)}</button>
-        {Boolean(w.mine) && <button className="tool-btn" style={{ minWidth: 28, height: 28, fontSize: 12, color: "var(--up)" }} onClick={() => del(Number(w.id))} title="내 글 삭제">✕</button>}
-      </div>
+      {openC === id && <CommentThread postId={id} onChange={refresh} />}
     </div>
-  );
+    );
+  };
   return (
     <div style={{ display: "grid", gap: 8, fontSize: 13 }}>
       {items.length === 0 && <p style={{ color: "var(--muted)" }}>등록된 특이사항이 없습니다 — 첫 글을 남겨보세요.</p>}

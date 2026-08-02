@@ -98,7 +98,8 @@ async def wiki_list(building_pk: str, user: CurrentUser = Depends(current_user))
         """SELECT w.id, w.category, w.body, w.created_at,
                   COALESCE(a.name,'탈퇴한 사용자') AS author,
                   (w.author_account_id = $2) AS mine,
-                  (SELECT count(*) FROM app.wiki_votes v WHERE v.post_id=w.id) AS votes
+                  (SELECT count(*) FROM app.wiki_votes v WHERE v.post_id=w.id) AS votes,
+                  (SELECT count(*) FROM app.wiki_comments c WHERE c.post_id=w.id AND c.deleted_at IS NULL) AS comments
            FROM app.wiki_posts w LEFT JOIN app.accounts a ON a.id=w.author_account_id
            WHERE w.building_pk=$1 AND w.deleted_at IS NULL
            ORDER BY votes DESC, w.created_at DESC""",
@@ -113,6 +114,64 @@ async def wiki_delete(post_id: int, user: CurrentUser = Depends(current_user)):
     await pool().execute(
         "UPDATE app.wiki_posts SET deleted_at=now() WHERE id=$1 AND author_account_id=$2",
         post_id, user.account_id,
+    )
+    return {"ok": True}
+
+
+class WikiReportIn(BaseModel):
+    reason: str | None = None
+
+
+@router.post("/wiki/{post_id}/report")
+async def wiki_report(post_id: int, body: WikiReportIn, user: CurrentUser = Depends(current_user)):
+    """위키글 신고(기본 플래그). 같은 유저의 중복 대기건은 무시. 모더레이션 처리는 정식."""
+    dup = await pool().fetchval(
+        "SELECT 1 FROM app.wiki_reports WHERE post_id=$1 AND reporter_account_id=$2 AND status='pending'",
+        post_id, user.account_id,
+    )
+    if not dup:
+        await pool().execute(
+            "INSERT INTO app.wiki_reports(post_id,reporter_account_id,reason) VALUES($1,$2,$3)",
+            post_id, user.account_id, body.reason or None,
+        )
+    return {"ok": True}
+
+
+class CommentIn(BaseModel):
+    body: str
+
+
+@router.get("/wiki/{post_id}/comments")
+async def wiki_comments(post_id: int, user: CurrentUser = Depends(current_user)):
+    rows = await pool().fetch(
+        """SELECT c.id, c.body, c.created_at,
+                  COALESCE(a.name,'탈퇴한 사용자') AS author,
+                  (c.author_account_id = $2) AS mine
+           FROM app.wiki_comments c LEFT JOIN app.accounts a ON a.id=c.author_account_id
+           WHERE c.post_id=$1 AND c.deleted_at IS NULL
+           ORDER BY c.created_at""",
+        post_id, user.account_id,
+    )
+    return [dict(r) for r in rows]
+
+
+@router.post("/wiki/{post_id}/comments")
+async def wiki_comment_add(post_id: int, body: CommentIn, user: CurrentUser = Depends(current_user)):
+    if not body.body.strip():
+        raise HTTPException(422, "댓글 내용을 입력하세요")
+    cid = await pool().fetchval(
+        "INSERT INTO app.wiki_comments(post_id,author_account_id,body) VALUES($1,$2,$3) RETURNING id",
+        post_id, user.account_id, body.body.strip(),
+    )
+    return {"id": cid}
+
+
+@router.delete("/wiki/comments/{comment_id}")
+async def wiki_comment_del(comment_id: int, user: CurrentUser = Depends(current_user)):
+    """내가 쓴 댓글만 삭제(soft)."""
+    await pool().execute(
+        "UPDATE app.wiki_comments SET deleted_at=now() WHERE id=$1 AND author_account_id=$2",
+        comment_id, user.account_id,
     )
     return {"ok": True}
 
@@ -141,6 +200,14 @@ class MemoIn(BaseModel):
 async def memo_upsert(building_pk: str, body: MemoIn, user: CurrentUser = Depends(current_user)):
     if body.kind not in ("team", "secret"):
         raise HTTPException(422, "kind는 team|secret")
+    if body.kind == "secret":
+        # 비밀메모 작성도 담당자 본인+대표만(열람 제한과 동일 경계). specs S0M §3.4
+        assignee = await pool().fetchval(
+            "SELECT assignee_account_id FROM app.listings WHERE building_pk=$1 AND team_id=$2",
+            building_pk, user.team_id,
+        )
+        if not (user.role == "owner" or user.account_id == assignee):
+            raise HTTPException(403, "비밀메모는 담당자 본인 또는 대표만 작성할 수 있습니다")
     await pool().execute(
         """INSERT INTO app.memos(building_pk,team_id,kind,body,author_account_id)
            VALUES($1,$2,$3::app.memo_kind,$4,$5)""",

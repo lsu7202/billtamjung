@@ -4,13 +4,14 @@
 import { PIN_COLORS, priceLabel } from "./naver";
 
 export interface CanvasPin {
-  building_pk: string; lng: number; lat: number;
+  building_pk: string; addr?: string; lng: number; lat: number;
   col: "mine" | "normal"; price: number | null; last_sale_price?: number | null; sale_est?: number | null;
 }
 export type PriceMode = "fair" | "real";   // 핀 태그 가격: 적정가 / 실거래가
+type Member = { p: CanvasPin; cx: number; cy: number };
 type Item =
   | { t: "pin"; cx: number; cy: number; p: CanvasPin }
-  | { t: "cluster"; cx: number; cy: number; n: number; lat: number; lng: number };
+  | { t: "cluster"; cx: number; cy: number; n: number; lat: number; lng: number; members: Member[] };
 
 const CELL = 58;        // 클러스터 격자(px)
 const MARGIN = 160;     // 뷰포트 밖 여유(팬 시 가장자리 공백 완화). 캔버스 px = 컨테이너 px + MARGIN
@@ -36,6 +37,52 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
   canvas.style.pointerEvents = "none";   // 지도 팬/줌 방해 안 함 — 상호작용은 map 이벤트로
   const ctx = canvas.getContext("2d")!;
 
+  // 클러스터 클릭 목록 팝오버(컨테이너 좌표 = 지도 이벤트 offset과 동일 기준)
+  const container: HTMLElement | null = typeof map.getElement === "function" ? map.getElement() : null;
+  const pop = document.createElement("div");
+  pop.style.cssText = "position:absolute;z-index:6;display:none;background:#fff;border-radius:10px;box-shadow:0 8px 28px rgba(20,30,55,.2);padding:5px;min-width:150px;max-width:250px;font:500 12.5px -apple-system,BlinkMacSystemFont,sans-serif;color:#1a2233;pointer-events:auto;";
+  if (container) container.appendChild(pop);
+  const hidePop = () => { pop.style.display = "none"; };
+
+  function showClusterPop(offX: number, offY: number, it: Extract<Item, { t: "cluster" }>) {
+    if (!container) { map.morph(new naver.maps.LatLng(it.lat, it.lng), Math.min(21, map.getZoom() + 2)); return; }
+    const near = it.members.slice()
+      .sort((a, b) => ((a.cx - it.cx) ** 2 + (a.cy - it.cy) ** 2) - ((b.cx - it.cx) ** 2 + (b.cy - it.cy) ** 2))
+      .slice(0, 8);
+    pop.innerHTML = "";
+    const head = document.createElement("div");
+    head.style.cssText = "padding:4px 8px 6px;font-weight:700;color:#69748a;font-size:11px;";
+    head.textContent = `이 지점 ${it.n}건 · 가까운 순`;
+    pop.appendChild(head);
+    for (const m of near) {
+      const pv = mode === "real" ? (m.p.last_sale_price ?? null) : (m.p.sale_est ?? m.p.price ?? null);
+      const row = document.createElement("div");
+      row.style.cssText = "padding:5px 8px;border-radius:6px;cursor:pointer;display:flex;gap:8px;align-items:center;justify-content:space-between;";
+      row.onmouseenter = () => { row.style.background = "#f3f4f6"; };
+      row.onmouseleave = () => { row.style.background = ""; };
+      const a = document.createElement("span");
+      a.style.cssText = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;";
+      a.textContent = (m.p.addr || m.p.building_pk).replace("서울특별시 ", "");
+      const b = document.createElement("span");
+      b.style.cssText = "flex:0 0 auto;color:#69748a;font-variant-numeric:tabular-nums;";
+      b.textContent = pv != null ? priceLabel(pv) : "—";
+      row.appendChild(a); row.appendChild(b);
+      row.onclick = () => { hidePop(); onPick(m.p.building_pk); };
+      pop.appendChild(row);
+    }
+    if (it.n > near.length) {
+      const more = document.createElement("div");
+      more.style.cssText = "padding:6px 8px;color:#2b5aa8;cursor:pointer;font-size:12px;border-top:1px solid #eee;margin-top:3px;";
+      more.textContent = `+${it.n - near.length}건 더 · 확대해서 보기`;
+      more.onclick = () => { hidePop(); map.morph(new naver.maps.LatLng(it.lat, it.lng), Math.min(21, map.getZoom() + 2)); };
+      pop.appendChild(more);
+    }
+    pop.style.display = "block";
+    const lx = Math.max(6, offX - pop.offsetWidth / 2);
+    const ly = Math.max(6, offY - pop.offsetHeight - 14);
+    pop.style.left = lx + "px"; pop.style.top = ly + "px";
+  }
+
   const Layer: any = function () {};
   Layer.prototype = new naver.maps.OverlayView();
   Layer.prototype.onAdd = function () { this.getPanes().overlayLayer.appendChild(canvas); };
@@ -59,20 +106,21 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
     // 캔버스(뷰포트+여유) 안 핀만 투영 → 격자 클러스터. 캔버스 px = paneOffset - tl + MARGIN
-    const buckets = new Map<string, { xs: number; ys: number; lats: number; lngs: number; n: number; pin: CanvasPin }>();
+    const buckets = new Map<string, { xs: number; ys: number; lats: number; lngs: number; members: Member[] }>();
     for (const p of pins) {
       const off = proj.fromCoordToOffset(new naver.maps.LatLng(p.lat, p.lng));
       const cx = off.x - tl.x + MARGIN, cy = off.y - tl.y + MARGIN;
       if (cx < 0 || cy < 0 || cx > cssW || cy > cssH) continue;
       const key = `${Math.floor(cx / CELL)},${Math.floor(cy / CELL)}`;
       const bk = buckets.get(key);
-      if (bk) { bk.xs += cx; bk.ys += cy; bk.lats += p.lat; bk.lngs += p.lng; bk.n++; }
-      else buckets.set(key, { xs: cx, ys: cy, lats: p.lat, lngs: p.lng, n: 1, pin: p });
+      if (bk) { bk.xs += cx; bk.ys += cy; bk.lats += p.lat; bk.lngs += p.lng; bk.members.push({ p, cx, cy }); }
+      else buckets.set(key, { xs: cx, ys: cy, lats: p.lat, lngs: p.lng, members: [{ p, cx, cy }] });
     }
     items = [];
     for (const bk of buckets.values()) {
-      if (bk.n === 1) items.push({ t: "pin", cx: bk.xs, cy: bk.ys, p: bk.pin });
-      else items.push({ t: "cluster", cx: bk.xs / bk.n, cy: bk.ys / bk.n, n: bk.n, lat: bk.lats / bk.n, lng: bk.lngs / bk.n });
+      const n = bk.members.length;
+      if (n === 1) items.push({ t: "pin", cx: bk.xs, cy: bk.ys, p: bk.members[0].p });
+      else items.push({ t: "cluster", cx: bk.xs / n, cy: bk.ys / n, n, lat: bk.lats / n, lng: bk.lngs / n, members: bk.members });
     }
     if (hoverIdx >= items.length) hoverIdx = -1;
   }
@@ -167,13 +215,15 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
   const onClick = (e: any) => {
     if (!e.offset) return;
     const i = hitIndex(e.offset.x, e.offset.y);
-    if (i < 0) return;
+    if (i < 0) { hidePop(); return; }
     const it = items[i];
-    if (it.t === "pin") onPick(it.p.building_pk);
-    else map.morph(new naver.maps.LatLng(it.lat, it.lng), Math.min(21, map.getZoom() + 2));   // 클러스터 클릭 → 줌인
+    if (it.t === "pin") { hidePop(); onPick(it.p.building_pk); }
+    else showClusterPop(e.offset.x, e.offset.y, it);   // 클러스터 클릭 → 목록 팝오버(가까운 순 상위 8 + 더보기=확대)
   };
   const mv = naver.maps.Event.addListener(map, "mousemove", onMove);
   const ck = naver.maps.Event.addListener(map, "click", onClick);
+  const dz = naver.maps.Event.addListener(map, "dragstart", hidePop);   // 이동/줌 시 팝오버 위치 무효 → 닫기
+  const zm = naver.maps.Event.addListener(map, "zoom_changed", hidePop);
 
   return {
     setPins(next) {
@@ -192,6 +242,9 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
       if (raf) cancelAnimationFrame(raf);
       naver.maps.Event.removeListener(mv);
       naver.maps.Event.removeListener(ck);
+      naver.maps.Event.removeListener(dz);
+      naver.maps.Event.removeListener(zm);
+      pop.parentNode?.removeChild(pop);
       overlay.setMap(null);
     },
   };

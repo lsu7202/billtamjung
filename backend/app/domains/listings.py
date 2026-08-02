@@ -1,8 +1,7 @@
 """매물 등록(선점): 담당자 지정=등록, NULL=해제. specs S02 §4.1 · S0M §3.5 · schema-app §3."""
-import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from ..core.db import pool
+from ..core.db import pool, tx
 from ..core.deps import current_user, CurrentUser
 
 router = APIRouter(prefix="/listings", tags=["listings"])
@@ -65,7 +64,7 @@ async def get_listing(building_pk: str, user: CurrentUser = Depends(current_user
 
 @router.put("/claim")
 async def claim(body: ClaimIn, user: CurrentUser = Depends(current_user)):
-    """담당자 지정=매물 등록(선점). 팀원은 자기 자신만, 대표는 아무나(재배정)."""
+    """담당자 지정=매물 등록(선점). 팀원은 자기 자신만, 대표는 아무나(재배정)·해제."""
     target = body.assignee_account_id
     if target is not None and user.role != "owner" and target != user.account_id:
         raise HTTPException(403, "팀원은 자기 자신만 담당자로 지정할 수 있습니다")
@@ -76,16 +75,23 @@ async def claim(body: ClaimIn, user: CurrentUser = Depends(current_user)):
         )
         if not member:
             raise HTTPException(422, "팀 멤버가 아닙니다")
-    try:
-        await pool().execute(
+    async with tx() as conn:  # 선점 판정·갱신 원자화(경합 방지: 행 잠금)
+        cur = await conn.fetchrow(
+            "SELECT assignee_account_id FROM app.listings WHERE building_pk=$1 AND team_id=$2 FOR UPDATE",
+            body.building_pk, user.team_id,
+        )
+        cur_assignee = cur["assignee_account_id"] if cur else None
+        # 이미 다른 팀원이 선점 → 팀원은 탈취 불가(대표만 재배정). specs S0M §3.5 "중복 선점 불가"
+        if (target is not None and cur_assignee is not None
+                and cur_assignee != target and user.role != "owner"):
+            raise HTTPException(409, "이미 팀 내 다른 담당자가 선점한 매물입니다")
+        await conn.execute(
             """INSERT INTO app.listings(building_pk,team_id,assignee_account_id)
                VALUES($1,$2,$3)
                ON CONFLICT (building_pk,team_id)
                DO UPDATE SET assignee_account_id=EXCLUDED.assignee_account_id, updated_at=now()""",
             body.building_pk, user.team_id, target,
         )
-    except asyncpg.UniqueViolationError:
-        raise HTTPException(409, "이미 팀 내 다른 담당자가 선점한 매물입니다")
     return {"ok": True, "registered": target is not None}
 
 
