@@ -9,8 +9,11 @@ import csv
 import json
 import sys
 import time
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'tools'))
+from paths import LDREG
 
-SHP = "data/raw/LSMD_CONT_LDREG_5174_서울/LSMD_CONT_LDREG_5174_11_202606"
+SHP = LDREG
 LAND = "data/tools/_land_master.jsonl"
 SPATIAL = "data/tools/_spatial_ALL.json"
 LEGAL = "data/tools/_legal_ALL.json"

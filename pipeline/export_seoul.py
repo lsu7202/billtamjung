@@ -14,10 +14,12 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "tools"))
 from schema_buildings import COLUMNS   # SSOT — loader와 동일 목록 공유
+from paths import LDREG                 # 월-스탬프 해소(SSOT)
 
 DB = "data/빌탐정.db"
-SHP = "data/raw/LSMD_CONT_LDREG_5174_서울/LSMD_CONT_LDREG_5174_11_202606"
+SHP = LDREG
 
 
 def load_centroids() -> dict:

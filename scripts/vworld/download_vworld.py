@@ -35,13 +35,19 @@ DATASETS = {
 PICK = "_5174_서울.zip"   # 정확히 전체 '서울' 5174 파일(예: LSMD_CONT_LDREG_5174_서울_중랑구.zip 같은 구단위 제외)
 # NA 카탈로그(무상공급) = 시군구별 다중 파일. dsId(페이지) → 라벨. 다운로드 ds_id는 행마다 문자열(dsFileId).
 NA = {"4": "토지특성(AL_D194, 서울 25구)", "6": "공시지가(AL_D150, 서울)"}
+# MISC = LSMD 패턴('_5174_서울.zip')이 아닌 MK 레이어(전국 단일 SHP). 최대 파일(SHP본) 선택.
+MISC = {"30115": "지구단위계획(C_UQ161)"}
 
 
 def _cookie():
+    """쿠키 획득 우선순위: ① VW_COOKIE_FILE(수동) → ② VW_ID/VW_PW 자동로그인."""
     p = os.environ.get("VW_COOKIE_FILE")
-    if not p or not os.path.exists(p):
-        sys.exit("VW_COOKIE_FILE 환경변수에 쿠키파일 경로 필요 (브라우저 로그인 세션 쿠키)")
-    return open(p, encoding="utf-8").read().strip()
+    if p and os.path.exists(p):
+        return open(p, encoding="utf-8").read().strip()
+    if os.environ.get("VW_ID") or os.environ.get("VWORLD_ID"):
+        from login import get_cookie          # 같은 디렉토리(scripts/vworld)
+        return get_cookie(save_to=p)           # p 있으면 캐시 저장
+    sys.exit("V-World 쿠키 없음: VW_COOKIE_FILE(수동) 또는 VW_ID/VW_PW(자동로그인) 필요")
 
 
 def _get(url, cookie, binary=False):
@@ -81,6 +87,17 @@ def find_na_seoul(dsid, cookie):
     return out
 
 
+def find_largest(dsid, cookie):
+    """상세 페이지에서 listFnc.download('dsId','fileNo','sizeKB') 중 최대 크기 fileNo(=SHP본)."""
+    html = _get(f"{BASE}/dtmk_ntads_s002.do?dsId={dsid}&svcCde=MK", cookie)
+    best = None
+    for m in re.finditer(r"listFnc\.download\(\s*'%s'\s*,\s*'(\d+)'\s*,\s*'(\d+)'\s*\)" % dsid, html):
+        fno, kb = int(m.group(1)), int(m.group(2))
+        if best is None or kb > best[1]:
+            best = (fno, kb)
+    return (str(best[0]) if best else None)
+
+
 def _download(ds_id, fno, cookie):
     req = urllib.request.Request(f"{BASE}/downloadResourceFile.do?ds_id={ds_id}&fileNo={fno}",
                                  headers={"Cookie": cookie, "User-Agent": "Mozilla/5.0"})
@@ -95,9 +112,22 @@ def main():
     ap.add_argument("--out", default="data/raw/_vworld_dl")
     ap.add_argument("--only", help="쉼표구분 dsId만")
     ap.add_argument("--na", action="store_true", help="NA 카탈로그(토지특성·공시지가, 시군구 다중파일)")
+    ap.add_argument("--misc", action="store_true", help="비LSMD MK 레이어(지구단위계획 등, 최대파일=SHP)")
     args = ap.parse_args()
     cookie = _cookie()
     os.makedirs(args.out, exist_ok=True)
+    if args.misc:
+        ids = args.only.split(",") if args.only else list(MISC)
+        for dsid in ids:
+            fno = find_largest(dsid, cookie)
+            if not fno:
+                print(f"  [{dsid}] {MISC.get(dsid, dsid)}: ✗ 파일 못 찾음(로그인 만료?)")
+                continue
+            data, name = _download(dsid, fno, cookie)
+            ok = data[:2] == b"PK"
+            open(os.path.join(args.out, name), "wb").write(data)
+            print(f"  [{dsid}] {MISC.get(dsid, dsid)}: {'✓' if ok else '✗'} {name} ({len(data)//1024:,}KB) fileNo={fno}")
+        return
     if args.na:
         ids = args.only.split(",") if args.only else list(NA)
         for dsid in ids:

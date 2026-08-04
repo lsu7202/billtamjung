@@ -167,6 +167,19 @@ async def main() -> int:
             FROM {tmp}""")
         await conn.execute(f"DROP TABLE {tmp}")
 
+        # buildings 공간 GIST 인덱스 — 반경 comp·주변시세·활용유형 쿼리(::geography DWithin)가
+        # 인덱스를 타게 함. 없으면 56만행 풀스캔 → 리포트 로딩 ~10s. LIKE INCLUDING ALL로 이미
+        # 상속됐으면 건너뜀(중복 방지). 신규 v1 재빌드에도 보장.
+        if args.source == "buildings":
+            has_gist = await conn.fetchval(f"""
+                SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid
+                JOIN pg_am am ON am.oid=c.relam
+                WHERE i.indrelid = '{new_tbl}'::regclass AND am.amname='gist'""")
+            if not has_gist:
+                await conn.execute(f"CREATE INDEX ON {new_tbl} USING GIST (geom)")
+                await conn.execute(f"CREATE INDEX ON {new_tbl} USING GIST ((geom::geography))")
+                print("  · buildings 공간 GIST 인덱스 생성(geom, geom::geography)")
+
         # 3) 검증 게이트(§2.5)
         rows_live = await conn.fetchval(f"SELECT count(*) FROM {live_tbl}")
         rows_new = await conn.fetchval(f"SELECT count(*) FROM {new_tbl}")
