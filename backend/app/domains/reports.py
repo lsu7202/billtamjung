@@ -5,8 +5,10 @@
 import json
 import os
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from fastapi.responses import FileResponse
+import urllib.parse
+from fastapi.responses import Response
 from pydantic import BaseModel
+from ..core import storage
 from ..core.db import pool
 from ..core.deps import current_user, CurrentUser
 from ..jobs import generate_report as g, value_score
@@ -113,12 +115,14 @@ async def download(report_id: int, user: CurrentUser = Depends(current_user)):
         report_id, user.account_id)
     if not row or row["status"] != "done" or not row["file_path"]:
         raise HTTPException(404, "다운로드할 보고서가 없습니다")
-    if not os.path.exists(row["file_path"]):
+    data = await storage.load(row["file_path"])   # GCS/로컬 공용(레거시 절대경로 폴백 포함)
+    if data is None:
         raise HTTPException(410, "파일이 만료되었습니다 — 재생성해 주세요")
-    name = f"빌탐정_분석보고서_{report_id}.pptx"
-    return FileResponse(
-        row["file_path"], filename=name,
-        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+    name = urllib.parse.quote(f"빌탐정_리포트_{report_id}.pptx")
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{name}"})
 
 
 @router.get("/{report_id}")

@@ -21,7 +21,7 @@ PROVIDERS = {
         "profile": "https://kapi.kakao.com/v2/user/me",
         "cid": lambda: settings.kakao_client_id,
         "secret": lambda: settings.kakao_client_secret,
-        "scope": "account_email",
+        "scope": "",   # 이메일 동의항목=비즈앱 심사 필요 → 베타는 기본(닉네임)만. 미제공 이메일은 대체값 처리됨
     },
     "naver": {
         "authorize": "https://nid.naver.com/oauth2.0/authorize",
@@ -69,10 +69,11 @@ async def _find_or_create(conn, provider: str, uid: str, email: str | None, name
         acc = await conn.fetchrow(
             "SELECT id, tier FROM app.accounts WHERE email=$1 AND deleted_at IS NULL", email)
     if not acc:                                        # 신규: 계정→팀→멤버→체험크레딧
+        # 이메일 미제공(카카오 동의 거부 등) — accounts.email NOT NULL이라 대체값 생성
         acc = await conn.fetchrow(
             """INSERT INTO app.accounts(email,name,tier,trial_started_at,trial_ends_at,terms_agreed_at)
                VALUES($1,$2,'trial',now(),now()+interval '1 month',now()) RETURNING id, tier""",
-            email, name or "소셜 사용자")
+            email or f"{provider}_{uid}@social.invalid", name or "소셜 사용자")
         team_id = await conn.fetchval(
             "INSERT INTO app.teams(name,owner_account_id) VALUES($1,$2) RETURNING id",
             f"{name or '소셜'} 팀", acc["id"])
@@ -88,10 +89,11 @@ async def _find_or_create(conn, provider: str, uid: str, email: str | None, name
 
 
 @router.get("/{provider}/start")
-async def start(provider: str):
-    """제공자 동의화면으로 리다이렉트. state 쿠키로 CSRF 방어."""
+async def start(provider: str, marketing: int = 0):
+    """제공자 동의화면으로 리다이렉트. state 쿠키로 CSRF 방어.
+    프론트가 필수 동의(약관·개인정보) 체크 후 진입 — marketing 선택 동의만 쿼리로 전달."""
     p = _cfg(provider)
-    state = secrets.token_urlsafe(16)
+    state = secrets.token_urlsafe(16) + ("|mkt" if marketing else "")
     q = urllib.parse.urlencode({
         "response_type": "code", "client_id": p["cid"](),
         "redirect_uri": _redirect_uri(provider), "state": state, "scope": p["scope"],
@@ -120,7 +122,14 @@ async def callback(provider: str, code: str = Query(...), state: str = Query(Non
 
     async with tx() as conn:
         acc = await _find_or_create(conn, provider, uid, email, name)
-    redirect = RedirectResponse(f"{settings.frontend_base}/search")
+        # 소셜 가입 동의 기록 — 프론트가 필수 동의 후 start 진입(개인정보=필수·마케팅=state 플래그)
+        await conn.execute(
+            """UPDATE app.accounts SET privacy_agreed_at=COALESCE(privacy_agreed_at, now()),
+                   marketing_agreed_at=COALESCE(marketing_agreed_at, CASE WHEN $2 THEN now() END)
+               WHERE id=$1""", acc["id"], (state or "").endswith("|mkt"))
+        incomplete = await conn.fetchval("SELECT job_role IS NULL FROM app.accounts WHERE id=$1", acc["id"])
+    # 프로필 미완(job_role 없음) → 온보딩(/welcome)으로 — 소셜 유저도 동일 수집 경로
+    redirect = RedirectResponse(f"{settings.frontend_base}{'/welcome' if incomplete else '/search'}")
     _set_refresh(redirect, acc["id"])
     redirect.delete_cookie("oauth_state", path="/")
     return redirect

@@ -17,9 +17,16 @@ def _now() -> dt.datetime:
 class SignupIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)          # 서버측 8자 검증(S00 §3.2)
-    name: str
+    name: str | None = None                      # 미입력 시 이메일 앞부분(온보딩 1단계에서 수집)
     office_name: str | None = None
-    terms_agreed: bool = False                   # 약관 동의 게이팅
+    phone: str | None = None                     # 선택 — 연락처
+    job_role: str | None = None                  # 직군(분석용): broker|assistant|investor|landlord|etc
+    referral_source: str | None = None           # 가입경로(분석용): referral|search|sns|ad|etc
+    interest_region: str | None = None           # 관심 지역(자유입력)
+    gender: str | None = None                    # 성별(선택): male|female|none
+    terms_agreed: bool = False                   # 이용약관 동의(필수)
+    privacy_agreed: bool = False                 # 개인정보 수집·이용 동의(필수)
+    marketing_agreed: bool = False               # 마케팅 수신 동의(선택)
 
 
 class LoginIn(BaseModel):
@@ -55,21 +62,24 @@ async def _issue(resp: Response, acc: dict, remember: bool = True) -> TokenOut:
 
 @router.post("/signup", response_model=TokenOut)
 async def signup(body: SignupIn, resp: Response):
-    if not body.terms_agreed:
-        raise HTTPException(400, "약관에 동의해야 가입할 수 있습니다")
+    if not body.terms_agreed or not body.privacy_agreed:
+        raise HTTPException(400, "이용약관과 개인정보 수집·이용에 동의해야 가입할 수 있습니다")
     pw = security.hash_password(body.password)
     async with tx() as conn:  # 원자: account → team → member → 체험 크레딧
         exists = await conn.fetchval("SELECT 1 FROM app.accounts WHERE email=$1", body.email)
         if exists:
             raise HTTPException(409, "이미 가입된 이메일입니다")
         acc = await conn.fetchrow(
-            """INSERT INTO app.accounts(email,password_hash,name,office_name,tier,
-                   trial_started_at,trial_ends_at,terms_agreed_at)
-               VALUES($1,$2,$3,$4,'trial',now(),now()+interval '1 month',now())
+            """INSERT INTO app.accounts(email,password_hash,name,office_name,phone,
+                   job_role,referral_source,interest_region,gender,tier,
+                   trial_started_at,trial_ends_at,terms_agreed_at,privacy_agreed_at,marketing_agreed_at)
+               VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'trial',now(),now()+interval '1 month',
+                      now(),now(),CASE WHEN $10 THEN now() END)
                RETURNING id, tier""",
-            body.email, pw, body.name, body.office_name,
+            body.email, pw, body.name or body.email.split("@")[0], body.office_name, body.phone,
+            body.job_role, body.referral_source, body.interest_region, body.gender, body.marketing_agreed,
         )
-        team_name = body.office_name or f"{body.name} 팀"
+        team_name = body.office_name or f"{body.name or body.email.split(chr(64))[0]} 팀"
         team_id = await conn.fetchval(
             "INSERT INTO app.teams(name,owner_account_id) VALUES($1,$2) RETURNING id",
             team_name, acc["id"],
@@ -126,8 +136,8 @@ from fastapi import Depends  # noqa: E402
 
 @router.get("/me")
 async def me(user: CurrentUser = Depends(current_user)):
-    row = await pool().fetchrow("SELECT name, email FROM app.accounts WHERE id=$1", user.account_id)
-    return {"account_id": user.account_id, "team_id": user.team_id,
+    row = await pool().fetchrow("SELECT name, email, job_role, gender FROM app.accounts WHERE id=$1", user.account_id)
+    return {"account_id": user.account_id, "team_id": user.team_id, "job_role": row["job_role"] if row else None, "gender": row["gender"] if row else None,
             "role": user.role, "tier": user.tier,
             "name": row["name"] if row else None, "email": row["email"] if row else None}
 
@@ -136,6 +146,34 @@ async def me(user: CurrentUser = Depends(current_user)):
 class PwChange(BaseModel):
     current: str
     new: str = Field(min_length=8)
+
+
+class ProfileIn(BaseModel):
+    name: str | None = None
+    job_role: str | None = None
+    office_name: str | None = None
+    office_status: str | None = None   # has|preparing|none
+    career_years: str | None = None    # lt1|y1_3|y3_10|gt10
+    prior_tools: str | None = None     # yes|no(사용 경험 유무)
+    expect_feature: str | None = None  # 기대 기능: search|valuation|report|manage
+    referral_source: str | None = None
+    interest_region: str | None = None
+    gender: str | None = None
+
+
+@router.patch("/profile")
+async def patch_profile(body: ProfileIn, user: CurrentUser = Depends(current_user)):
+    """온보딩(/welcome) 단계별 저장 — 보낸 필드만 갱신(소셜·이메일 가입 공통 수집 경로)."""
+    sets, args = [], []
+    for k in ("name", "job_role", "office_name", "office_status", "career_years", "prior_tools", "expect_feature", "referral_source", "interest_region", "gender"):
+        v = getattr(body, k)
+        if v is not None and str(v).strip() != "":
+            args.append(v.strip()); sets.append(f"{k}=${len(args)}")
+    if not sets:
+        return {"ok": True}
+    args.append(user.account_id)
+    await pool().execute(f"UPDATE app.accounts SET {', '.join(sets)} WHERE id=${len(args)}", *args)
+    return {"ok": True}
 
 
 @router.patch("/password")

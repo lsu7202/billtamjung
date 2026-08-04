@@ -11,6 +11,7 @@ import os
 import datetime as dt
 from fastapi import APIRouter
 from pydantic import BaseModel
+from ..core import storage
 from ..core.db import tx, pool
 from ..core.config import settings
 from . import value_score, report_calc, use_type
@@ -536,7 +537,8 @@ def _flag_comp_outliers(comps: list[dict]) -> None:
             c["is_outlier"] = True
 
 
-TEMPLATE_ANALYSIS = os.path.join(os.path.dirname(__file__), "../../../specs/03-features/R_example.pptx")
+TEMPLATE_ANALYSIS = (os.environ.get("BT_REPORT_TEMPLATE")
+    or os.path.join(os.path.dirname(__file__), "../assets/R_example.pptx"))   # 이미지 내장(도커에 specs 없음)
 
 # ── 템플릿 바인딩 헬퍼 ──────────────────────────────────────────────
 def _run0(shape, text: str) -> None:
@@ -888,8 +890,13 @@ async def run_generate(report_id: int, team_id: int) -> dict:
                 rent_apply = await _nearby_rent_apply(rep["building_pk"], b, team_id)
             syn = synthesize(b, vs["score"], comps, params, time_adjust, rent_apply)
 
-        path = os.path.join(REPORT_DIR, f"report_{report_id}.pptx")
+        path = os.path.join(REPORT_DIR, f"report_{report_id}.pptx")   # 로컬 임시(생성용)
         _make_pptx(path, rep["kind"], b, vs, syn, report_id)
+        with open(path, "rb") as _f:
+            key = await storage.save(
+                f"reports/report_{report_id}.pptx", _f.read(),
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation")
+        path = key   # DB file_path=스토리지 키
 
         # 웹 보고서(/reports/:id) 렌더용 synthesis 스냅샷 — 생성 시점 값 고정(analysis만).
         snapshot = None

@@ -1,14 +1,14 @@
-"""매물 사진 업로드(사적·팀 공유). specs S02 §3.2. 베타=로컬 저장 / 프로덕션=GCS."""
+"""매물 사진 업로드(사적·팀 공유). specs S02 §3.2. 저장=core.storage(GCS/로컬 자동)."""
+import mimetypes
 import os
 import uuid
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
+from ..core import storage
 from ..core.db import pool
 from ..core.deps import current_user, CurrentUser
 
 router = APIRouter(prefix="/buildings/{building_pk}/photos", tags=["photos"])
-
-PHOTO_DIR = os.environ.get("BT_PHOTO_DIR", "/tmp/bt-photos")
 
 
 @router.get("")
@@ -26,12 +26,10 @@ async def list_photos(building_pk: str, user: CurrentUser = Depends(current_user
 async def upload(building_pk: str, file: UploadFile = File(...), user: CurrentUser = Depends(current_user)):
     if not (file.content_type or "").startswith("image/"):
         raise HTTPException(422, "이미지 파일만 업로드할 수 있습니다")
-    os.makedirs(PHOTO_DIR, exist_ok=True)
     ext = os.path.splitext(file.filename or "")[1][:8] or ".jpg"
-    name = f"{uuid.uuid4().hex}{ext}"
-    path = os.path.join(PHOTO_DIR, name)
-    with open(path, "wb") as f:
-        f.write(await file.read())
+    key = f"photos/{uuid.uuid4().hex}{ext}"
+    await storage.save(key, await file.read(), file.content_type or "image/jpeg")
+    path = key
     pid = await pool().fetchval(
         """INSERT INTO app.photos(building_pk,team_id,file_path,uploaded_by)
            VALUES($1,$2,$3,$4) RETURNING id""",
@@ -46,9 +44,11 @@ async def get_photo(building_pk: str, photo_id: int, user: CurrentUser = Depends
         "SELECT file_path FROM app.photos WHERE id=$1 AND team_id=$2 AND deleted_at IS NULL",
         photo_id, user.team_id,
     )
-    if not path or not os.path.exists(path):
+    data = await storage.load(path) if path else None
+    if data is None:
         raise HTTPException(404, "사진을 찾을 수 없습니다")
-    return FileResponse(path)
+    media = mimetypes.guess_type(path)[0] or "image/jpeg"
+    return Response(content=data, media_type=media)
 
 
 @router.delete("/{photo_id}")

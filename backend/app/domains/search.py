@@ -11,38 +11,96 @@ router = APIRouter(prefix="/search", tags=["search"])
 
 
 class Suggestion(BaseModel):
-    building_pk: str
+    kind: str = "building"             # building | region | station — 클릭 동작 분기(§3.1a 개편)
+    building_pk: str | None = None
     addr: str
     lng: float | None = None
     lat: float | None = None
     is_mine: bool = False              # 내(팀) 등록 매물 — 자동완성 우선·배지
     price: int | None = None           # 매매가(팀 수기 ?? 적정가) — 후보에 표시
+    sub: str | None = None             # 부가표시(역=호선, 지역=매물수)
+
+
+# 지역(동·구 중심좌표)·역 — master 버전 키 인메모리 캐시(즉시 매칭·DB 왕복 없음)
+_suggest_cache: dict = {}
+
+
+async def _suggest_refs() -> tuple[list, list]:
+    ver = await pool().fetchval("SELECT version FROM master.master_version")
+    if ver in _suggest_cache:
+        return _suggest_cache[ver]
+    regions = [dict(r) for r in await pool().fetch(
+        """SELECT split_part(addr,' ',2) AS gu, split_part(addr,' ',3) AS dong, bjd_code,
+                  avg(ST_X(geom)) AS lng, avg(ST_Y(geom)) AS lat, count(*) AS cnt
+           FROM master.buildings WHERE bjd_code IS NOT NULL
+           GROUP BY 1,2,3""")]
+    gus: dict[str, dict] = {}          # 구 단위(동 평균의 평균)
+    for r in regions:
+        g = gus.setdefault(r["gu"], {"gu": r["gu"], "lng": 0.0, "lat": 0.0, "cnt": 0, "n": 0})
+        g["lng"] += r["lng"]; g["lat"] += r["lat"]; g["cnt"] += r["cnt"]; g["n"] += 1
+    gu_list = [{"gu": g["gu"], "lng": g["lng"]/g["n"], "lat": g["lat"]/g["n"], "cnt": g["cnt"]} for g in gus.values()]
+    stations = [dict(r) for r in await pool().fetch(
+        """SELECT name, string_agg(route, '·' ORDER BY route) AS routes,
+                  avg(lng) AS lng, avg(lat) AS lat
+           FROM master.subway_stations GROUP BY name""")]
+    _suggest_cache.clear()
+    _suggest_cache[ver] = (regions + gu_list, stations)
+    return _suggest_cache[ver]
 
 
 @router.get("/suggest", response_model=list[Suggestion])
 async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(current_user)):
-    """통합뷰 주소 인덱스 접두검색(외부 지오코딩 미사용). 상위 7건.
-    정렬 = 접두일치 우선 → 내 매물 우선 → 가나다(S01 §3.1a. 광고 폐지로 tiebreak=내매물>일반)."""
+    """통합 자동완성 — 지역(동·구) + 지하철역 + 건물주소(§3.1a 개편, 지오코딩 폴백 폐지).
+    지역·역=인메모리 캐시 즉시 매칭 / 건물=접두(jibun_norm 인덱스)+부분일치(addr trgm 인덱스)."""
     norm = q.replace(" ", "")
-    rows = await pool().fetch(
+    out: list[Suggestion] = []
+
+    regions, stations = await _suggest_refs()
+    # 지역: 동 접두 우선 → 구 접두 (예: '논현' → 강남구 논현동·논현1동…)
+    for r in regions:
+        if len(out) >= 3: break
+        dong = r.get("dong")
+        if dong and dong.startswith(norm):
+            out.append(Suggestion(kind="region", addr=f"서울특별시 {r['gu']} {dong}",
+                                  lng=r["lng"], lat=r["lat"], sub=f"매물 {r['cnt']:,}동"))
+        elif not dong and r["gu"].startswith(norm):
+            out.append(Suggestion(kind="region", addr=f"서울특별시 {r['gu']}",
+                                  lng=r["lng"], lat=r["lat"], sub=f"매물 {r['cnt']:,}동"))
+    # 역: '강남역' → '강남' 매칭도 지원(끝의 '역' 제거)
+    st_q = norm[:-1] if norm.endswith("역") and len(norm) > 1 else norm
+    st_hits = [s for s in stations if s["name"].startswith(st_q)]
+    st_hits.sort(key=lambda s: (s["name"] != st_q, s["name"]))   # 정확일치 우선
+    for s in st_hits[:2]:
+        out.append(Suggestion(kind="station", addr=f"{s['name']}역", lng=s["lng"], lat=s["lat"], sub=s["routes"]))
+
+    # 건물: 후보를 서브쿼리에서 먼저 LIMIT(트라이그램 인덱스, 정렬 없음 → 조기 종료) 후
+    # 소수 후보만 조인·정렬 — '강남' 같은 광역 매칭(2만+행) 전체 정렬을 회피(§3.1a 속도).
+    # enable_seqscan=off(트랜잭션 로컬): 플래너가 seq+LIMIT을 고르면 매칭 위치에 따라 0.01~5s로
+    # 널뜀(실측) → trgm GIN 강제로 균일하게 <50ms.
+    async with pool().acquire() as _conn, _conn.transaction():
+        await _conn.execute("SET LOCAL enable_seqscan = off")
+        rows = await _conn.fetch(
         """SELECT b.building_pk, b.addr, ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat,
                   (l.assignee_account_id IS NOT NULL) AS is_mine,
-                  COALESCE(so.value::bigint, se.sale_est) AS price
-           FROM master.buildings b
+                  COALESCE(so.value::bigint, se.sale_est) AS price, b.pri
+           FROM (
+             SELECT building_pk, addr, geom, (jibun_norm NOT LIKE $1 || '%')::int AS pri
+             FROM master.buildings
+             WHERE jibun_norm LIKE '%' || $1 || '%' LIMIT 15
+           ) b
            LEFT JOIN app.listings l
              ON l.building_pk = b.building_pk AND l.team_id = $2 AND l.assignee_account_id IS NOT NULL
            LEFT JOIN app.overlays so
              ON so.target_id = b.building_pk AND so.team_id = $2 AND so.target_type = 'building'
                 AND so.field = 'sale_price' AND so.value ~ '^[0-9]+$'
            LEFT JOIN master.building_sale_est se ON se.building_pk = b.building_pk
-           WHERE b.jibun_norm LIKE $1 || '%' OR b.jibun_norm LIKE '%' || $1 || '%'
-           ORDER BY (b.jibun_norm LIKE $1 || '%') DESC,
-                    (l.assignee_account_id IS NOT NULL) DESC, b.addr
-           LIMIT 7""",
-        norm, user.team_id,
+           ORDER BY b.pri, (l.assignee_account_id IS NOT NULL) DESC, b.addr
+           LIMIT $3""",
+        norm, user.team_id, 7 - len(out),
     )
-    return [Suggestion(building_pk=r["building_pk"], addr=r["addr"], lng=r["lng"], lat=r["lat"],
-                       is_mine=r["is_mine"], price=r["price"]) for r in rows]
+    out += [Suggestion(kind="building", building_pk=r["building_pk"], addr=r["addr"], lng=r["lng"],
+                       lat=r["lat"], is_mine=r["is_mine"], price=r["price"]) for r in rows]
+    return out
 
 
 _regions_cache: dict = {}   # master_version 키 캐시(적재 시에만 변함)
@@ -479,17 +537,19 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
 
     async def col(name: str, page: int):
         off = (page - 1) * body.per_page
+        # count(*) OVER() 윈도우는 LIMIT 최적화를 막아 구 전체(2.4만+)에서 30s+ 행업(플래너가
+        # 전 행 계산·nested-loop 폭발). rows(LIMIT)와 total(경량 count)을 분리하면 ~5s.
         rows = await pool().fetch(
-            base + f"""SELECT *, count(*) OVER() AS total FROM classified
+            base + f"""SELECT * FROM classified
                        WHERE col = '{name}' {outer_sql} ORDER BY {order}
                        LIMIT {body.per_page} OFFSET {off}""",
             *args,
         )
-        total = rows[0]["total"] if rows else 0
-        items = [
-            {k: v for k, v in dict(r).items() if k != "total"} for r in rows
-        ]
-        return {"items": items, "total": total, "page": page,
+        total = await pool().fetchval(
+            base + f"SELECT count(*) FROM classified WHERE col = '{name}' {outer_sql}",
+            *args,
+        )
+        return {"items": [dict(r) for r in rows], "total": total, "page": page,
                 "pages": max(1, -(-total // body.per_page))}
 
     return {
