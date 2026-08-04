@@ -27,3 +27,9 @@ frontend/.vite/
 frontend/tsconfig.tsbuildinfo
 data/*.db
 scripts/vworld/cookie.txt
+scripts/deploy/.env.deploy
+backups/
+.playwright-mcp/
+.firebase/
+*.hwpx.bak
+firebase-debug.log
