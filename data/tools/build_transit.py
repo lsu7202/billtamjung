@@ -9,9 +9,10 @@ import shapefile
 from shapely.geometry import shape, Point
 from shapely import STRtree
 from pyproj import Transformer
+from paths import LDREG
 
 T=Transformer.from_crs(4326, 5174, always_xy=True)  # (lon,lat)→(x,y)
-LDREG="data/raw/LSMD_CONT_LDREG_5174_서울/LSMD_CONT_LDREG_5174_11_202606"
+LDREG=LDREG
 
 def load_subway():
     d=json.load(open("data/raw/서울시 역사마스터 정보.json",encoding='utf-8'))['DATA']

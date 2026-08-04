@@ -7,13 +7,14 @@ import json, csv, collections
 import shapefile
 from shapely.geometry import shape
 from pyproj import Transformer
+from paths import LDREG
 
 SGG='11680'
 _T4326 = Transformer.from_crs(5174, 4326, always_xy=True)  # 5174→WGS84(경위도)
 
 def load_coords(sgg):
     """강남 필지 중심점 → (x=경도, y=위도)."""
-    r=shapefile.Reader("data/raw/LSMD_CONT_LDREG_5174_서울/LSMD_CONT_LDREG_5174_11_202606",encoding='cp949')
+    r=shapefile.Reader(LDREG,encoding='cp949')
     idx=[f[0] for f in r.fields[1:]].index('PNU')
     out={}
     for sr in r.iterShapeRecords():

@@ -33,3 +33,6 @@ backups/
 .firebase/
 *.hwpx.bak
 firebase-debug.log
+data/_raw_backup_*.tar.zst
+data/*.db.bak
+data/tools/_floor_outline.csv

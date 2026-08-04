@@ -67,8 +67,9 @@ def main():
     cur.executemany("INSERT OR IGNORE INTO buildings VALUES(%s)"%(','.join('?'*39)),brow)
     cur.executemany("INSERT INTO prices VALUES(?,?,?)",prow)
     cur.executemany("INSERT INTO sales VALUES(?,?,?,?,?,?)",srow)
-    for code,a in json.load(open("data/tools/_sales_area.json")).items():
-        cur.execute("INSERT INTO dong_sales VALUES(?,?,?,?)",(code,a['건수'],a['거래금액_중앙'],a['단가연면적_중앙']))
+    if os.path.exists("data/tools/_sales_area.json"):   # 동시세 폐기(build_sales) → 있을 때만
+        for code,a in json.load(open("data/tools/_sales_area.json")).items():
+            cur.execute("INSERT INTO dong_sales VALUES(?,?,?,?)",(code,a['건수'],a['거래금액_중앙'],a['단가연면적_중앙']))
     print(f"적재 {n:,}동 ({time.time()-t:.0f}s) → 인덱스…")
     cur.executescript("""
     CREATE INDEX ix_b_pnu ON buildings(pnu);

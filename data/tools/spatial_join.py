@@ -11,15 +11,16 @@ from shapely import STRtree, area, intersection, make_valid
 from shapely.ops import transform as shp_transform
 from pyproj import Transformer
 from uqa_codes import uqa_name
+from paths import LDREG, UD801, UQ111
 
 # UD801은 EPSG:5186, 나머지(지적도·UQ111)는 5174 → UD801만 재투영
 _T = Transformer.from_crs(5186, 5174, always_xy=True)
 def to5174(g):
     return shp_transform(lambda x, y, z=None: _T.transform(x, y), g)
 
-LDREG="data/raw/LSMD_CONT_LDREG_5174_서울/LSMD_CONT_LDREG_5174_11_202606"
-UQ111="data/raw/LSMD_CONT_UQ111_5174_서울/LSMD_CONT_UQ111_5174_11_202606"
-UD801="data/raw/LSMD_CONT_UD801_서울/LSMD_CONT_UD801_11_202606"
+LDREG=LDREG
+UQ111=UQ111
+UD801=UD801
 
 def load_polys(path, want_fields, sgg=None, reproject=False):
     r=shapefile.Reader(path, encoding='cp949')

@@ -10,6 +10,7 @@ from shapely.geometry import shape
 from shapely import STRtree, make_valid, intersection
 from shapely.ops import transform as shp_transform
 from pyproj import Transformer
+from paths import LDREG
 
 _T = Transformer.from_crs(5186, 5174, always_xy=True)
 def to5174(g): return shp_transform(lambda x,y,z=None:_T.transform(x,y), g)
@@ -51,7 +52,7 @@ LAYERS=[
 def main():
     sgg=sys.argv[1] if len(sys.argv)>1 else '11680'
     # 강남 필지 (지적도 5174)
-    r=shapefile.Reader("data/raw/LSMD_CONT_LDREG_5174_서울/LSMD_CONT_LDREG_5174_11_202606",encoding='cp949')
+    r=shapefile.Reader(LDREG,encoding='cp949')
     pidx=[f[0] for f in r.fields[1:]].index('PNU')
     parcels=[]
     for sr in r.iterShapeRecords():
