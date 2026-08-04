@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Icon } from "../../shared/ui/Icon";
 
 /* 인라인 편집 범위검증(§3.4 "타입별 검증"). BuildingPage·ParcelBlock 공유. */
 export type Validate = (v: string) => string | null;
@@ -91,7 +92,7 @@ export function KV({ label, field, value, unit: u, editable, validate, current, 
             {/* ↺ = 편집 중에만 노출. mousedown preventDefault로 blur-commit 차단 후 되돌리기 */}
             <button className="btn" style={{ padding: "0 6px", fontSize: 11 }}
               onMouseDown={(e) => { e.preventDefault(); setErr(null); setEditing(false); onRevert?.(field); }}
-              title="마스터 원본으로 되돌리기">↺</button>
+              title="마스터 원본으로 되돌리기"><Icon name="undo" size={13} /></button>
           </span>
           {err && <span style={{ fontSize: 10, color: "var(--up)" }}>{err}</span>}
         </span>

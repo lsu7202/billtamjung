@@ -3,6 +3,9 @@ import { loadNaver, PIN_COLORS } from "./naver";
 import { makeCanvasPinLayer, type CanvasLayer, type CanvasPin } from "./mapCanvasLayer";
 import { meters, areaM2, geoToPaths, circleToGeoJSON, conePath } from "./geo";
 import { makeRuler, Ruler } from "./ruler";
+import { Icon } from "../ui/Icon";
+import { Segmented } from "../ui/Segmented";
+import { SourceTag } from "../ui/Notice";
 import { searchApi } from "../api/endpoints";
 
 /** S01 지도 뷰 — 분류색 핀 · 레이어(일반/위성/지적도) · 영역 그리기(자유곡선/다각형).
@@ -439,6 +442,53 @@ export function MapPanel({
     divRef.current.classList.toggle("map-crosshair", drawing);
   }, [ready, drawMode, measure]);
 
+  // 스페이스 팬(피그마식) — 지도 위에서 Space 누른 채 마우스 이동 = 지도가 커서를 따라 이동.
+  // 그리기 모드 중에도 동작(드로잉이 드래그를 점유해도 팬 가능). setCenter 즉시 이동(애니메이션 없음).
+  useEffect(() => {
+    if (!ready || !divRef.current) return;
+    const el = divRef.current;
+    let space = false, over = false, last: { x: number; y: number } | null = null;
+    const isTyping = (t: EventTarget | null) => {
+      const e = t as HTMLElement | null;
+      return !!e && (e.tagName === "INPUT" || e.tagName === "TEXTAREA" || e.isContentEditable);
+    };
+    const kd = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || isTyping(e.target)) return;
+      if (over) e.preventDefault();                      // 페이지 스크롤 방지
+      if (!space) { space = true; last = null; el.classList.add("map-spacepan"); }
+    };
+    const ku = (e: KeyboardEvent) => {
+      if (e.code !== "Space") return;
+      space = false; last = null; el.classList.remove("map-spacepan");
+    };
+    const mm = (e: MouseEvent) => {
+      if (!space || !over) { last = null; return; }
+      const m = mapRef.current;
+      if (!m) return;
+      if (last) {
+        const dx = e.clientX - last.x, dy = e.clientY - last.y;
+        const proj = m.getProjection();
+        const c = proj.fromCoordToOffset(m.getCenter());
+        m.setCenter(proj.fromOffsetToCoord(new window.naver.maps.Point(c.x - dx, c.y - dy)));
+      }
+      last = { x: e.clientX, y: e.clientY };
+    };
+    const enter = () => { over = true; };
+    const leave = () => { over = false; last = null; };
+    window.addEventListener("keydown", kd);
+    window.addEventListener("keyup", ku);
+    window.addEventListener("mousemove", mm);
+    el.addEventListener("mouseenter", enter);
+    el.addEventListener("mouseleave", leave);
+    return () => {
+      window.removeEventListener("keydown", kd);
+      window.removeEventListener("keyup", ku);
+      window.removeEventListener("mousemove", mm);
+      el.removeEventListener("mouseenter", enter);
+      el.removeEventListener("mouseleave", leave);
+    };
+  }, [ready]);
+
   function clearPolygon() {
     overlayRef.current?.setMap(null);
     overlayRef.current = null;
@@ -461,6 +511,9 @@ export function MapPanel({
       {/* 지도 영역 */}
       <div style={{ position: "relative", flex: 1, overflow: "hidden" }}>
         <div ref={divRef} style={mapStyle} />
+
+        {/* 데이터 출처 — 구석에 최소 노출, 호버로 펼침 */}
+        <div style={{ position: "absolute", right: 10, bottom: 10, zIndex: 6 }}><SourceTag /></div>
 
         {/* 로드뷰 위치 마크 — 지도 정중앙 고정 */}
         {rvOpen && (
@@ -505,29 +558,29 @@ export function MapPanel({
       {/* 푸터 아이콘 툴바 — 로드뷰 전체화면 시 숨김 */}
       {!panoBig && (
         <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "6px 10px", background: "#fff", borderTop: "1px solid var(--line)", flexWrap: "wrap" }}>
-          <button className={`tool-btn ${drawMode === "free" ? "on" : ""}`} title="자유곡선 (드래그)" onClick={() => { const on = drawMode === "free"; setDrawMode(on ? "off" : "free"); if (!on) { setStreet(false); setMeasure("off"); } }}>✎</button>
-          <button className={`tool-btn ${drawMode === "poly" ? "on" : ""}`} title="다각형 (클릭·더블클릭)" onClick={() => { const on = drawMode === "poly"; setDrawMode(on ? "off" : "poly"); if (!on) { setStreet(false); setMeasure("off"); } }}>▱</button>
-          <button className={`tool-btn ${drawMode === "magnet" ? "on" : ""}`} title="자석 올가미 (필지 스냅)" onClick={() => { const on = drawMode === "magnet"; setDrawMode(on ? "off" : "magnet"); if (!on) { setStreet(false); setMeasure("off"); } }}>🧲</button>
-          <button className={`tool-btn ${drawMode === "circle" ? "on" : ""}`} title="원 반경 (중심→드래그)" onClick={() => { const on = drawMode === "circle"; setDrawMode(on ? "off" : "circle"); if (!on) { setStreet(false); setMeasure("off"); } }}>◯</button>
-          <button className={`tool-btn ${drawMode === "ruler" ? "on" : ""}`} title="자 (직선 가이드)" onClick={() => (rulerOn && drawMode === "ruler" ? (setRulerOn(false), setDrawMode("off")) : (setRulerOn(true), setDrawMode("ruler"), setStreet(false), setMeasure("off")))}>📏</button>
-          {polygonActive && <button className="tool-btn" style={{ color: "var(--up)" }} title="영역 지우기" onClick={clearPolygon}>✕</button>}
+          <button className={`tool-btn ${drawMode === "free" ? "on" : ""}`} title="자유곡선 (드래그)" onClick={() => { const on = drawMode === "free"; setDrawMode(on ? "off" : "free"); if (!on) { setStreet(false); setMeasure("off"); } }}><Icon name="free" size={16} /></button>
+          <button className={`tool-btn ${drawMode === "poly" ? "on" : ""}`} title="다각형 (클릭·더블클릭)" onClick={() => { const on = drawMode === "poly"; setDrawMode(on ? "off" : "poly"); if (!on) { setStreet(false); setMeasure("off"); } }}><Icon name="polygon" size={16} /></button>
+          <button className={`tool-btn ${drawMode === "magnet" ? "on" : ""}`} title="자석 올가미 (필지 스냅)" onClick={() => { const on = drawMode === "magnet"; setDrawMode(on ? "off" : "magnet"); if (!on) { setStreet(false); setMeasure("off"); } }}><Icon name="magnet" size={16} /></button>
+          <button className={`tool-btn ${drawMode === "circle" ? "on" : ""}`} title="원 반경 (중심→드래그)" onClick={() => { const on = drawMode === "circle"; setDrawMode(on ? "off" : "circle"); if (!on) { setStreet(false); setMeasure("off"); } }}><Icon name="circle" size={16} /></button>
+          <button className={`tool-btn ${drawMode === "ruler" ? "on" : ""}`} title="자 (직선 가이드)" onClick={() => (rulerOn && drawMode === "ruler" ? (setRulerOn(false), setDrawMode("off")) : (setRulerOn(true), setDrawMode("ruler"), setStreet(false), setMeasure("off")))}><Icon name="ruler" size={16} /></button>
+          {polygonActive && <button className="tool-btn" style={{ color: "var(--up)" }} title="영역 지우기" onClick={clearPolygon}><Icon name="delete" size={16} /></button>}
 
           <span className="tool-sep" />
-          {([["dist", "📐", "거리재기"], ["area", "⬟", "면적"], ["radius", "◯", "반경"]] as const).map(([k, ico, tip]) => (
+          {([["dist", "distance", "거리재기"], ["area", "area", "면적"], ["radius", "radius", "반경"]] as const).map(([k, ico, tip]) => (
             <button key={k} className={`tool-btn ${measure === k ? "on" : ""}`} title={tip}
-              onClick={() => { const on = measure === k; setMeasure(on ? "off" : k); if (!on) { setDrawMode("off"); setStreet(false); } }}>{ico}</button>
+              onClick={() => { const on = measure === k; setMeasure(on ? "off" : k); if (!on) { setDrawMode("off"); setStreet(false); } }}><Icon name={ico} size={16} /></button>
           ))}
-          {measure !== "off" && <button className="tool-btn" style={{ color: "var(--up)" }} title="측정 종료" onClick={() => setMeasure("off")}>✕</button>}
+          {measure !== "off" && <button className="tool-btn" style={{ color: "var(--up)" }} title="측정 종료" onClick={() => setMeasure("off")}><Icon name="delete" size={16} /></button>}
 
           <span className="tool-sep" style={{ marginLeft: "auto" }} />
-          <button className={`tool-btn ${mapType === "normal" ? "on" : ""}`} title="일반지도" onClick={() => setMapType("normal")}>🗺</button>
-          <button className={`tool-btn ${mapType === "satellite" ? "on" : ""}`} title="위성" onClick={() => setMapType("satellite")}>🛰</button>
-          <button className={`tool-btn ${cadastre ? "on" : ""}`} title="지적도" onClick={() => setCadastre(!cadastre)}>▦</button>
+          <Segmented value={mapType} onChange={(v) => setMapType(v)} size="sm"
+            options={[{ value: "normal", icon: "maptype", title: "일반지도" }, { value: "satellite", icon: "satellite", title: "위성" }]} />
+          <button className={`tool-btn ${cadastre ? "on" : ""}`} title="지적도" onClick={() => setCadastre(!cadastre)}><Icon name="cadastral" size={16} /></button>
           <button className={`tool-btn ${street ? "on" : ""}`} title="로드뷰" onClick={() => {
             const on = street; setStreet(!on);
             if (on) setRoadview(null);
             else { setDrawMode("off"); setMeasure("off"); const c = mapRef.current?.getCenter(); if (c) setRoadview({ lng: c.lng(), lat: c.lat() }); }
-          }}>🧍</button>
+          }}><Icon name="roadview" size={16} /></button>
         </div>
       )}
     </div>

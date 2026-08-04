@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Icon } from "../../shared/ui/Icon";
 import { useQuery } from "@tanstack/react-query";
 import { loadNaver } from "./naver";
 import { photosApi, searchApi } from "../api/endpoints";
@@ -324,7 +325,7 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
         <div style={{ display: "flex", gap: 8, padding: "12px 14px 0" }}>
           {tabBtn("map", "지도·로드뷰")}{pk && tabBtn("upload", "업로드 사진")}
           {tab === "map" && onArea && (
-            <button className="btn" style={{ marginLeft: "auto", ...drawBtn(false) }} onClick={() => { setTab("map"); setDraw("circle"); setRoadBig(false); setDefining(true); }}>◎ 주변상권 정의하기</button>
+            <button className="btn" style={{ marginLeft: "auto", ...drawBtn(false) }} onClick={() => { setTab("map"); setDraw("circle"); setRoadBig(false); setDefining(true); }}><Icon name="circle" size={14} style={{ marginRight: 4, verticalAlign: "-2px" }} /> 주변상권 정의하기</button>
           )}
         </div>
       )}
@@ -345,12 +346,12 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
         {defining && (
           <>
             <div style={{ position: "absolute", top: 12, left: 12, zIndex: 5, display: "flex", gap: 2, background: "#fff", borderRadius: 10, padding: 4, boxShadow: "var(--shadow)" }}>
-              <button className={`tool-btn ${draw === "circle" ? "on" : ""}`} title="원 (반경)" onClick={pickCircle}>◯</button>
-              <button className={`tool-btn ${draw === "free" ? "on" : ""}`} title="자유곡선" onClick={() => setDraw("free")}>✎</button>
+              <button className={`tool-btn ${draw === "circle" ? "on" : ""}`} title="원 (반경)" onClick={pickCircle}><Icon name="circle" size={15} /></button>
+              <button className={`tool-btn ${draw === "free" ? "on" : ""}`} title="자유곡선" onClick={() => setDraw("free")}><Icon name="free" size={15} /></button>
               <button className={`tool-btn ${draw === "ruler" ? "on" : ""}`} title="자 (직선 가이드)"
                 onClick={() => (rulerOn && draw === "ruler" ? (setRulerOn(false), setDraw("off")) : (setRulerOn(true), setDraw("ruler")))}>📏</button>
               <span className="tool-sep" />
-              <button className="tool-btn" style={{ color: "var(--up)" }} title="초기화" onClick={resetArea}>✕</button>
+              <button className="tool-btn" style={{ color: "var(--up)" }} title="초기화" onClick={resetArea}><Icon name="reset" size={13} /></button>
             </div>
             <button className="btn primary" style={{ position: "absolute", top: 12, right: 12, zIndex: 5, padding: "6px 16px" }} onClick={() => setDefining(false)}>완료</button>
             <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", zIndex: 5, background: "var(--ink)", color: "#fff", fontSize: 12, padding: "8px 16px", borderRadius: 999, whiteSpace: "nowrap" }}>

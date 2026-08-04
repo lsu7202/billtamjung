@@ -1,4 +1,5 @@
 import { Loading } from "../../shared/ui/Spinner";
+import { Icon } from "../../shared/ui/Icon";
 import { useState, useEffect, useRef, Fragment } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -199,7 +200,7 @@ export function BuildingPage() {
               <button key={s} className={`btn ${scope === s ? "primary" : ""}`}
                 style={{ borderRadius: i === 0 ? "6px 0 0 6px" : i === arr.length - 1 ? "0 6px 6px 0" : 0, borderLeft: i > 0 ? 0 : undefined }}
                 onClick={() => setScope(s)}>
-                {s === "report" ? "리포트" : s === "all" ? "전체" : s === "deal" ? "매물" : "건물·토지"}
+                {s === "report" ? "리포트 요약" : s === "all" ? "전체" : s === "deal" ? "매물" : "건물·토지"}
               </button>
             ))}
           </div>
@@ -327,7 +328,7 @@ export function BuildingPage() {
               <div className="sec-head">입지정보</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, padding: "0 14px 14px" }}>
                 <div>
-                  <div style={{ fontSize: 11, color: "var(--muted)", letterSpacing: ".03em", fontWeight: 600, marginBottom: 7 }}>🚇 주변 지하철</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)", letterSpacing: ".03em", fontWeight: 600, marginBottom: 7, display: "flex", alignItems: "center", gap: 5 }}><Icon name="subway" size={14} />주변 지하철</div>
                   {subways.slice(0, 4).map((s, i) => (
                     <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "5px 0", borderBottom: "1px solid var(--line)" }}>
                       <span><b style={{ color: "var(--ink)" }}>{s.호선}</b> {s.역명}</span>
@@ -337,7 +338,7 @@ export function BuildingPage() {
                   {subways.length === 0 && <p style={{ color: "var(--muted)", fontSize: 12 }}>—</p>}
                 </div>
                 <div>
-                  <div style={{ fontSize: 11, color: "var(--muted)", letterSpacing: ".03em", fontWeight: 600, marginBottom: 7 }}>🚌 주변 버스정류소</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)", letterSpacing: ".03em", fontWeight: 600, marginBottom: 7, display: "flex", alignItems: "center", gap: 5 }}><Icon name="bus" size={14} />주변 버스정류소</div>
                   {buses.slice(0, 4).map((s, i) => (
                     <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0", borderBottom: "1px solid var(--line)" }}>
                       <span>{s.정류장명}</span>

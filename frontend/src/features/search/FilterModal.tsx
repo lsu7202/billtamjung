@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { searchApi, savedApi, listingsApi, type AttrFilters } from "../../shared/api/endpoints";
 import { GROUPS, type Field, type Group } from "./filterConfig";
 import "./filter.css";
+import { Icon } from "../../shared/ui/Icon";
+import { Segmented } from "../../shared/ui/Segmented";
 
 /* S01b 상세검색 필터 — 목업 S01b.html 정본. 7카테고리·60필드·컨트롤 8종·vchip/팝오버·지역 캐스케이드·저장/불러오기. */
 
@@ -352,9 +354,10 @@ export function FilterModal({
           {/* 헤더 */}
           <div className="modal-head">
             <h2>상세검색</h2><span className="sub">S01 필터</span><span className="sp" />
-            <span className="unit"><button className={unit === "평" ? "on" : ""} onClick={() => setUnit("평")}>평</button><button className={unit === "㎡" ? "on" : ""} onClick={() => setUnit("㎡")}>㎡</button></span>
-            <button className="lnk" onClick={() => setShowLoad(true)}>불러오기</button>
-            <button className="lnk" onClick={() => setShowSave(true)}>조건저장</button>
+            <Icon name="unit" size={15} style={{ verticalAlign: "-3px", marginRight: 4 }} />
+            <Segmented value={unit} onChange={setUnit} size="sm" options={[{ value: "평", label: "평" }, { value: "㎡", label: "㎡" }]} />
+            <button className="lnk" onClick={() => setShowLoad(true)}><Icon name="load" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />불러오기</button>
+            <button className="lnk" onClick={() => setShowSave(true)}><Icon name="save" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />조건저장</button>
           </div>
 
           <div className="modal-body">
@@ -373,7 +376,7 @@ export function FilterModal({
             {/* 영역 그리기 진입(S01 지도와 범위 공유) */}
             <div className="region-draw">
               <span className="rd-or">또는</span>
-              <button className="rd-btn" onClick={onDraw}>🗺️ 지도에서 영역 그리기</button>
+              <button className="rd-btn" onClick={onDraw}><Icon name="polygon" size={14} style={{verticalAlign:"-2px",marginRight:3}} />지도에서 영역 그리기</button>
               <span className="rd-hint">행정경계로 못 자르는 임의 범위를 지도에 직접 그립니다</span>
             </div>
 
@@ -391,7 +394,7 @@ export function FilterModal({
             <div className="acc-title">검색 조건 · 카테고리</div>
             <div className="sb">
               <div className="idx">
-                <button className={`idx-item ${tab === "all" ? "on" : ""}`} onClick={() => setTab("all")}><span className="il">⭐ 자주 찾는 조건</span><span className="badge zero">{count}</span></button>
+                <button className={`idx-item ${tab === "all" ? "on" : ""}`} onClick={() => setTab("all")}><span className="il"><Icon name="star" size={13} style={{verticalAlign:"-2px",marginRight:3}} />자주 찾는 조건</span><span className="badge zero">{count}</span></button>
                 {groups.map((g, i) => {
                   const c = [...g.reps, ...g.body].filter((f) => !isEmpty(f, values[f.label])).length;
                   return <button key={g.t} className={`idx-item ${tab === i ? "on" : ""}`} onClick={() => setTab(i)}><span className="il">{g.t}</span><span className={`badge ${c ? "" : "zero"}`}>{c}</span></button>;
@@ -405,7 +408,7 @@ export function FilterModal({
                 )}
                 {typeof tab === "number" && (
                   <div className="fpanel on">
-                    <div className="p-head">{groups[tab].t}<button className="sec-reset" onClick={() => [...groups[tab].reps, ...groups[tab].body].forEach((f) => clearVal(f.label))}>초기화</button></div>
+                    <div className="p-head">{groups[tab].t}<button className="sec-reset" onClick={() => [...groups[tab].reps, ...groups[tab].body].forEach((f) => clearVal(f.label))}><Icon name="reset" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />초기화</button></div>
                     <div className="bodylbl">대표조건</div>
                     <div className="fav-wrap rep-grid">{groups[tab].reps.map(chip)}</div>
                     <div className="bodylbl">세부조건 {groups[tab].body.length}개</div>
@@ -418,7 +421,7 @@ export function FilterModal({
 
           {/* 하단 */}
           <div className="modal-foot">
-            <button className="reset" onClick={() => { setValues({}); setRegions([]); }}>전체 초기화</button>
+            <button className="reset" onClick={() => { setValues({}); setRegions([]); }}><Icon name="reset" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />전체 초기화</button>
             <span className="applied">적용 조건 <b>{count}</b>개</span>
             <span className="sp" />
             <button className="cancel" onClick={onClose}>취소</button>
@@ -451,7 +454,7 @@ export function FilterModal({
                 if (count === 0 && !pgon) { setSaveWarn("저장할 조건이 없습니다"); return; }
                 await savedApi.save(saveName.trim(), { values, regions, polygon: pgon } as Record<string, unknown>);
                 setShowSave(false); setSaveName(""); setSaveWarn(""); saved.refetch();
-              }}>저장</button>
+              }}><Icon name="save" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />저장</button>
             </div>
           </div>
         </div>
@@ -470,8 +473,8 @@ export function FilterModal({
                   <div key={p.id} className="preset">
                     <div><div className="pn">{p.name}</div><div className="pc">조건 {activeCount(c.values ?? {}, c.regions ?? [])}개{c.polygon ? " · 영역" : ""}</div></div>
                     <span className="sp" />
-                    <button className="pload" onClick={() => { setValues(c.values ?? {}); setRegions(c.regions ?? []); setPgon(c.polygon ?? null); setShowLoad(false); }}>불러오기</button>
-                    <button className="pdel" onClick={async () => { await savedApi.remove(p.id); saved.refetch(); }}>삭제</button>
+                    <button className="pload" onClick={() => { setValues(c.values ?? {}); setRegions(c.regions ?? []); setPgon(c.polygon ?? null); setShowLoad(false); }}><Icon name="load" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />불러오기</button>
+                    <button className="pdel" onClick={async () => { await savedApi.remove(p.id); saved.refetch(); }}><Icon name="trash" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />삭제</button>
                   </div>
                 );
               })}

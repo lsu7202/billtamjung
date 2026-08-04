@@ -1,4 +1,11 @@
 /* 정밀 데이터 랩 디자인 토큰 — specs/02-screens/_mockups/wireframe.css 이식 */
+@font-face {
+  font-family: "Pretendard";
+  font-weight: 45 920;   /* variable */
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/PretendardVariable.woff2") format("woff2");
+}
 :root {
   /* 프리미엄 웜 모노 — 웜 뉴트럴 베이스 + 잉크 강조(단일). 쿨 블루그레이 폐기. */
   --ink: #262320;        /* 웜 near-black — 헤더·주요텍스트·강조(잉크 accent) */
@@ -25,12 +32,19 @@
   --shadow: 0 1px 2px rgba(15,26,46,.04), 0 2px 6px rgba(15,26,46,.06);
   --shadow-lg: 0 8px 28px rgba(15,26,46,.14);
   --mono: "SF Mono","JetBrains Mono","Cascadia Mono",ui-monospace,Consolas,"D2Coding",monospace;
+  /* 브랜드/아이콘 듀오톤 — 아이콘 시스템(#bt-*) & 브랜드 마크 */
+  --gold: #E7C876; --gold-ink: #B99327; --paper: #FFFFFF;
+  --terra: #C2571C; --terra-t: #F3DFCF;
+  --amber: #B4820E; --amber-t: #F3E7C4;
+  --red: #B23A2E;   --red-t: #F3DBD6;
+  --green-t: #D3EADF; --blue-t: #DCE5F3; --purple-t: #E5E0FB;
+  --seal: #B23A2E;
 }
 
 * { box-sizing: border-box; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
-  font-family: -apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+  font-family: "Pretendard",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
   font-size: 14px; line-height: 1.5; letter-spacing: -.01em;
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
 }
@@ -55,8 +69,11 @@ body {
   gap: 26px; padding: 0 max(18px, calc(50vw - 652px)); height: 56px;
   position: sticky; top: 0; z-index: 50;
 }
-.appbar .logo { font-weight: 800; font-size: 17px; letter-spacing: -.02em; display: flex; align-items: center; gap: 8px; }
-.appbar .logo::before { content: ""; width: 9px; height: 9px; border-radius: 2.5px; background: #E7C876; box-shadow: 0 0 0 3px rgba(231,200,118,.22); }   /* 웜 골드 브랜드 점(단일 색 포인트) */
+/* 브랜드 로고(ㅂ 심볼 + 워드마크) */
+.bt-logo { display: inline-flex; align-items: center; gap: 8px; }
+.bt-wordmark { font-family: "Pretendard", sans-serif; font-weight: 800; letter-spacing: -.035em; color: var(--ink); line-height: 1; font-size: 19px; }
+.bt-dot { color: var(--gold); }
+.appbar .bt-wordmark { color: #fff; font-size: 18px; }   /* 다크 헤더 위 흰색 */
 .appbar nav { display: flex; gap: 4px; flex: 1; }
 .appbar nav a { color: #ADA69B; text-decoration: none; font-weight: 700; font-size: 14px; padding: 17px 12px; border-bottom: 2px solid transparent; }
 .appbar nav a.on { color: #fff; border-bottom-color: #E7C876; }
@@ -65,7 +82,8 @@ body {
 
 /* 패널·버튼·입력 */
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }   /* 플랫: 그림자 없음, hairline 경계만 */
-.btn { border: 1px solid var(--line-2); background: #fff; border-radius: var(--radius-sm); padding: 8px 14px; font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line-2); background: #fff; border-radius: var(--radius-sm); padding: 8px 14px; font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer; }
+.btn svg { flex: 0 0 auto; }
 .btn:hover { border-color: var(--signal); color: var(--signal); }
 .btn.primary { background: var(--signal); border-color: var(--signal); color: #fff; }
 .btn.primary:hover { background: var(--signal-ink); color: #fff; }

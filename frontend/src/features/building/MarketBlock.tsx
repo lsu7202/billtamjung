@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { marketApi, rentsApi } from "../../shared/api/endpoints";
 import { MarketArea, CompPoint, circleToGeoJSON, fmtArea, fmtDist, openDetail } from "../../shared/map/geo";
 import { won, wonShort } from "../../shared/format";
+import { Icon } from "../../shared/ui/Icon";
 
 /** 주변시세(S03 인라인) — 반경·재조회 · 임대 comps를 본매물 층별로 그룹(접고펴기) · 매각 comps(매물별 최근·요약). */
 
@@ -155,7 +156,7 @@ export function MarketBlock({ pk, lng, lat, area, onComps }: { pk: string; lng: 
           {(salesOpen ? sales : sales.slice(0, 10)).map((s) => (
             <tr key={`${s.building_pk}-${s.contract_ym}-${s.price}`} style={s.is_outlier ? { opacity: .6 } : undefined}>
               <td style={{ fontSize: 12 }}>
-                <a onClick={() => openDetail(s.building_pk)} style={{ cursor: "pointer", color: "var(--signal)" }} title="클릭 = 이 매물 상세로 이동(새 탭)">{shortAddr(s.addr)}</a>
+                <a onClick={() => openDetail(s.building_pk)} style={{ cursor: "pointer", color: "var(--signal)" }} title="클릭 = 이 매물 상세로 이동(새 탭)">{shortAddr(s.addr)}<Icon name="external" size={11} style={{ verticalAlign: "-1px", marginLeft: 3, opacity: .6 }} /></a>
                 {s.is_outlier && <span className="tag stale" style={{ marginLeft: 5 }}>이상치</span>}
               </td>
               <td className="num">{s.dist_m}m</td>

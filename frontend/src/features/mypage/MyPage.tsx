@@ -5,6 +5,7 @@ import { authApi, creditsApi, reportsApi, savedApi, teamApi, type TokenOut } fro
 import { useAuth } from "../../shared/store/auth";
 import { Loading } from "../../shared/ui/Spinner";
 import { openDetail } from "../../shared/map/geo";
+import { Icon } from "../../shared/ui/Icon";
 
 /** S0M 마이페이지 — 크레딧(잔액·사용내역) · 내 산출물(stale·재생성) · 저장한 검색조건 */
 
@@ -44,13 +45,13 @@ function TeamPanel() {
           ? <>
               <span style={{ fontWeight: 700, color: "var(--ink)" }}>{t.name}</span>
               <span style={{ fontSize: 11, color: "var(--muted)" }}>· 멤버 {t.member_count}명</span>
-              {isOwner && <button className="btn" style={{ padding: "1px 7px", fontSize: 11 }} onClick={() => setEditName(t.name)}>이름 변경</button>}
+              {isOwner && <button className="btn" style={{ padding: "1px 7px", fontSize: 11 }} onClick={() => setEditName(t.name)}><Icon name="edit" size={13} />이름 변경</button>}
             </>
           : <span style={{ display: "inline-flex", gap: 6 }}>
               <input className="input" style={{ height: 26, fontSize: 13 }} value={editName} autoFocus
                 onChange={(e) => setEditName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && editName.trim() && rename.mutate(editName.trim())} />
-              <button className="btn primary" style={{ padding: "2px 8px", fontSize: 11 }} disabled={rename.isPending || !editName.trim()} onClick={() => rename.mutate(editName.trim())}>저장</button>
+              <button className="btn primary" style={{ padding: "2px 8px", fontSize: 11 }} disabled={rename.isPending || !editName.trim()} onClick={() => rename.mutate(editName.trim())}><Icon name="save" size={13} />저장</button>
               <button className="btn" style={{ padding: "2px 8px", fontSize: 11 }} onClick={() => setEditName(null)}>취소</button>
             </span>}
       </div>
@@ -76,7 +77,7 @@ function TeamPanel() {
             <input className="input" style={{ flex: 1, height: 30, fontSize: 13 }} placeholder="초대할 팀원 이메일 또는 전화번호"
               value={inviteTarget} onChange={(e) => setInviteTarget(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && inviteTarget.trim() && invite.mutate()} />
-            <button className="btn primary" disabled={invite.isPending || !inviteTarget.trim()} onClick={() => invite.mutate()}>초대</button>
+            <button className="btn primary" disabled={invite.isPending || !inviteTarget.trim()} onClick={() => invite.mutate()}><Icon name="invite" size={13} />초대</button>
           </div>
           {t.invites.length > 0 && <div style={{ marginTop: 8 }}>
             {t.invites.map((iv) => (
@@ -84,10 +85,10 @@ function TeamPanel() {
                 <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{iv.target}</span>
                   <code style={{ background: "var(--panel-2, #f3f4f6)", padding: "1px 6px", borderRadius: 4, color: "var(--ink)", fontSize: 12 }}>{iv.token}</code>
-                  <button className="btn" style={{ padding: "1px 6px", fontSize: 10 }} onClick={() => navigator.clipboard?.writeText(iv.token)}>복사</button>
+                  <button className="btn" style={{ padding: "1px 6px", fontSize: 10 }} onClick={() => navigator.clipboard?.writeText(iv.token)}><Icon name="copy" size={13} />복사</button>
                 </span>
                 <span style={{ display: "flex", gap: 6 }}>
-                  <button className="btn" style={{ padding: "1px 7px", fontSize: 10 }} disabled={resend.isPending} onClick={() => resend.mutate(iv.id)}>재전송</button>
+                  <button className="btn" style={{ padding: "1px 7px", fontSize: 10 }} disabled={resend.isPending} onClick={() => resend.mutate(iv.id)}><Icon name="send" size={13} />재전송</button>
                   <button className="btn" style={{ padding: "1px 7px", fontSize: 10, color: "var(--up)" }} disabled={cancel.isPending} onClick={() => cancel.mutate(iv.id)}>취소</button>
                 </span>
               </div>
@@ -103,14 +104,14 @@ function TeamPanel() {
             <input className="input" style={{ flex: 1, height: 30, fontSize: 13 }} placeholder="받은 초대 코드"
               value={acceptCode} onChange={(e) => setAcceptCode(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && acceptCode.trim() && accept.mutate()} />
-            <button className="btn" disabled={accept.isPending || !acceptCode.trim()} onClick={() => accept.mutate()}>합류</button>
+            <button className="btn" disabled={accept.isPending || !acceptCode.trim()} onClick={() => accept.mutate()}><Icon name="join" size={13} />합류</button>
           </div>
         </div>
 
         {/* 팀원: 탈퇴 */}
         {!isOwner && <div style={{ marginTop: 12, textAlign: "right" }}>
           <button className="btn" style={{ fontSize: 12, color: "var(--up)" }} disabled={leave.isPending}
-            onClick={() => confirm("이 팀에서 나갈까요? 담당 매물은 대표에게 귀속되고, 본인 1인 팀으로 돌아갑니다.") && leave.mutate()}>팀 나가기</button>
+            onClick={() => confirm("이 팀에서 나갈까요? 담당 매물은 대표에게 귀속되고, 본인 1인 팀으로 돌아갑니다.") && leave.mutate()}><Icon name="leave" size={13} />팀 나가기</button>
         </div>}
       </div>
     </div>
@@ -119,8 +120,8 @@ function TeamPanel() {
 
 /** 구독 플랜(표시 전용) — 정식 확정가(스타터 무료체험1개월 / 프로 / 팀, 3개월 계약). 결제는 정식 도입. */
 const PLANS = [
-  { key: "starter", name: "스타터", price: "무료체험", sub: "1개월", feats: ["지도·매물 검색", "기본 정보 열람", "분석보고서 체험"], trial: true },
-  { key: "pro", name: "프로", price: "월 5만원", sub: "분기 15만원", feats: ["적정가·수익률 무제한", "분석보고서 생성", "전체 필터·데이터 수정"], trial: false },
+  { key: "starter", name: "스타터", price: "무료체험", sub: "1개월", feats: ["지도·매물 검색", "기본 정보 열람", "빌탐정 리포트 체험"], trial: true },
+  { key: "pro", name: "프로", price: "월 5만원", sub: "분기 15만원", feats: ["적정가·수익률 무제한", "빌탐정 리포트 생성", "전체 필터·데이터 수정"], trial: false },
   { key: "team", name: "팀", price: "월 15만원", sub: "분기 45만원", feats: ["프로 전체 + 팀 공유", "업무 관리·담당 배정", "우선 지원"], trial: false },
 ];
 function PlansPanel() {
@@ -165,7 +166,7 @@ function AccountPanel() {
     <div className="panel">
       <div className="sec-head" style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span>계정</span>
-        {!open && <button className="btn" style={{ padding: "1px 7px", fontSize: 11 }} onClick={() => { setOpen(true); setMsg(null); }}>비밀번호 변경</button>}
+        {!open && <button className="btn" style={{ padding: "1px 7px", fontSize: 11 }} onClick={() => { setOpen(true); setMsg(null); }}><Icon name="key" size={13} />비밀번호 변경</button>}
       </div>
       <div style={{ padding: "0 14px 14px" }}>
         {open ? (
@@ -173,7 +174,7 @@ function AccountPanel() {
             <input className="input" type="password" placeholder="현재 비밀번호" value={cur} onChange={(e) => setCur(e.target.value)} />
             <input className="input" type="password" placeholder="새 비밀번호 (8자 이상)" value={next} onChange={(e) => setNext(e.target.value)} minLength={8} />
             <div style={{ display: "flex", gap: 6 }}>
-              <button className="btn primary" disabled={change.isPending || !cur || next.length < 8} onClick={() => change.mutate()}>변경</button>
+              <button className="btn primary" disabled={change.isPending || !cur || next.length < 8} onClick={() => change.mutate()}><Icon name="check" size={13} />변경</button>
               <button className="btn" onClick={() => { setOpen(false); setMsg(null); }}>취소</button>
             </div>
           </div>
@@ -214,7 +215,7 @@ export function MyPage() {
           <div style={{ borderLeft: "1px solid var(--line)", paddingLeft: 30 }}>
             <div style={{ fontSize: 12, color: "var(--muted)" }}>검색</div>
             <div style={{ fontSize: 15, fontWeight: 700 }}>무제한 · 무크레딧</div>
-            <div style={{ fontSize: 11, color: "var(--muted)" }}>크레딧은 보고서에만 소모</div></div>
+            <div style={{ fontSize: 11, color: "var(--muted)" }}>크레딧은 리포트에만 소모</div></div>
         </div>
       </div>
 
@@ -244,7 +245,7 @@ export function MyPage() {
                   : <span style={{ color: "var(--muted)" }}>{r.status === "failed" ? "실패" : "생성 중…"}</span>}</td>
                 <td style={{ textAlign: "right" }}>
                   {r.status === "done" && <>
-                    <button className="btn" style={{ marginRight: 6 }} onClick={() => nav(`/reports/${r.id}`)}>웹으로 보기</button>
+                    <button className="btn" style={{ marginRight: 6 }} onClick={() => nav(`/reports/${r.id}`)}><Icon name="external" size={13} />웹으로 보기</button>
                     <button className="btn" style={{ marginRight: 6 }}
                       onClick={() => reportsApi.download(r.id).catch((e) => alert(String(e.message ?? e)))}>PPT 받기</button>
                     {r.is_stale && <button className="btn primary" disabled={regen.isPending}
@@ -255,7 +256,7 @@ export function MyPage() {
             ))}
             {(reports.data ?? []).length === 0 && (
               <tr><td colSpan={6} style={{ color: "var(--muted)", textAlign: "center", padding: 24 }}>
-                아직 생성한 산출물이 없습니다 — 매물 상세에서 보고서를 생성해 보세요</td></tr>
+                아직 생성한 산출물이 없습니다 — 매물 상세에서 리포트를 생성해 보세요</td></tr>
             )}
           </tbody>
         </table>

@@ -4,12 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import { searchApi, buildingsApi, listingsApi, type AttrFilters } from "../../shared/api/endpoints";
 import { openDetail } from "../../shared/map/geo";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
-import { geocode } from "../../shared/map/naver";
 import { FilterModal, activeCount, conditionChips, type Values, type RegionPick } from "./FilterModal";
 import { buildTrendSeries, type TrendSeries } from "../../shared/ui/PriceTrendChart";
 import { TrendChart } from "../building/TrendChart";
 import { RoadviewMini } from "../../shared/map/Roadview";
 import "./search.css";
+import { Icon } from "../../shared/ui/Icon";
+import { Segmented } from "../../shared/ui/Segmented";
 
 /** S01 매물 통합검색 — 자동완성 + 지역(구/동) + 3열 목록 + 지도 뷰(핀·영역 그리기) */
 
@@ -106,10 +107,14 @@ export function SearchPage() {
   const resetPages = () => setPages({ mine: 1, normal: 1 });
   const doSearch = () => { resetPages(); result.refetch(); };   // 명시적 재조회(페이지 1 + 강제 refetch)
 
+  // 자동완성 디바운스(180ms) — 타이핑마다 요청하지 않음(§3.1a 속도)
+  const [dq, setDq] = useState("");
+  useEffect(() => { const t = setTimeout(() => setDq(q.trim()), 180); return () => clearTimeout(t); }, [q]);
   const suggest = useQuery({
-    queryKey: ["suggest", q],
-    queryFn: () => searchApi.suggest(q),
-    enabled: q.trim().length > 0,
+    queryKey: ["suggest", dq],
+    queryFn: () => searchApi.suggest(dq),
+    enabled: dq.length > 0,
+    placeholderData: (prev) => prev,   // 새 결과 오기 전 이전 목록 유지(깜빡임 제거)
   });
   // 영역(폴리곤)이 있으면 지역범위 대체(S01 §3.6c)
   const result = useQuery<SearchResult>({
@@ -136,17 +141,12 @@ export function SearchPage() {
   const items = suggest.data ?? [];
   const go = (pk: string) => openDetail(pk);   // 리다이렉트=새탭(사이트 규칙)
 
-  // 자동완성 주소 선택 → 상세 이동이 아니라 지도 중심이동 + 그 매물 선택(사이드바 표시)
-  function pickFromSuggest(s: { building_pk: string; lng?: number | null; lat?: number | null }) {
+  // 자동완성 선택 — 클릭 동작 통일(§3.1a 개편): 건물=지도 이동+선택 · 지역/역=지도 이동
+  function pickFromSuggest(s: { kind?: string; building_pk?: string | null; lng?: number | null; lat?: number | null }) {
     setQ(""); setActive(-1);
     setView("map");
     if (s.lng && s.lat) setCenterReq({ lng: s.lng, lat: s.lat });
-    selectBuilding(s.building_pk);   // picked 세팅(핀에 있으면 그 핀, 없으면 조회)
-  }
-  // 대표 지명(강남역 등) → 지오코딩으로 지도만 중심이동
-  async function geocodeCenter(query: string) {
-    const r = await geocode(query);
-    if (r) { setView("map"); setActive(-1); setCenterReq(r); }
+    if (s.kind === "building" || (!s.kind && s.building_pk)) selectBuilding(s.building_pk!);   // 핀에 있으면 그 핀, 없으면 조회
   }
   function toMap(h: Hit, key: "mine" | "normal") {   // 목록 [지도위치] → 지도뷰 + 그 매물로 중심 이동
     setPicked({ ...h, col: key });
@@ -181,8 +181,8 @@ export function SearchPage() {
     else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
     else if (e.key === "Enter") {
       e.preventDefault();
-      if (active >= 0 && items[active]) pickFromSuggest(items[active]);   // 주소 선택 → 중심이동+선택
-      else if (q.trim()) geocodeCenter(q.trim());                          // 지명(강남역 등) → 중심이동
+      if (active >= 0 && items[active]) pickFromSuggest(items[active]);   // 선택 항목
+      else if (items[0]) pickFromSuggest(items[0]);                        // 미선택 시 첫 항목
     }
     else if (e.key === "Escape") setQ("");
   }
@@ -208,38 +208,38 @@ export function SearchPage() {
           </button>
         ) : (<>
         <div className="toolbar">
-          <div className="ac-wrap" style={{ flex: "1 1 300px", maxWidth: 420 }}>
-            <input className="input" style={{ width: "100%", minWidth: 0 }} placeholder="주소 또는 지명 입력 (예: 강남역)"
+          <div className="s01-search" style={{ flex: "1 1 300px", maxWidth: 460 }}>
+            <button className="s01-go" onClick={doSearch} title="검색"><Icon name="search" size={19} /></button>
+            <input placeholder="주소 또는 지명 검색 (예: 강남역)"
               value={q} onChange={(e) => { setQ(e.target.value); setActive(-1); }} onKeyDown={onKey} autoComplete="off" />
+            {q.trim() && <button className="s01-clear" onClick={() => { setQ(""); setActive(-1); }} title="지우기"><Icon name="close" size={15} /></button>}
             {q.trim() && (
               <div className="ac-drop">
                 {items.map((s, i) => (
-                  <div key={s.building_pk} className={`ac-item ${i === active ? "active" : ""}`}
+                  <div key={`${s.kind}-${s.building_pk ?? s.addr}`} className={`ac-item ${i === active ? "active" : ""}`}
                     onMouseDown={() => pickFromSuggest(s)} onMouseEnter={() => setActive(i)}
                     style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Icon name={s.kind === "region" ? "map" : s.kind === "station" ? "subway" : "building"}
+                      size={14} style={{ flex: "0 0 auto", opacity: .85 }} />
                     {s.is_mine && <span className="tag mine" style={{ fontSize: 10, flex: "0 0 auto" }}>내 매물</span>}
-                    <span className="ac-addr" style={{ flex: 1, minWidth: 0 }}>{s.addr.replace("서울특별시 ", "")}</span>
+                    <span className="ac-addr" style={{ flex: 1, minWidth: 0, fontFamily: s.kind === "building" ? undefined : "inherit", fontWeight: s.kind === "building" ? undefined : 600 }}>
+                      {s.addr.replace("서울특별시 ", "")}
+                    </span>
+                    {s.sub && <span style={{ fontSize: 11.5, color: "var(--muted)", flex: "0 0 auto" }}>{s.sub}</span>}
                     {s.price ? <span className="num" style={{ fontSize: 12, color: "var(--muted)", flex: "0 0 auto" }}>{(s.price / 1e8).toFixed(1)}억</span> : null}
                   </div>
                 ))}
                 {items.length === 0 && (
-                  <div className="ac-item" style={{ color: "var(--muted)", fontSize: 13 }}>일치하는 주소가 없습니다</div>
+                  <div className="ac-item" style={{ color: "var(--muted)", fontSize: 13 }}>일치하는 결과가 없습니다</div>
                 )}
-                <div className="ac-item" style={{ color: "var(--muted)", fontSize: 13, borderTop: "1px solid var(--line)" }}
-                  onMouseDown={() => geocodeCenter(q.trim())} onMouseEnter={() => setActive(-1)}>
-                  📍 ‘{q.trim()}’ 위치로 지도 이동
-                </div>
               </div>
             )}
           </div>
-          <button className={`btn ${filterCount ? "primary" : ""}`} onClick={() => setShowFilter(true)}>필터{filterCount ? ` ${filterCount}` : ""}</button>
-          <button className="btn primary" onClick={doSearch}>검색</button>
+          <button className={`btn ${filterCount ? "primary" : ""}`} onClick={() => setShowFilter(true)}><Icon name="filter" size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />필터{filterCount ? ` ${filterCount}` : ""}</button>
           <span style={{ flex: 1 }} />
-          <div className="segmented">
-            <button className={view === "list" ? "active" : ""} onClick={() => setView("list")}>매물</button>
-            <button className={view === "map" ? "active" : ""} onClick={() => setView("map")}>지도</button>
-          </div>
-          <button className="btn" onClick={() => setBarCollapsed(true)} title="검색바 접기">▴</button>
+          <Segmented value={view} onChange={setView}
+            options={[{ value: "list", label: "매물", icon: "building" }, { value: "map", label: "지도", icon: "map" }]} />
+          <button className="tool-btn" onClick={() => setBarCollapsed(true)} title="검색바 접기"><Icon name="minus" size={15} /></button>
         </div>
         {/* 적용된 조건 칩(§3.2) — 지역 + 조건 + 그린영역 */}
         {(fRegions.length > 0 || polygon || filterCount > 0) && (
@@ -247,7 +247,7 @@ export function SearchPage() {
             {fRegions.map((r) => (
               <span key={r.bjd_code} className="chip">{r.label}<span className="x" onClick={() => setFRegions(fRegions.filter((x) => x.bjd_code !== r.bjd_code))}>×</span></span>
             ))}
-            {polygon && <span className="chip">✏️ 그린 영역<span className="x" onClick={() => setPolygon(null)}>×</span></span>}
+            {polygon && <span className="chip"><Icon name="edit" size={13} style={{verticalAlign:"-2px",marginRight:3}} />그린 영역<span className="x" onClick={() => setPolygon(null)}>×</span></span>}
             {conditionChips(fValues).map((c) => (
               <span key={c.label} className="chip">{c.label} {c.text}<span className="x" onClick={() => setFValues((s) => { const n = { ...s }; delete n[c.label]; return n; })}>×</span></span>
             ))}
@@ -306,10 +306,9 @@ export function SearchPage() {
           <div className="map-canvas">
             {mapPins.isFetching && <LoadingOverlay label="매물 불러오는 중" />}
             {/* 핀 태그 가격 토글 — 좌상단 */}
-            <div className="segmented" style={{ position: "absolute", top: 12, left: 12, zIndex: 5, background: "#fff", boxShadow: "0 1px 8px rgba(0,0,0,.15)" }}>
-              <button className={priceMode === "fair" ? "active" : ""} onClick={() => setPriceMode("fair")}>적정가</button>
-              <button className={priceMode === "real" ? "active" : ""} onClick={() => setPriceMode("real")}>실거래가</button>
-            </div>
+            <Segmented value={priceMode} onChange={setPriceMode} size="sm"
+              style={{ position: "absolute", top: 12, left: 12, zIndex: 5, boxShadow: "var(--shadow-lg)" }}
+              options={[{ value: "fair", label: "적정가" }, { value: "real", label: "실거래가" }]} />
             <MapPanel
               pins={mapPinList}
               polygon={polygon}
@@ -338,7 +337,7 @@ export function SearchPage() {
             조건에 맞는 매물이 없습니다
             <small>{filterCount ? "필터를 줄이거나 지역을 넓혀 보세요" : "주소·지역을 입력해 검색하세요"}</small>
             {filterCount > 0 && <button className="btn" style={{ marginTop: 10 }}
-              onClick={() => { setFilters({}); setFValues({}); setFRegions([]); resetPages(); }}>필터 초기화</button>}
+              onClick={() => { setFilters({}); setFValues({}); setFRegions([]); resetPages(); }}><Icon name="reset" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />필터 초기화</button>}
           </div>
         )}
         <div className="wf-note" style={{ fontSize: 12, color: "var(--muted)", padding: "2px 4px 8px" }}>

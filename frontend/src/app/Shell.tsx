@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { creditsApi } from "../shared/api/endpoints";
 import { useAuth } from "../shared/store/auth";
+import { Logo } from "../shared/ui/Brand";
 
 /** 공통 GNB 셸(S02·S0M 목업 appbar 이식) */
 export function Shell() {
@@ -12,7 +13,7 @@ export function Shell() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       <header className="appbar">
-        <div className="logo">빌탐정</div>
+        <Logo markSize={24} />
         <nav>
           <NavLink to="/search" className={({ isActive }) => (isActive ? "on" : "")}>매물 검색</NavLink>
           <NavLink to="/mypage" className={({ isActive }) => (isActive ? "on" : "")}>마이페이지</NavLink>

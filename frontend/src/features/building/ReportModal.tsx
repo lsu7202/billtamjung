@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { reportsApi, CompFields, ReportComp } from "../../shared/api/endpoints";
 import "./report.css";
+import { Icon } from "../../shared/ui/Icon";
 
 /* value_score 점수표 라벨(정본=백엔드) 미러 — 편집 드롭다운 옵션 */
 const ROAD = ["광대소각", "광대세각", "광대로한면", "중로각지", "중로한면", "소로각지", "소로한면", "세로각지(가)", "세로한면(가)", "세로각지(불)", "세로한면(불)", "맹지"];
@@ -62,7 +63,7 @@ export function ReportModal({ pk, credits, onClose, onDone }: Props) {
       const { report_id } = await reportsApi.create(pk, "analysis", { exclude: [...exclude], overrides, include_market: includeMarket });
       for (let i = 0; i < 60; i++) {
         const r = await reportsApi.get(report_id);
-        if (r.status === "done") { onDone(`✓ 분석 보고서 완료 — 내 산출물 보관 (크레딧 ${r.credits_spent})`); nav(`/reports/${report_id}`); return; }
+        if (r.status === "done") { onDone(`✓ 빌탐정 리포트 완료 — 내 산출물 보관 (크레딧 ${r.credits_spent})`); nav(`/reports/${report_id}`); return; }
         if (r.status === "failed") { setMsg(`실패: ${r.failed_reason ?? ""} (미차감)`); setBusy(false); return; }
         await new Promise((res) => setTimeout(res, 500));
       }
@@ -77,9 +78,9 @@ export function ReportModal({ pk, credits, onClose, onDone }: Props) {
     <div className="modal-bg open" onClick={() => !busy && onClose()}>
       <div className="rmodal" onClick={(e) => e.stopPropagation()}>
         <div className="rm-head">
-          <h2>분석 보고서 · 검토</h2>
+          <h2>빌탐정 리포트 · 검토</h2>
           <span className="addr">{s?.addr ?? ""}</span>
-          <button className="rm-x" disabled={busy} onClick={onClose}>×</button>
+          <button className="rm-x" disabled={busy} onClick={onClose}><Icon name="close" size={16} /></button>
         </div>
 
         {isLoading || !data || !s ? (
@@ -169,7 +170,7 @@ export function ReportModal({ pk, credits, onClose, onDone }: Props) {
               <div className="credit-box">
                 <div className="cb-h">크레딧</div>
                 <div className="cb-row"><span className="k">현재 보유 크레딧</span><span className="num">{credits ?? "…"}</span></div>
-                <div className="cb-row"><span className="k">차감 예정 <small>분석 보고서</small></span><span className="num minus">−30</span></div>
+                <div className="cb-row"><span className="k">차감 예정 <small>빌탐정 리포트</small></span><span className="num minus">−30</span></div>
                 <div className="cb-row total"><span className="k">예상 잔여 크레딧</span><span className="num">{credits != null ? credits - 30 : "…"}</span></div>
               </div>
             </div>

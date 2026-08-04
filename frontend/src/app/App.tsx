@@ -5,11 +5,14 @@ import { AuthGuard } from "./AuthGuard";
 import { Shell } from "./Shell";
 import { refresh } from "../shared/api/client";
 import { LoginPage } from "../features/auth/LoginPage";
+import { LandingPage } from "../features/landing/LandingPage";
+import { OnboardingPage } from "../features/landing/OnboardingPage";
 import { SearchPage } from "../features/search/SearchPage";
 import { BuildingPage } from "../features/building/BuildingPage";
 import { ReportPage } from "../features/building/ReportPage";
 import { ReportStory } from "../features/building/ReportStory";
 import { MyPage } from "../features/mypage/MyPage";
+import { IconSprite } from "../shared/ui/Icon";
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 10_000 } } });
 
@@ -21,9 +24,12 @@ export function App() {
 
   return (
     <QueryClientProvider client={qc}>
+      <IconSprite />
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/welcome" element={<AuthGuard><OnboardingPage /></AuthGuard>} />
           <Route element={<AuthGuard><Shell /></AuthGuard>}>
             <Route path="/search" element={<SearchPage />} />
             <Route path="/buildings/:pk" element={<BuildingPage />} />
@@ -35,7 +41,7 @@ export function App() {
             <Route path="/buildings/:pk/story" element={<ReportStory />} />
             <Route path="/reports/:id" element={<ReportPage />} />
           </Route>
-          <Route path="*" element={<Navigate to="/search" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

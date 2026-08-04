@@ -8,6 +8,7 @@ import { ReportMap } from "./ReportMap";
 import { BuildingPhoto } from "./BuildingPhoto";
 import { useReportModel, AXIS, num, man, eokman, eokManParts, py, word, type Seg } from "./reportModel";
 import "./reportslide.css";
+import { Icon as ActionIcon } from "../../shared/ui/Icon";
 
 /** 분석 보고서 — R_example.pptx 8슬라이드를 웹으로(네이비 코퍼레이트·16:9·cqw 스케일). 내용은 reportModel 단일 소스.
  * 표지 → 핵심요약 → 기본정보 → 매력도 → 실거래가 → 공시지가 → 임대수익 → 투자유형 → 미래가치 → 종합결론. */
@@ -73,14 +74,14 @@ export function ReportPage() {
 
   const toolbar = (
     <div className="deck-top">
-      <button className="btn" onClick={() => nav(`/buildings/${pk}`)} style={{ padding: "6px 12px" }}>← 매물로</button>
-      <span className="ttl">분석 보고서 · {rno}</span>
-      <button className="btn" style={{ marginLeft: "auto", padding: "6px 12px" }} onClick={() => { document.documentElement.requestFullscreen?.().catch(() => {}); nav(`/buildings/${pk}/story`); }} title="애니메이션 모드(전체화면)">✨ 애니메이션 모드</button>
-      <button className="btn" style={{ padding: "6px 12px" }} onClick={toggleFs} title="전체화면 (발표 모드)">⛶ 전체화면</button>
+      <button className="btn" onClick={() => nav(`/buildings/${pk}`)} style={{ padding: "6px 12px" }}><ActionIcon name="back" size={15} />매물로</button>
+      <span className="ttl">빌탐정 리포트 · {rno}</span>
+      <button className="btn" style={{ marginLeft: "auto", padding: "6px 12px" }} onClick={() => { document.documentElement.requestFullscreen?.().catch(() => {}); nav(`/buildings/${pk}/story`); }} title="애니메이션 모드(전체화면)"><ActionIcon name="presentation" size={14} />애니메이션 모드</button>
+      <button className="btn" style={{ padding: "6px 12px" }} onClick={toggleFs} title="전체화면 (발표 모드)"><ActionIcon name="fullscreen" size={14} />전체화면</button>
       {canDownload
         ? <button className="btn primary" style={{ padding: "6px 12px" }}
-            onClick={() => reportsApi.download(reportId!).catch((e) => alert(String(e?.message ?? e)))}>PPT 내보내기</button>
-        : <button className="btn" disabled style={{ padding: "6px 12px", opacity: .6 }} title="생성 완료 후 다운로드">PPT 내보내기</button>}
+            onClick={() => reportsApi.download(reportId!).catch((e) => alert(String(e?.message ?? e)))}><ActionIcon name="export" size={14} />PPT 내보내기</button>
+        : <button className="btn" disabled style={{ padding: "6px 12px", opacity: .6 }} title="생성 완료 후 다운로드"><ActionIcon name="export" size={14} />PPT 내보내기</button>}
     </div>
   );
 
@@ -94,14 +95,14 @@ export function ReportPage() {
             <span style={{ marginLeft: "auto", fontSize: "1cqw", color: "#c7d3e6" }}>Report No. {rno} · 분석일 {date}</span>
           </div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            <div style={{ fontSize: "1.15cqw", letterSpacing: ".24em", color: "#8fb0e0", fontWeight: 700, marginBottom: "1cqw" }}>부동산 가치분석 보고서</div>
+            <div style={{ fontSize: "1.15cqw", letterSpacing: ".24em", color: "#8fb0e0", fontWeight: 700, marginBottom: "1cqw" }}>빌탐정 리포트 — 부동산 가치분석</div>
             <div style={{ fontSize: "4.8cqw", fontWeight: 800, letterSpacing: "-.02em", lineHeight: 1.04, textShadow: "0 2px 26px rgba(0,0,0,.55)" }}>{shortAddr}</div>
             <div style={{ fontSize: "1.5cqw", color: "#c7d3e6", marginTop: ".9cqw" }}>{useZone} · {mainUse}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "1.4cqw" }}>
             <Seal mono size={8.5} />
             <div style={{ fontSize: ".95cqw", color: "#aab6cc", lineHeight: 1.55 }}>
-              빌탐정이 자체 조사·분석한 <b style={{ color: "#fff" }}>공식 분석 보고서</b>입니다.<br />제3자 무단복제·유포·변경 시 법적 책임을 질 수 있습니다.
+              빌탐정이 자체 조사·분석한 <b style={{ color: "#fff" }}>공식 리포트</b>입니다.<br />제3자 무단복제·유포·변경 시 법적 책임을 질 수 있습니다.
             </div>
           </div>
         </div>

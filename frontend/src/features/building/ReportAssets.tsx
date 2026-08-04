@@ -30,13 +30,13 @@ export function Logo({ mono, size = 2.6 }: { mono?: boolean; size?: number }) {
   const sub = mono ? "#8fb0e0" : "var(--blue)";
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: `${size * 0.28}cqw` }}>
+      {/* ㅂ 심볼 — 빌탐정의 첫 글자 = 두 채의 빌딩(골드 창) */}
       <svg width={`${size}cqw`} height={`${size}cqw`} viewBox="0 0 28 28" fill="none" style={{ flex: "0 0 auto" }}>
-        <rect x="2" y="9" width="8" height="17" rx="1.2" fill={ink} />
-        <rect x="11" y="3" width="9" height="23" rx="1.2" fill={sub} />
-        <rect x="21" y="13" width="5" height="13" rx="1" fill={ink} opacity="0.55" />
-        <rect x="4.4" y="12" width="3.2" height="2.4" rx=".4" fill="#fff" opacity=".9" />
-        <rect x="13.4" y="7" width="4.2" height="2.6" rx=".4" fill="#fff" opacity=".9" />
-        <rect x="13.4" y="12" width="4.2" height="2.6" rx=".4" fill="#fff" opacity=".9" />
+        <rect x="4" y="5" width="5" height="18" rx="1.3" fill={ink} />
+        <rect x="17" y="5" width="5" height="18" rx="1.3" fill={ink} />
+        <rect x="4" y="12.6" width="18" height="4.2" rx="1.3" fill={ink} />
+        <rect x="4" y="18.4" width="18" height="4.2" rx="1.3" fill={ink} />
+        <rect x="5.6" y="7.2" width="3.4" height="3.2" rx=".5" fill="#E7C876" />
       </svg>
       <span style={{ display: "inline-flex", flexDirection: "column", lineHeight: 1 }}>
         <b style={{ fontSize: `${size * 0.72}cqw`, fontWeight: 800, color: ink, letterSpacing: "-.01em" }}>빌탐정</b>
@@ -118,9 +118,11 @@ export function Seal({ size = 11, mono }: { size?: number; mono?: boolean }) {
         <textPath href="#seal-top" startOffset="6%">빌탐정 부동산 가치분석</textPath>
       </text>
       <g transform="translate(44,40)">
-        <rect x="0" y="14" width="10" height="22" rx="1.5" fill={ink} />
-        <rect x="11" y="5" width="12" height="31" rx="1.5" fill={accent} />
-        <rect x="27" y="20" width="6" height="16" rx="1" fill={ink} opacity=".55" />
+        <rect x="0" y="5" width="6" height="31" rx="1.5" fill={ink} />
+        <rect x="25" y="5" width="6" height="31" rx="1.5" fill={accent} />
+        <rect x="0" y="17" width="31" height="5.5" rx="1.5" fill={ink} />
+        <rect x="0" y="27.5" width="31" height="5.5" rx="1.5" fill={ink} />
+        <rect x="2.5" y="8" width="4.5" height="4" rx=".6" fill={star} />
       </g>
       <text x="60" y="92" textAnchor="middle" fontSize="9.5" fontWeight="800" fill={ink} letterSpacing="1">공식 분석</text>
       <text x="60" y="104" textAnchor="middle" fontSize="11" fill={star} letterSpacing="2">★★★★★</text>

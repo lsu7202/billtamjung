@@ -38,7 +38,7 @@ export function ReportView({ pk, b, realSeries }: {
   const { sub, loading, nonCommercial, shortAddr, useZone, mainUse, fair, avgPer, roiFair, nbhdRoi, grade, score,
     gTotal, curRent, rent, ut, officeApt, fut, futureAxes, topStrengths } = rm;
 
-  if (loading && !sub) return <div className="panel"><Loading label="리포트 계산 중" minHeight={220} /></div>;
+  if (loading && !sub) return <div className="panel"><Loading label="리포트 요약 계산 중" minHeight={220} /></div>;
   if (nonCommercial) return <div className="panel" style={{ padding: 40, color: MUTED, lineHeight: 1.6 }}>
     <b style={{ color: INK }}>적정가 분석 대상이 아닙니다.</b><br />빌탐정 적정가는 상업·업무 성격 건물({useZone} · {mainUse})을 대상으로 산정합니다. 주거용 건물은 산정 방식이 달라 제공하지 않습니다.
   </div>;
@@ -54,7 +54,7 @@ export function ReportView({ pk, b, realSeries }: {
   return (
     <div style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 16, padding: "clamp(24px,3vw,44px)", color: INK }}>
       {/* 표제 */}
-      <div className="rv-in" style={{ fontSize: 12, letterSpacing: ".16em", fontWeight: 800, color: BLUE }}>빌탐정 가치분석 리포트</div>
+      <div className="rv-in" style={{ fontSize: 12, letterSpacing: ".16em", fontWeight: 800, color: BLUE }}>빌탐정 리포트 요약</div>
       <div className="rv-in" style={{ fontSize: 14, color: MUTED, marginTop: 4 }}>{shortAddr} · {useZone} · {mainUse}</div>
 
       {/* 적정가 히어로 + 가격 비교 */}
@@ -116,7 +116,7 @@ export function ReportView({ pk, b, realSeries }: {
         ))}</div>} />}
 
       <div className="rv-in" style={{ fontSize: 12.5, color: MUTED, marginTop: 18, paddingTop: 14, borderTop: `1px solid ${LINE}` }}>
-        실거래 사례·상세 근거와 편집은 상단 <b style={{ color: NAVY }}>[매물 분석하기]</b>에서 보고서로 확인·생성하세요.
+        실거래 사례·상세 근거와 편집은 상단 <b style={{ color: NAVY }}>[매물 분석하기]</b>에서 빌탐정 리포트로 확인·생성하세요.
       </div>
     </div>
   );

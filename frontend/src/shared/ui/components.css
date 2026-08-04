@@ -147,3 +147,59 @@
 .bt-loading-label { font-size: 13px; color: var(--muted); font-weight: 500; letter-spacing: .01em; }
 .bt-loading-overlay { position: absolute; inset: 0; z-index: 30; background: color-mix(in srgb, var(--surface, #fff) 72%, transparent); backdrop-filter: blur(1px); }
 @media (prefers-reduced-motion: reduce) { .bt-spinner { animation-duration: 1.6s; } }
+
+/* ── 출처 태그(호버 팝오버) + 추정 주의(호버 툴팁) ── */
+.bt-src { position: relative; display: inline-flex; }
+.bt-src-tag { display: inline-flex; align-items: center; gap: 4px; background: rgba(255,255,255,.85);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); border: 1px solid var(--line);
+  border-radius: 999px; padding: 3px 9px 3px 7px; font-size: 11px; color: var(--ink-2); cursor: help; }
+.bt-src-pop { position: absolute; bottom: calc(100% + 8px); right: 0; background: var(--ink); color: #fff;
+  font-size: 12px; line-height: 1.5; padding: 11px 13px; border-radius: 9px; width: 234px; opacity: 0;
+  transform: translateY(5px); pointer-events: none; transition: .15s; box-shadow: var(--shadow-lg);
+  z-index: 40; display: flex; flex-direction: column; gap: 5px; }
+.bt-src:hover .bt-src-pop { opacity: 1; transform: translateY(0); }
+.bt-src-pop b { color: var(--gold); font-weight: 600; margin-bottom: 3px; }
+.bt-src-row { display: inline-flex; align-items: center; gap: 6px; }
+.bt-src-row em { color: #fff; font-style: normal; font-weight: 600; }
+.bt-src-tos { margin-top: 9px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.15);
+  color: var(--gold); font-family: var(--mono); font-size: 10.5px; letter-spacing: .02em; }
+
+.bt-caution { position: relative; display: inline-flex; align-items: center; vertical-align: middle; cursor: help; }
+.bt-caution-ic { display: block; }
+.bt-caution-pop { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%) translateY(5px);
+  background: var(--ink); color: #fff; font-size: 11.5px; line-height: 1.5; padding: 9px 11px; border-radius: 8px;
+  width: 222px; opacity: 0; pointer-events: none; transition: .15s; box-shadow: var(--shadow-lg); z-index: 40; text-align: left; }
+.bt-caution:hover .bt-caution-pop, .bt-caution:focus .bt-caution-pop { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── 세그먼트 토글(슬라이딩 노브) — 상태 전환 애니메이션. Segmented.tsx ── */
+.bt-seg { position: relative; display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px; user-select: none; }
+.bt-seg-knob { position: absolute; top: 3px; left: 3px; bottom: 3px; width: calc((100% - 6px) / var(--seg-n)); border-radius: 999px; background: var(--panel); box-shadow: 0 1px 2px rgba(38,35,32,.12), 0 1px 3px rgba(38,35,32,.08); transform: translateX(calc(var(--seg-i) * 100%)); transition: transform .32s cubic-bezier(.34,1.4,.5,1); }
+.bt-seg button { position: relative; z-index: 1; flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 0; background: none; cursor: pointer; color: var(--muted); font-weight: 700; font-size: 13px; line-height: 1; padding: 7px 15px; white-space: nowrap; transition: color .22s; }
+.bt-seg button.on { color: var(--signal); }
+.bt-seg button:not(.on):hover { color: var(--ink-2); }
+.bt-seg button svg { opacity: .85; }
+.bt-seg-sm button { padding: 5px 11px; font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { .bt-seg-knob { transition: none; } }
+
+/* ── S01 통합 검색 필드 — 돋보기 인라인 · 필드=버튼 일체(부동산플래닛/Compass식) ── */
+.s01-search { position: relative; display: flex; align-items: center; gap: 4px; height: 44px; padding: 0 5px 0 6px; background: var(--panel); border: 1.5px solid var(--line-2); border-radius: 999px; transition: border-color .15s, box-shadow .15s; }
+.s01-search:focus-within { border-color: var(--signal); box-shadow: 0 0 0 3px var(--signal-bg); }
+.s01-search .s01-go { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 0; border-radius: 999px; background: transparent; cursor: pointer; transition: background .12s, transform .06s; }
+.s01-search .s01-go:hover { background: var(--signal-bg); }
+.s01-search .s01-go:active { transform: scale(.9); }
+.s01-search input { flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: none; font: inherit; font-size: 15px; color: var(--ink); padding: 0 4px; }
+.s01-search input::placeholder { color: var(--muted); }
+.s01-search .s01-clear { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: 999px; background: transparent; cursor: pointer; color: var(--muted); transition: background .12s; }
+.s01-search .s01-clear:hover { background: var(--surface-2); }
+.s01-search .ac-drop { top: calc(100% + 7px); }
+
+/* ── 슬라이딩 언더라인 탭(사이드바 업무/위키/힌트/메모) ── */
+.bt-tabs { position: relative; display: flex; border-bottom: 1px solid var(--line); }
+.bt-tabs button { flex: 1; border: 0; background: none; padding: 12px 0; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; transition: color .2s; }
+.bt-tabs button.on { color: var(--signal); }
+.bt-tabs button:not(.on):hover { color: var(--ink-2); }
+.bt-tabs-ink { position: absolute; bottom: -1px; left: 0; height: 2px; width: calc(100% / var(--tab-n)); background: var(--signal); border-radius: 2px; transform: translateX(calc(var(--tab-i) * 100%)); transition: transform .3s cubic-bezier(.4,0,.2,1); }
+@media (prefers-reduced-motion: reduce) { .bt-tabs-ink { transition: none; } }
+
+/* 스페이스 팬(피그마식) — Space 홀드 시 grab 커서 */
+.map-spacepan, .map-spacepan * { cursor: grab !important; }

@@ -92,7 +92,7 @@ export function ReportStory() {
             <div style={{ position: "absolute", inset: 0, background: "radial-gradient(120% 90% at 50% 40%, transparent 40%, rgba(5,8,15,.85) 100%)" }} />
           </div>
           <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center", color: "#fff", opacity: Math.max(0, 1 - p * 2.4), pointerEvents: "none" }}>
-            <div style={{ fontSize: 14, letterSpacing: ".28em", color: "#8fb0e0", fontWeight: 700, marginBottom: 22 }}>빌탐정 부동산 가치분석 보고서</div>
+            <div style={{ fontSize: 14, letterSpacing: ".28em", color: "#8fb0e0", fontWeight: 700, marginBottom: 22 }}>빌탐정 리포트 — 부동산 가치분석</div>
             <div style={{ fontSize: "clamp(38px,6.5vw,84px)", fontWeight: 800, letterSpacing: "-.02em", lineHeight: 1.05, textShadow: "0 2px 30px rgba(0,0,0,.5)" }}>{addr}</div>
             <div style={{ fontSize: "clamp(15px,1.7vw,20px)", color: "#c7d3e6", marginTop: 18 }}>{useZone} · {mainUse}</div>
           </div>

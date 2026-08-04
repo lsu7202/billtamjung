@@ -1,7 +1,7 @@
 import { api, apiBlob } from "./client";
 
 export interface TokenOut { access_token: string; tier: string }
-export interface Suggestion { building_pk: string; addr: string; lng?: number | null; lat?: number | null; is_mine?: boolean; price?: number | null }
+export interface Suggestion { kind: "building" | "region" | "station"; building_pk?: string | null; addr: string; lng?: number | null; lat?: number | null; is_mine?: boolean; price?: number | null; sub?: string | null }
 export interface Balance { total: number; monthly: number; earned: number; purchased: number }
 export interface FloorRent {
   id?: number; floor: string; unit_no: string; use?: string | null;
@@ -17,7 +17,7 @@ export interface Report {
 }
 
 export const authApi = {
-  signup: (b: { email: string; password: string; name: string; office_name?: string; terms_agreed: boolean }) =>
+  signup: (b: { email: string; password: string; name: string; office_name?: string; phone?: string; job_role?: string; referral_source?: string; interest_region?: string; gender?: string; terms_agreed: boolean; privacy_agreed: boolean; marketing_agreed?: boolean }) =>
     api<TokenOut>("/auth/signup", { method: "POST", body: JSON.stringify(b) }),
   login: (b: { email: string; password: string; remember?: boolean }) =>
     api<TokenOut>("/auth/login", { method: "POST", body: JSON.stringify(b) }),
@@ -28,6 +28,9 @@ export const authApi = {
     api<{ ok: boolean }>("/auth/password/reset-request", { method: "POST", body: JSON.stringify({ email }) }),
   resetConfirm: (token: string, next: string) =>
     api<{ ok: boolean }>("/auth/password/reset-confirm", { method: "POST", body: JSON.stringify({ token, new: next }) }),
+  me: () => api<{ account_id: number; team_id: number; name: string; email: string; job_role: string | null; gender: string | null; tier: string }>("/auth/me"),
+  patchProfile: (b: Record<string, string>) =>
+    api<{ ok: boolean }>("/auth/profile", { method: "PATCH", body: JSON.stringify(b) }),
 };
 
 export interface AttrFilters {

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Icon } from "../../shared/ui/Icon";
 import { useEnums } from "../../shared/hooks/useEnums";
 
 type Opt = { code: string; label: string };
@@ -52,7 +53,7 @@ export function Chips({ opts, cur, onSelect, onRevert }: { opts: Opt[]; cur: str
                   onClick={() => { onSelect(o.code); setOpen(false); }}>{o.label}</button>
               ))}
             </div>
-            {onRevert && <button style={revertLink} onClick={() => { onRevert(); setOpen(false); }}>↺ 마스터 원본으로 되돌리기</button>}
+            {onRevert && <button style={revertLink} onClick={() => { onRevert(); setOpen(false); }}><Icon name="undo" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />마스터 원본으로 되돌리기</button>}
           </div>
         </>
       )}
@@ -84,7 +85,7 @@ export function ChipsMulti({ opts, selected, onChange, summary, onRevert }: {
                 <button key={o.code} style={chipStyle(selected.includes(o.code))} onClick={() => toggle(o.code)}>{o.label}</button>
               ))}
             </div>
-            {onRevert && <button style={revertLink} onClick={() => { onRevert(); setOpen(false); }}>↺ 마스터 원본으로 되돌리기</button>}
+            {onRevert && <button style={revertLink} onClick={() => { onRevert(); setOpen(false); }}><Icon name="undo" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />마스터 원본으로 되돌리기</button>}
           </div>
         </>
       )}

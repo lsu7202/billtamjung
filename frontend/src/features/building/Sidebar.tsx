@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type CSSProperties } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listingsApi, extrasApi, overlaysApi, buildingsApi } from "../../shared/api/endpoints";
 import { KV, wonToEok, vPos, formatPhone } from "./KV";
 import { api } from "../../shared/api/client";
 import { useEnums } from "../../shared/hooks/useEnums";
 import { Chips } from "./EnumField";
+import { Icon } from "../../shared/ui/Icon";
 
 /** S02 우측 고정 사이드바 — 업무 / 위키 / 수정이력 / 메모 4탭(§4). enum=enums.md 정본. */
 
@@ -17,18 +18,16 @@ export function Sidebar({ pk }: { pk: string }) {
   const memos = useQuery({ queryKey: ["memos", pk], queryFn: () => extrasApi.memoList(pk), enabled: tab === "memo" });
   const dist = useQuery({ queryKey: ["dist", pk], queryFn: () => overlaysApi.distribution(pk), enabled: tab === "hist" });
 
-  const tabBtn = (t: typeof tab, label: string) => (
-    <button key={t} onClick={() => setTab(t)} style={{
-      flex: 1, border: 0, background: "none", padding: "11px 0", fontSize: 13, fontWeight: 700, cursor: "pointer",
-      color: tab === t ? "var(--signal)" : "var(--muted)",
-      borderBottom: tab === t ? "2px solid var(--signal)" : "2px solid var(--line)",
-    }}>{label}</button>
-  );
+  const TABS = [["biz", "업무"], ["wiki", "위키"], ["hist", "힌트"], ["memo", "메모"]] as const;
+  const tabIdx = TABS.findIndex(([t]) => t === tab);
 
   return (
     <div className="panel" style={{ position: "sticky", top: 12 }}>
-      <div style={{ display: "flex" }}>
-        {tabBtn("biz", "업무")}{tabBtn("wiki", "위키")}{tabBtn("hist", "힌트")}{tabBtn("memo", "메모")}
+      <div className="bt-tabs" style={{ "--tab-n": TABS.length, "--tab-i": tabIdx } as CSSProperties}>
+        {TABS.map(([t, label]) => (
+          <button key={t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>{label}</button>
+        ))}
+        <span className="bt-tabs-ink" aria-hidden />
       </div>
       <div style={{ padding: 14, minHeight: 300, maxHeight: "calc(100vh - 180px)", overflow: "auto" }}>
         {tab === "biz" && <BizTab pk={pk} listing={listing.data} refresh={() => qc.invalidateQueries({ queryKey: ["listing", pk] })} />}
@@ -81,7 +80,7 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
   if (assignee == null) {
     return (
       <div style={{ display: "grid", gap: 12, justifyItems: "center", textAlign: "center", padding: "30px 16px" }}>
-        <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--signal-bg)", display: "grid", placeItems: "center", fontSize: 24 }}>🏢</div>
+        <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--signal-bg)", display: "grid", placeItems: "center", fontSize: 24 }}><Icon name="building" size={24} /></div>
         <div style={{ fontWeight: 700, fontSize: 15 }}>아직 내 매물이 아닙니다</div>
         <p style={{ color: "var(--muted)", fontSize: 12.5, lineHeight: 1.5, margin: 0, maxWidth: 240 }}>등록하면 담당자로 지정되고 진행상태·소유자 정보 등 업무 정보를 관리할 수 있습니다.</p>
         <button className="btn primary" style={{ padding: "9px 20px", fontSize: 14, fontWeight: 700 }}
@@ -164,7 +163,7 @@ function CommentThread({ postId, onChange }: { postId: number; onChange: () => v
         <div key={c.id} style={{ fontSize: 12.5, display: "flex", gap: 6, alignItems: "baseline" }}>
           <span style={{ fontWeight: 600, color: "var(--muted)", flex: "0 0 auto" }}>{c.author}</span>
           <span style={{ flex: 1, minWidth: 0 }}>{c.body}</span>
-          {c.mine && <button className="tool-btn" style={{ minWidth: 22, height: 22, fontSize: 11, color: "var(--up)", flex: "0 0 auto" }} onClick={() => del(c.id)} title="삭제">✕</button>}
+          {c.mine && <button className="tool-btn" style={{ minWidth: 22, height: 22, fontSize: 11, color: "var(--up)", flex: "0 0 auto" }} onClick={() => del(c.id)} title="삭제"><Icon name="trash" size={12} /></button>}
         </div>
       ))}
       {list.length === 0 && <div style={{ fontSize: 12, color: "var(--muted)" }}>첫 댓글을 남겨보세요.</div>}
@@ -172,7 +171,7 @@ function CommentThread({ postId, onChange }: { postId: number; onChange: () => v
         <input className="input" style={{ height: 30, fontSize: 12.5 }} placeholder="댓글" value={txt}
           onChange={(e) => setTxt(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) add(); }} />
-        <button className="btn" style={{ flex: "0 0 auto" }} onClick={add}>등록</button>
+        <button className="btn" style={{ flex: "0 0 auto" }} onClick={add}><Icon name="check" size={13} />등록</button>
       </div>
     </div>
   );
@@ -200,11 +199,11 @@ function WikiTab({ pk, items, refresh }: { pk: string; items: Record<string, unk
           <div style={{ lineHeight: 1.45 }}>{String(w.body)}</div>
         </div>
         <div style={{ display: "flex", gap: 4, flex: "0 0 auto" }}>
-          <button className="tool-btn" style={{ minWidth: 46, height: 28, fontSize: 12, background: "var(--surface-2)" }} onClick={() => vote(id)} title="동의(다시 누르면 취소)">👍 {String(w.votes)}</button>
-          <button className="tool-btn" style={{ minWidth: 46, height: 28, fontSize: 12, background: openC === id ? "var(--signal-bg)" : "var(--surface-2)" }} onClick={() => setOpenC(openC === id ? null : id)} title="댓글">💬 {String(w.comments ?? 0)}</button>
+          <button className="tool-btn" style={{ minWidth: 46, height: 28, fontSize: 12, background: "var(--surface-2)" }} onClick={() => vote(id)} title="동의(다시 누르면 취소)"><Icon name="like" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />{String(w.votes)}</button>
+          <button className="tool-btn" style={{ minWidth: 46, height: 28, fontSize: 12, background: openC === id ? "var(--signal-bg)" : "var(--surface-2)" }} onClick={() => setOpenC(openC === id ? null : id)} title="댓글"><Icon name="comment" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />{String(w.comments ?? 0)}</button>
           {Boolean(w.mine)
-            ? <button className="tool-btn" style={{ minWidth: 28, height: 28, fontSize: 12, color: "var(--up)" }} onClick={() => del(id)} title="내 글 삭제">✕</button>
-            : <button className="tool-btn" style={{ minWidth: 28, height: 28, fontSize: 12, color: "var(--muted)" }} onClick={() => report(id)} title="신고">🚩</button>}
+            ? <button className="tool-btn" style={{ minWidth: 28, height: 28, fontSize: 12, color: "var(--up)" }} onClick={() => del(id)} title="내 글 삭제"><Icon name="trash" size={13} /></button>
+            : <button className="tool-btn" style={{ minWidth: 28, height: 28, fontSize: 12, color: "var(--muted)" }} onClick={() => report(id)} title="신고"><Icon name="flag" size={14} /></button>}
         </div>
       </div>
       {openC === id && <CommentThread postId={id} onChange={refresh} />}
@@ -225,7 +224,7 @@ function WikiTab({ pk, items, refresh }: { pk: string; items: Record<string, unk
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           <input className="input" placeholder="특이사항 (전체 공유)" value={body} onChange={(e) => setBody(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) post(); }} />
-          <button className="btn primary" style={{ flex: "0 0 auto" }} onClick={post}>등록</button>
+          <button className="btn primary" style={{ flex: "0 0 auto" }} onClick={post}><Icon name="check" size={13} />등록</button>
         </div>
       </div>
       {showAll && (
@@ -300,10 +299,10 @@ function MemoTab({ pk, memos, refresh }: { pk: string; memos: Record<string, unk
           <div key={String(m.id)} style={{ padding: "8px 10px", borderRadius: 8, lineHeight: 1.45, display: "flex", gap: 8, alignItems: "flex-start",
             background: secret ? "#FFF7ED" : "var(--surface-2)", border: `1px solid ${secret ? "#FED7AA" : "var(--line)"}` }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              {secret && <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--vacant)", marginRight: 6 }}>🔒 비밀</span>}
+              {secret && <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--vacant)", marginRight: 6 }}><Icon name="lock" size={12} style={{verticalAlign:"-2px",marginRight:3}} />비밀</span>}
               {String(m.body)}
             </div>
-            {Boolean(m.mine) && <button className="tool-btn" style={{ minWidth: 24, height: 24, fontSize: 12, color: "var(--up)", flex: "0 0 auto" }} onClick={() => del(Number(m.id))} title="내 메모 삭제">✕</button>}
+            {Boolean(m.mine) && <button className="tool-btn" style={{ minWidth: 24, height: 24, fontSize: 12, color: "var(--up)", flex: "0 0 auto" }} onClick={() => del(Number(m.id))} title="내 메모 삭제"><Icon name="trash" size={13} /></button>}
           </div>
         );
       })}
@@ -313,7 +312,7 @@ function MemoTab({ pk, memos, refresh }: { pk: string; memos: Record<string, unk
           {(["team", "secret"] as const).map((k) => (
             <button key={k} onClick={() => setKind(k)} style={{ border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 6,
               background: kind === k ? "#fff" : "transparent", color: kind === k ? (k === "secret" ? "var(--vacant)" : "var(--signal)") : "var(--muted)", boxShadow: kind === k ? "var(--shadow)" : "none" }}>
-              {k === "team" ? "팀 메모" : "🔒 비밀메모"}</button>
+              {k === "team" ? "팀 메모" : <><Icon name="lock" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />비밀메모</>}</button>
           ))}
         </div>
         <div style={{ display: "flex", gap: 6 }}>
@@ -321,7 +320,7 @@ function MemoTab({ pk, memos, refresh }: { pk: string; memos: Record<string, unk
             onChange={(e) => setBody(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) add(); }} />
           <button className="btn primary" style={{ flex: "0 0 auto" }} onClick={add}>저장</button>
         </div>
-        {kind === "secret" && <p style={{ color: "var(--muted)", fontSize: 11, margin: 0 }}>🔒 담당자 본인 + 대표만 · 보고서·분포 제외</p>}
+        {kind === "secret" && <p style={{ color: "var(--muted)", fontSize: 11, margin: 0 }}><Icon name="lock" size={12} style={{verticalAlign:"-2px",marginRight:3}} />담당자 본인 + 대표만 · 보고서·분포 제외</p>}
       </div>
     </div>
   );
