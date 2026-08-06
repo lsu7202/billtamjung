@@ -6,6 +6,8 @@ import { Shell } from "./Shell";
 import { refresh } from "../shared/api/client";
 import { LoginPage } from "../features/auth/LoginPage";
 import { LandingPage } from "../features/landing/LandingPage";
+import { GuidePage } from "../features/beta/GuidePage";
+import { SurveyPage } from "../features/beta/SurveyPage";
 import { OnboardingPage } from "../features/landing/OnboardingPage";
 import { SearchPage } from "../features/search/SearchPage";
 import { BuildingPage } from "../features/building/BuildingPage";
@@ -29,6 +31,8 @@ export function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/guide" element={<GuidePage />} />
+          <Route path="/survey" element={<SurveyPage />} />
           <Route path="/welcome" element={<AuthGuard><OnboardingPage /></AuthGuard>} />
           <Route element={<AuthGuard><Shell /></AuthGuard>}>
             <Route path="/search" element={<SearchPage />} />
