@@ -93,8 +93,9 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   // land_use 로딩 전(undefined)엔 막지 않음 → 로딩되면 비상업은 fair=null + nonCommercial 플래그.
   const nonCommercial = !!(b.land_use || b.main_use) && !isSaleEstTarget(b.land_use, b.main_use);
   const saleEst = num(b.sale_est);
-  const fair = nonCommercial ? null
-    : reportId == null ? (saleEst ?? pv?.fair_price ?? null) : (pv?.fair_price ?? saleEst ?? null);
+  // 라이브(요약·모달)든 스냅샷이든 오버레이(상권) 반영된 preview가 정본 — 배치(saleEst)는 로딩 중 폴백.
+  // 배치 우선이면 상권을 바꿔도 적정가가 고정되는 버그(예상수익률 등 다른 값은 preview 기준이라 불일치).
+  const fair = nonCommercial ? null : (pv?.fair_price ?? saleEst ?? null);
   const ask = pv?.ask_price ?? num(b.ask_price) ?? null;
   const rent = pv?.applied_rent ?? sub?.total_rent ?? null;
   const _floors0 = (pv?.rent_floors ?? []) as RentFloor[];

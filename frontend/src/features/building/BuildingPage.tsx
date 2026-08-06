@@ -44,7 +44,13 @@ export function BuildingPage() {
     if (typeof raw === "string") { try { setMarketArea(JSON.parse(raw)); } catch { /* 손상 시 기본 */ } }
   }, [building.data]);
   // 주변상권 변경 = 유저 오버레이로 저장(팀 공유). 그리기·이동·초기화 모두 여기로.
-  const saveArea = (a: MarketArea) => { setMarketArea(a); overlaysApi.put(pk, "market_area", JSON.stringify(a)).catch(() => {}); };
+  // 저장 후 report-comps 무효화 — 리포트 요약(ReportView)·검토모달이 같은 캐시를 봐서, 안 하면 새 상권이 새로고침 전까지 반영 안 됨.
+  const saveArea = (a: MarketArea) => {
+    setMarketArea(a);
+    overlaysApi.put(pk, "market_area", JSON.stringify(a))
+      .then(() => qc.invalidateQueries({ queryKey: ["report-comps", pk] }))
+      .catch(() => {});
+  };
   const rents = useQuery({ queryKey: ["rents", pk], queryFn: () => rentsApi.list(pk) });
   const series = useQuery({ queryKey: ["series", pk], queryFn: () => seriesApi.get(pk) });
   const listing = useQuery({ queryKey: ["listing", pk], queryFn: () => listingsApi.get(pk) });

@@ -194,12 +194,14 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
     const naver = window.naver, map = mapObj.current, rl = rulerRef.current;
     rl.setInteractive(true);
     let dragging = false;
+    const rulerUp = () => { if (dragging) { dragging = false; rl.onUp(); map.setOptions({ draggable: true }); } };
     const ls = [
       naver.maps.Event.addListener(map, "mousedown", (e: any) => { if (rl.onDown(e.coord)) { dragging = true; map.setOptions({ draggable: false }); } }),
       naver.maps.Event.addListener(map, "mousemove", (e: any) => { if (dragging) rl.onMove(e.coord); }),
-      naver.maps.Event.addListener(map, "mouseup", () => { if (dragging) { dragging = false; rl.onUp(); map.setOptions({ draggable: true }); } }),
+      naver.maps.Event.addListener(map, "mouseup", rulerUp),
     ];
-    return () => { ls.forEach((l) => naver.maps.Event.removeListener(l)); rl.setInteractive(false); map.setOptions({ draggable: true }); };
+    window.addEventListener("mouseup", rulerUp);   // 지도 밖 release에도 팬 잠금 해제
+    return () => { window.removeEventListener("mouseup", rulerUp); ls.forEach((l) => naver.maps.Event.removeListener(l)); rl.setInteractive(false); map.setOptions({ draggable: true }); };
   }, [mapReady, defining, draw]);
 
   // 주변상권 표시 + (정의 중 원이면) 중심·가장자리 핸들로 이동/크기조절
@@ -237,6 +239,12 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
       let mode: "" | "center" | "radius" = "", gdLng = 0, gdLat = 0;
       const tol = () => Math.max(40, r * 0.18);   // 잡기 허용 반경(m)
       const redraw = () => { circle.setCenter(c); circle.setRadius(r); centerH.setPosition(c); edgeH.setPosition(eastPoint(naver, c, r)); setLabel(); };
+      // 커밋 — 지도 안팎 어디서 놓아도 실행(naver mouseup은 지도 밖 release를 못 봄 → 확대 드래그가 저장 누락되던 버그)
+      const commitUp = () => {
+        if (!mode) return; mode = ""; map.setOptions({ draggable: true });
+        onArea({ kind: "circle", radius_m: Math.round(r), center: { lng: c.lng(), lat: c.lat() } });
+      };
+      window.addEventListener("mouseup", commitUp);
       listeners.push(
         naver.maps.Event.addListener(map, "mousedown", (e: any) => {
           const dC = meters(c, e.coord);
@@ -251,11 +259,10 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
           else r = Math.max(30, Math.round(meters(c, e.coord)));
           redraw();
         }),
-        naver.maps.Event.addListener(map, "mouseup", () => {
-          if (!mode) return; mode = ""; map.setOptions({ draggable: true });
-          onArea({ kind: "circle", radius_m: Math.round(r), center: { lng: c.lng(), lat: c.lat() } });
-        }),
+        naver.maps.Event.addListener(map, "mouseup", commitUp),
       );
+      const cleanupWithDom = () => { window.removeEventListener("mouseup", commitUp); cleanup(); };
+      return cleanupWithDom;
     }
     return cleanup;
   }, [mapReady, area, lat, lng, defining, draw, onArea]);
@@ -274,6 +281,13 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
     const commit = (ring: any[]) => { if (ring.length >= 3) { const r = ring.map((p: any) => [p.lng(), p.lat()]); r.push(r[0]); onArea({ kind: "polygon", geojson: { type: "Polygon", coordinates: [r] }, area_m2: areaM2(ring) }); } };
     const tolM = () => 26 * (156543.03 * Math.cos(lat * Math.PI / 180) / Math.pow(2, map.getZoom()));
     let mode: "" | "draw" | "move" = "", stroke: any[] = [], base: any[] = [], temp: any = null, ring: any[] = [], gdLng = 0, gdLat = 0, ctr: any = null;
+    const freeUp = () => {
+      if (!mode) return;
+      temp?.setMap(null); temp = null;
+      if (mode === "draw") commit([...base, ...stroke]);
+      else if (mode === "move") commit(ring);
+      mode = "";
+    };
     const ls = [
       naver.maps.Event.addListener(map, "mousedown", (e: any) => {
         const pr = polyRing();
@@ -290,14 +304,11 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
           temp?.setMap(null); temp = new naver.maps.Polygon({ map, paths: [ring], fillColor: "#3A5DA8", fillOpacity: 0.09, strokeColor: "#3A5DA8", strokeWeight: 2 });
         }
       }),
-      naver.maps.Event.addListener(map, "mouseup", () => {
-        temp?.setMap(null); temp = null;
-        if (mode === "draw") commit([...base, ...stroke]);
-        else if (mode === "move") commit(ring);
-        mode = "";
-      }),
+      naver.maps.Event.addListener(map, "mouseup", freeUp),
     ];
-    return () => { ls.forEach((l) => naver.maps.Event.removeListener(l)); temp?.setMap(null); map.setOptions({ draggable: true }); };
+    // 지도 밖 release도 커밋(원 편집과 동일한 mouseup 누락 버그 방지)
+    window.addEventListener("mouseup", freeUp);
+    return () => { window.removeEventListener("mouseup", freeUp); ls.forEach((l) => naver.maps.Event.removeListener(l)); temp?.setMap(null); map.setOptions({ draggable: true }); };
   }, [mapReady, defining, draw, onArea, lat]);
 
   const resetArea = () => onArea?.({ kind: "circle", radius_m: 500 });   // 원·폴리곤 모두 기본 원으로 초기화(삭제)

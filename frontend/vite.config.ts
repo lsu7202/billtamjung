@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        target: "http://127.0.0.1:8000",   // localhost 금지 — IPv6(::1)로 풀리면 도커(clickclip 등) 0.0.0.0:8000이 가로챔
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api/, ""),
       },

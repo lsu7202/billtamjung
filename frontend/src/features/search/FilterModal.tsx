@@ -51,7 +51,7 @@ function Slider({ f, value, onChange, unit }: { f: Field; value: SliderVal; onCh
   const useLo = both || f.handle === "left";
   const useHi = both || f.handle === "right";
   const lo = value.lo ?? min, hi = value.hi ?? max;
-  const pct = (n: number) => ((n - min) / (max - min)) * 100;
+  const pct = (n: number) => Math.max(0, Math.min(100, ((n - min) / (max - min)) * 100));   // 범위 밖 직접입력값도 레일 안에 표시
   const u = dispUnit(f, unit), d = (n: number) => toDisp(n, f, unit);
   const railRef = useRef<HTMLDivElement>(null);
   const [expand, setExpand] = useState(false);
@@ -62,7 +62,10 @@ function Slider({ f, value, onChange, unit }: { f: Field; value: SliderVal; onCh
   const setIn = (k: "lo" | "hi", raw: string) => {
     if (raw === "") { onChange({ ...value, [k]: undefined }); return; }
     const n = toStore(Number(raw), f, unit);
-    onChange({ ...value, [k]: k === "lo" ? clampLo(n) : clampHi(n) });
+    if (Number.isNaN(n)) return;
+    // 직접입력은 슬라이더 범위 밖 값도 그대로 저장 — "끝=무한" 규칙은 드래그·클릭에만.
+    // (기존엔 매매가 300억처럼 max 초과 입력이 무제한(undefined)으로 지워지는 버그)
+    onChange({ ...value, [k]: n });
   };
 
   // ④ 눈금/레일 클릭 → handle 모드대로 핸들 이동(left=하한·right=상한·dual=가까운 쪽). 끝=무한.
@@ -425,7 +428,14 @@ export function FilterModal({
             <span className="applied">적용 조건 <b>{count}</b>개</span>
             <span className="sp" />
             <button className="cancel" onClick={onClose}>취소</button>
-            <button className="apply" onClick={() => { onApply({ values, regions, filters: toFilters(values, membersQ.data ?? []), polygon: pgon }); onClose(); }}>적용</button>
+            <button className="apply" onClick={() => {
+              // 구만 고르고 동을 안 고른 경우 = 구 전체로 자동 등록 — 지역 없이 적용되면 검색이
+              // 조용히 안 돌아서(enabled 게이트) 모든 필터가 "안 먹는" 것처럼 보이는 함정 방지.
+              let regs = regions;
+              const sgg = gu ? regionsQ.data?.[gu]?.sgg_code : null;
+              if (sgg && !regions.some((r) => r.bjd_code.startsWith(sgg))) regs = [...regions, { bjd_code: sgg, label: `${gu} 전체` }];
+              onApply({ values, regions: regs, filters: toFilters(values, membersQ.data ?? []), polygon: pgon }); onClose();
+            }}>적용</button>
           </div>
         </div>
       </div>

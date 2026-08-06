@@ -20,10 +20,15 @@ type Props = { pk: string; credits?: number; onClose: () => void; onDone: (msg: 
 
 export function ReportModal({ pk, credits, onClose, onDone }: Props) {
   const nav = useNavigate();
-  const { data, isLoading } = useQuery({ queryKey: ["report-comps", pk], queryFn: () => reportsApi.comps(pk) });
+  // gcTime 0: 닫을 때 캐시 폐기 — 상권(market_area) 변경 후 재오픈 시 옛 캐시가 inited 가드에
+  // 잠겨 미리보기(적정가)가 이전 반경 기준으로 굳는 버그 방지. 열 때마다 서버 기준으로 신선하게.
+  const { data, isLoading } = useQuery({
+    queryKey: ["report-comps", pk], queryFn: () => reportsApi.comps(pk),
+    gcTime: 0, refetchOnWindowFocus: false,
+  });
   const [exclude, setExclude] = useState<Set<string>>(new Set());
   const [overrides, setOverrides] = useState<Record<string, CompFields>>({});
-  const [includeMarket, setIncludeMarket] = useState(true);
+  const [includeMarket, setIncludeMarket] = useState(false);   // 기본 OFF = 검색 핀(배치)과 동일 수익률 · ON=주변임대 적용(명시적)
   const [preview, setPreview] = useState(data?.preview ?? null);
   const [compScores, setCompScores] = useState<Record<string, number>>({});
   const [open, setOpen] = useState<string | null>(null);
