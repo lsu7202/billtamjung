@@ -105,20 +105,31 @@ async def start(provider: str, marketing: int = 0):
     return resp
 
 
+def _back(reason: str) -> RedirectResponse:
+    """소셜 흐름이 끊겼을 때 로그인 화면으로 되돌린다. 예전엔 사용자가 카카오에서 취소하면
+    code 없는 콜백이 와서 422 JSON이 그대로 노출됐다(프로덕션 로그 확인)."""
+    r = RedirectResponse(f"{settings.frontend_base}/login?err={reason}")
+    r.delete_cookie("oauth_state", path="/")
+    return r
+
+
 @router.get("/{provider}/callback")
-async def callback(provider: str, code: str = Query(...), state: str = Query(None),
+async def callback(provider: str, code: str | None = Query(default=None), state: str = Query(None),
+                   error: str | None = Query(default=None),
                    oauth_state: str | None = Cookie(default=None)):
     """code 교환 → 프로필 → 계정 매칭/생성 → refresh 쿠키 → 프론트 /search 리다이렉트."""
     p = _cfg(provider)
+    if error or not code:                       # 동의화면에서 취소·거부
+        return _back("social_cancelled")
     if not state or state != oauth_state:
-        raise HTTPException(400, "state 불일치(CSRF 방어)")
+        return _back("social_state")
     async with httpx.AsyncClient(timeout=10) as client:
         tok = await client.post(p["token"], data={
             "grant_type": "authorization_code", "client_id": p["cid"](),
             "client_secret": p["secret"](), "redirect_uri": _redirect_uri(provider), "code": code})
         access = tok.json().get("access_token")
         if not access:
-            raise HTTPException(502, "소셜 토큰 교환 실패")
+            return _back("social_failed")
         prof = await client.get(p["profile"], headers={"Authorization": f"Bearer {access}"})
         uid, email, name = _parse_profile(provider, prof.json())
 
@@ -129,9 +140,7 @@ async def callback(provider: str, code: str = Query(...), state: str = Query(Non
         if e.status_code != 403:
             raise
         # 가입 차단 중 신규 소셜 — 로그인 화면으로 사유와 함께 되돌린다(JSON 에러 노출 방지)
-        back = RedirectResponse(f"{settings.frontend_base}/login?err=signup_closed")
-        back.delete_cookie("oauth_state", path="/")
-        return back
+        return _back("signup_closed")
 
     async with tx() as conn:
         # 소셜 가입 동의 기록 — 프론트가 필수 동의 후 start 진입(개인정보=필수·마케팅=state 플래그)

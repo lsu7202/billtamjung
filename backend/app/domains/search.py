@@ -6,6 +6,7 @@ import json
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from ..core.db import pool
+from ..core.hangul import from_qwerty, looks_latin
 from ..core.deps import current_user, CurrentUser
 
 router = APIRouter(prefix="/search", tags=["search"])
@@ -68,8 +69,11 @@ _BUILDING_SUGGEST = """
 @router.get("/suggest", response_model=list[Suggestion])
 async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(current_user)):
     """통합 자동완성 — 지역(동·구) + 지하철역 + 건물주소(§3.1a 개편, 지오코딩 폴백 폐지).
-    지역·역=인메모리 캐시 즉시 매칭 / 건물=동+지번 접두(btree) 우선, 모자라면 부분일치(trgm)."""
+    지역·역=인메모리 캐시 즉시 매칭 / 건물=동+지번 접두(btree) 우선, 모자라면 부분일치(trgm).
+    한/영 전환을 잊고 친 입력은 자판을 되돌려 검색한다(로그에 EHSDMLEHD=돈의동 실사례)."""
     norm = q.replace(" ", "")
+    if looks_latin(norm):
+        norm = from_qwerty(norm)
     out: list[Suggestion] = []
 
     regions, stations = await _suggest_refs()

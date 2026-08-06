@@ -3,12 +3,25 @@ import { useAuth } from "../store/auth";
 
 const BASE = "/api";
 
+// 토큰이 만료되면 화면의 여러 쿼리가 동시에 401을 받는다(로그: 401 10여 건이 한 번에).
+// 각자 refresh를 부르면 같은 요청이 그 수만큼 나가므로, 진행 중인 것 하나를 공유한다.
+let inflight: Promise<string | null> | null = null;
+
 export async function refresh(): Promise<string | null> {
-  const r = await fetch(`${BASE}/auth/refresh`, { method: "POST", credentials: "include" });
-  if (!r.ok) return null;
-  const j = await r.json();
-  useAuth.getState().setAuth(j.access_token, j.tier);
-  return j.access_token as string;
+  if (inflight) return inflight;
+  inflight = (async () => {
+    try {
+      const r = await fetch(`${BASE}/auth/refresh`, { method: "POST", credentials: "include" });
+      if (!r.ok) return null;
+      const j = await r.json();
+      useAuth.getState().setAuth(j.access_token, j.tier);
+      return j.access_token as string;
+    } finally {
+      // 다음 만료 때 다시 시도할 수 있게 비운다(마이크로태스크 뒤 — 동시 호출자는 위에서 공유)
+      setTimeout(() => { inflight = null; }, 0);
+    }
+  })();
+  return inflight;
 }
 
 export async function api<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {

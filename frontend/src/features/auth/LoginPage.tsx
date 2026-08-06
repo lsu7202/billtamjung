@@ -47,8 +47,13 @@ export function LoginPage() {
     authApi.publicConfig()
       .then((c) => { if (!c.signups_open) { setSignupsOpen(false); setTab("login"); } })
       .catch(() => {});
-    if (new URLSearchParams(loc.search).get("err") === "signup_closed")
-      setErr("관리자만 이용 가능합니다.");
+    const e = new URLSearchParams(loc.search).get("err");
+    if (e) setErr({
+      signup_closed: "관리자만 이용 가능합니다.",
+      social_cancelled: "소셜 로그인이 취소되었습니다.",
+      social_state: "로그인 요청이 만료되었습니다. 다시 시도해 주세요.",
+      social_failed: "소셜 로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+    }[e] ?? null);
   }, [loc.search]);
 
   const on = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
