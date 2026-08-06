@@ -35,9 +35,10 @@ const SECTIONS: Sec[] = [
       { t: "조건 지정하는 법", img: "12-조건팝오버.png",
         steps: [
           "지역을 먼저 정합니다 — 시/군/구를 고르면 구 전체, 법정동을 추가하면 동 단위(여러 개 가능).",
-          "왼쪽 카테고리에서 조건 칩을 누릅니다(숫자 배지 = 그 카테고리에 걸린 조건 수).",
+          "왼쪽에서 카테고리를 고릅니다(옆 숫자 = 그 카테고리에 걸린 조건 수).",
+          "조건 칩을 누릅니다 — 예: 건물정보 › 사용승인일.",
           "슬라이더를 끌거나, 숫자를 직접 입력하거나, 프리셋 버튼을 누릅니다(신축 5년↓ / 준신축 10년↓ / 구옥 20년↑).",
-          "지정한 조건은 위쪽 「적용된 조건」 줄에 칩으로 쌓입니다 — × 로 개별 해제, 「전체 초기화」로 모두 해제.",
+          "지정한 조건이 「적용된 조건」 줄에 칩으로 쌓입니다 — × 로 개별 해제, 「전체 초기화」로 모두 해제.",
           "하단 「적용」을 누르면 결과가 갱신됩니다.",
         ],
         note: { t: "슬라이더 범위 밖의 값", d: "숫자를 직접 입력하면 그대로 적용됩니다 — 매매가 800억, 연면적 5,000평 모두 가능. 한쪽만 채우면 '이상'·'이하' 단방향 조건이 됩니다." } },
@@ -210,11 +211,7 @@ function Section({ sec, onZoom }: { sec: Sec; onZoom: (img: string) => void }) {
           {sec.slides.map((s, k) => (
             <article className="gslide" key={k}>
               <h3>{s.t}</h3>
-              {s.img && (
-                <button className="gshot" onClick={() => onZoom(s.img!)} aria-label={`${s.t} 화면 크게 보기`}>
-                  <img src={`/beta/img/${s.img}`} alt={s.t} loading="lazy" />
-                </button>
-              )}
+              {s.img && <Shot img={s.img} onZoom={onZoom} />}
               {s.steps && <ol className="gsteps">{s.steps.map((t) => <li key={t}>{t}</li>)}</ol>}
               {s.rows && (
                 <dl className="grows">
@@ -241,6 +238,31 @@ function Section({ sec, onZoom }: { sec: Sec; onZoom: (img: string) => void }) {
         )}
       </div>
     </section>
+  );
+}
+
+type Ann = { n: number; x: number; y: number; w: number; h: number; label: string };
+
+/* 캡처 위 번호 박스 — annotations.json(1440×900 기준 %) */
+function Shot({ img, onZoom }: { img: string; onZoom: (i: string) => void }) {
+  const [ann, setAnn] = useState<Ann[]>([]);
+  useEffect(() => {
+    let alive = true;
+    fetch("/beta/annotations.json").then((r) => r.json())
+      .then((j) => { if (alive) setAnn(j[img] ?? []); }).catch(() => {});
+    return () => { alive = false; };
+  }, [img]);
+  return (
+    <button className="gshot" onClick={() => onZoom(img)} aria-label="화면 크게 보기">
+      <span className="gshot-in">
+        <img src={`/beta/img/${img}`} alt="" loading="lazy" />
+        {ann.map((a) => (
+          <span key={a.n} className="gmk" style={{ left: `${a.x}%`, top: `${a.y}%`, width: `${a.w}%`, height: `${a.h}%` }}>
+            <span className="gmk-b">{a.n}</span>
+          </span>
+        ))}
+      </span>
+    </button>
   );
 }
 

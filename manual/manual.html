@@ -33,6 +33,15 @@ b{ font-weight:750; }
 .k{ font-weight:750; background:var(--soft); border:1px solid var(--line); border-radius:1mm; padding:.2mm 1.4mm; font-size:9pt; }
 .shot{ width:100%; max-height:84mm; object-fit:contain; object-position:top; border:1px solid var(--line);
   border-radius:2mm; display:block; margin:2mm 0 1.2mm; background:#fff; }
+.figure{ position:relative; display:block; margin:2mm auto 1.2mm; aspect-ratio:1440/900;
+  max-width:100%; border:1px solid var(--line); border-radius:2mm; overflow:hidden; background:#fff; }
+.figure img{ margin:0 !important; width:100%; height:100%; object-fit:fill; border:0 !important;
+  border-radius:0 !important; max-height:none !important; display:block; }
+.mk{ position:absolute; box-sizing:border-box; border:1.4pt solid var(--terra); border-radius:1mm;
+  background:rgba(194,87,28,.055); }
+.mk .b{ position:absolute; left:-2.6mm; top:-2.6mm; width:5.2mm; height:5.2mm; border-radius:50%;
+  background:var(--terra); color:#fff; font-size:8pt; font-weight:800; display:flex;
+  align-items:center; justify-content:center; line-height:1; }
 .cap{ font-size:8.5pt; color:var(--muted); margin:0 0 3mm; }
 .cap b{ color:var(--terra); font-weight:800; }
 table{ border-collapse:collapse; width:100%; font-size:9pt; margin:1.5mm 0 3mm; }
@@ -72,7 +81,8 @@ ol.how li::before{ content:counter(s); position:absolute; left:0; top:.4mm; widt
 <!-- 1 검색 -->
 <section class="page">
   <div class="ph"><span class="no">01</span><h2>주소로 찾기</h2><span class="cap">매물 검색</span></div>
-  <img class="shot" style="max-height:68mm" src="img/01-검색.png" alt="검색 자동완성">
+  <span class="figure" style="height:68mm"><img class="shot" style="max-height:68mm" src="img/01-검색.png" alt="검색 자동완성"><span class="mk" style="left:3.9%;top:8.9%;width:27.0%;height:3.4%"><span class="b">1</span></span><span class="mk" style="left:3.3%;top:14.4%;width:25.5%;height:3.0%"><span class="b">2</span></span></span>
+  <p class="cap"><b>①</b> 검색어 입력 &nbsp; <b>②</b> 자동완성에서 선택</p>
   <ol class="how">
     <li>상단 검색창에 <b>주소 · 건물명 · 역 이름</b>을 입력합니다. 띄어쓰기는 없어도 되고, 지번 일부만 쳐도 됩니다(예: <span class="k">신사동 561</span>).</li>
     <li>자동완성 목록에서 항목을 고릅니다. <b>건물</b>을 고르면 지도가 그 위치로 이동하며 왼쪽에 요약 카드가, <b>지역·역</b>을 고르면 지도만 이동합니다.</li>
@@ -98,17 +108,18 @@ ol.how li::before{ content:counter(s); position:absolute; left:0; top:.4mm; widt
 <!-- 2 필터 -->
 <section class="page">
   <div class="ph"><span class="no">02</span><h2>조건으로 발굴하기</h2><span class="cap">상세검색 필터</span></div>
-  <img class="shot" style="max-height:76mm" src="img/12-조건팝오버.png" alt="상세검색 필터 화면">
-  <p class="cap">왼쪽은 <b>카테고리</b>(숫자 = 그 카테고리에 걸린 조건 수), 오른쪽은 <b>조건 칩</b>. 칩을 누르면 입력창이 뜹니다.</p>
+  <span class="figure" style="height:76mm"><img class="shot" style="max-height:76mm" src="img/12-조건팝오버.png" alt="상세검색 필터 화면"><span class="mk" style="left:20.14%;top:13.89%;width:59.72%;height:9.28%"><span class="b">1</span></span><span class="mk" style="left:20.21%;top:40.17%;width:10.83%;height:36.89%"><span class="b">2</span></span><span class="mk" style="left:32.29%;top:48.72%;width:46.25%;height:4.02%"><span class="b">3</span></span><span class="mk" style="left:70.26%;top:53.41%;width:23.61%;height:18.67%"><span class="b">4</span></span><span class="mk" style="left:20.14%;top:29.61%;width:59.72%;height:5.56%"><span class="b">5</span></span><span class="mk" style="left:18.75%;top:78.94%;width:62.5%;height:7.44%"><span class="b">6</span></span></span>
+  <p class="cap">화면의 번호가 아래 순서와 같습니다.</p>
 
   <ol class="how">
-    <li><b>지역을 먼저 정합니다.</b> 상단에서 <span class="k">시/군/구</span>를 고르면 그 구 전체가 대상이 되고,
-      <span class="k">법정동</span>을 추가로 고르면 동 단위로 좁혀집니다. 동은 여러 개 선택할 수 있습니다.</li>
-    <li><b>조건 칩을 누릅니다.</b> 카테고리에서 원하는 항목(예: 건물정보 › 사용승인일)을 클릭.</li>
+    <li><b>지역을 먼저 정합니다.</b> <span class="k">시/군/구</span>를 고르면 그 구 전체가 대상이 되고,
+      <span class="k">법정동</span>을 추가로 고르면 동 단위로 좁혀집니다(여러 개 가능).</li>
+    <li><b>카테고리를 고릅니다.</b> 왼쪽 목록에서 분야를 선택 — 항목 옆 숫자는 그 카테고리에 걸린 조건 수입니다.</li>
+    <li><b>조건 칩을 누릅니다.</b> 예: 건물정보 › <span class="k">사용승인일</span>.</li>
     <li><b>값을 넣습니다.</b> 슬라이더를 끌거나, 숫자를 직접 입력하거나, 아래 <b>프리셋 버튼</b>을 누릅니다
-      (사용승인일이면 <span class="k">신축 5년↓</span> <span class="k">준신축 10년↓</span> <span class="k">구옥 20년↑</span>).</li>
-    <li>지정한 조건은 위쪽 <b>적용된 조건</b> 줄에 칩으로 쌓입니다. 칩의 <span class="k">×</span>로 개별 해제,
-      하단 <span class="k">전체 초기화</span>로 모두 해제.</li>
+      (<span class="k">신축 5년↓</span> <span class="k">준신축 10년↓</span> <span class="k">구옥 20년↑</span>).</li>
+    <li>지정한 조건이 <b>적용된 조건</b> 줄에 칩으로 쌓입니다. 칩의 <span class="k">×</span>로 개별 해제,
+      <span class="k">전체 초기화</span>로 모두 해제.</li>
     <li>하단 <span class="k">적용</span>을 누르면 결과가 갱신됩니다.</li>
   </ol>
 
@@ -123,7 +134,8 @@ ol.how li::before{ content:counter(s); position:absolute; left:0; top:.4mm; widt
 
 <section class="page">
   <div class="ph"><span class="no">02</span><h2>조건으로 발굴하기 <span style="font-weight:400;color:var(--muted);font-size:10.5pt">— 카테고리별 조건</span></h2></div>
-  <img class="shot" style="max-height:58mm" src="img/11-필터카테고리.png" alt="카테고리별 조건 칩">
+  <span class="figure" style="height:58mm"><img class="shot" style="max-height:58mm" src="img/11-필터카테고리.png" alt="카테고리별 조건 칩"><span class="mk" style="left:20.21%;top:40.17%;width:10.83%;height:36.89%"><span class="b">1</span></span><span class="mk" style="left:32.29%;top:48.72%;width:46.25%;height:4.02%"><span class="b">2</span></span><span class="mk" style="left:32.29%;top:57.69%;width:46.25%;height:14.07%"><span class="b">3</span></span><span class="mk" style="left:20.14%;top:24.28%;width:59.72%;height:3.78%"><span class="b">4</span></span></span>
+  <p class="cap"><b>①</b> 카테고리 목록 &nbsp; <b>②</b> 대표조건(자주 쓰는 것) &nbsp; <b>③</b> 세부조건 &nbsp; <b>④</b> 지도에서 영역 그리기</p>
 
   <table>
     <tr><th style="width:20%">카테고리</th><th>주요 조건</th></tr>
@@ -157,8 +169,8 @@ ol.how li::before{ content:counter(s); position:absolute; left:0; top:.4mm; widt
   <div class="ph"><span class="no">03</span><h2>지도에 영역 그리기</h2><span class="cap">행정경계 밖의 범위</span></div>
   <p>대로 하나를 사이에 둔 두 블록, 역세권 안쪽만 — 행정동으로 자를 수 없는 범위를 직접 그립니다.
   그린 영역은 <b>지역 선택을 대체</b>하며 다른 조건과 함께 적용됩니다.</p>
-  <img class="shot" style="max-height:72mm" src="img/13-그리기도구.png" alt="영역 그리기 결과">
-  <p class="cap">그린 영역이 파란 폴리곤으로 표시되고 상단에 <b>그린 영역</b> 칩이 생깁니다. 결과는 그 안쪽만 남습니다.</p>
+  <span class="figure" style="height:72mm"><img class="shot" style="max-height:72mm" src="img/13-그리기도구.png" alt="영역 그리기 결과"><span class="mk" style="left:25.2%;top:95.0%;width:18.0%;height:4.4%"><span class="b">1</span></span><span class="mk" style="left:50.0%;top:39.0%;width:25.0%;height:36.0%"><span class="b">2</span></span><span class="mk" style="left:7.9%;top:13.9%;width:7.6%;height:3.6%"><span class="b">3</span></span></span>
+  <p class="cap"><b>①</b> 그리기 도구 줄 &nbsp; <b>②</b> 그린 영역 &nbsp; <b>③</b> 「그린 영역」 칩 — 결과는 그 안쪽만 남습니다.</p>
 
   <table>
     <tr><th style="width:24%">도구</th><th>사용법</th></tr>
@@ -182,9 +194,8 @@ ol.how li::before{ content:counter(s); position:absolute; left:0; top:.4mm; widt
 <!-- 4 상세 -->
 <section class="page">
   <div class="ph"><span class="no">04</span><h2>매물 상세 읽기</h2><span class="cap">리포트 요약</span></div>
-  <img class="shot" style="max-height:66mm" src="img/02-리포트요약.png" alt="매물 상세 리포트 요약">
-  <p class="cap">상단 <b>표시 범위</b>에서 <span class="k">리포트 요약</span> <span class="k">전체</span> <span class="k">매물</span>
-  <span class="k">건물·토지</span>를 골라 보고 싶은 만큼만 표시합니다.</p>
+  <span class="figure" style="height:66mm"><img class="shot" style="max-height:66mm" src="img/02-리포트요약.png" alt="매물 상세 리포트 요약"><span class="mk" style="left:0.5%;top:7.5%;width:88.0%;height:6.0%"><span class="b">1</span></span><span class="mk" style="left:3.4%;top:71.2%;width:21.0%;height:4.4%"><span class="b">2</span></span><span class="mk" style="left:89.5%;top:8.8%;width:9.4%;height:4.4%"><span class="b">3</span></span><span class="mk" style="left:62.5%;top:17.5%;width:13.5%;height:4.4%"><span class="b">4</span></span></span>
+  <p class="cap"><b>①</b> 핵심 지표(매매가·수익률·평단가·면적·층수) &nbsp; <b>②</b> 표시 범위 전환 &nbsp; <b>③</b> 리포트 만들기 &nbsp; <b>④</b> 주변 상권 정의</p>
 
   <table>
     <tr><th style="width:22%">항목</th><th>읽는 법</th></tr>
@@ -217,8 +228,8 @@ ol.how li::before{ content:counter(s); position:absolute; left:0; top:.4mm; widt
   고친 값은 <b>적정가·평단가·수익률 계산에도 즉시 반영</b>됩니다.</div>
 
   <h3>층별 임대 입력 — 수익률을 실측으로</h3>
-  <img class="shot" style="max-height:58mm" src="img/15-층별임대.png" alt="층별 임대정보">
-  <p class="cap">층을 클릭하면 호실이 펼쳐집니다. 층 행의 값은 그 층 호실들의 합계입니다.</p>
+  <span class="figure" style="height:58mm"><img class="shot" style="max-height:58mm" src="img/15-층별임대.png" alt="층별 임대정보"><span class="mk" style="left:0.5%;top:59.0%;width:30.0%;height:4.4%"><span class="b">1</span></span><span class="mk" style="left:12.0%;top:63.5%;width:34.0%;height:9.5%"><span class="b">2</span></span><span class="mk" style="left:46.0%;top:63.5%;width:20.0%;height:9.5%"><span class="b">3</span></span><span class="mk" style="left:66.0%;top:63.5%;width:9.0%;height:9.5%"><span class="b">4</span></span></span>
+  <p class="cap"><b>①</b> 층 클릭 → 호실 펼침 &nbsp; <b>②</b> 호실별 면적 &nbsp; <b>③</b> 보증금·임대료 입력 &nbsp; <b>④</b> 상태(공실 지정)</p>
   <ol class="how">
     <li>대장 기준 층·호실이 미리 채워져 있고, 보증금·임대료에는 <b>추정치</b>가 들어가 있습니다.</li>
     <li>실제 계약을 아는 호실은 <b>보증금 · 임대료 · 관리비 · 전용/계약 면적</b>을 직접 입력합니다.</li>
@@ -234,7 +245,8 @@ ol.how li::before{ content:counter(s); position:absolute; left:0; top:.4mm; widt
   <div class="ph"><span class="no">06</span><h2>주변 상권 정하기</h2><span class="cap">비교 기준 설정</span></div>
   <p>적정가와 주변시세는 <b>"주변"의 범위</b>로 달라집니다. 기본은 반경 500m이며, 직접 그리면 그 범위로 다시 계산됩니다.
   설정은 <b>팀 전체에 공유</b>되고 이후 만드는 리포트에도 적용됩니다.</p>
-  <img class="shot" style="max-height:68mm" src="img/03-상권정의.png" alt="주변 상권 정의">
+  <span class="figure" style="height:68mm"><img class="shot" style="max-height:68mm" src="img/03-상권정의.png" alt="주변 상권 정의"><span class="mk" style="left:44.0%;top:42.0%;width:12.0%;height:16.0%"><span class="b">1</span></span><span class="mk" style="left:60.0%;top:48.0%;width:8.0%;height:10.0%"><span class="b">2</span></span><span class="mk" style="left:43.1%;top:90.44%;width:13.79%;height:3.11%"><span class="b">3</span></span><span class="mk" style="left:95.0%;top:1.0%;width:4.4%;height:4.0%"><span class="b">4</span></span></span>
+  <p class="cap"><b>①</b> 중심 점 = 위치 이동 &nbsp; <b>②</b> 가장자리 = 반경 조절 &nbsp; <b>③</b> 반경·면적 실시간 표시 &nbsp; <b>④</b> 완료</p>
   <ol class="how">
     <li>지도 우측 상단 <span class="k">주변상권 정의하기</span>를 누릅니다(지도가 전체화면으로 커집니다).</li>
     <li><b>원 가장자리를 끌면 반경</b>이, <b>가운데 점을 끌면 위치</b>가 바뀝니다. 하단에 반경·면적이 실시간 표시됩니다.</li>
@@ -255,9 +267,8 @@ ol.how li::before{ content:counter(s); position:absolute; left:0; top:.4mm; widt
 <section class="page">
   <div class="ph"><span class="no">07</span><h2>리포트 만들기</h2><span class="cap">검토 → 생성</span></div>
   <p>생성 전에 <b>근거 사례를 직접 검토</b>합니다. 여기서 조정한 내용이 리포트의 적정가에 그대로 반영됩니다.</p>
-  <img class="shot" style="max-height:68mm" src="img/06-검토.png" alt="분석 검토 화면">
-  <p class="cap">상세 화면 우측 상단 <span class="k">매물 분석하기 (30)</span> → 검토 화면.
-  왼쪽은 주변 실거래 사례, 오른쪽 위는 <b>실시간 산출 미리보기</b>(적정가·수익률).</p>
+  <span class="figure" style="height:68mm"><img class="shot" style="max-height:68mm" src="img/06-검토.png" alt="분석 검토 화면"><span class="mk" style="left:15.21%;top:43.22%;width:48.89%;height:42.0%"><span class="b">1</span></span><span class="mk" style="left:15.21%;top:43.22%;width:48.89%;height:4.11%"><span class="b">2</span></span><span class="mk" style="left:65.42%;top:38.33%;width:19.44%;height:31.22%"><span class="b">3</span></span><span class="mk" style="left:74.95%;top:92.6%;width:9.91%;height:4.4%"><span class="b">4</span></span></span>
+  <p class="cap"><b>①</b> 사례 목록(체크 해제 = 제외) &nbsp; <b>②</b> 행 클릭 → 그 사례 정보 편집 &nbsp; <b>③</b> 실시간 적정가·수익률 &nbsp; <b>④</b> 생성 확정</p>
 
   <ol class="how">
     <li><b>사례를 고릅니다.</b> 체크를 해제하면 그 거래가 계산에서 빠집니다. <b>이상치</b> 표시가 붙은 사례는 처음부터 해제되어 있습니다.</li>
