@@ -26,14 +26,14 @@ _suggest_cache: dict = {}
 
 
 async def _suggest_refs() -> tuple[list, list]:
+    """지역·역 참조 목록. 지역은 미리 집계한 master.region_index(0028)에서 읽는다.
+    예전엔 요청 스레드가 buildings 전수 GROUP BY(실측 6.9s)를 직접 돌려서 인스턴스가 새로
+    뜰 때마다 첫 사용자가 그 비용을 다 물었다."""
     ver = await pool().fetchval("SELECT version FROM master.master_version")
     if ver in _suggest_cache:
         return _suggest_cache[ver]
     regions = [dict(r) for r in await pool().fetch(
-        """SELECT split_part(addr,' ',2) AS gu, split_part(addr,' ',3) AS dong, bjd_code,
-                  avg(ST_X(geom)) AS lng, avg(ST_Y(geom)) AS lat, count(*) AS cnt
-           FROM master.buildings WHERE bjd_code IS NOT NULL
-           GROUP BY 1,2,3""")]
+        "SELECT gu, dong, bjd_code, lng, lat, cnt FROM master.region_index")]
     gus: dict[str, dict] = {}          # 구 단위(동 평균의 평균)
     for r in regions:
         g = gus.setdefault(r["gu"], {"gu": r["gu"], "lng": 0.0, "lat": 0.0, "cnt": 0, "n": 0})
@@ -48,10 +48,26 @@ async def _suggest_refs() -> tuple[list, list]:
     return _suggest_cache[ver]
 
 
+# 건물 후보 — 접두/부분일치 공통 부분(팀 매물 여부·표시가격 조인)
+_BUILDING_SUGGEST = """
+    SELECT b.building_pk, b.addr, ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat,
+           (l.assignee_account_id IS NOT NULL) AS is_mine,
+           COALESCE(so.value::bigint, se.sale_est) AS price
+      FROM ({cand}) b
+      LEFT JOIN app.listings l
+        ON l.building_pk = b.building_pk AND l.team_id = $2 AND l.assignee_account_id IS NOT NULL
+      LEFT JOIN app.overlays so
+        ON so.target_id = b.building_pk AND so.team_id = $2 AND so.target_type = 'building'
+           AND so.field = 'sale_price' AND so.value ~ '^[0-9]+$'
+      LEFT JOIN master.building_sale_est se ON se.building_pk = b.building_pk
+     ORDER BY (l.assignee_account_id IS NOT NULL) DESC, length(b.addr), b.addr
+     LIMIT $3
+"""
+
 @router.get("/suggest", response_model=list[Suggestion])
 async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(current_user)):
     """통합 자동완성 — 지역(동·구) + 지하철역 + 건물주소(§3.1a 개편, 지오코딩 폴백 폐지).
-    지역·역=인메모리 캐시 즉시 매칭 / 건물=접두(jibun_norm 인덱스)+부분일치(addr trgm 인덱스)."""
+    지역·역=인메모리 캐시 즉시 매칭 / 건물=동+지번 접두(btree) 우선, 모자라면 부분일치(trgm)."""
     norm = q.replace(" ", "")
     out: list[Suggestion] = []
 
@@ -73,33 +89,40 @@ async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(curr
     for s in st_hits[:2]:
         out.append(Suggestion(kind="station", addr=f"{s['name']}역", lng=s["lng"], lat=s["lat"], sub=s["routes"]))
 
-    # 건물: 후보를 서브쿼리에서 먼저 LIMIT(트라이그램 인덱스, 정렬 없음 → 조기 종료) 후
-    # 소수 후보만 조인·정렬 — '강남' 같은 광역 매칭(2만+행) 전체 정렬을 회피(§3.1a 속도).
-    # enable_seqscan=off(트랜잭션 로컬): 플래너가 seq+LIMIT을 고르면 매칭 위치에 따라 0.01~5s로
-    # 널뜀(실측) → trgm GIN 강제로 균일하게 <50ms.
-    async with pool().acquire() as _conn, _conn.transaction():
-        await _conn.execute("SET LOCAL enable_seqscan = off")
-        rows = await _conn.fetch(
-        """SELECT b.building_pk, b.addr, ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat,
-                  (l.assignee_account_id IS NOT NULL) AS is_mine,
-                  COALESCE(so.value::bigint, se.sale_est) AS price, b.pri
-           FROM (
-             SELECT building_pk, addr, geom, (jibun_norm NOT LIKE $1 || '%')::int AS pri
-             FROM master.buildings
-             WHERE jibun_norm LIKE '%' || $1 || '%' LIMIT 15
-           ) b
-           LEFT JOIN app.listings l
-             ON l.building_pk = b.building_pk AND l.team_id = $2 AND l.assignee_account_id IS NOT NULL
-           LEFT JOIN app.overlays so
-             ON so.target_id = b.building_pk AND so.team_id = $2 AND so.target_type = 'building'
-                AND so.field = 'sale_price' AND so.value ~ '^[0-9]+$'
-           LEFT JOIN master.building_sale_est se ON se.building_pk = b.building_pk
-           ORDER BY b.pri, (l.assignee_account_id IS NOT NULL) DESC, b.addr
-           LIMIT $3""",
-        norm, user.team_id, 7 - len(out),
-    )
+    need = 7 - len(out)
+    seen: set[str] = set()
+    rows: list = []
+
+    # ① 동+지번 접두(0028 인덱스) — 사용자는 '역삼동619'처럼 동부터 친다. 2~4ms.
+    #    jibun_norm은 '강남구역삼동619-16'처럼 구를 포함해서 접두가 맞지 않았다(예전 pri 로직이 죽어 있던 이유).
+    if need > 0:
+        async with pool().acquire() as _conn, _conn.transaction():
+            # 비트맵 스캔은 인덱스 순서를 잃어 후보 전체를 모아 정렬한다(1글자 179ms).
+            # 정렬된 인덱스 스캔을 강제하면 LIMIT에서 조기 종료된다.
+            await _conn.execute("SET LOCAL enable_bitmapscan = off")
+            rows = list(await _conn.fetch(
+                _BUILDING_SUGGEST.format(cand="""
+                    SELECT building_pk, addr, geom FROM master.buildings
+                     WHERE master.dong_jibun(addr) LIKE $1 || '%'
+                     ORDER BY master.dong_jibun(addr) LIMIT 60"""),
+                norm, user.team_id, need))
+        seen = {r["building_pk"] for r in rows}
+
+    # ② 접두로 모자라면 부분일치(trgm). 2글자 이하는 trigram 선택도가 없어 190~270ms가 나오므로
+    #    건너뛴다 — 그 길이에선 위 지역·역·접두 결과가 이미 더 쓸모 있다.
+    if len(rows) < need and len(norm) >= 3:
+        async with pool().acquire() as _conn, _conn.transaction():
+            # 플래너가 seq+LIMIT을 고르면 매칭 위치에 따라 0.01~5s로 널뜀(실측) → GIN 강제
+            await _conn.execute("SET LOCAL enable_seqscan = off")
+            extra = await _conn.fetch(
+                _BUILDING_SUGGEST.format(cand="""
+                    SELECT building_pk, addr, geom FROM master.buildings
+                     WHERE jibun_norm LIKE '%' || $1 || '%' LIMIT 30"""),
+                norm, user.team_id, need)
+        rows += [r for r in extra if r["building_pk"] not in seen]
+
     out += [Suggestion(kind="building", building_pk=r["building_pk"], addr=r["addr"], lng=r["lng"],
-                       lat=r["lat"], is_mine=r["is_mine"], price=r["price"]) for r in rows]
+                       lat=r["lat"], is_mine=r["is_mine"], price=r["price"]) for r in rows[:need]]
     return out
 
 
@@ -108,18 +131,13 @@ _regions_cache: dict = {}   # master_version 키 캐시(적재 시에만 변함)
 
 @router.get("/regions")
 async def regions(_: CurrentUser = Depends(current_user)):
-    """구·법정동 목록(3단 캐스케이드용). master 버전별 인메모리 캐시."""
+    """구·법정동 목록(3단 캐스케이드용). 미리 집계한 master.region_index(0028) + 버전별 인메모리 캐시.
+    예전엔 buildings 전수 GROUP BY라 인스턴스별 첫 호출이 9.1s였다(필터 모달 여는 순간)."""
     ver = await pool().fetchval("SELECT version FROM master.master_version")
     if ver in _regions_cache:
         return _regions_cache[ver]
     rows = await pool().fetch(
-        """SELECT sgg_code, bjd_code,
-                  split_part(addr,' ',2) AS gu, split_part(addr,' ',3) AS dong,
-                  count(*) AS cnt
-           FROM master.buildings
-           WHERE sgg_code IS NOT NULL AND bjd_code IS NOT NULL
-           GROUP BY 1,2,3,4 ORDER BY 3,4"""
-    )
+        "SELECT sgg_code, bjd_code, gu, dong, cnt FROM master.region_index ORDER BY gu, dong")
     out: dict[str, dict] = {}
     for r in rows:
         gu = out.setdefault(r["gu"], {"sgg_code": r["sgg_code"], "dongs": []})

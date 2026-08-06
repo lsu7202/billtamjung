@@ -235,6 +235,15 @@ async def main() -> int:
             )
         print(f"✅ 적재 성공: {table} v{cur_version}→v{next_v} ({rows_new}행) — 기존 보고서는 '데이터 변경됨' 전환")
 
+        # 4-b) 지역 집계 MV 갱신(0028) — 자동완성·필터 지역목록이 이걸 읽는다.
+        # 스왑 후에 돌려야 새 데이터가 반영된다. CONCURRENTLY라 조회를 막지 않는다.
+        if args.source == "buildings":
+            try:
+                await conn.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY master.region_index")
+                print("  · master.region_index 갱신")
+            except Exception as e:      # MV 미생성(마이그레이션 전) 등 — 적재 자체는 성공 처리
+                print(f"  ⚠️ region_index 갱신 실패(무시): {e}")
+
         # 5) 직전-1 세대 정리(1세대 보존, §2.6)
         if cur_version >= 2:
             await conn.execute(f"DROP TABLE IF EXISTS master.{table}_v{cur_version - 1}")
