@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { authApi } from "../../shared/api/endpoints";
-import { CityCanvas } from "../auth/LoginPage";
+import { CityCanvas } from "./CityCanvas";
 import "../auth/login.css";
 import "./landing.css";
 import "./onboarding.css";

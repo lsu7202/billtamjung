@@ -38,3 +38,45 @@
   .s00 * { animation-duration: .01ms !important; animation-delay: 0s !important; }
   .s00-scan { display: none; }
 }
+
+/* ══ S00 v3 — C3 확정안: 좌 테라코타 시그니처 패널 · 우 호버 필지 도면 ══ */
+.lg { min-height: 100vh; display: grid; grid-template-columns: .9fr 1.1fr; background: #FBFAF7; }
+.lg-left { background: linear-gradient(168deg, #C2571C 0%, #B04C15 100%); color: #fff;
+  display: flex; align-items: center; justify-content: center; padding: 40px; }
+.lg-form { width: min(360px, 100%); }
+.lg-word { font-size: 26px; font-weight: 800; letter-spacing: -.03em; margin-bottom: 8px; }
+.lg-word i { font-style: normal; color: var(--gold); }
+.lg-tag { font-size: 13px; color: #F3D9C8; margin-bottom: 26px; }
+/* 탭(bt-tabs 테라 오버라이드) */
+.lg-left .bt-tabs { border-bottom-color: rgba(255,255,255,.28); }
+.lg-left .bt-tabs button { color: rgba(255,255,255,.62); }
+.lg-left .bt-tabs button.on { color: #fff; }
+.lg-left .bt-tabs button:not(.on):hover { color: rgba(255,255,255,.85); }
+.lg-left .bt-tabs-ink { background: var(--gold); }
+/* 입력·버튼 */
+.lg-left .input { border-color: transparent; background: #fff; }
+.lg-left .input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(231,200,118,.32); }
+.lg-cta { width: 100%; border: 0; border-radius: 7px; background: var(--ink); color: #fff;
+  padding: 13px; font-size: 14.5px; font-weight: 800; cursor: pointer; margin-top: 8px; transition: background .15s; }
+.lg-cta:hover { background: #000; }
+.lg-cta:disabled { opacity: .55; cursor: default; }
+.lg-aux { color: #F3D9C8; }
+.lg-aux a, .lg-gold { color: var(--gold); font-weight: 700; cursor: pointer; }
+.lg-err { color: #FFD9C7; font-weight: 600; }
+/* 동의 박스 — 테라 위 화이트 카드 */
+.lg-consent { background: #fff; border-radius: 9px; padding: 11px 13px; margin: 10px 0 2px;
+  font-size: 13px; color: var(--ink-2); }
+.lg-consent .all { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--ink);
+  padding-bottom: 9px; border-bottom: 1px solid var(--line); margin-bottom: 8px; cursor: pointer; }
+.lg-consent .item { display: flex; align-items: center; gap: 8px; padding: 3.5px 0; cursor: pointer; }
+.lg-notice { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25); border-radius: 8px;
+  padding: 9px 12px; font-size: 12.5px; color: #fff; margin-bottom: 13px; display: flex; gap: 7px; align-items: center; }
+/* 우측 필지 도면 */
+.lg-draw { position: relative; background: #F4F1E9; border-left: 1px solid var(--line-2); overflow: hidden; }
+.lg-draw svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.lg-draw path { fill: rgba(255,255,255,0); stroke: #CEC5B2; stroke-width: 1.1;
+  transition: fill .45s ease, stroke .3s ease; cursor: crosshair; }
+.lg-draw path:hover { fill: rgba(194,87,28,.18); stroke: #C2571C; stroke-width: 2; }
+.lg-draw path.hero { fill: rgba(194,87,28,.10); stroke: #C2571C; stroke-width: 1.6; }
+.lg-draw path.hero:hover { fill: rgba(194,87,28,.26); }
+@media (max-width: 860px) { .lg { grid-template-columns: 1fr; } .lg-draw { display: none; } }

@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../shared/store/auth";
-import { CityCanvas } from "../auth/LoginPage";
+import { CityCanvas } from "./CityCanvas";
 import "../auth/login.css";
 import "./landing.css";
 
