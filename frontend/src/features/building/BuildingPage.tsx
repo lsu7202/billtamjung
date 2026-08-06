@@ -493,23 +493,29 @@ function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden, isPrefil
   const vLabel = vac == null ? "미지정" : vac ? "공실" : "임대중";
   const vColor = vac == null ? "var(--muted)" : vac ? "var(--up)" : "var(--green)";
 
+  // 빈 입력(draft) 행은 셀이 전부 비어 보여서 × 하나만 떠 있는 정체불명 행이었다.
+  // 무엇을 넣는 자리인지 흐린 글씨로 알려주고, 아무것도 안 쳤으면 지우기 버튼도 숨긴다.
+  const draftEmpty = Boolean(isDraft) && !(f.floor || f.unit_no || f.use || f.area || f.deposit || f.rent || f.maintenance);
+  const ghost = (val: string, ph: string, node?: React.ReactNode) =>
+    isDraft && !val ? <span style={{ color: "var(--muted)", fontWeight: 400 }}>{ph}</span> : (node ?? val);
+
   return (
     <tr onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{ ...(hidden ? { display: "none" } : {}), ...(isDraft ? { background: "var(--surface-2)" } : {}) }}>
-      <td><RentCell edit={f.floor} render={f.floor} ph="1F" width={46} onSave={set("floor")} /></td>
-      <td><RentCell edit={f.unit_no} render={f.unit_no} ph="101" width={46} onSave={set("unit_no")} /></td>
-      <td><RentCell edit={f.use} render={f.use} ph="용도" width={72} onSave={set("use")} /></td>
+      <td><RentCell edit={f.floor} render={ghost(f.floor, "1F")} ph="1F" width={46} onSave={set("floor")} /></td>
+      <td><RentCell edit={f.unit_no} render={ghost(f.unit_no, "101")} ph="101" width={46} onSave={set("unit_no")} /></td>
+      <td><RentCell edit={f.use} render={ghost(f.use, "용도")} ph="용도" width={72} onSave={set("use")} /></td>
       <td className="num">{r.exclusive_area != null ? (unit === "py" ? `${(r.exclusive_area / P).toFixed(1)}평` : `${r.exclusive_area}㎡`) : ""}</td>
-      <td className="num"><RentCell edit={f.area} render={dispArea} ph={unit === "py" ? "평" : "㎡"} num onSave={set("area")} /></td>
-      <td className="num"><RentCell edit={f.deposit} render={man(f.deposit)} ph="만원" num onSave={set("deposit")} /></td>
-      <td className="num"><RentCell edit={f.rent} render={man(f.rent)} ph="만원" num onSave={set("rent")} /></td>
-      <td className="num"><RentCell edit={f.maintenance} render={man(f.maintenance)} ph="만원" num onSave={set("maintenance")} /></td>
+      <td className="num"><RentCell edit={f.area} render={ghost(f.area, "면적", dispArea)} ph={unit === "py" ? "평" : "㎡"} num onSave={set("area")} /></td>
+      <td className="num"><RentCell edit={f.deposit} render={ghost(f.deposit, "보증금", man(f.deposit))} ph="만원" num onSave={set("deposit")} /></td>
+      <td className="num"><RentCell edit={f.rent} render={ghost(f.rent, "임대료", man(f.rent))} ph="만원" num onSave={set("rent")} /></td>
+      <td className="num"><RentCell edit={f.maintenance} render={ghost(f.maintenance, "관리비", man(f.maintenance))} ph="만원" num onSave={set("maintenance")} /></td>
       <td style={{ whiteSpace: "nowrap" }}>
         {!isDraft && (   // 프리필 행도 지정 가능 — 누르면 팀 행으로 전환(commit upsert). 미지정→임대중→공실 순환
           <button className="btn" style={{ padding: "2px 9px", fontSize: 12, color: vColor }}
             onClick={cycleVacancy} title="클릭 = 미지정→임대중→공실">{vLabel}</button>
         )}
-        {(isDraft || (!isPrefill && r.id != null)) && (
+        {(isDraft ? !draftEmpty : (!isPrefill && r.id != null)) && (
           <button className="btn" style={{ padding: "2px 7px", fontSize: 12, marginLeft: 6, color: "var(--up)", visibility: hover || isDraft ? "visible" : "hidden" }}
             onClick={del} title={isDraft ? "입력 지우기" : "이 행 삭제"}>×</button>
         )}
