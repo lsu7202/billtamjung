@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8">
-<title>빌탐정 베타 테스트 설문</title>
+<title>빌탐정 베타 주간 설문</title>
 <style>
 @font-face { font-family:"Pretendard"; font-weight:45 920; font-style:normal;
   src:url("../ad/remotion/public/fonts/PretendardVariable.woff2") format("woff2"); }
@@ -15,250 +15,203 @@ body{ font-family:"Pretendard",-apple-system,"Apple SD Gothic Neo",sans-serif; c
 .page:last-child{ page-break-after:auto; }
 @media print{ html,body{ background:#fff; } .page{ margin:0; } }
 
-.head{ display:flex; align-items:center; gap:5mm; border-bottom:2px solid var(--ink); padding-bottom:3mm; margin-bottom:5mm; }
-.head h1{ font-size:17pt; font-weight:800; margin:0; letter-spacing:-.02em; }
+.head{ display:flex; align-items:center; gap:5mm; border-bottom:2px solid var(--ink); padding-bottom:3mm; margin-bottom:4mm; }
+.head .wk{ font-size:8.5pt; font-weight:800; letter-spacing:.1em; color:var(--terra); }
+.head h1{ font-size:16pt; font-weight:800; margin:0; letter-spacing:-.02em; }
 .head .meta{ margin-left:auto; font-size:8.5pt; color:var(--muted); text-align:right; line-height:1.5; }
-.intro{ font-size:9.5pt; color:var(--muted); background:var(--soft); border:1px solid var(--line);
-  border-radius:2.5mm; padding:3.5mm 4.5mm; margin-bottom:5mm; }
-.sec{ font-size:8.5pt; font-weight:800; letter-spacing:.1em; color:var(--terra); margin:6mm 0 2.5mm;
-  padding-bottom:1.2mm; border-bottom:1px solid var(--line); }
-.q{ margin-bottom:4.5mm; break-inside:avoid; }
-.q .t{ font-size:10pt; font-weight:750; margin-bottom:1.8mm; }
+.aim{ font-size:9.5pt; color:var(--muted); background:var(--soft); border:1px solid var(--line);
+  border-radius:2.5mm; padding:3mm 4mm; margin-bottom:5mm; }
+.aim b{ color:var(--ink); }
+.q{ margin-bottom:5mm; }
+.q .t{ font-size:10.5pt; font-weight:750; margin-bottom:2mm; }
 .q .t .n{ color:var(--terra); margin-right:1.5mm; }
 .q .hint{ font-size:8.5pt; color:var(--muted); font-weight:400; margin-left:1.5mm; }
 .opts{ display:flex; gap:4mm; flex-wrap:wrap; font-size:9.5pt; }
 .opt{ display:flex; align-items:center; gap:1.6mm; }
 .bx{ width:3.4mm; height:3.4mm; border:1.2px solid #A79E92; border-radius:.6mm; display:inline-block; }
 .bx.r{ border-radius:50%; }
-.scale{ display:flex; align-items:center; gap:0; margin-top:1mm; }
-.scale .cell{ flex:1; text-align:center; border:1px solid var(--line); border-right:0; padding:1.8mm 0; font-size:9pt; }
+.scale{ display:flex; margin-top:1mm; }
+.scale .cell{ flex:1; text-align:center; border:1px solid var(--line); border-right:0; padding:1.6mm 0; font-size:9.5pt; font-weight:700; }
 .scale .cell:last-child{ border-right:1px solid var(--line); }
-.scale .cell .num{ font-weight:800; display:block; font-size:10pt; }
-.scale .cell .lb{ font-size:7.5pt; color:var(--muted); }
-.lines{ margin-top:1.5mm; }
 .lines div{ border-bottom:1px solid #DDD6CA; height:7mm; }
-.lines.s div{ height:6.5mm; }
 .pfoot{ position:absolute; left:16mm; right:16mm; bottom:8mm; display:flex; justify-content:space-between;
   font-size:8pt; color:#9A9186; border-top:1px solid var(--line); padding-top:2mm; }
-.thanks{ background:var(--gold-soft); border:1px solid #EADFC0; border-radius:2.5mm; padding:4mm 5mm; font-size:9.5pt; margin-top:4mm; }
-.thanks b{ color:var(--ink); }
-.grid2{ display:grid; grid-template-columns:1fr 1fr; gap:0 6mm; }
+.tail{ background:var(--gold-soft); border:1px solid #EADFC0; border-radius:2.5mm; padding:3mm 4mm; font-size:9pt; margin-top:4mm; }
 </style></head><body>
 
-<!-- ── 1p ── -->
+<!-- 1주차 -->
 <section class="page">
   <div class="head">
-    <svg width="26" height="32" viewBox="10 6.5 28 35">
+    <svg width="24" height="30" viewBox="10 6.5 28 35">
       <rect x="11.5" y="8" width="8" height="32" rx="2.6" fill="#C2571C"/>
       <rect x="28.5" y="8" width="8" height="32" rx="2.6" fill="#C2571C"/>
       <rect x="11.5" y="20.5" width="25" height="7" rx="2.6" fill="#C2571C"/>
       <rect x="11.5" y="33" width="25" height="7" rx="2.6" fill="#C2571C"/>
       <rect x="13.6" y="11.5" width="3.8" height="3.8" rx="1" fill="#E7C876"/>
     </svg>
-    <h1>베타 테스트 설문</h1>
-    <div class="meta">2026년 8월 · 소요 5~7분<br>응답일 <span style="border-bottom:1px solid #CFC7BA;display:inline-block;width:26mm"></span></div>
+    <div><div class="wk">1주차</div><h1>첫인상과 검색</h1></div>
+    <div class="meta">소요 2분<br>응답일 <span style="border-bottom:1px solid #CFC7BA;display:inline-block;width:24mm"></span></div>
   </div>
+  <div class="aim">처음 써보신 느낌과 <b>검색·필터</b>에서 막힌 지점을 알려주세요.</div>
 
-  <div class="intro">
-    빌탐정을 직접 써보신 경험을 듣고 싶습니다. <b>좋았던 점보다 불편했던 점이 훨씬 도움이 됩니다</b> —
-    잘 안 되던 것, 이해가 안 갔던 숫자, 없어서 아쉬웠던 기능을 편하게 적어주세요.
-    답변은 서비스 개선에만 쓰이며, 이름 없이 응답하셔도 됩니다.
-  </div>
-
-  <div class="sec">A · 응답자 정보</div>
-
-  <div class="q"><div class="t"><span class="n">1</span>현재 하시는 일</div>
+  <div class="q"><div class="t"><span class="n">1</span>어떤 일을 하시나요</div>
     <div class="opts">
       <span class="opt"><span class="bx r"></span>공인중개사</span>
       <span class="opt"><span class="bx r"></span>중개보조원</span>
       <span class="opt"><span class="bx r"></span>투자자·자산관리</span>
       <span class="opt"><span class="bx r"></span>개발·시행</span>
-      <span class="opt"><span class="bx r"></span>기타 <span style="border-bottom:1px solid #CFC7BA;display:inline-block;width:24mm"></span></span>
+      <span class="opt"><span class="bx r"></span>기타 <span style="border-bottom:1px solid #CFC7BA;display:inline-block;width:22mm"></span></span>
     </div></div>
 
-  <div class="q"><div class="t"><span class="n">2</span>상업용 부동산 경력</div>
+  <div class="q"><div class="t"><span class="n">2</span>처음 열었을 때 무엇을 해야 할지 알 수 있었나요</div>
     <div class="opts">
-      <span class="opt"><span class="bx r"></span>1년 미만</span>
-      <span class="opt"><span class="bx r"></span>1~3년</span>
-      <span class="opt"><span class="bx r"></span>3~7년</span>
-      <span class="opt"><span class="bx r"></span>7~15년</span>
-      <span class="opt"><span class="bx r"></span>15년 이상</span>
+      <span class="opt"><span class="bx r"></span>바로 알았다</span>
+      <span class="opt"><span class="bx r"></span>조금 헤맸다</span>
+      <span class="opt"><span class="bx r"></span>많이 헤맸다</span>
     </div></div>
 
-  <div class="q"><div class="t"><span class="n">3</span>이번 베타에서 빌탐정을 얼마나 쓰셨나요</div>
+  <div class="q"><div class="t"><span class="n">3</span>원하는 건물을 찾는 데 성공했나요</div>
     <div class="opts">
-      <span class="opt"><span class="bx r"></span>한 번 둘러봄</span>
-      <span class="opt"><span class="bx r"></span>2~3회</span>
-      <span class="opt"><span class="bx r"></span>여러 번(주 1회 이상)</span>
-      <span class="opt"><span class="bx r"></span>실제 업무에 사용</span>
+      <span class="opt"><span class="bx r"></span>쉽게 찾았다</span>
+      <span class="opt"><span class="bx r"></span>시간이 걸렸다</span>
+      <span class="opt"><span class="bx r"></span>못 찾았다</span>
     </div></div>
 
-  <div class="q"><div class="t"><span class="n">4</span>사용해본 기능 <span class="hint">해당되는 것 모두</span></div>
-    <div class="opts" style="gap:3mm 5mm">
-      <span class="opt"><span class="bx"></span>주소 검색</span>
-      <span class="opt"><span class="bx"></span>조건 필터로 발굴</span>
-      <span class="opt"><span class="bx"></span>지도에 영역 그리기</span>
-      <span class="opt"><span class="bx"></span>매물 상세 조회</span>
-      <span class="opt"><span class="bx"></span>주변 상권 정의</span>
-      <span class="opt"><span class="bx"></span>정보 수정</span>
-      <span class="opt"><span class="bx"></span>층별 임대 입력</span>
-      <span class="opt"><span class="bx"></span>사진 업로드</span>
-      <span class="opt"><span class="bx"></span>리포트 생성</span>
-      <span class="opt"><span class="bx"></span>PPT 다운로드</span>
+  <div class="q"><div class="t"><span class="n">4</span>검색·필터에서 막히거나 헷갈린 부분
+    <span class="hint">어느 화면에서 무엇을 하려다 막혔는지</span></div>
+    <div class="lines"><div></div><div></div><div></div></div></div>
+
+  <div class="q"><div class="t"><span class="n">5</span>이번 주 오류·버그가 있었다면</div>
+    <div class="lines"><div></div><div></div></div></div>
+
+  <div class="tail"><b>다음 주에는</b> 건물 정보와 적정가·수익률이 실제와 맞는지 여쭙겠습니다.</div>
+  <div class="pfoot"><span>빌탐정 베타 설문 · 1주차</span><span>1</span></div>
+</section>
+
+<!-- 2주차 -->
+<section class="page">
+  <div class="head">
+    <div><div class="wk">2주차</div><h1>데이터와 숫자</h1></div>
+    <div class="meta">소요 2분<br>응답일 <span style="border-bottom:1px solid #CFC7BA;display:inline-block;width:24mm"></span></div>
+  </div>
+  <div class="aim">건물 정보와 <b>적정가·수익률</b>이 실제 감각과 맞는지가 이번 주 관심사입니다.</div>
+
+  <div class="q"><div class="t"><span class="n">1</span>건물 정보(면적·용도·연식 등)는 실제와 맞던가요</div>
+    <div class="opts">
+      <span class="opt"><span class="bx r"></span>대체로 맞다</span>
+      <span class="opt"><span class="bx r"></span>가끔 다르다</span>
+      <span class="opt"><span class="bx r"></span>자주 다르다</span>
     </div></div>
 
-  <div class="sec">B · 전반 평가</div>
+  <div class="q"><div class="t"><span class="n">2</span>빌탐정 적정가는 납득할 만했나요 <span class="hint">1 전혀 · 5 매우</span></div>
+    <div class="scale"><div class="cell">1</div><div class="cell">2</div><div class="cell">3</div><div class="cell">4</div><div class="cell">5</div></div></div>
 
-  <div class="q"><div class="t"><span class="n">5</span>빌탐정을 동료에게 추천하시겠습니까 <span class="hint">0=전혀 아니다 · 10=매우 그렇다</span></div>
+  <div class="q"><div class="t"><span class="n">3</span>가장 차이가 컸던 건물과 값
+    <span class="hint">주소 · 어떤 값이 · 실제로는 얼마</span></div>
+    <div class="lines"><div></div><div></div><div></div></div></div>
+
+  <div class="q"><div class="t"><span class="n">4</span>수익률·임대 추정은 어떠셨나요</div>
+    <div class="opts">
+      <span class="opt"><span class="bx r"></span>비슷하다</span>
+      <span class="opt"><span class="bx r"></span>높게 나온다</span>
+      <span class="opt"><span class="bx r"></span>낮게 나온다</span>
+      <span class="opt"><span class="bx r"></span>안 봤다</span>
+    </div></div>
+
+  <div class="q"><div class="t"><span class="n">5</span>정보 수정·층별 임대 입력을 써보셨나요? 불편한 점은</div>
+    <div class="lines"><div></div><div></div></div></div>
+
+  <div class="tail"><b>다음 주에는</b> 리포트를 실제 업무에 쓰셨는지 여쭙겠습니다.</div>
+  <div class="pfoot"><span>빌탐정 베타 설문 · 2주차</span><span>2</span></div>
+</section>
+
+<!-- 3주차 -->
+<section class="page">
+  <div class="head">
+    <div><div class="wk">3주차</div><h1>리포트와 실무</h1></div>
+    <div class="meta">소요 2분<br>응답일 <span style="border-bottom:1px solid #CFC7BA;display:inline-block;width:24mm"></span></div>
+  </div>
+  <div class="aim">만든 리포트를 <b>실제로 쓸 수 있는지</b>가 이번 주 관심사입니다.</div>
+
+  <div class="q"><div class="t"><span class="n">1</span>리포트를 만들어 보셨나요</div>
+    <div class="opts">
+      <span class="opt"><span class="bx r"></span>만들었다</span>
+      <span class="opt"><span class="bx r"></span>만들다 말았다</span>
+      <span class="opt"><span class="bx r"></span>안 만들었다</span>
+    </div></div>
+
+  <div class="q"><div class="t"><span class="n">2</span>고객에게 그대로 보여줄 수 있는 수준인가요 <span class="hint">1 전혀 · 5 매우</span></div>
+    <div class="scale"><div class="cell">1</div><div class="cell">2</div><div class="cell">3</div><div class="cell">4</div><div class="cell">5</div></div></div>
+
+  <div class="q"><div class="t"><span class="n">3</span>리포트에서 빼고 싶은 것 / 넣고 싶은 것</div>
+    <div class="lines"><div></div><div></div><div></div></div></div>
+
+  <div class="q"><div class="t"><span class="n">4</span>실제 업무에 도움이 된 순간이 있었다면
+    <span class="hint">예: 고객 미팅, 매물 발굴, 가격 설득</span></div>
+    <div class="lines"><div></div><div></div></div></div>
+
+  <div class="q"><div class="t"><span class="n">5</span>사례 검토(체크 해제·정보 수정)는 쓸 만했나요</div>
+    <div class="opts">
+      <span class="opt"><span class="bx r"></span>유용했다</span>
+      <span class="opt"><span class="bx r"></span>어려웠다</span>
+      <span class="opt"><span class="bx r"></span>몰랐다</span>
+    </div></div>
+
+  <div class="tail"><b>다음 주에는</b> 전체 평가와 앞으로의 방향을 여쭙겠습니다.</div>
+  <div class="pfoot"><span>빌탐정 베타 설문 · 3주차</span><span>3</span></div>
+</section>
+
+<!-- 4주차 -->
+<section class="page">
+  <div class="head">
+    <div><div class="wk">4주차 · 마무리</div><h1>전체 평가</h1></div>
+    <div class="meta">소요 3분<br>응답일 <span style="border-bottom:1px solid #CFC7BA;display:inline-block;width:24mm"></span></div>
+  </div>
+  <div class="aim">한 달을 써보신 소감과 <b>앞으로 무엇을 먼저 만들어야 할지</b> 알려주세요.</div>
+
+  <div class="q"><div class="t"><span class="n">1</span>동료에게 추천하시겠습니까 <span class="hint">0 전혀 · 10 매우</span></div>
     <div class="scale">
-      <div class="cell"><span class="num">0</span></div><div class="cell"><span class="num">1</span></div>
-      <div class="cell"><span class="num">2</span></div><div class="cell"><span class="num">3</span></div>
-      <div class="cell"><span class="num">4</span></div><div class="cell"><span class="num">5</span></div>
-      <div class="cell"><span class="num">6</span></div><div class="cell"><span class="num">7</span></div>
-      <div class="cell"><span class="num">8</span></div><div class="cell"><span class="num">9</span></div>
-      <div class="cell"><span class="num">10</span></div>
-    </div>
-    <div style="font-size:9pt;margin-top:2mm">그렇게 답하신 이유는?</div>
-    <div class="lines s"><div></div><div></div></div>
-  </div>
+      <div class="cell">0</div><div class="cell">1</div><div class="cell">2</div><div class="cell">3</div><div class="cell">4</div>
+      <div class="cell">5</div><div class="cell">6</div><div class="cell">7</div><div class="cell">8</div><div class="cell">9</div><div class="cell">10</div>
+    </div></div>
 
-  <div class="q"><div class="t"><span class="n">6</span>항목별 만족도 <span class="hint">1=매우 불만 · 5=매우 만족</span></div>
-    <table style="width:100%;border-collapse:collapse;font-size:9.5pt;margin-top:1.5mm">
-      <tr><td style="width:44%"></td>
-        <td style="text-align:center;font-size:8pt;color:#6E675E">1</td><td style="text-align:center;font-size:8pt;color:#6E675E">2</td>
-        <td style="text-align:center;font-size:8pt;color:#6E675E">3</td><td style="text-align:center;font-size:8pt;color:#6E675E">4</td>
-        <td style="text-align:center;font-size:8pt;color:#6E675E">5</td></tr>
-      <tr><td style="padding:1.6mm 0">건물을 찾는 과정(검색·필터)</td>
-        <td style="text-align:center"><span class="bx r"></span></td><td style="text-align:center"><span class="bx r"></span></td>
-        <td style="text-align:center"><span class="bx r"></span></td><td style="text-align:center"><span class="bx r"></span></td>
-        <td style="text-align:center"><span class="bx r"></span></td></tr>
-      <tr><td style="padding:1.6mm 0">건물 정보의 양과 정확도</td>
-        <td style="text-align:center"><span class="bx r"></span></td><td style="text-align:center"><span class="bx r"></span></td>
-        <td style="text-align:center"><span class="bx r"></span></td><td style="text-align:center"><span class="bx r"></span></td>
-        <td style="text-align:center"><span class="bx r"></span></td></tr>
-      <tr><td style="padding:1.6mm 0">적정가의 납득 가능성</td>
-        <td style="text-align:center"><span class="bx r"></span></td><td style="text-align:center"><span class="bx r"></span></td>
-        <td style="text-align:center"><span class="bx r"></span></td><td style="text-align:center"><span class="bx r"></span></td>
-        <td style="text-align:center"><span class="bx r"></span></td></tr>
-      <tr><td style="padding:1.6mm 0">리포트의 완성도(고객 전달 가능성)</td>
-        <td style="text-align:center"><span class="bx r"></span></td><td style="text-align:center"><span class="bx r"></span></td>
-        <td style="text-align:center"><span class="bx r"></span></td><td style="text-align:center"><span class="bx r"></span></td>
-        <td style="text-align:center"><span class="bx r"></span></td></tr>
-      <tr><td style="padding:1.6mm 0">화면 구성과 사용 편의성</td>
-        <td style="text-align:center"><span class="bx r"></span></td><td style="text-align:center"><span class="bx r"></span></td>
-        <td style="text-align:center"><span class="bx r"></span></td><td style="text-align:center"><span class="bx r"></span></td>
-        <td style="text-align:center"><span class="bx r"></span></td></tr>
-      <tr><td style="padding:1.6mm 0">속도(로딩·반응)</td>
-        <td style="text-align:center"><span class="bx r"></span></td><td style="text-align:center"><span class="bx r"></span></td>
-        <td style="text-align:center"><span class="bx r"></span></td><td style="text-align:center"><span class="bx r"></span></td>
-        <td style="text-align:center"><span class="bx r"></span></td></tr>
-    </table>
-  </div>
+  <div class="q"><div class="t"><span class="n">2</span>가장 쓸모 있었던 기능 / 가장 아쉬웠던 기능</div>
+    <div class="lines"><div></div><div></div></div></div>
 
-  <div class="pfoot"><span>빌탐정 베타 테스트 설문</span><span>1 / 3</span></div>
-</section>
+  <div class="q"><div class="t"><span class="n">3</span>먼저 만들었으면 하는 것 <span class="hint">최대 3개</span></div>
+    <div class="opts" style="gap:2.5mm 5mm">
+      <span class="opt"><span class="bx"></span>모바일 앱</span>
+      <span class="opt"><span class="bx"></span>서울 외 지역</span>
+      <span class="opt"><span class="bx"></span>주거용 분석</span>
+      <span class="opt"><span class="bx"></span>엑셀 내보내기</span>
+      <span class="opt"><span class="bx"></span>고객 공유 링크</span>
+      <span class="opt"><span class="bx"></span>리포트 편집</span>
+      <span class="opt"><span class="bx"></span>조건 알림</span>
+      <span class="opt"><span class="bx"></span>등기부·소유자</span>
+      <span class="opt"><span class="bx"></span>대출·세금 계산</span>
+    </div></div>
 
-<!-- ── 2p ── -->
-<section class="page">
-  <div class="sec" style="margin-top:0">C · 불편했던 점 <span style="font-weight:400;letter-spacing:0;color:var(--muted);text-transform:none">— 가장 중요한 부분입니다</span></div>
-
-  <div class="q"><div class="t"><span class="n">7</span>사용 중 <b>막히거나 헷갈렸던 순간</b>이 있었다면 언제였나요?
-    <span class="hint">어느 화면에서 무엇을 하려다 어떻게 막혔는지</span></div>
-    <div class="lines"><div></div><div></div><div></div><div></div></div>
-  </div>
-
-  <div class="q"><div class="t"><span class="n">8</span>기대와 달랐던 숫자가 있었나요? <span class="hint">적정가·수익률·매력도 등</span></div>
-    <div class="opts" style="margin-bottom:1.5mm">
-      <span class="opt"><span class="bx"></span>적정가가 시세와 차이 남</span>
-      <span class="opt"><span class="bx"></span>수익률이 이상함</span>
-      <span class="opt"><span class="bx"></span>건물 정보가 실제와 다름</span>
-      <span class="opt"><span class="bx"></span>특별히 없음</span>
-    </div>
-    <div style="font-size:9pt">어떤 건물의 어떤 값이 어떻게 달랐는지 적어주시면 큰 도움이 됩니다.</div>
-    <div class="lines"><div></div><div></div><div></div></div>
-  </div>
-
-  <div class="q"><div class="t"><span class="n">9</span>오류나 버그를 만나셨나요? <span class="hint">화면이 멈춤·값이 안 바뀜·에러 메시지 등</span></div>
-    <div class="lines"><div></div><div></div><div></div></div>
-  </div>
-
-  <div class="q"><div class="t"><span class="n">10</span>설명 없이는 알기 어려웠던 기능이 있나요? <span class="hint">이름이 헷갈렸던 버튼, 뭘 하는지 몰랐던 화면</span></div>
-    <div class="lines"><div></div><div></div></div>
-  </div>
-
-  <div class="sec">D · 있었으면 하는 것</div>
-
-  <div class="q"><div class="t"><span class="n">11</span>지금 없어서 아쉬운 기능은 무엇인가요?</div>
-    <div class="lines"><div></div><div></div><div></div><div></div></div>
-  </div>
-
-  <div class="q"><div class="t"><span class="n">12</span>다음 중 먼저 만들었으면 하는 것 <span class="hint">최대 3개</span></div>
-    <div class="grid2" style="font-size:9.5pt">
-      <div><span class="opt" style="margin-bottom:1.5mm"><span class="bx"></span>모바일 앱 / 휴대폰 최적화</span></div>
-      <div><span class="opt" style="margin-bottom:1.5mm"><span class="bx"></span>서울 외 지역 확대</span></div>
-      <div><span class="opt" style="margin-bottom:1.5mm"><span class="bx"></span>주거용 건물 분석</span></div>
-      <div><span class="opt" style="margin-bottom:1.5mm"><span class="bx"></span>매물 목록 엑셀 내보내기</span></div>
-      <div><span class="opt" style="margin-bottom:1.5mm"><span class="bx"></span>고객에게 보낼 링크 공유</span></div>
-      <div><span class="opt" style="margin-bottom:1.5mm"><span class="bx"></span>리포트 디자인·문구 편집</span></div>
-      <div><span class="opt" style="margin-bottom:1.5mm"><span class="bx"></span>조건 맞는 건물 알림</span></div>
-      <div><span class="opt" style="margin-bottom:1.5mm"><span class="bx"></span>등기부·소유자 정보</span></div>
-      <div><span class="opt" style="margin-bottom:1.5mm"><span class="bx"></span>대출·세금 시뮬레이션</span></div>
-      <div><span class="opt" style="margin-bottom:1.5mm"><span class="bx"></span>기타 <span style="border-bottom:1px solid #CFC7BA;display:inline-block;width:30mm"></span></span></div>
-    </div>
-  </div>
-
-  <div class="pfoot"><span>빌탐정 베타 테스트 설문</span><span>2 / 3</span></div>
-</section>
-
-<!-- ── 3p ── -->
-<section class="page">
-  <div class="sec" style="margin-top:0">E · 실제 업무에서</div>
-
-  <div class="q"><div class="t"><span class="n">13</span>빌탐정이 실제 업무에 도움이 됐다면, 어떤 상황이었나요?
-    <span class="hint">예: 고객 미팅 자료, 매물 발굴, 가격 설득</span></div>
-    <div class="lines"><div></div><div></div><div></div></div>
-  </div>
-
-  <div class="q"><div class="t"><span class="n">14</span>지금 쓰고 계신 다른 도구가 있나요? 빌탐정과 비교하면 어떤가요?</div>
-    <div class="lines"><div></div><div></div><div></div></div>
-  </div>
-
-  <div class="q"><div class="t"><span class="n">15</span>정식 출시 후 유료로 쓰실 의향이 있나요?</div>
+  <div class="q"><div class="t"><span class="n">4</span>유료로 쓰실 의향이 있나요</div>
     <div class="opts">
-      <span class="opt"><span class="bx r"></span>지금 형태로도 쓰겠다</span>
-      <span class="opt"><span class="bx r"></span>몇 가지 개선되면 쓰겠다</span>
-      <span class="opt"><span class="bx r"></span>아직 모르겠다</span>
-      <span class="opt"><span class="bx r"></span>쓰지 않겠다</span>
+      <span class="opt"><span class="bx r"></span>지금도 쓰겠다</span>
+      <span class="opt"><span class="bx r"></span>개선되면 쓰겠다</span>
+      <span class="opt"><span class="bx r"></span>모르겠다</span>
+      <span class="opt"><span class="bx r"></span>안 쓰겠다</span>
     </div>
-    <div style="font-size:9pt;margin-top:2mm">"개선되면"을 고르셨다면, 무엇이 개선되어야 할까요?</div>
-    <div class="lines s"><div></div><div></div></div>
-  </div>
+    <div style="font-size:9pt;margin-top:2mm">적정 가격은? <span style="border-bottom:1px solid #CFC7BA;display:inline-block;width:50mm"></span></div></div>
 
-  <div class="q"><div class="t"><span class="n">16</span>적정한 가격은 얼마라고 생각하시나요? <span class="hint">리포트 1건 기준 또는 월 구독 기준</span></div>
-    <div class="lines s"><div></div></div>
-  </div>
+  <div class="q"><div class="t"><span class="n">5</span>자유롭게 남겨주세요</div>
+    <div class="lines"><div></div><div></div><div></div></div></div>
 
-  <div class="sec">F · 마지막으로</div>
-
-  <div class="q"><div class="t"><span class="n">17</span>빌탐정에 하고 싶은 말을 자유롭게 남겨주세요.
-    <span class="hint">칭찬도, 쓴소리도 모두 환영합니다</span></div>
-    <div class="lines"><div></div><div></div><div></div><div></div><div></div></div>
-  </div>
-
-  <div class="q"><div class="t"><span class="n">18</span>추가 인터뷰(20분 내외)에 응해주실 수 있나요?</div>
+  <div class="q"><div class="t"><span class="n">6</span>추가 인터뷰(20분)에 응해주실 수 있나요</div>
     <div class="opts">
-      <span class="opt"><span class="bx r"></span>가능합니다</span>
-      <span class="opt"><span class="bx r"></span>어렵습니다</span>
-    </div>
-    <div style="font-size:9pt;margin-top:2.5mm">연락처(선택) <span style="border-bottom:1px solid #CFC7BA;display:inline-block;width:70mm"></span></div>
-  </div>
+      <span class="opt"><span class="bx r"></span>가능</span>
+      <span class="opt"><span class="bx r"></span>어려움</span>
+      <span class="opt">연락처 <span style="border-bottom:1px solid #CFC7BA;display:inline-block;width:50mm"></span></span>
+    </div></div>
 
-  <div class="thanks">
-    <b>감사합니다.</b> 베타 기간의 목표는 완성이 아니라 개선입니다.
-    남겨주신 의견은 하나하나 읽고 다음 버전에 반영합니다 — 특히 <b>불편했던 점</b>이 가장 큰 도움이 됩니다.
-  </div>
-
-  <div class="pfoot"><span>빌탐정 베타 테스트 설문 · 2026.08</span><span>3 / 3</span></div>
+  <div class="tail"><b>감사합니다.</b> 남겨주신 의견은 하나하나 읽고 반영합니다.</div>
+  <div class="pfoot"><span>빌탐정 베타 설문 · 4주차</span><span>4</span></div>
 </section>
 
 </body></html>

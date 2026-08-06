@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import "./beta.css";
 
 /* 베타 안내 — 광고 영상 + 핵심 섹션별 가로 슬라이드 매뉴얼. 로그인 불필요(공개). */
@@ -282,9 +281,7 @@ export function GuidePage() {
           <span className="bt-eyebrow">베타 테스터 안내</span>
           <h1>빌탐정 사용 안내</h1>
           <div className="bt-cta">
-            <a className="bt-btn primary" href="/beta/manual.pdf" target="_blank" rel="noreferrer">매뉴얼 PDF</a>
-            <Link className="bt-btn" to="/survey">설문 참여하기</Link>
-            <Link className="bt-btn ghost" to="/search">빌탐정 열기</Link>
+            <a className="bt-btn primary" href="/beta/manual.pdf" target="_blank" rel="noreferrer">매뉴얼 PDF 내려받기</a>
           </div>
           <nav className="bt-toc">
             {SECTIONS.map((s) => <a key={s.id} href={`#${s.id}`}>{s.no} {s.t}</a>)}
@@ -297,11 +294,7 @@ export function GuidePage() {
 
         <section className="bt-end">
           <h3>의견을 들려주세요</h3>
-          <p>불편했던 점이 가장 큰 도움이 됩니다.</p>
-          <div className="bt-cta">
-            <Link className="bt-btn primary" to="/survey">설문 참여하기 (5분)</Link>
-            <a className="bt-btn ghost" href="/beta/survey.pdf" target="_blank" rel="noreferrer">설문지 PDF</a>
-          </div>
+          <p>불편했던 점이 가장 큰 도움이 됩니다. 매주 보내드리는 설문에 답해주시면 다음 버전에 반영합니다.</p>
         </section>
       </main>
 
