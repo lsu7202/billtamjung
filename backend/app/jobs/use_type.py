@@ -97,16 +97,22 @@ def land_trend_score(rate5_pct: float | None) -> int | None:
 
 def future_value(far: float | None, legal_far: float | None, land_use: str | None,
                  cur_rent: float | None, mkt_rent: float | None,
-                 land_rate5: float | None = None) -> dict:
+                 land_rate5: float | None = None, redevel: dict | None = None) -> dict:
     """미래가치 = 기본 상승(지가 추세) + 추가 여력(개발·임대) 구조. 단순 점수 아닌 '유형'으로 표현.
     ★ 지가가 꾸준하면 개발·임대 여력이 없어도 '안정 성장형' — "제한적"이라 단정하지 않음(가치는 오름).
     지가상승 = 개별 공시지가 5년 변동률(gongsi_series), 없으면 지역 지가변동률(land_adjust) 폴백. specs F-21."""
     dev = dev_headroom_score(far, legal_far, land_use)
+    if redevel:                                          # 정비구역·재정비촉진 지정 = 명시적 개발 기대(옵션가치 문헌)
+        dev = max(dev or 0, 75)                          # 활용률과 무관 — 지정 자체가 사업 단계 진입
     up = rent_upside_score(cur_rent, mkt_rent)
     land = land_trend_score(land_rate5)                  # 기본 상승(baseline)
     ups = [s for s in (dev, up) if s is not None]
     active = max(ups) if ups else None                   # 추가 여력(개발·임대 중 강한 쪽)
     label, reason = _future_type(land, active, dev, up)
+    if redevel:                                          # 지정 구역은 유형·사유를 지정 사실로 상향
+        zone = f"{redevel.get('kind') or '정비구역'}" + (f"({redevel['name']})" if redevel.get("name") else "")
+        label = "상승 기대형"
+        reason = f"{zone}으로 지정되어 재건축·재개발 사업에 따른 개발 기대가 있습니다"
     # 참고 지수: baseline(지가) 우세 blend — headline 아님(유형이 headline)
     parts = [(land, 0.5), (dev, 0.3), (up, 0.2)]
     avail = [(s, w) for s, w in parts if s is not None]
@@ -119,6 +125,7 @@ def future_value(far: float | None, legal_far: float | None, land_use: str | Non
     if land_rate5 is not None and (1 + land_rate5 / 100) > 0:
         land_annual = round(((1 + land_rate5 / 100) ** (1 / 5) - 1) * 100, 1)  # 지가 연평균 상승률(CAGR)
     return {"score": score, "label": label, "dev": dev, "upside": up, "land": land, "reason": reason,
+            "redevel": redevel,
             "far": round(far) if far is not None else None, "legal_far": round(legal_far) if legal_far is not None else None,
             "util": round(util) if util is not None else None, "headroom_far": round(headroom_far) if headroom_far is not None else None,
             "cur_rent": round(cur_rent) if cur_rent else None, "mkt_rent": round(mkt_rent) if mkt_rent is not None else None,

@@ -47,7 +47,8 @@ async def comps(building_pk: str, user: CurrentUser = Depends(current_user)):
     b, vs, params, ta = await _subject_ctx(building_pk, user.team_id)
     comps = await g._fetch_comps(building_pk, b, params)
     rent_apply = await g._nearby_rent_apply(building_pk, b, user.team_id)   # 주변 임대 comp 적용(리포트 임대료 비교·applied_rent)
-    syn = g.synthesize(b, vs["score"], g.baseline_comps(comps), params, ta, rent_apply)  # 초기=배치 동일 baseline(≥3·이상치)
+    syn = g.synthesize(b, vs["score"], g.baseline_comps(comps), params, ta, rent_apply,
+                       apply_market=False)  # 초기=배치 동일(적정가·수익률 모두) — 주변임대는 토글 ON 시 preview로
     ut = await g._use_type(building_pk, b)   # F-20 투자 유형
     g._attach_future(ut, syn.get("rent_summary"))   # F-21 미래가치(개발여지+임대상향)
     poly, radius, center = g._market_spatial(b)
@@ -87,8 +88,8 @@ async def preview(body: PreviewIn, user: CurrentUser = Depends(current_user)):
     """S02b 실시간 재산출(크레딧 미차감). comp 편집·제외 반영 → 적정매매가/수익률."""
     b, vs, params, ta = await _subject_ctx(body.building_pk, user.team_id)
     comps = await g._load_comps(body.building_pk, b, params, set(body.exclude), body.overrides)
-    rent_apply = await g._nearby_rent_apply(body.building_pk, b, user.team_id) if body.include_market else None
-    syn = g.synthesize(b, vs["score"], comps, params, ta, rent_apply)
+    rent_apply = await g._nearby_rent_apply(body.building_pk, b, user.team_id)
+    syn = g.synthesize(b, vs["score"], comps, params, ta, rent_apply, apply_market=body.include_market)
     return {"preview": _preview_dict(vs, syn),
             "rent_floors": syn.get("rent_floors"),
             "comp_scores": {c["building_pk"]: c["score"] for c in comps}}

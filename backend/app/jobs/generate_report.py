@@ -38,6 +38,12 @@ async def _load_formula_params() -> tuple[int, dict[str, float], dict]:
     params = {r["param_key"]: float(r["value_num"]) for r in rows if r["value_num"] is not None}
     tj = next((r["value_json"] for r in rows if r["param_key"] == "time_adjust"), None)
     time_adjust = json.loads(tj) if isinstance(tj, str) else (tj or {})
+    # v3.1: 분기 가격지수(sale_price_index) 병합 — 있으면 산식이 지수비 우선 사용(연표는 폴백)
+    try:
+        qrows = await pool().fetch("SELECT quarter, ratio FROM master.sale_price_index")
+        time_adjust = {**time_adjust, **{r["quarter"]: float(r["ratio"]) for r in qrows}}
+    except Exception:
+        pass
     version = rows[0]["set_version"] if rows else 1
     return version, params, time_adjust
 
@@ -144,54 +150,9 @@ def _apply_override(cb: dict, ov: dict) -> dict:
     return cb
 
 
-# 이용상황(land_use) 섹터 — S01b 필터 taxonomy(이용상황섹터)와 동일. comp 물적 유사성 판정.
-_SECTORS = {
-    "commercial": {"상업용", "업무용", "상업기타"},      # 상업용 빌딩
-    "mixed": {"주상용", "주상기타"},                     # 상가주택
-    "resi": {"단독", "연립", "다세대", "아파트", "주거기타"},
-    "industrial": {"공업용", "공업기타"},
-}
-# 건물 주용도(main_use 앞2자리) → 섹터 폴백. land_use가 애매/오분류(예: 업무빌딩인데 '상업나지')일 때 사용.
-# [[sale-est-commercial-gate]] 합집합 정의와 정합 — 근생·판매·업무·숙박·문화·의료·운동·위락 = commercial.
-_MU_SECTOR = {
-    "03": "commercial", "04": "commercial", "05": "commercial", "07": "commercial",
-    "09": "commercial", "13": "commercial", "14": "commercial", "15": "commercial", "16": "commercial",
-    "01": "resi", "02": "resi", "17": "industrial", "18": "industrial",
-}
-_SECTOR_MU: dict[str, set[str]] = {}
-for _c, _s in _MU_SECTOR.items():
-    _SECTOR_MU.setdefault(_s, set()).add(_c)
-_ADJACENT = {"commercial": {"mixed"}, "mixed": {"commercial"}}   # 소득형 인접(상호 comp 허용, 감점)
-_ADJ_FACTOR = 0.7                                                # 인접 섹터 유사도 가중 감점
-
-
-def _sector_of(lu: str | None, mu: str | None = None) -> str | None:
-    """건물 성격(comp 매칭 섹터). main_use(법정 주용도, 결측 0·신뢰 최고)를 우선하고,
-    land_use는 상가주택(주용도=단독/공동주택이지만 상업 혼합) 판정에만 보조로 씀.
-    land_use는 오분류가 많음(업무빌딩인데 '주거기타/상업나지') → 단독 신호로 쓰면 오라우팅."""
-    msec = _MU_SECTOR.get(str(mu)[:2]) if mu else None
-    if msec == "commercial":
-        return "mixed" if lu in _SECTORS["mixed"] else "commercial"   # 주용도 상업 → commercial(상가주택 토지면 mixed)
-    if msec == "resi":
-        # 주용도 단독/공동주택 — 토지이용이 상업/주상이면 상가주택(mixed), 아니면 순수 주거.
-        return "mixed" if (lu in _SECTORS["mixed"] or lu in _SECTORS["commercial"]) else "resi"
-    if msec == "industrial":
-        return "industrial"
-    # 주용도가 특수(종교·교육·의료 등)·결측 → land_use로 폴백(기존 로직).
-    return next((s for s, items in _SECTORS.items() if lu in items), None)
-
-
-def _comp_type_filter(subject_lu: str | None, subject_mu: str | None = None):
-    """반환 (allowed_land_uses|None, allowed_mu_codes|None, adjacent_set). None=분류 불가 → 성격 필터 미적용.
-    comp은 land_use ∈ allowed_lu OR main_use[:2] ∈ allowed_mu 로 인정(land_use 오분류 보완)."""
-    sec = _sector_of(subject_lu, subject_mu)
-    if sec is None:
-        return None, None, set()
-    secs = {sec} | _ADJACENT.get(sec, set())
-    adj = set().union(*[_SECTORS[a] for a in _ADJACENT.get(sec, set())]) if _ADJACENT.get(sec) else set()
-    allowed_lu = sorted(set().union(*[_SECTORS[s] for s in secs]))
-    allowed_mu = sorted(set().union(*[_SECTOR_MU.get(s, set()) for s in secs]))
-    return allowed_lu, allowed_mu, adj
+# comp 성격(섹터) 정본은 report_calc — 배치(build_sale_est)와 동일 소스(정합 단일화, 2026-08-06).
+_comp_type_filter = report_calc.comp_type_filter
+_ADJ_FACTOR = report_calc.ADJ_FACTOR
 
 
 async def _fetch_comps(building_pk: str, subject: dict, params: dict,
@@ -247,6 +208,7 @@ async def _fetch_comps(building_pk: str, subject: dict, params: dict,
         comps.append({"building_pk": cb["building_pk"], "addr": cb["addr"],
                       "contract_ym": cb["contract_ym"], "price": cb["price"],
                       "total_area": float(cb["total_area"]), "land_area": c_la, "gongsi_total": c_gt,
+                      "approval_ymd": cb["approval_ymd"], "remodel_ymd": cb["remodel_ymd"],
                       "score": cvs["score"],
                       "per_area": per_area, "dist_m": cb["dist_m"], "land_use": cb["land_use"],
                       "type_factor": _ADJ_FACTOR if cb["land_use"] in adj else 1.0,
@@ -429,6 +391,9 @@ async def _use_type(building_pk: str, b: dict) -> dict | None:
     result["zones"] = await _market_zones(building_pk)   # 상권 존 폴리곤(지도용)
     result["_far"], result["_legal_far"] = _fnum(b.get("far")), _parse_far(lf)   # 미래가치 계산용
     result["_land_rate5"] = await _land_rate5(b)         # 지가 상승 추세(미래가치 3축)
+    rz = await pool().fetchrow(                          # 정비구역·재정비촉진 지정 여부(F-21 개발여지)
+        "SELECT kind, name FROM master.building_redevel WHERE building_pk=$1 LIMIT 1", building_pk)
+    result["_redevel"] = dict(rz) if rz else None
     return result
 
 
@@ -458,23 +423,33 @@ def _attach_future(ut: dict | None, rent_summary: dict | None) -> None:
     rs = rent_summary or {}
     ut["future"] = use_type.future_value(
         ut.pop("_far", None), ut.pop("_legal_far", None), None,   # land_use는 far로 이미 반영(나지=far 0)
-        rs.get("cur_rent"), rs.get("mkt_rent"), ut.pop("_land_rate5", None))
+        rs.get("cur_rent"), rs.get("mkt_rent"), ut.pop("_land_rate5", None),
+        redevel=ut.pop("_redevel", None))
 
 
 def synthesize(subject: dict, subject_score: float, comps: list[dict],
-               params: dict, time_adjust: dict, rent_apply: dict | None = None) -> dict:
+               params: dict, time_adjust: dict, rent_apply: dict | None = None,
+               apply_market: bool = False) -> dict:
     """F-17 적정매매가 + F-18 예상수익률 + 협의금액. preview·생성 공용.
-    rent_apply(토글 ON) 있으면 주변임대 적용 총임대료/보증금 사용, 없으면 현재값 폴백."""
+    rent_apply=주변임대 '데이터'(비교표·주변수익률 표시용, 항상 전달 가능).
+    apply_market=True(토글 ON)일 때만 그 값이 수익률·적용임대료를 움직임 —
+    기본(False)은 팀 실입력→마스터 추정 폴백으로 배치(search.classified roi)와 동일."""
     ap = report_calc.appraise(subject_score, subject, comps, params, time_adjust)
-    if rent_apply:
+    _cur = _fnum(subject.get("total_rent"))
+    _est_mo = (_fnum(subject.get("est_annual_rent")) or 0) / 12 or None   # 마스터 추정(월) — 배치 폴백과 동일
+    if apply_market and rent_apply:
         rent, deposit = rent_apply["applied_rent"], rent_apply["applied_deposit"]
-    else:   # 토글 OFF or 주변사례 없음 → 현재 임대료·보증금(만실 시=공실0이라 공실제외 값)
-        rent, deposit = _fnum(subject.get("total_rent")), _fnum(subject.get("total_deposit"))
+    else:   # 기본: 팀 임대 실입력 → 마스터 추정 — 검색 핀 수익률과 같은 분자
+        rent, deposit = (_cur or _est_mo), _fnum(subject.get("total_deposit"))
     # 수익환원 블렌드(β): NOI(연임대) ÷ 구cap 을 comp식(v2)에 소폭 섞음(공용 report_calc.blend_income).
     # 임대 = 팀입력(월) 있으면 그것, 없으면 마스터 추정 연임대. 백테스트상 β=0.2가 최적.
     beta = params.get("blend.income", 0.2)
     cap = _fnum(subject.get("gu_cap"))
-    ann_rent = (rent * 12) if rent else _fnum(subject.get("est_annual_rent"))
+    # ★ 적정가 블렌드 임대료 = 팀 실입력(total_rent) → 마스터 추정 — 배치(build_sale_est)와 동일 기준.
+    #   주변임대 토글(rent_apply)은 수익률·임대표에만 반영. 여기에 섞으면 무오버레이인데도
+    #   검색 핀(배치)과 리포트 적정가가 계통적으로 어긋남(2026-08-06 역삼 619-16, −2.8% 사례).
+    cur_rent = _fnum(subject.get("total_rent"))
+    ann_rent = (cur_rent * 12) if cur_rent else _fnum(subject.get("est_annual_rent"))
     blended = report_calc.blend_income(ap.get("fair_price"), ann_rent, cap, beta)
     if blended != ap.get("fair_price"):
         subj_py = (_fnum(subject.get("total_area")) or 0) / report_calc.M2_PER_PYEONG
@@ -505,7 +480,8 @@ def synthesize(subject: dict, subject_score: float, comps: list[dict],
             "ask_price": round(ask) if ask else None,               # 매도희망가
             "broker_price": round(broker) if broker else None,     # 매매가(중개인)
             "applied_rent": round(rent) if rent else None, "expected_deposit": round(deposit) if deposit else None,
-            "rent_floors": rent_apply["floors"] if rent_apply else None, "market_applied": bool(rent_apply)}
+            "rent_floors": rent_apply["floors"] if rent_apply else None,
+            "market_applied": bool(apply_market and rent_apply)}
 
 
 def _outlier_bounds(vals: list[float]) -> tuple[float, float] | None:
@@ -885,10 +861,9 @@ async def run_generate(report_id: int, team_id: int) -> dict:
             # 오버레이(유저 comp 제외) 있으면 그대로, 없으면 무오버레이 baseline(배치 동일).
             exclude = set(opt["exclude"]) if opt.get("exclude") else None
             comps = await _load_comps(rep["building_pk"], b, params, exclude, overrides)
-            rent_apply = None
-            if opt.get("include_market", True):   # 토글 ON → 주변임대 적용(STEP3·F-18)
-                rent_apply = await _nearby_rent_apply(rep["building_pk"], b, team_id)
-            syn = synthesize(b, vs["score"], comps, params, time_adjust, rent_apply)
+            rent_apply = await _nearby_rent_apply(rep["building_pk"], b, team_id)   # 비교표·주변수익률 데이터(항상)
+            syn = synthesize(b, vs["score"], comps, params, time_adjust, rent_apply,
+                             apply_market=opt.get("include_market", False))   # 기본 OFF = 배치 수익률과 동일
 
         path = os.path.join(REPORT_DIR, f"report_{report_id}.pptx")   # 로컬 임시(생성용)
         _make_pptx(path, rep["kind"], b, vs, syn, report_id)

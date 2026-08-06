@@ -73,25 +73,33 @@ async def main():
     params = {r["param_key"]: float(r["value_num"]) for r in prm if r["value_num"] is not None}
     tj = next((r["value_json"] for r in prm if r["param_key"] == "time_adjust"), None)
     time_adjust = json.loads(tj) if isinstance(tj, str) else (tj or {})
+    qrows = await c.fetch("SELECT quarter, ratio FROM master.sale_price_index")   # v3.1 분기지수
+    time_adjust = {**time_adjust, **{r["quarter"]: float(r["ratio"]) for r in qrows}}
     beta = params.get("blend.income", 0.2)
     seoul_cap = await c.fetchval("SELECT cap FROM master.income_cap WHERE gu='_seoul'")
 
     # comp 풀: 서울 상업 매각(5년). 공시총액 = gongsi_latest × sh.land_area
+    # ★ 라이브(_fetch_comps)와 동일 조건: price>0·total_area>0만 필수(land/공시 없어도 T축 기여),
+    #   성격 필터는 본매물별(report_calc.comp_type_filter)로 아래 루프에서 적용 — 전역 사전필터 금지.
     comps = await c.fetch(
-        f"""SELECT DISTINCT ON (sh.building_pk) sh.building_pk pk, ST_X(b.geom) lng, ST_Y(b.geom) lat,
+        """SELECT DISTINCT ON (sh.building_pk) sh.building_pk pk, ST_X(b.geom) lng, ST_Y(b.geom) lat,
               sh.price::float pr, sh.land_area::float la, sh.total_area::float ta,
-              b.gongsi_latest::float*sh.land_area gt, sh.contract_ym
+              CASE WHEN b.gongsi_latest>0 AND sh.land_area>0 THEN b.gongsi_latest::float*sh.land_area END gt,
+              sh.contract_ym, b.approval_ymd ay, b.remodel_ymd ry,
+              b.land_use lu, substr(b.main_use,1,2) mu2
             FROM master.sales_history sh JOIN master.buildings b USING(building_pk)
-            WHERE b.bjd_code LIKE '11%' AND {COMM_SQL}
+            WHERE b.bjd_code LIKE '11%'
               AND sh.contract_ym >= to_char(now()-interval '5 years','YYYYMM')
-              AND sh.price>0 AND sh.land_area>0 AND sh.total_area>0 AND b.gongsi_latest>0""",
-        list(SECT))
+              AND sh.price>0 AND sh.total_area>0
+            ORDER BY sh.building_pk, sh.contract_ym DESC""")
     grid: dict[tuple[int, int], list] = {}
     for r in comps:
         x, y = _mx(float(r['lng'])), _my(float(r['lat']))
         grid.setdefault((int(x // CELL), int(y // CELL)), []).append(
             (r['pk'], float(r['lng']), float(r['lat']), float(r['pr']),
-             float(r['gt']), float(r['la']), float(r['ta']), r['contract_ym']))
+             (float(r['gt']) if r['gt'] is not None else None),
+             (float(r['la']) if r['la'] is not None else None),
+             float(r['ta']), r['contract_ym'], r['ay'], r['ry'], r['lu'], r['mu2']))
     print(f"comp 풀 {len(comps)}건 · 그리드셀 {len(grid)}")
 
     # 계산 대상 = 상업/업무 성격(land_use SECT ∪ main_use 상업코드) — 산정법이 유효한 범위.
@@ -99,7 +107,8 @@ async def main():
     subs = await c.fetch(
         f"""SELECT b.building_pk pk, ST_X(b.geom) lng, ST_Y(b.geom) lat,
               b.gongsi_latest::float g, b.land_area::float la, b.total_area::float ta,
-              e.annual_rent::float ann, COALESCE(ic.cap, {float(seoul_cap)})::float cap
+              e.annual_rent::float ann, COALESCE(ic.cap, {float(seoul_cap)})::float cap,
+              b.approval_ymd ay, b.remodel_ymd ry, b.land_use lu, b.main_use mu
             FROM master.buildings b
             LEFT JOIN master.building_rent_est e ON e.building_pk=b.building_pk
             LEFT JOIN master.income_cap ic ON ic.gu=substr(b.bjd_code,1,5)
@@ -114,22 +123,27 @@ async def main():
     ins = []
     for s in subs:
         slng, slat = float(s['lng']), float(s['lat'])
+        allowed_lu, allowed_mu, _adj = report_calc.comp_type_filter(s['lu'], s['mu'])   # 라이브와 동일 성격 필터
         cx, cy = int(_mx(slng) // CELL), int(_my(slat) // CELL)
         cd = []
         for dx in (-1, 0, 1):
             for dy in (-1, 0, 1):
-                for (pk, clng, clat, pr, gt, la, ta, ym) in grid.get((cx + dx, cy + dy), []):
+                for (pk, clng, clat, pr, gt, la, ta, ym, ay, ry, lu, mu2) in grid.get((cx + dx, cy + dy), []):
                     if pk == s['pk']:                      # 본매물 제외 — 라이브(building_pk 기준)와 동일
                         continue
+                    if allowed_lu is not None and not (lu in allowed_lu or (mu2 or "") in allowed_mu):
+                        continue                            # 성격(섹터) 불일치 — 라이브 _fetch_comps와 동일
                     d = _dist_m(slat, slng, clat, clng)    # geodesic — 라이브와 정합
                     if d > RADIUS:                          # 500m 반경(라이브 기본과 동일)
                         continue
                     cd.append({"price": pr, "total_area": ta, "land_area": la,
-                               "gongsi_total": gt, "dist_m": d, "contract_ym": ym})
+                               "gongsi_total": gt, "dist_m": d, "contract_ym": ym,
+                               "approval_ymd": ay, "remodel_ymd": ry})
         if len(cd) < 3:
             continue
         cd = _iqr_keep(cd)   # 이상치 제외 — 라이브와 동일(검색·상세 값 통일)
-        subj = {"total_area": s['ta'], "land_area": s['la'], "gongsi_latest": s['g']}
+        subj = {"total_area": s['ta'], "land_area": s['la'], "gongsi_latest": s['g'],
+                "approval_ymd": s['ay'], "remodel_ymd": s['ry']}
         ap = report_calc.appraise(0, subj, cd, params, time_adjust)   # ← 라이브와 동일 함수
         fair = ap.get("fair_price")
         if not fair:
@@ -140,7 +154,7 @@ async def main():
         per_py = int(fair / py) if py else 0
         if fair <= 0 or per_py > 300_000_000:
             continue
-        ins.append((s['pk'], int(fair), per_py, len(cd), 'f17v2'))
+        ins.append((s['pk'], int(fair), per_py, len(cd), 'f17v3'))
     await c.executemany(
         "INSERT INTO master.building_sale_est(building_pk,sale_est,per_py,n_comps,method) VALUES($1,$2,$3,$4,$5)", ins)
     print(f"적정가 적재: {len(ins)}동 (comp<3 등 제외 {len(subs)-len(ins)})")

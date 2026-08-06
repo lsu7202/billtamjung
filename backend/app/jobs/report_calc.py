@@ -1,4 +1,7 @@
-"""F-17 적정매매가 v2 · F-18 예상수익률 (R STEP2/4). specs formulas.md.
+"""F-17 적정매매가 v3 · F-18 예상수익률 (R STEP2/4). specs formulas.md.
+
+v3(2026-08-05) = v2 + 연식 개별요인 보정(B) + 연식·규모 유사성 가중(C) + α하한(D).
+백테스트(LOO·과거comp만): 강남 MdAPE 26.7→22.7% · 마포 19.1→16.4%. 계수는 params로 오버라이드 가능.
 
 v2 = 공시배율법·대지평단가법 블렌드 + 대형(고용적) 연면적법 α가중. 거리가중 기하평균·IQR.
   적정가 = (1−α)·[0.5·공시배율×본매물공시총액 + 0.5·대지단가×본매물대지] + α·연면적단가×본매물연면적
@@ -11,6 +14,84 @@ import math
 import statistics
 
 M2_PER_PYEONG = 3.305785
+
+# ── comp 성격(섹터) 매칭 — 배치(build_sale_est)·라이브(_fetch_comps) 공용 정본 ──
+# 여기가 단일 소스: generate_report가 import해서 쓰고, 배치도 동일 함수로 필터 → 두 경로 comp 풀 일치.
+SECTORS = {
+    "commercial": {"상업용", "업무용", "상업기타"},      # 상업용 빌딩
+    "mixed": {"주상용", "주상기타"},                     # 상가주택
+    "resi": {"단독", "연립", "다세대", "아파트", "주거기타"},
+    "industrial": {"공업용", "공업기타"},
+}
+MU_SECTOR = {
+    "03": "commercial", "04": "commercial", "05": "commercial", "07": "commercial",
+    "09": "commercial", "13": "commercial", "14": "commercial", "15": "commercial", "16": "commercial",
+    "01": "resi", "02": "resi", "17": "industrial", "18": "industrial",
+}
+SECTOR_MU: dict[str, set[str]] = {}
+for _c, _s in MU_SECTOR.items():
+    SECTOR_MU.setdefault(_s, set()).add(_c)
+ADJACENT = {"commercial": {"mixed"}, "mixed": {"commercial"}}   # 소득형 인접(상호 comp 허용, 감점)
+ADJ_FACTOR = 0.7
+
+
+def sector_of(lu: str | None, mu: str | None = None) -> str | None:
+    """건물 성격. main_use(법정 주용도) 우선, land_use는 상가주택 판정 보조(오분류 방어)."""
+    msec = MU_SECTOR.get(str(mu)[:2]) if mu else None
+    if msec == "commercial":
+        return "mixed" if lu in SECTORS["mixed"] else "commercial"
+    if msec == "resi":
+        return "mixed" if (lu in SECTORS["mixed"] or lu in SECTORS["commercial"]) else "resi"
+    if msec == "industrial":
+        return "industrial"
+    return next((s for s, items in SECTORS.items() if lu in items), None)
+
+
+def comp_type_filter(subject_lu: str | None, subject_mu: str | None = None):
+    """반환 (allowed_land_uses|None, allowed_mu_codes|None, adjacent_set). None=분류 불가 → 필터 미적용.
+    comp 인정 = land_use ∈ allowed_lu OR main_use[:2] ∈ allowed_mu."""
+    sec = sector_of(subject_lu, subject_mu)
+    if sec is None:
+        return None, None, set()
+    secs = {sec} | ADJACENT.get(sec, set())
+    adj = set().union(*[SECTORS[a] for a in ADJACENT.get(sec, set())]) if ADJACENT.get(sec) else set()
+    allowed_lu = sorted(set().union(*[SECTORS[s] for s in secs]))
+    allowed_mu = sorted(set().union(*[SECTOR_MU.get(s, set()) for s in secs]))
+    return allowed_lu, allowed_mu, adj
+_THIS_YEAR = __import__("datetime").date.today().year
+
+
+def _age_from(ymd, remodel_ymd=None, remodel_offset=None) -> float | None:
+    """준공연도 → 연식(년). 리모델링 있으면 유효연식 = min(연식, 리모델 경과+offset)."""
+    def _yr(v):
+        try:
+            return int(str(v)[:4])
+        except (TypeError, ValueError):
+            return None
+    a = _yr(ymd)
+    if a is None:
+        return None
+    age = max(0.0, _THIS_YEAR - a)
+    r = _yr(remodel_ymd)
+    if r is not None and remodel_offset is not None:
+        age = min(age, max(0.0, _THIS_YEAR - r) + remodel_offset)
+    return age
+
+
+def _value_factor(age: float | None, d1: float, d2: float, d3: float, floor: float) -> float:
+    """연령 구간형 가치계수(전체가치) — 초기 가속·중년 완만·후기 정체(문헌 정합). 백테스트 최적."""
+    if age is None:
+        return 1.0
+    f = 1.0 - d1 * min(age, 10) - d2 * max(0.0, min(age, 30) - 10) - d3 * max(0.0, age - 30)
+    return max(floor, f)
+
+
+def _quarter(contract_ym) -> str | None:
+    ym = str(contract_ym or "")
+    if len(ym) < 6:
+        return None
+    m = ym[4:6]
+    return ym[:4] + ("Q1" if m <= "03" else "Q2" if m <= "06" else "Q3" if m <= "09" else "Q4")
 
 
 def _year(contract_ym) -> int | None:
@@ -49,6 +130,15 @@ def appraise(subject_score: float, subject: dict, comps: list[dict],
     subj_la = _num(subject.get("land_area"))
     subj_g = _num(subject.get("gongsi_latest"))
     subj_gt = subj_g * subj_la if (subj_g and subj_la) else None
+    # v3 보정 파라미터(백테스트 최적 기본값 — ref.formula_params로 오버라이드 가능)
+    d1 = params_num.get("age.d1", 0.035); d2 = params_num.get("age.d2", 0.0)
+    d3 = params_num.get("age.d3", 0.0); afloor = params_num.get("age.floor", 0.55)
+    r_off = params_num.get("age.remodel_offset", 5.0)       # 리모델 시 유효연식=리모델경과+5
+    sim_age = params_num.get("sim.age_scale", 25.0); sim_size = params_num.get("sim.size_scale", 0.5)
+    use_sim = params_num.get("sim.enabled", 1.0) >= 0.5
+    rec_scale = params_num.get("recency.scale", 12.0)       # 최신성 가중(개월) — 0이면 미적용
+    _now_ym = _THIS_YEAR * 12 + __import__("datetime").date.today().month
+    subj_age = _age_from(subject.get("approval_ymd"), subject.get("remodel_ymd"), r_off)
 
     R: list[tuple[float, float]] = []   # 공시배율 (price/공시총액)
     P: list[tuple[float, float]] = []   # 대지단가 (price/대지㎡)
@@ -59,9 +149,32 @@ def appraise(subject_score: float, subject: dict, comps: list[dict],
         if not price:
             continue
         ta, la, gt = _num(c.get("total_area")), _num(c.get("land_area")), _num(c.get("gongsi_total"))
-        adj = float(time_adjust.get(str(_year(c.get("contract_ym"))), 0.0))
+        # 시점보정 v3.1: time_adjust에 분기지수('2024Q1':ratio)가 있으면 지수비, 없으면 연표(1+adj)
+        qk = _quarter(c.get("contract_ym"))
+        q_latest = max((k for k in time_adjust if "Q" in str(k)), default=None)
+        if q_latest and qk and time_adjust.get(qk):
+            adj = float(time_adjust[q_latest]) / float(time_adjust[qk]) - 1.0
+        else:
+            adj = float(time_adjust.get(str(_year(c.get("contract_ym"))), 0.0))
         padj = price * (1 + adj)
+        c_age = _age_from(c.get("approval_ymd"), c.get("remodel_ymd"), r_off)
+        # B: 연식 개별요인 보정 — comp 가격을 본매물 연식 기준으로 환산(신축 프리미엄/노후 디스카운트).
+        # ★ 양측 연식이 모두 있을 때만 — 편측 미상 시 걸면 최대 +54% 왜곡(감사에서 적발·수정 2026-08-05)
+        if (d1 or d2 or d3) and subj_age is not None and c_age is not None:
+            padj *= _value_factor(subj_age, d1, d2, d3, afloor) / _value_factor(c_age, d1, d2, d3, afloor)
         w = 1.0 / ((c.get("dist_m") or 0) + 50)   # 거리가중
+        if rec_scale:                              # 최신성: 최근 거래일수록 가중(백테스트 −2.7pt)
+            try:
+                cym = str(c.get("contract_ym") or "")
+                mdiff = _now_ym - (int(cym[:4]) * 12 + int(cym[4:6] or 6))
+                w *= 1.0 / (1.0 + max(0, mdiff) / rec_scale)
+            except (TypeError, ValueError):
+                pass
+        if use_sim:                                # C: 경제적 거리(연식·규모 유사성) — IAAO 표준 방식
+            if c_age is not None and subj_age is not None:
+                w *= 1.0 / (1.0 + abs(c_age - subj_age) / sim_age)
+            if ta and subj_ta:
+                w *= 1.0 / (1.0 + abs(math.log(ta / subj_ta)) / sim_size)
         if gt:
             R.append((padj / gt, w))
         if la:
@@ -88,8 +201,21 @@ def appraise(subject_score: float, subject: dict, comps: list[dict],
         return {"fair_price": None, "avg_per_pyeong": None, "comps_used": used}
 
     eff_far = (subj_ta / subj_la * 100) if (subj_ta and subj_la) else 0   # 유효용적률
-    alpha = min(0.6, max(0.0, (eff_far - 400) / 600)) if (eff_far and ta_val) else 0.0
-    fair = round((1 - alpha) * base + alpha * (ta_val if ta_val else base))
+    a_floor = params_num.get("alpha.floor", 0.1)   # D: 저용적에도 연면적법 최소 반영(v3)
+    a_max = params_num.get("alpha.max", 0.8)       # 고용적 상한 0.6→0.8 — 대형 저평가 완화(감사 후 재튜닝)
+    alpha = min(a_max, max(a_floor, (eff_far - 400) / 600)) if (eff_far and ta_val) else (a_floor if ta_val else 0.0)
+    fair_f = (1 - alpha) * base + alpha * (ta_val if ta_val else base)
+    # 원가법(복성식) 근사 축(v3): 토지(대지단가법) + 건물 잔존가(표준단가×연면적×연식계수)를 λ만큼 혼합
+    cost_c = params_num.get("cost.c", 3.0e6)
+    cost_l = params_num.get("cost.lambda", 0.15)
+    # 대형(고용적) 게이트: 복성식 근사는 꼬마빌딩 전제(표준단가·대지단가법 토지가) —
+    # 유효용적률 200%까지 전량, 400%에서 0 (프라임 오피스 저평가 방지: 삼성동 157-36 −126억 사례)
+    cost_gate = max(0.0, min(1.0, (400.0 - eff_far) / 200.0)) if eff_far else 1.0
+    cost_l = cost_l * cost_gate
+    if cost_c and cost_l and subj_ta and m_land and subj_age is not None:   # 연식 미상=감가 판단 불가 → 스킵
+        struct = cost_c * subj_ta * _value_factor(subj_age, d1, d2, d3, afloor)
+        fair_f = (1 - cost_l) * fair_f + cost_l * (m_land + struct)
+    fair = round(fair_f)
     avg_per = round(fair / (subj_ta / M2_PER_PYEONG)) if subj_ta else None
     # 산출 분해(리포트 '적정가 근거 리빌'용) — 각 방법값 + 블렌드 비중
     breakdown = {
@@ -119,17 +245,28 @@ def expected_roi(applied_total_rent: float | None, fair_price: int | None) -> fl
 
 
 if __name__ == "__main__":  # ponytail: self-check
-    # 본매물 = comp와 동일 제원(연면적100평·대지100㎡·공시1천만/㎡). comp 실거래 20억 → 적정가 20억.
-    subj = {"total_area": 330.5785, "land_area": 100.0, "gongsi_latest": 1e7}
+    NOCOST = {"cost.lambda": 0.0, "alpha.floor": 0.0}   # 핵심 산식 항등성 검증용(v3 축 off)
+    # 본매물 = comp와 동일 제원·동일 연식 → 보정 무영향, comp 실거래 20억 → 적정가 20억.
+    subj = {"total_area": 330.5785, "land_area": 100.0, "gongsi_latest": 1e7, "approval_ymd": "2010-01-01"}
     comp = {"price": 2e9, "total_area": 330.5785, "land_area": 100.0, "gongsi_total": 1e9,
-            "contract_ym": "202506", "dist_m": 0, "building_pk": "x", "addr": "a"}
-    r = appraise(80, subj, [comp], {}, {})
-    assert r["fair_price"] == round(2e9), r          # 공시배율2×1e9=2e9, 대지2e7×100=2e9, base=2e9, α=0
+            "contract_ym": "202506", "dist_m": 0, "building_pk": "x", "addr": "a", "approval_ymd": "2010-01-01"}
+    r = appraise(80, subj, [comp], NOCOST, {})
+    assert r["fair_price"] == round(2e9), r
+    # v3 방향성: 본매물 신축 vs comp 노후 → 상향 / 반대 → 하향 (기본 파라미터)
+    up = appraise(80, {**subj, "approval_ymd": str(_THIS_YEAR)},
+                  [{**comp, "approval_ymd": str(_THIS_YEAR - 20)}], {}, {})["fair_price"]
+    dn = appraise(80, {**subj, "approval_ymd": str(_THIS_YEAR - 40)},
+                  [{**comp, "approval_ymd": str(_THIS_YEAR)}], {}, {})["fair_price"]
+    assert up > 2e9 > dn, (up, dn)
+    # 리모델링: 40년 건물이라도 리모델 최근이면 유효연식 단축 → 순수 노후보다 상향
+    rem = appraise(80, {**subj, "approval_ymd": str(_THIS_YEAR - 40), "remodel_ymd": str(_THIS_YEAR - 2)},
+                   [{**comp, "approval_ymd": str(_THIS_YEAR)}], {}, {})["fair_price"]
+    assert rem > dn, (rem, dn)
     assert appraise(80, subj, [], {}, {})["fair_price"] is None
-    # 대형(고용적) α가중: 유효용적 1400% → α=0.6, 연면적법 섞임
-    big = {"total_area": 14000.0, "land_area": 1000.0, "gongsi_latest": 1e7}
+    # 대형(고용적): 동일 제원이면 α 무관 항등
+    big = {"total_area": 14000.0, "land_area": 1000.0, "gongsi_latest": 1e7, "approval_ymd": "2010-01-01"}
     bc = {"price": 5e10, "total_area": 14000.0, "land_area": 1000.0, "gongsi_total": 1e10,
-          "contract_ym": "202506", "dist_m": 0}
-    rb = appraise(80, big, [bc], {}, {})
-    assert rb["fair_price"] == round(5e10), rb       # 동일제원이라 모든 방법=5e10 → α무관 5e10
-    print("report_calc v2 self-check ok")
+          "contract_ym": "202506", "dist_m": 0, "approval_ymd": "2010-01-01"}
+    rb = appraise(80, big, [bc], NOCOST, {})
+    assert rb["fair_price"] == round(5e10), rb
+    print("report_calc v3 self-check ok")
