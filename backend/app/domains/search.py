@@ -4,7 +4,7 @@ specs S01 §3.1a(자동완성)·§3.4(3열·열별 페이징)·§3.5(표시값)�
 import asyncio
 import json
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from ..core.db import pool
 from ..core.hangul import from_qwerty, looks_latin
 from ..core.deps import current_user, CurrentUser
@@ -154,7 +154,13 @@ async def regions(_: CurrentUser = Depends(current_user)):
 
 class Filters(BaseModel):
     """S01b 속성 필터 — master.buildings 컬럼 매핑 필드. None/빈리스트=미적용.
-    (UI엔 60필드지만 여기 없는 건 app레이어/미보유라 서버 필터 미지원 — 점진 확장)"""
+    (UI엔 60필드지만 여기 없는 건 app레이어/미보유라 서버 필터 미지원 — 점진 확장)
+
+    extra=forbid: 모르는 필드는 422로 거절한다. 기본값(ignore)이면 프론트가 필드명을 잘못
+    보냈을 때 그 조건만 조용히 빠져 '필터를 걸었는데 전체가 나오는' 형태로만 드러난다.
+    실제로 그 부류의 버그를 겪었다."""
+    model_config = ConfigDict(extra="forbid")
+
     bjd_code: str | None = None       # 법정동(prefix: 구=5자리·동=10자리)
     # 다중선택(= ANY)
     use_zones: list[str] | None = None       # 용도지역

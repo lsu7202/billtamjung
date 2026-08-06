@@ -98,14 +98,14 @@ export interface MapPinDTO {
 export const searchApi = {
   suggest: (q: string) => api<Suggestion[]>(`/search/suggest?q=${encodeURIComponent(q)}`),
   regions: () => api<Record<string, { sgg_code: string; dongs: { bjd_code: string; dong: string; count: number }[] }>>("/search/regions"),
-  list: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string; page_ad?: number; page_mine?: number; page_normal?: number }) =>
+  list: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string; page_mine?: number; page_normal?: number }) =>
     api("/search", {
       method: "POST",
       body: JSON.stringify({
         polygon: p.polygon ?? null,
         filters: { bjd_code: p.bjd_code ?? null, ...(p.filters ?? {}) },
         sort: p.sort ?? "price",
-        page_ad: p.page_ad ?? 1, page_mine: p.page_mine ?? 1, page_normal: p.page_normal ?? 1,
+        page_mine: p.page_mine ?? 1, page_normal: p.page_normal ?? 1,
       }),
     }),
   pins: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string }) =>
