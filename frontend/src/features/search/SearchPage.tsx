@@ -89,7 +89,7 @@ export function SearchPage() {
   const [priceMode, setPriceMode] = useState<"fair" | "real">((saved.priceMode as "fair" | "real") ?? "fair");   // 핀 태그 가격
   const [polygon, setPolygon] = useState<object | null>((saved.polygon as object | null) ?? null);
   const [picked, setPicked] = useState<MapPin | null>(null);
-  const [centerReq, setCenterReq] = useState<{ lng: number; lat: number } | null>(null);  // 지도 중심 이동 요청
+  const [centerReq, setCenterReq] = useState<{ lng: number; lat: number; zoom?: number } | null>(null);  // 지도 중심 이동 요청
   const [sort, setSort] = useState((saved.sort as string) ?? "price");
   const [filters, setFilters] = useState<AttrFilters>((saved.filters as AttrFilters) ?? {});      // 백엔드 쿼리용(모달 산출)
   const [fValues, setFValues] = useState<Values>((saved.fValues as Values) ?? {});           // 필터 모달 원본값(칩·재편집용)
@@ -145,12 +145,14 @@ export function SearchPage() {
   function pickFromSuggest(s: { kind?: string; building_pk?: string | null; lng?: number | null; lat?: number | null }) {
     setQ(""); setActive(-1);
     setView("map");
-    if (s.lng && s.lat) setCenterReq({ lng: s.lng, lat: s.lat });
+    // 고른 대상 크기에 맞춰 확대한다 — 건물은 필지가 보여야 하고, 동·역은 주변이 보여야 한다.
+    const zoom = s.kind === "region" ? 15 : s.kind === "station" ? 16 : 18;
+    if (s.lng && s.lat) setCenterReq({ lng: s.lng, lat: s.lat, zoom });
     if (s.kind === "building" || (!s.kind && s.building_pk)) selectBuilding(s.building_pk!);   // 핀에 있으면 그 핀, 없으면 조회
   }
   function toMap(h: Hit, key: "mine" | "normal") {   // 목록 [지도위치] → 지도뷰 + 그 매물로 중심 이동
     setPicked({ ...h, col: key });
-    if (h.lng && h.lat) setCenterReq({ lng: h.lng, lat: h.lat });
+    if (h.lng && h.lat) setCenterReq({ lng: h.lng, lat: h.lat, zoom: 18 });
     setView("map");
   }
   // 필지 클릭 → 매물 선택(부동산플래닛식). 검색결과면 그 핀(분류색), 아니면 건물 조회 후 내매물/일반 판정

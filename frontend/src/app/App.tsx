@@ -15,6 +15,7 @@ import { ReportPage } from "../features/building/ReportPage";
 import { ReportStory } from "../features/building/ReportStory";
 import { MyPage } from "../features/mypage/MyPage";
 import { IconSprite } from "../shared/ui/Icon";
+import { ErrorBoundary } from "../shared/ui/ErrorBoundary";
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 10_000 } } });
 
@@ -35,15 +36,15 @@ export function App() {
           <Route path="/survey" element={<SurveyPage />} />
           <Route path="/welcome" element={<AuthGuard><OnboardingPage /></AuthGuard>} />
           <Route element={<AuthGuard><Shell /></AuthGuard>}>
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/buildings/:pk" element={<BuildingPage />} />
-            <Route path="/mypage" element={<MyPage />} />
+            <Route path="/search" element={<ErrorBoundary><SearchPage /></ErrorBoundary>} />
+            <Route path="/buildings/:pk" element={<ErrorBoundary><BuildingPage /></ErrorBoundary>} />
+            <Route path="/mypage" element={<ErrorBoundary><MyPage /></ErrorBoundary>} />
           </Route>
           {/* 보고서 = 헤더 없는 전체화면(새 탭으로 여는 독립 뷰) */}
           <Route element={<AuthGuard><div style={{ height: "100vh", overflow: "hidden" }}><Outlet /></div></AuthGuard>}>
-            <Route path="/buildings/:pk/report" element={<ReportPage />} />
-            <Route path="/buildings/:pk/story" element={<ReportStory />} />
-            <Route path="/reports/:id" element={<ReportPage />} />
+            <Route path="/buildings/:pk/report" element={<ErrorBoundary><ReportPage /></ErrorBoundary>} />
+            <Route path="/buildings/:pk/story" element={<ErrorBoundary><ReportStory /></ErrorBoundary>} />
+            <Route path="/reports/:id" element={<ErrorBoundary><ReportPage /></ErrorBoundary>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

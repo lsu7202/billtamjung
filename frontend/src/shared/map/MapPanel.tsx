@@ -42,7 +42,7 @@ export function MapPanel({
   selectedPk?: string | null;                 // 선택 건물(필지 분류색 오버레이)
   selectedCol?: "mine" | "normal" | null;
   onParcelClick?: (building_pk: string | null, pnu: string) => void;  // 필지 클릭(부동산플래닛식)
-  centerReq?: { lng: number; lat: number } | null;  // 지도 중심 이동 요청(사이드바·지도위치 선택 시)
+  centerReq?: { lng: number; lat: number; zoom?: number } | null;  // 지도 중심 이동 요청(사이드바·지도위치 선택 시)
   priceMode?: "fair" | "real";               // 핀 태그 가격: 적정가/실거래가
 }) {
   const divRef = useRef<HTMLDivElement>(null);
@@ -102,11 +102,16 @@ export function MapPanel({
   useEffect(() => { pinLayerRef.current?.setPriceMode(priceMode); }, [priceMode, ready]);
   useEffect(() => { pinLayerRef.current?.setSelected(selectedPk ?? null); }, [selectedPk, ready]);
 
-  // 선택 매물 좌표로 지도 중심 이동(줌 유지). 사이드바 목록·지도위치 선택 시 요청됨
+  // 선택 대상 좌표로 지도 이동. zoom을 주면 그 배율까지 확대한다.
+  // 예전엔 줌을 그대로 뒀는데, 건물 하나를 골라도 줌 15면 선택 필지가 몇 픽셀이라
+  // 지도에서 어디가 선택됐는지 보이지 않았다(800m만 움직이고 화면은 그대로인 것처럼 보임).
   useEffect(() => {
     if (!ready || !centerReq) return;
     const naver = window.naver;
-    mapRef.current.panTo(new naver.maps.LatLng(centerReq.lat, centerReq.lng));
+    const at = new naver.maps.LatLng(centerReq.lat, centerReq.lng);
+    const want = centerReq.zoom;
+    if (want && mapRef.current.getZoom() < want) mapRef.current.morph(at, want);
+    else mapRef.current.panTo(at);
   }, [ready, centerReq]);
 
   // 레이어 토글
