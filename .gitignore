@@ -36,3 +36,7 @@ firebase-debug.log
 data/_raw_backup_*.tar.zst
 data/*.db.bak
 data/tools/_floor_outline.csv
+
+# 매뉴얼 영상 중간산출물 — 원본에서 재생성 가능(복제본이라 이중 보관 방지)
+ad/remotion/public/shots/          # = manual/img/*.png 복사본
+ad/remotion/public/vo/raw/         # 정규화 전 원본(gen_manual_vo.py로 재생성)

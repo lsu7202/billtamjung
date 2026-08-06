@@ -18,6 +18,10 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173"
 
+    # 신규 가입 개방 여부. false면 이메일 가입·소셜 신규가입이 모두 막히고
+    # 기존 회원 로그인·refresh·팀 초대 수락은 그대로 동작한다(홍보 선행 · 베타 개시 전 차단용).
+    signups_open: bool = True
+
     # 소셜 로그인(OAuth) — 키는 카카오/네이버 개발자센터 발급 후 env로 주입(BT_KAKAO_CLIENT_ID 등).
     # 비어 있으면 /auth/social/* 은 503(미설정) 반환. 스키마·골격은 준비됨(기능목록 §1).
     kakao_client_id: str = ""

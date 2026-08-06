@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import "./login.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import { authApi } from "../../shared/api/endpoints";
@@ -40,6 +40,16 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [reset, setReset] = useState(false);
   const [doc, setDoc] = useState<"terms" | "privacy" | null>(null);
+  // 베타 개시 전에는 신규 가입을 닫는다(기존 회원 로그인만) — 서버 설정을 따른다
+  const [signupsOpen, setSignupsOpen] = useState(true);
+
+  useEffect(() => {
+    authApi.publicConfig()
+      .then((c) => { if (!c.signups_open) { setSignupsOpen(false); setTab("login"); } })
+      .catch(() => {});
+    if (new URLSearchParams(loc.search).get("err") === "signup_closed")
+      setErr("관리자만 이용 가능합니다.");
+  }, [loc.search]);
 
   const on = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm({ ...form, [k]: e.target.value });
@@ -93,11 +103,11 @@ export function LoginPage() {
           )}
 
           {/* 탭 — 슬라이딩 언더라인(테라 위 골드) */}
-          <div className="bt-tabs" style={{ "--tab-n": 2, "--tab-i": tab === "login" ? 0 : 1, marginBottom: 16 } as CSSProperties}>
+          {signupsOpen && <div className="bt-tabs" style={{ "--tab-n": 2, "--tab-i": tab === "login" ? 0 : 1, marginBottom: 16 } as CSSProperties}>
             <button type="button" className={tab === "login" ? "on" : ""} onClick={() => setTab("login")}>로그인</button>
             <button type="button" className={tab === "signup" ? "on" : ""} onClick={() => setTab("signup")}>회원가입</button>
             <span className="bt-tabs-ink" aria-hidden />
-          </div>
+          </div>}
 
           <div style={{ display: "grid", gap: 9 }}>
             {tab === "signup" && (
@@ -153,9 +163,11 @@ export function LoginPage() {
           {/* 소셜 로그인 — 카카오 이메일 동의항목=비즈앱 심사 필요라 베타는 숨김(2026-08-04). 심사 후 원복. */}
 
           <p className="lg-aux" style={{ fontSize: 11.5, textAlign: "center", marginTop: 13 }}>
-            {tab === "signup"
-              ? <>가입 즉시 체험판 1개월 · 검색 무제한 + <b className="lg-gold">크레딧 60</b></>
-              : <>처음이신가요? <b className="lg-gold" onClick={() => setTab("signup")}>1분 가입 · 1개월 무료 →</b></>}
+            {!signupsOpen
+              ? <>관리자만 이용 가능합니다</>
+              : tab === "signup"
+                ? <>가입 즉시 체험판 1개월 · 검색 무제한 + <b className="lg-gold">크레딧 60</b></>
+                : <>처음이신가요? <b className="lg-gold" onClick={() => setTab("signup")}>1분 가입 · 1개월 무료 →</b></>}
           </p>
         </form>
       </div>

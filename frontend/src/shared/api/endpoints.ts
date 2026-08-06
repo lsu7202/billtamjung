@@ -17,6 +17,7 @@ export interface Report {
 }
 
 export const authApi = {
+  publicConfig: () => api<{ signups_open: boolean }>("/auth/public-config"),
   signup: (b: { email: string; password: string; name: string; office_name?: string; phone?: string; job_role?: string; referral_source?: string; interest_region?: string; gender?: string; terms_agreed: boolean; privacy_agreed: boolean; marketing_agreed?: boolean }) =>
     api<TokenOut>("/auth/signup", { method: "POST", body: JSON.stringify(b) }),
   login: (b: { email: string; password: string; remember?: boolean }) =>

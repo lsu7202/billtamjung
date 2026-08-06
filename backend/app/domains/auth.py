@@ -60,8 +60,19 @@ async def _issue(resp: Response, acc: dict, remember: bool = True) -> TokenOut:
     return TokenOut(access_token=access, tier=acc["tier"])
 
 
+SIGNUP_CLOSED = "관리자만 이용 가능합니다."
+
+
+@router.get("/public-config")
+async def public_config():
+    """로그인 화면이 가입 UI를 켤지 판단하는 공개 설정(인증 불필요)."""
+    return {"signups_open": settings.signups_open}
+
+
 @router.post("/signup", response_model=TokenOut)
 async def signup(body: SignupIn, resp: Response):
+    if not settings.signups_open:
+        raise HTTPException(403, SIGNUP_CLOSED)
     if not body.terms_agreed or not body.privacy_agreed:
         raise HTTPException(400, "이용약관과 개인정보 수집·이용에 동의해야 가입할 수 있습니다")
     pw = security.hash_password(body.password)

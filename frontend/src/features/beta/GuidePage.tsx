@@ -9,11 +9,11 @@ type Sec = { id: string; no: string; t: string; sub: string; lead: string; slide
 const SECTIONS: Sec[] = [
   {
     id: "search", no: "01", t: "주소로 찾기", sub: "매물 검색",
-    lead: "주소·건물명·역 이름으로 바로 엽니다.",
+    lead: "주소·동 이름·역 이름으로 바로 엽니다.",
     slides: [
       { t: "검색창에 입력", img: "01-검색.png", cap: "① 검색어 입력 · ② 요약 카드 · ③ 상세보기",
         steps: [
-          "주소·건물명·역 이름을 입력 — 띄어쓰기 없어도 되고 지번 일부만 쳐도 됩니다.",
+          "주소·동 이름·역 이름을 입력 — 띄어쓰기 없어도 되고 지번 일부만 쳐도 됩니다.",
           "자동완성에서 건물을 고르면 지도가 이동하고 왼쪽에 요약 카드가 뜹니다.",
           "「상세보기 →」로 상세 화면(새 탭)을 엽니다.",
         ],
@@ -290,6 +290,15 @@ export function GuidePage() {
       </header>
 
       <main className="bt-main">
+        <section className="bt-watch">
+          <div className="bt-watch-head">
+            <span className="bt-eyebrow">영상으로 먼저 보기</span>
+            <h2>화면을 따라가며 2분</h2>
+            <p>찾기부터 리포트까지, 실제 화면에 번호를 짚어가며 설명합니다. 아래 글은 같은 내용을 화면별로 더 자세히 정리한 것입니다.</p>
+          </div>
+          <video src="/beta/manual.mp4" controls playsInline preload="metadata" />
+        </section>
+
         {SECTIONS.map((s) => <Section key={s.id} sec={s} onZoom={setShot} />)}
 
         <section className="bt-end">

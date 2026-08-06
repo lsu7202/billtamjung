@@ -45,6 +45,15 @@
 .bt-note dt { font-size:14.5px; font-weight:750; margin-top:12px; }
 .bt-note dd { margin:4px 0 0; font-size:14px; color:var(--muted); line-height:1.65; }
 
+/* 사용 안내 영상 — 글 섹션보다 먼저 보는 자리 */
+.bt-watch { margin:0 0 12px; }
+.bt-watch-head { max-width:720px; margin:0 0 18px; }
+.bt-watch-head h2 { font-size:clamp(21px,2.6vw,27px); font-weight:800; letter-spacing:-.03em;
+  margin:8px 0 8px; }
+.bt-watch-head p { font-size:14.5px; color:#5C5449; line-height:1.7; margin:0; }
+.bt-watch video { display:block; width:100%; border-radius:12px; background:#12100E;
+  border:1px solid var(--line); }
+
 .bt-end { margin-top:56px; text-align:center; background:var(--gold-soft); border:1px solid #EADFC0;
   border-radius:14px; padding:34px 26px; }
 .bt-end h3 { font-size:20px; font-weight:800; margin:0 0 8px; }

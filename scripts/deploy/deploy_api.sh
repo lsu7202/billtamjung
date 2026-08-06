@@ -7,6 +7,7 @@ REGION="${REGION:-asia-northeast3}"
 DB_INSTANCE="${DB_INSTANCE:-bt-pg}"
 BUCKET="${BUCKET:-${PROJECT}-bt-artifacts}"
 FRONTEND_BASE="${FRONTEND_BASE:?FRONTEND_BASE=https://<hosting도메인> 필요}"   # OAuth 콜백·CORS
+SIGNUPS_OPEN="${SIGNUPS_OPEN:-true}"   # false면 신규 가입(이메일·소셜) 차단 — 기존 회원 로그인은 유지
 IMG="$REGION-docker.pkg.dev/$PROJECT/bt/api:$(date +%Y%m%d-%H%M)"
 CONN=$(gcloud sql instances describe "$DB_INSTANCE" --project="$PROJECT" --format='value(connectionName)')
 
@@ -27,7 +28,7 @@ gcloud run deploy bt-api --project="$PROJECT" --region="$REGION" \
   --min-instances=1 --max-instances=4 --memory=1Gi --cpu=1 --no-cpu-throttling \
   --add-cloudsql-instances="$CONN" \
   --update-secrets="BT_JWT_SECRET=bt-jwt-secret:latest" \
-  --set-env-vars="^##^BT_DATABASE_URL=postgresql://postgres:${DB_PASS}@${HOSTENC}/billtamjung##BT_GCS_BUCKET=${BUCKET}##BT_FRONTEND_BASE=${FRONTEND_BASE}##BT_CORS_ORIGINS=${FRONTEND_BASE}"
+  --set-env-vars="^##^BT_DATABASE_URL=postgresql://postgres:${DB_PASS}@${HOSTENC}/billtamjung##BT_GCS_BUCKET=${BUCKET}##BT_FRONTEND_BASE=${FRONTEND_BASE}##BT_CORS_ORIGINS=${FRONTEND_BASE}##BT_SIGNUPS_OPEN=${SIGNUPS_OPEN}"
 
 URL=$(gcloud run services describe bt-api --region="$REGION" --format='value(status.url)')
 echo "── 헬스체크"; curl -s "$URL/health"; echo

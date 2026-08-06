@@ -68,6 +68,8 @@ async def _find_or_create(conn, provider: str, uid: str, email: str | None, name
     if email:                                          # 같은 이메일 기존 계정에 연결
         acc = await conn.fetchrow(
             "SELECT id, tier FROM app.accounts WHERE email=$1 AND deleted_at IS NULL", email)
+    if not acc and not settings.signups_open:          # 가입 차단 중 — 기존 계정 로그인만 허용
+        raise HTTPException(403, "관리자만 이용 가능합니다.")
     if not acc:                                        # 신규: 계정→팀→멤버→체험크레딧
         # 이메일 미제공(카카오 동의 거부 등) — accounts.email NOT NULL이라 대체값 생성
         acc = await conn.fetchrow(
@@ -120,8 +122,18 @@ async def callback(provider: str, code: str = Query(...), state: str = Query(Non
         prof = await client.get(p["profile"], headers={"Authorization": f"Bearer {access}"})
         uid, email, name = _parse_profile(provider, prof.json())
 
+    try:
+        async with tx() as conn:
+            acc = await _find_or_create(conn, provider, uid, email, name)
+    except HTTPException as e:
+        if e.status_code != 403:
+            raise
+        # 가입 차단 중 신규 소셜 — 로그인 화면으로 사유와 함께 되돌린다(JSON 에러 노출 방지)
+        back = RedirectResponse(f"{settings.frontend_base}/login?err=signup_closed")
+        back.delete_cookie("oauth_state", path="/")
+        return back
+
     async with tx() as conn:
-        acc = await _find_or_create(conn, provider, uid, email, name)
         # 소셜 가입 동의 기록 — 프론트가 필수 동의 후 start 진입(개인정보=필수·마케팅=state 플래그)
         await conn.execute(
             """UPDATE app.accounts SET privacy_agreed_at=COALESCE(privacy_agreed_at, now()),

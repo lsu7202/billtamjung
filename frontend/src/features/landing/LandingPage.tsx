@@ -1,6 +1,7 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../shared/store/auth";
+import { authApi } from "../../shared/api/endpoints";
 import { CityCanvas } from "./CityCanvas";
 import "../auth/login.css";
 import "./landing.css";
@@ -11,6 +12,11 @@ export function LandingPage() {
   const nav = useNavigate();
   const authed = useAuth((s) => Boolean(s.access));
   const [leaving, setLeaving] = useState(false);
+  const [signupsOpen, setSignupsOpen] = useState(true);   // 베타 개시 전에는 신규 가입을 닫는다
+
+  useEffect(() => {
+    authApi.publicConfig().then((c) => setSignupsOpen(c.signups_open)).catch(() => {});
+  }, []);
 
   function start() {
     if (leaving) return;
@@ -48,7 +54,8 @@ export function LandingPage() {
           </svg>
         </button>
         <div className="ld-note">
-          {authed ? "로그인되어 있어요 — 바로 이어서 시작합니다" : "가입 1분 · 체험 1개월 무료"}
+          {authed ? "로그인되어 있어요 — 바로 이어서 시작합니다"
+            : signupsOpen ? "가입 1분 · 체험 1개월 무료" : "관리자만 이용 가능합니다"}
         </div>
       </div>
 
