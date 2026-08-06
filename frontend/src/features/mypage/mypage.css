@@ -1,0 +1,89 @@
+/* S0M 마이페이지 — 읽는 화면이 아니라 확인·조작하는 화면. 폭을 잡고 위계를 준다.
+   기존엔 전 패널이 1440px를 꽉 채워 크레딧 숫자 하나가 1,300px 여백을 끌고 다녔다. */
+
+.mp {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 20px 20px 56px;
+  display: grid;
+  gap: 14px;
+}
+
+.mp-row { display: grid; gap: 14px; }
+.mp-row.split { grid-template-columns: 1.55fr 1fr; }
+.mp-row.wide  { grid-template-columns: 1.4fr 1fr; }
+@media (max-width: 900px) {
+  .mp-row.split, .mp-row.wide { grid-template-columns: 1fr; }
+}
+
+/* 섹션 헤더 — .sec-head는 space-between이라 자식이 셋이면 흩어진다(팀 헤더가 그랬다).
+   왼쪽 묶음/오른쪽 액션 두 덩어리로만 쓴다. */
+.mp .sec-head .lead { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mp .sec-head .lead .name { font-weight: 700; color: var(--ink); }
+.mp .sec-head .lead .sub { font-size: 11.5px; color: var(--muted); font-weight: 500; }
+
+.mp-body { padding: 0 16px 16px; }
+
+/* ── 크레딧 ── */
+.mp-credit { display: flex; align-items: flex-end; gap: 14px; }
+.mp-credit .big {
+  font-family: var(--mono); font-size: 46px; font-weight: 800;
+  line-height: .95; letter-spacing: -.04em; color: var(--ink);
+}
+.mp-credit .unit { font-size: 13px; color: var(--muted); padding-bottom: 6px; }
+.mp-convert {
+  margin-top: 12px; padding: 10px 12px; border-radius: var(--radius-sm);
+  background: var(--surface-2); font-size: 13px; color: var(--ink-2);
+}
+.mp-convert b { color: var(--ink); font-weight: 800; }
+.mp-split {
+  margin-top: 10px; display: flex; gap: 18px;
+  font-size: 12px; color: var(--muted);
+}
+.mp-split span b { font-family: var(--mono); color: var(--ink-2); font-weight: 700; }
+
+/* ── 계정 ── */
+.mp-id { display: grid; gap: 2px; }
+.mp-id .nm { font-size: 16px; font-weight: 800; letter-spacing: -.02em; }
+.mp-id .em { font-size: 12.5px; color: var(--muted); font-family: var(--mono); }
+.mp-id .of { font-size: 12.5px; color: var(--ink-2); }
+.mp-form { display: grid; gap: 8px; max-width: 300px; margin-top: 12px; }
+
+/* ── 팀 ── */
+.mp-member {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px;
+}
+.mp-member:last-of-type { border-bottom: 0; }
+.mp-member .who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mp-member .who b { font-weight: 700; }
+.mp-member .who .em { color: var(--muted); font-size: 12px; font-family: var(--mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-sub { padding-top: 14px; margin-top: 4px; border-top: 1px solid var(--line); }
+.mp-sub .lbl { font-size: 12px; color: var(--muted); margin-bottom: 7px; }
+.mp-inline { display: flex; gap: 6px; max-width: 420px; }
+.mp-inline .btn { flex: 0 0 auto; white-space: nowrap; }
+.mp-invite {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 8px 10px; margin-top: 7px; border: 1px solid var(--line);
+  border-radius: var(--radius-sm); background: var(--surface-2); font-size: 12px;
+}
+.mp-invite code {
+  background: #fff; border: 1px solid var(--line-2); padding: 2px 8px;
+  border-radius: 4px; color: var(--ink); font-family: var(--mono); font-size: 12px;
+}
+
+/* ── 플랜(표시 전용) ── */
+.mp-plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 760px) { .mp-plans { grid-template-columns: 1fr; } }
+.mp-plan { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; position: relative; }
+.mp-plan.on { border-color: var(--signal); }
+.mp-plan .pn { font-weight: 800; font-size: 13.5px; }
+.mp-plan .pp { font-size: 19px; font-weight: 800; margin-top: 3px; letter-spacing: -.02em; }
+.mp-plan .ps { font-size: 11px; color: var(--muted); }
+.mp-plan ul { margin: 10px 0 0; padding: 9px 0 0; list-style: none;
+  border-top: 1px solid var(--line); display: grid; gap: 5px; }
+.mp-plan li { font-size: 12px; color: var(--ink-2); }
+
+.mp-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 26px 0; }
+.mp-note { font-size: 11.5px; color: var(--muted); margin: 0; padding: 0 16px 14px; }
