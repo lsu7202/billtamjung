@@ -1,6 +1,7 @@
 """검색: 주소 자동완성 + 2열 목록(내매물/일반) + 영역(폴리곤) 검색.
 specs S01 §3.1a(자동완성)·§3.4(3열·열별 페이징)·§3.5(표시값)·§3.6c(영역).
 """
+import asyncio
 import json
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -421,15 +422,22 @@ def _filter_sql(f: Filters, args: list) -> tuple[str, str]:
     return ms, os_
 
 
-def _build_base(body: SearchIn, user: CurrentUser) -> tuple[str, list, str]:
+def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tuple[str, list, str]:
     """raw(조인·원자료) → classified(계산값) CTE + args. 반환 (base, args, outer_sql).
-    마스터 필터=raw WHERE / 계산값 필터=outer_sql(호출부가 classified SELECT에 이어붙임)."""
+    마스터 필터=raw WHERE / 계산값 필터=outer_sql(호출부가 classified SELECT에 이어붙임).
+
+    col을 주면 열 조건을 raw WHERE에 직접 넣는다. classified 바깥의 col='mine'은
+    CASE 식이라 플래너가 raw까지 밀어내지 못해, 담당 매물이 0건인 팀도 구 전체(2.4만행)를
+    다 만들어놓고 버렸다(실측 117ms)."""
     args: list = [user.team_id]
     poly_sql = ""
     if body.polygon:
         args.append(json.dumps(body.polygon))
         poly_sql = f" AND ST_Within(b.geom, ST_MakeValid(ST_GeomFromGeoJSON(${len(args)}::text)))"
     master_filt, outer_sql = _filter_sql(body.filters, args)
+    # 'mine'만 내린다. 'normal'에 IS NULL을 걸면 대다수 행이 통과하는 조건이라
+    # 플래너가 조인 순서를 바꿔 되레 느려졌다(구 단위 615ms→1401ms 실측).
+    col_filt = " AND l.assignee_account_id IS NOT NULL" if col == "mine" else ""
 
     # 유동인구 proxy = (도로접면 점수 + 역거리 점수)/2 버킷 — value_score.float_pop_label과 동일.
     road_score = ("CASE b.road_frontage WHEN '광대소각' THEN 90 WHEN '광대세각' THEN 83 WHEN '광대로한면' THEN 76"
@@ -470,12 +478,6 @@ def _build_base(body: SearchIn, user: CurrentUser) -> tuple[str, list, str]:
         FROM app.overlays
         WHERE team_id = $1 AND target_type = 'building' AND field = 'sale_price' AND value ~ '^[0-9]+$'
       ),
-      sales_agg AS (   -- 실거래 횟수·최근 2건(손익)
-        SELECT building_pk, count(*) AS sale_cnt,
-               (array_agg(price ORDER BY contract_ym DESC))[1] AS p_last,
-               (array_agg(price ORDER BY contract_ym DESC))[2] AS p_prev
-        FROM master.sales_history WHERE price > 0 GROUP BY building_pk
-      ),
       photo_ex AS (SELECT DISTINCT building_pk FROM app.photos),
       raw AS (
         SELECT b.building_pk, b.addr, b.land_area, b.total_area, b.gongsi_latest,
@@ -498,11 +500,11 @@ def _build_base(body: SearchIn, user: CurrentUser) -> tuple[str, list, str]:
         LEFT JOIN master.building_rent_est re ON re.building_pk = b.building_pk
         LEFT JOIN rent_agg ra ON ra.building_pk = b.building_pk
         LEFT JOIN app.listings l ON l.building_pk = b.building_pk AND l.team_id = $1
-        LEFT JOIN sales_agg sa ON sa.building_pk = b.building_pk
+        LEFT JOIN master.sales_agg sa ON sa.building_pk = b.building_pk   -- MV(0028): 매 검색마다 11.4만행 재집계하던 CTE 대체
         LEFT JOIN photo_ex ph ON ph.building_pk = b.building_pk
         LEFT JOIN master.gongsi_series g5 ON g5.pnu = b.pnu AND g5.year = EXTRACT(YEAR FROM CURRENT_DATE)::int - 5
         LEFT JOIN master.gongsi_series g10 ON g10.pnu = b.pnu AND g10.year = EXTRACT(YEAR FROM CURRENT_DATE)::int - 10
-        WHERE TRUE {poly_sql} {master_filt}
+        WHERE TRUE {poly_sql} {master_filt} {col_filt}
       ),
       classified AS (
         SELECT building_pk, addr, land_area, total_area, floors_above, floors_below, use_zone,
@@ -546,34 +548,35 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
     분류(§3.4·상태 종속): 내매물 = 팀 담당자 지정 · 일반 = 나머지.
     매매가(§3.5): 내매물=팀 수기 sale_price / 일반=NULL(후순위).
     """
-    base, args, outer_sql = _build_base(body, user)
     # 정렬 = 매매가순 / 수익률순만(S01 §3.3). 값 없는 항목은 후순위(NULLS LAST).
     order = {
         "price": "price DESC NULLS LAST, addr",
         "roi": "roi DESC NULLS LAST, price DESC NULLS LAST",
     }.get(body.sort, "price DESC NULLS LAST, addr")
 
-    async def col(name: str, page: int):
+    async def column(name: str, page: int):
+        # 열 조건을 raw WHERE로 내려 그 열에 속한 행만 만든다(내매물 0건 팀은 즉시 종료).
+        base, args, outer_sql = _build_base(body, user, col=name)
         off = (page - 1) * body.per_page
         # count(*) OVER() 윈도우는 LIMIT 최적화를 막아 구 전체(2.4만+)에서 30s+ 행업(플래너가
         # 전 행 계산·nested-loop 폭발). rows(LIMIT)와 total(경량 count)을 분리하면 ~5s.
-        rows = await pool().fetch(
-            base + f"""SELECT * FROM classified
-                       WHERE col = '{name}' {outer_sql} ORDER BY {order}
-                       LIMIT {body.per_page} OFFSET {off}""",
-            *args,
-        )
-        total = await pool().fetchval(
-            base + f"SELECT count(*) FROM classified WHERE col = '{name}' {outer_sql}",
-            *args,
+        rows, total = await asyncio.gather(
+            pool().fetch(
+                base + f"""SELECT * FROM classified
+                           WHERE col = '{name}' {outer_sql} ORDER BY {order}
+                           LIMIT {body.per_page} OFFSET {off}""",
+                *args),
+            pool().fetchval(
+                base + f"SELECT count(*) FROM classified WHERE col = '{name}' {outer_sql}",
+                *args),
         )
         return {"items": [dict(r) for r in rows], "total": total, "page": page,
                 "pages": max(1, -(-total // body.per_page))}
 
-    return {
-        "mine": await col("mine", body.page_mine),
-        "normal": await col("normal", body.page_normal),
-    }
+    # 두 열은 서로 독립 — 순차로 돌면 합계만큼 기다린다(구 단위 실측 합 0.83s → 최댓값 0.62s).
+    mine, normal = await asyncio.gather(
+        column("mine", body.page_mine), column("normal", body.page_normal))
+    return {"mine": mine, "normal": normal}
 
 
 @router.post("/pins")

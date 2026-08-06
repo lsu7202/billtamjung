@@ -237,12 +237,15 @@ async def main() -> int:
 
         # 4-b) 지역 집계 MV 갱신(0028) — 자동완성·필터 지역목록이 이걸 읽는다.
         # 스왑 후에 돌려야 새 데이터가 반영된다. CONCURRENTLY라 조회를 막지 않는다.
-        if args.source == "buildings":
+        for mv, srcs in (("master.region_index", ("buildings",)),
+                         ("master.sales_agg", ("sales_history",))):
+            if args.source not in srcs:
+                continue
             try:
-                await conn.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY master.region_index")
-                print("  · master.region_index 갱신")
+                await conn.execute(f"REFRESH MATERIALIZED VIEW CONCURRENTLY {mv}")
+                print(f"  · {mv} 갱신")
             except Exception as e:      # MV 미생성(마이그레이션 전) 등 — 적재 자체는 성공 처리
-                print(f"  ⚠️ region_index 갱신 실패(무시): {e}")
+                print(f"  ⚠️ {mv} 갱신 실패(무시): {e}")
 
         # 5) 직전-1 세대 정리(1세대 보존, §2.6)
         if cur_version >= 2:

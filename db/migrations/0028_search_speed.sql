@@ -58,3 +58,16 @@ BEGIN
     'buildings_dongjibun_prefix_idx', t);
   RAISE NOTICE '0028: %에 동+지번 접두 인덱스 생성', t;
 END $$;
+
+-- ── ⑤ 실거래 집계 MV — 매 검색마다 sales_history 전체(11.4만 행)를 워커 3개가 각각 집계했다.
+--    지역 필터와 무관하게 항상 드는 비용이라 구 단위 검색 1.1s의 큰 몫을 차지한다.
+CREATE MATERIALIZED VIEW IF NOT EXISTS master.sales_agg AS
+SELECT building_pk,
+       count(*)::int                                    AS sale_cnt,
+       (array_agg(price ORDER BY contract_ym DESC))[1]  AS p_last,
+       (array_agg(price ORDER BY contract_ym DESC))[2]  AS p_prev
+FROM master.sales_history
+WHERE price > 0
+GROUP BY building_pk;
+
+CREATE UNIQUE INDEX IF NOT EXISTS sales_agg_pk_uix ON master.sales_agg (building_pk);
