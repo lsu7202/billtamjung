@@ -1,4 +1,4 @@
-import { api, apiBlob } from "./client";
+import { api } from "./client";
 
 export interface TokenOut { access_token: string; tier: string }
 export interface Suggestion { kind: "building" | "region" | "station"; building_pk?: string | null; addr: string; lng?: number | null; lat?: number | null; is_mine?: boolean; price?: number | null; sub?: string | null }
@@ -11,7 +11,7 @@ export interface FloorRent {
 export interface Report {
   id: number; building_pk: string; kind: "analysis";
   status: "pending" | "generating" | "done" | "failed";
-  credits_spent?: number; file_path?: string; created_at: string;
+  credits_spent?: number; created_at: string;
   is_stale?: boolean; addr?: string; failed_reason?: string;
   result_json?: { subject: CompsResponse["subject"]; preview: ReportPreview } | null;
 }
@@ -257,15 +257,6 @@ export const reportsApi = {
     api<{ report_id: number }>("/reports", { method: "POST", body: JSON.stringify({ building_pk, kind, options }) }),
   get: (id: number) => api<Report>(`/reports/${id}`),
   list: () => api<Report[]>("/reports"),
-  download: async (id: number) => {
-    const blob = await apiBlob(`/reports/${id}/download`);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `빌탐정_분석보고서_${id}.pptx`;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
-  },
   comps: (building_pk: string) => api<CompsResponse>(`/reports/comps/${building_pk}`),
   preview: (body: { building_pk: string; exclude: string[]; overrides: Record<string, CompFields>; include_market: boolean }) =>
     api<{ preview: ReportPreview; comp_scores: Record<string, number> }>("/reports/preview", { method: "POST", body: JSON.stringify(body) }),

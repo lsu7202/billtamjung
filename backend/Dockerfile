@@ -9,7 +9,7 @@ RUN pip install --upgrade pip && pip install \
     "fastapi>=0.110" "uvicorn[standard]>=0.29" "asyncpg>=0.29" \
     "pydantic>=2.6" "pydantic-settings>=2.2" "argon2-cffi>=23.1" \
     "pyjwt>=2.8" "python-multipart>=0.0.9" "email-validator>=2.1" \
-    "httpx>=0.27" "python-pptx>=0.6.23" "google-cloud-storage>=2.16"
+    "httpx>=0.27" "google-cloud-storage>=2.16"
 
 COPY app ./app
 

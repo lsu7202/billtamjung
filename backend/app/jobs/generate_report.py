@@ -7,18 +7,15 @@
 엔트리 2개: run_generate(로컬 BackgroundTasks) · POST /jobs/generate-report(Cloud Tasks).
 """
 import json
-import os
 import datetime as dt
 from fastapi import APIRouter
 from pydantic import BaseModel
-from ..core import storage
 from ..core.db import tx, pool
 from ..core.config import settings
 from . import value_score, report_calc, use_type
 
 router = APIRouter(prefix="/jobs", tags=["worker"])
 
-REPORT_DIR = os.environ.get("BT_REPORT_DIR", "/tmp/bt-reports")
 
 
 def _fnum(v) -> float | None:
@@ -513,335 +510,11 @@ def _flag_comp_outliers(comps: list[dict]) -> None:
             c["is_outlier"] = True
 
 
-TEMPLATE_ANALYSIS = (os.environ.get("BT_REPORT_TEMPLATE")
-    or os.path.join(os.path.dirname(__file__), "../assets/R_example.pptx"))   # 이미지 내장(도커에 specs 없음)
-
-# ── 템플릿 바인딩 헬퍼 ──────────────────────────────────────────────
-def _run0(shape, text: str) -> None:
-    """첫 문단 첫 run 텍스트만 교체(큰 숫자 표시용, 서식·단위 run 유지)."""
-    p = shape.text_frame.paragraphs[0]
-    if p.runs:
-        p.runs[0].text = text
-    else:
-        p.text = text
-
-
-def _settext(shape, text: str) -> None:
-    """도형 전체 텍스트를 한 줄로 교체(서술 중화용). 첫 run 서식 유지, 나머지 run 비움."""
-    tf = shape.text_frame
-    p0 = tf.paragraphs[0]
-    if p0.runs:
-        p0.runs[0].text = text
-        for r in p0.runs[1:]:
-            r.text = ""
-    else:
-        p0.text = text
-    for p in tf.paragraphs[1:]:
-        for r in p.runs:
-            r.text = ""
-
-
-def _cell(cell, text: str) -> None:
-    p = cell.text_frame.paragraphs[0]
-    if p.runs:
-        p.runs[0].text = text
-        for r in p.runs[1:]:
-            r.text = ""
-    else:
-        p.text = text
-
-
-def _eok(won, dec=0):
-    return f"{won/1e8:.{dec}f}" if won else "—"
-
-
-def _man(won):
-    return f"{round(won/1e4):,}" if won else "—"
-
-
-def _eokman(won):
-    if not won:
-        return "—"
-    e = int(won // 1e8); m = round((won % 1e8) / 1e4)
-    return (f"{e}억 " if e else "") + f"{m:,}만원"
-
-
-def _py(m2):
-    return f"{m2/3.305785:.2f}" if m2 else "—"
-
-
-def _grade_word(sc):
-    return "매우 우수" if sc >= 90 else "우수" if sc >= 80 else "양호" if sc >= 70 else "보통" if sc >= 60 else "미흡"
-
-
-def _bind_analysis_template(path: str, report_id: int, b: dict, vs: dict, syn: dict) -> int:
-    """R_example.pptx 서식에 실 산출값 바인딩. 파생 불가한 매물특정 서술은 중화(허위 방지)."""
-    from pptx import Presentation
-    from pptx.chart.data import CategoryChartData
-
-    prs = Presentation(TEMPLATE_ANALYSIS)
-    fair = syn.get("fair_price"); ask = syn.get("ask_price"); gap = syn.get("gap")
-    rent = syn.get("applied_rent") or _fnum(b.get("total_rent"))
-    dep = syn.get("expected_deposit") or _fnum(b.get("total_deposit"))
-    cur_rent = _fnum(b.get("total_rent"))
-    roi = syn.get("expected_roi")
-    roi_ask = report_calc.expected_roi(rent, ask) if ask else None
-    area_m2 = _fnum(b.get("total_area"))
-    floors = syn.get("rent_floors") or []
-    used = syn.get("comps_used") or []
-    items = vs["items"]
-    today = dt.date.today().strftime("%Y.%m.%d")
-    rno = f"BT-{dt.date.today().year}-{report_id:06d}"
-    addr = b.get("addr") or ""
-
-    # 1) 단어 통일 + 매물특정 예시값 치환(모든 run, 표·차트 캐시 포함). 긴 토큰 우선.
-    SUBS = [
-        ("주변월세시세", "주변임대시세"), ("총월세", "총임대료"), ("월세", "임대료"),
-        ("역삼동 735-29", addr), ("BT-2026-000104", rno), ("2026.06.28", today),
-        ("1억 9,716만원", _eokman(rent * 12)),
-        ("A등급(양호)", f"{vs['grade']}등급({_grade_word(vs['score'])})"),
-    ]
-    def _subs_runs(paras):
-        for para in paras:
-            for r in para.runs:
-                for ex, real in SUBS:
-                    if ex in r.text:
-                        r.text = r.text.replace(ex, real)
-
-    for s in prs.slides:
-        for sh in s.shapes:
-            if sh.has_text_frame:
-                _subs_runs(sh.text_frame.paragraphs)
-            elif sh.has_table:
-                for row in sh.table.rows:
-                    for cl in row.cells:
-                        _subs_runs(cl.text_frame.paragraphs)
-
-    # 2) 슬라이드별 스칼라·표·차트 바인딩. 도형은 이름('Text N')으로 지정(슬라이드 내 유일).
-    def sid(slide, n):
-        return next((sh for sh in slide.shapes if sh.name == f"Text {n}"), None)
-
-    def tbl(slide):
-        return next((sh.table for sh in slide.shapes if sh.has_table), None)
-
-    def chart(slide):
-        return next((sh.chart for sh in slide.shapes if sh.has_chart), None)
-
-    S = prs.slides
-    # ── 표지(0) ──
-    _run0(sid(S[0], 2), addr)
-    _settext(sid(S[0], 3), f"{addr} 분석보고서")
-    _run0(sid(S[0], 8), f"{vs['score']:.1f}")
-    _run0(sid(S[0], 7), f"{vs['grade']}등급")
-    _run0(sid(S[0], 11), _eok(ask))
-    _run0(sid(S[0], 14), _eok(fair))
-    _run0(sid(S[0], 19), _eok(gap) if gap else "—")
-    _settext(sid(S[0], 21), f"주변임대시세 적용 총임대료 · 연임대료 추정치 {_eokman(rent*12)}")
-    _run0(sid(S[0], 22), _man(rent))
-    _run0(sid(S[0], 25), f"{roi}" if roi is not None else "—")
-
-    # ── 기본정보(1) ──
-    def _d(x):
-        return "—" if x in (None, "") else x
-    land_py = (_fnum(b.get("land_area")) or 0) / 3.305785
-    total_py = (area_m2 or 0) / 3.305785
-    t = tbl(S[1])
-    binfo = [_eok(ask) + "억 원", f"{_py(_fnum(b.get('land_area')))}평", f"{_py(area_m2)}평",
-             (_eok(ask/land_py, 2) + "억 원 (호가 기준)") if (ask and land_py) else "—",
-             (_man(ask/total_py) + "만 원 (호가 기준)") if (ask and total_py) else "—",
-             _d(b.get("use_zone")), _d(b.get("main_use")),
-             f"지하 {_d(b.get('floors_below'))}층 / 지상 {_d(b.get('floors_above'))}층",
-             (str(b.get("approval_ymd"))[:4] + "년") if b.get("approval_ymd") else "—",
-             f"{_d(b.get('bcr'))}%", f"{_d(b.get('far'))}%",
-             f"{_d(b.get('parking_count'))}대", f"{_d(b.get('elevator_count'))}대",
-             "—", f"공실 {b.get('vacant_count',0)}건",
-             _eok(_fnum(b.get("total_deposit")), 1) + "억 원", _man(cur_rent) + "만 원", "—",
-             (f"{report_calc.expected_roi(cur_rent, ask)}% (현재 임대료 · 호가 기준)" if ask else "—")]
-    for i, v in enumerate(binfo):
-        if i < len(t.rows):
-            _cell(t.cell(i, 1), v)
-    # 핵심스펙 카드: 파생 가능만 채우고 매물특정(초역세권·코너)은 중화
-    _settext(sid(S[1], 8), "용도지역"); _settext(sid(S[1], 9), _d(b.get("use_zone")))
-    _settext(sid(S[1], 11), "건물규모"); _settext(sid(S[1], 12), f"지하 {_d(b.get('floors_below'))} · 지상 {_d(b.get('floors_above'))}층")
-    _settext(sid(S[1], 15), f"승강기 {_d(b.get('elevator_count'))}대 보유")
-    _settext(sid(S[1], 18), f"주차 {_d(b.get('parking_count'))}대 가능")
-    _settext(sid(S[1], 21), f"현재 {report_calc.expected_roi(cur_rent, ask) if ask else '—'}%  →  적정가 기준 {roi if roi is not None else '—'}%")
-    _settext(sid(S[1], 23), (f"현재 총임대료 {_man(cur_rent)}만원 대비 주변임대시세 적용 시 "
-                             f"{_man(rent)}만원({(rent-cur_rent)/1e4:+,.0f}만원)까지 임대료 개선 여지가 있습니다."
-                             if syn.get("market_applied") else "주변임대시세 미포함(현재 임대료 기준)."))
-
-    # ── 가치점수(3) ──
-    _run0(sid(S[3], 8), f"{vs['score']:.1f}")
-    _run0(sid(S[3], 10), vs["grade"])
-    t = tbl(S[3])
-    ORDER = ["road_access", "station_dist", "use_zone", "approval_date", "elevator", "remodel", "shape", "slope", "float_pop"]
-    for i, key in enumerate(ORDER, start=1):
-        sc = items.get(key, 0)
-        _cell(t.cell(i, 1), _grade_word(sc))
-        _cell(t.cell(i, 2), f"{t.cell(i,0).text.strip()} 항목 평가 결과 {_grade_word(sc)} 수준입니다.")
-    ch = chart(S[3])
-    if ch:
-        cd = CategoryChartData()
-        cd.categories = ["도로접면", "역과의거리", "용도지역", "지형형상", "사용승인일", "엘리베이터", "대수선·리모델링", "경사도", "유동인구"]
-        cd.add_series("항목별 점수(배점 대비 %)",
-                      [items.get(k, 0) for k in ["road_access", "station_dist", "use_zone", "shape", "approval_date", "elevator", "remodel", "slope", "float_pop"]])
-        ch.replace_data(cd)
-    _settext(sid(S[3], 11), f"등급 기준  S 90↑ · A 75~89 · B 60~74 · C 60↓   →   본 매물 {vs['grade']}등급({_grade_word(vs['score'])})")
-
-    # ── 매매사례(4) ──
-    t = tbl(S[4])
-    for i in range(1, len(t.rows)):
-        c = used[i - 1] if i - 1 < len(used) else None
-        vals = ([str(i), c.get("addr") or c.get("building_pk") or "—", "—", str(c.get("contract_ym") or "—"),
-                 f"{c['price']/1e8:.1f}", f"{c.get('area_py','—')}", f"{round(c['per_now']/1e4):,}",
-                 f"{vs['score']-c.get('score',0):+.1f}", f"{round(c.get('time_adj',0)*100):+d}%"]
-                if c else [str(i)] + ["—"] * 8)
-        for j, v in enumerate(vals):
-            _cell(t.cell(i, j), v)
-    ch = chart(S[4])
-    if ch and used:
-        cd = CategoryChartData()
-        cd.categories = [f"사례{i+1}" for i in range(len(used))] + ["본 매물"]
-        cd.add_series("유사사례 평단가", [round(c["per_now"] / 1e4) for c in used] + [None])
-        cd.add_series("본 매물 적용", [None] * len(used) + [round((syn.get("avg_per_pyeong") or 0) / 1e4)])
-        ch.replace_data(cd)
-    _settext(sid(S[4], 9), f"{_man(syn.get('avg_per_pyeong'))} 만원/평")
-    _settext(sid(S[4], 13), f"{_py(area_m2)} 평")
-    _settext(sid(S[4], 17), f"{_eok(fair)}억 원")
-    if gap and ask:
-        _settext(sid(S[4], 20), f"현재 호가 {_eok(ask)}억 대비 약 {_eok(gap)}억 협의 필요 (호가 대비 약 {gap/ask*100:.1f}% 하향 협의 여지)")
-    else:
-        _settext(sid(S[4], 20), "적정매매가 수준 · 협의 여지 제한적")
-
-    # ── 주변임대시세(5) ──
-    _run0(sid(S[5], 8), _man(cur_rent))
-    _settext(sid(S[5], 11), f"{_man(rent)} 만원    연임대료 추정치 {_eokman(rent*12)}")
-    _run0(sid(S[5], 14), f"{(rent-cur_rent)/1e4:+,.0f}")
-    t = tbl(S[5])
-    n = min(len(floors), len(t.rows) - 2)   # 마지막 행=합계
-    for i in range(len(t.rows) - 2):        # 데이터 행: 없는 층은 비움
-        if i < n:
-            f = floors[i]
-            for j, v in enumerate([f["floor"], f"{_man(f['cur'])}만원", f"{_man(f['mkt'])}만원",
-                                   f"{f['diff']/1e4:+,.0f}만원", f"{f['count']}건"]):
-                _cell(t.cell(i + 1, j), v)
-        else:
-            for j in range(5):
-                _cell(t.cell(i + 1, j), "")
-    last = len(t.rows) - 1
-    for j, v in enumerate(["합계", f"{_man(cur_rent)}만원", f"{_man(rent)}만원",
-                           f"{(rent-cur_rent)/1e4:+,.0f}만원", f"{sum(f['count'] for f in floors)}건"]):
-        _cell(t.cell(last, j), v)
-    ch = chart(S[5])
-    if ch and floors:
-        cd = CategoryChartData()
-        cd.categories = [f["floor"] for f in floors]
-        cd.add_series("현재 임대료", [round(f["cur"] / 1e4) for f in floors])
-        cd.add_series("주변임대시세", [round(f["mkt"] / 1e4) for f in floors])
-        ch.replace_data(cd)
-
-    # ── 예상수익률(6) ──
-    _run0(sid(S[6], 8), _eok(dep, 1))
-    _run0(sid(S[6], 11), _man(rent))
-    _run0(sid(S[6], 14), _eokman(rent * 12).replace("만원", ""))
-    _run0(sid(S[6], 17), f"{roi}" if roi is not None else "—")
-    t = tbl(S[6])
-    _cell(t.cell(1, 1), f"{_eok(ask)}억 원"); _cell(t.cell(1, 2), f"{_eok(fair)}억 원")
-    _cell(t.cell(2, 1), f"{roi_ask}%" if roi_ask is not None else "—")
-    _cell(t.cell(2, 2), f"{roi}%" if roi is not None else "—")
-    _settext(sid(S[6], 23), f"{_man(rent)}만원")
-    _settext(sid(S[6], 31), _eokman(rent * 12))
-    _settext(sid(S[6], 35), f"{_eok(fair)}억 원")
-    _settext(sid(S[6], 39), f"{roi}%" if roi is not None else "—")
-    _settext(sid(S[6], 42), (f"주변임대시세 적용 총임대료 {_man(rent)}만원 기준 · 예상보증금 {_eok(dep,1)}억 원 반영 · "
-                             f"적정매매가 {_eok(fair)}억 원 기준 단순 연임대수익 산정"))
-
-    # ── 최종요약(7) ──
-    _run0(sid(S[7], 9), _eok(ask))
-    _run0(sid(S[7], 14), _eok(fair))
-    _run0(sid(S[7], 19), _eok(gap) if gap else "—")
-    _settext(sid(S[7], 22), (f"유사 매매사례 분석 결과, 본 매물의 적정매매가는 약 {_eok(fair)}억 원 수준입니다. "
-                             + (f"현재 매도희망가 {_eok(ask)}억 원은 적정가 대비 약 {_eok(gap)}억 원 높은 수준입니다." if gap and gap > 0 else "")))
-    _settext(sid(S[7], 25), "적정매매가 기준 접근 필요 · 주변임대시세 적용 시 수익성 개선 가능 · 가격 협의 여부가 투자 판단의 핵심")
-    _run0(sid(S[7], 29), _eok(dep, 1) + " 억원")
-    _run0(sid(S[7], 32), _man(rent) + " 만원")
-    _run0(sid(S[7], 35), _eokman(rent * 12).replace("만원", " 만원"))
-    _run0(sid(S[7], 38), (f"{roi} %" if roi is not None else "—"))
-
-    prs.save(path)
-    return len(prs.slides.__iter__.__self__._sldIdLst)  # noqa: SLF001
-
-
-def _make_pptx(path: str, kind: str, b: dict, vs: dict | None, syn: dict | None = None,
-               report_id: int = 0) -> int:
-    """python-pptx로 분석보고서 생성. 반환=슬라이드 수.
-    R_example.pptx 서식 바인딩(있으면) / 없으면 텍스트 슬라이드 폴백. (브리핑 폐지)"""
-    from pptx import Presentation
-    from pptx.util import Inches, Pt
-
-    if kind == "analysis" and vs is not None and os.path.exists(TEMPLATE_ANALYSIS):
-        return _bind_analysis_template(path, report_id, b, vs, syn or {})
-
-    prs = Presentation()
-    blank = prs.slide_layouts[6]
-
-    def slide(title: str, lines: list[str]):
-        s = prs.slides.add_slide(blank)
-        tb = s.shapes.add_textbox(Inches(0.6), Inches(0.4), Inches(9), Inches(1))
-        tb.text_frame.text = title
-        tb.text_frame.paragraphs[0].runs[0].font.size = Pt(28)
-        body = s.shapes.add_textbox(Inches(0.6), Inches(1.6), Inches(9), Inches(5))
-        tf = body.text_frame
-        for i, ln in enumerate(lines):
-            p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-            p.text = ln
-            p.font.size = Pt(14)
-
-    addr = b.get("addr", "")
-    # 분석 8슬라이드 폴백(R_example 템플릿 미존재 시). 브리핑 폐지 — analysis 전용.
-    assert vs is not None
-    slide("매물분석보고서", [addr, f"가치점수 {vs['score']} · {vs['grade']}등급"])
-    slide("매물 기본정보", [
-        f"대지 {b.get('land_area','—')}㎡ · 연면적 {b.get('total_area','—')}㎡ · 용적률 {b.get('far','—')}%",
-    ])
-    slide("분석 흐름", ["STEP1 가치점수 → STEP2 매매사례 → STEP3 주변임대 → STEP4 수익률"])
-    slide("STEP1 가치점수", [
-        f"총점 {vs['score']} / 100 · {vs['grade']}등급",
-        *[f"{k}: {v}" for k, v in vs["items"].items()],
-    ])
-    syn = syn or {}
-    used = syn.get("comps_used") or []
-    fair = syn.get("fair_price")
-    slide("STEP2 매매사례 시세분석", [
-        f"유효 사례 {len(used)}건 · 가중평균 평단가 {syn.get('avg_per_pyeong') or '—'}원/평",
-        *[f"{u.get('addr') or u['building_pk']} · {u['contract_ym']} · "
-          f"{u['price']:,}원 · 가치 {u['score']} · 가중 {u['weight']}" for u in used[:12]],
-    ])
-    if syn.get("market_applied"):
-        step3 = [f"적용 총임대료 {syn['applied_rent']:,}원 (주변 임대시세 반영)"]
-        step3 += [f"{f['floor']}: 현재 {f['cur']:,} → 주변 {f['mkt']:,} (차이 {f['diff']:+,}, 사례 {f['count']}건)"
-                  for f in (syn.get("rent_floors") or [])]
-    else:
-        step3 = [f"적용 총임대료 {b['total_rent']:,}원 (현재 임대 기준 · 주변시세 제외)"]
-    slide("STEP3 주변임대시세", step3)
-    slide("STEP4 적정매매가·예상수익률", [
-        f"적정매매가 {fair:,}원" if fair else "적정매매가 — (유효 매매사례 없음)",
-        f"예상수익률 {syn.get('expected_roi')}%" if syn.get("expected_roi") is not None else "예상수익률 —",
-        f"협의 필요금액 {syn.get('gap'):,}원" if syn.get("gap") is not None else "협의 필요금액 —",
-    ])
-    slide("최종 요약", [
-        f"가치점수 {vs['score']}({vs['grade']}) · 적정매매가 {fair:,}원" if fair
-        else f"가치점수 {vs['score']}({vs['grade']})",
-        "빌탐정 BILLTAMJUNG",
-    ])
-
-    prs.save(path)
-    return len(prs.slides.__iter__.__self__._sldIdLst)  # noqa: SLF001
-
 
 async def run_generate(report_id: int, team_id: int) -> dict:
-    """잡 본체. 성공=크레딧 차감+완료 / 실패=failed+미차감."""
-    os.makedirs(REPORT_DIR, exist_ok=True)
+    """잡 본체. 성공=크레딧 차감+완료 / 실패=failed+미차감.
+    산출물은 result_json 스냅샷 하나 — 웹 리포트(/reports/:id)가 이걸 렌더한다.
+    PPTX 내보내기는 폐지(웹 덱과 구성이 어긋나 유지 비용만 컸다)."""
     try:
         async with tx() as conn:
             rep = await conn.fetchrow("SELECT * FROM app.reports WHERE id=$1", report_id)
@@ -865,15 +538,8 @@ async def run_generate(report_id: int, team_id: int) -> dict:
             syn = synthesize(b, vs["score"], comps, params, time_adjust, rent_apply,
                              apply_market=opt.get("include_market", False))   # 기본 OFF = 배치 수익률과 동일
 
-        path = os.path.join(REPORT_DIR, f"report_{report_id}.pptx")   # 로컬 임시(생성용)
-        _make_pptx(path, rep["kind"], b, vs, syn, report_id)
-        with open(path, "rb") as _f:
-            key = await storage.save(
-                f"reports/report_{report_id}.pptx", _f.read(),
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation")
-        path = key   # DB file_path=스토리지 키
-
         # 웹 보고서(/reports/:id) 렌더용 synthesis 스냅샷 — 생성 시점 값 고정(analysis만).
+        # PPT도 이 스냅샷에서 굽는다(웹 덱과 같은 입력 → 두 산출물의 값이 어긋날 수 없음).
         snapshot = None
         if rep["kind"] == "analysis" and vs and syn:
             ut = await _use_type(rep["building_pk"], b)   # F-20 투자 유형
@@ -898,14 +564,14 @@ async def run_generate(report_id: int, team_id: int) -> dict:
             await conn.execute("SELECT app.deduct_credit($1,$2,$3)", rep["account_id"], cost, report_id)
             await conn.execute(
                 """UPDATE app.reports SET status='done', completed_at=now(),
-                     credits_spent=$2, file_path=$3, formula_set_version=$4, result_json=$7,
+                     credits_spent=$2, formula_set_version=$3, result_json=$6,
                      master_version=(SELECT version FROM master.master_version),
-                     source_watermark=COALESCE(app.building_watermark($5,$6), now())
+                     source_watermark=COALESCE(app.building_watermark($4,$5), now())
                    WHERE id=$1""",
-                report_id, cost, path, fs_version, rep["building_pk"], team_id,
+                report_id, cost, fs_version, rep["building_pk"], team_id,
                 json.dumps(snapshot) if snapshot else None,
             )
-        return {"ok": True, "file": path, "credits": cost}
+        return {"ok": True, "credits": cost}
     except Exception as e:  # 실패: 미차감
         async with tx() as conn:
             await conn.execute(

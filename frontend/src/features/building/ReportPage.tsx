@@ -1,7 +1,6 @@
 import { Loading } from "../../shared/ui/Spinner";
 import { useState, useEffect, useRef, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { reportsApi } from "../../shared/api/endpoints";
 import { ScoreRadar, CompareBar } from "./ReportPrimitives";
 import { Logo, Seal, Icon, ScoreRing, BuildingArt, CountUp } from "./ReportAssets";
 import { ReportMap } from "./ReportMap";
@@ -59,7 +58,7 @@ export function ReportPage() {
 
   // ── 모든 값·의견·서술은 reportModel 단일 소스(애니메이션 모드와 동일) ──
   const {
-    pk, sub, b, loading, isError, canDownload, rno, date,
+    pk, sub, b, loading, isError, rno, date,
     fair, rent, curRent, totalArea, avgPer, comps, moreCount, avgPerNow,
     gLatest, gTotal, nbhdGongsi, gmult, compMin, compMax,
     roiFair, nbhdRoi,
@@ -78,10 +77,6 @@ export function ReportPage() {
       <span className="ttl">빌탐정 리포트 · {rno}</span>
       <button className="btn" style={{ marginLeft: "auto", padding: "6px 12px" }} onClick={() => { document.documentElement.requestFullscreen?.().catch(() => {}); nav(`/buildings/${pk}/story`); }} title="애니메이션 모드(전체화면)"><ActionIcon name="presentation" size={14} />애니메이션 모드</button>
       <button className="btn" style={{ padding: "6px 12px" }} onClick={toggleFs} title="전체화면 (발표 모드)"><ActionIcon name="fullscreen" size={14} />전체화면</button>
-      {canDownload
-        ? <button className="btn primary" style={{ padding: "6px 12px" }}
-            onClick={() => reportsApi.download(reportId!).catch((e) => alert(String(e?.message ?? e)))}><ActionIcon name="export" size={14} />PPT 내보내기</button>
-        : <button className="btn" disabled style={{ padding: "6px 12px", opacity: .6 }} title="생성 완료 후 다운로드"><ActionIcon name="export" size={14} />PPT 내보내기</button>}
     </div>
   );
 

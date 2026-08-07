@@ -271,10 +271,9 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   const isError = cq.isError || rq.isError;
   const rno = reportId != null ? `BT-${new Date(rq.data?.created_at ?? "2026-01-01").getFullYear()}-${String(reportId).padStart(6, "0")}` : "미리보기";
   const date = new Date(rq.data?.created_at ?? "2026-01-01").toLocaleDateString("ko-KR").replace(/\. /g, ".").replace(/\.$/, "");
-  const canDownload = reportId != null && rq.data?.status === "done";
 
   return {
-    pk, reportId, rq, sub, pv, b, loading, isError, canDownload, rno, date, nonCommercial,
+    pk, reportId, rq, sub, pv, b, loading, isError, rno, date, nonCommercial,
     fair, ask, rent, curRent, totalArea, landArea, totalP, avgPer, usedComps, comps, moreCount, avgPerNow,
     gLatest, gTotal, gctx, nbhdGongsi, gmult, landPremium, compMin, compMax, floors,
     roiFair, rs, rFloors, rCurDep, perPyRent, upsidePct, nbhdRoi, topStrengths,

@@ -276,8 +276,6 @@ export function MyPage() {
                 <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                   {r.status === "done" && <>
                     <button className="btn" style={{ marginRight: 6 }} onClick={() => nav(`/reports/${r.id}`)}><Icon name="external" size={13} />열기</button>
-                    <button className="btn" style={{ marginRight: 6 }}
-                      onClick={() => reportsApi.download(r.id).catch((e) => alert(String(e.message ?? e)))}>PPT</button>
                     {r.is_stale && <button className="btn primary" disabled={regen.isPending}
                       onClick={() => regen.mutate({ building_pk: r.building_pk, kind: "analysis" })}>재생성 ({REPORT_COST})</button>}
                   </>}
