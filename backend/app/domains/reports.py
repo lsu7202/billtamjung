@@ -15,7 +15,7 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 class CreateIn(BaseModel):
     building_pk: str
-    kind: str = "analysis"         # analysis만 지원(브리핑 폐지)
+    kind: str = "analysis"         # analysis(우리 판단) | briefing(건물 사실 나열)
     options: dict = {}
 
 
@@ -94,8 +94,8 @@ async def preview(body: PreviewIn, user: CurrentUser = Depends(current_user)):
 
 @router.post("", status_code=202)
 async def create(body: CreateIn, bg: BackgroundTasks, user: CurrentUser = Depends(current_user)):
-    if body.kind != "analysis":   # 브리핑 자료 폐지 — 분석보고서만 생성
-        raise HTTPException(422, "kind는 analysis만 지원합니다")
+    if body.kind not in ("analysis", "briefing"):
+        raise HTTPException(422, "kind는 analysis 또는 briefing만 지원합니다")
     rid = await pool().fetchval(
         """INSERT INTO app.reports(account_id,building_pk,kind,options_json)
            VALUES($1,$2,$3::app.report_kind,$4) RETURNING id""",

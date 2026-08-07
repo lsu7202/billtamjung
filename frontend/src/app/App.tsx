@@ -12,6 +12,7 @@ import { OnboardingPage } from "../features/landing/OnboardingPage";
 import { SearchPage } from "../features/search/SearchPage";
 import { BuildingPage } from "../features/building/BuildingPage";
 import { ReportPage } from "../features/building/ReportPage";
+import { BriefingPage } from "../features/building/BriefingPage";
 import { ReportStory } from "../features/building/ReportStory";
 import { MyPage } from "../features/mypage/MyPage";
 import { IconSprite } from "../shared/ui/Icon";
@@ -45,6 +46,7 @@ export function App() {
             <Route path="/buildings/:pk/report" element={<ErrorBoundary><ReportPage /></ErrorBoundary>} />
             <Route path="/buildings/:pk/story" element={<ErrorBoundary><ReportStory /></ErrorBoundary>} />
             <Route path="/reports/:id" element={<ErrorBoundary><ReportPage /></ErrorBoundary>} />
+            <Route path="/briefings/:id" element={<ErrorBoundary><BriefingPage /></ErrorBoundary>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

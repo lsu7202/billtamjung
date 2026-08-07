@@ -517,6 +517,66 @@ def _flag_comp_outliers(comps: list[dict]) -> None:
 
 
 
+async def _briefing_snapshot(building_pk: str, b: dict, team_id: int) -> dict:
+    """브리핑 = 그 건물에 대한 사실만. 적정가·매력도·미래가치 같은 우리 판단은 넣지 않는다
+    (그건 빌탐정 리포트의 몫). 대장값 + 팀이 입력한 임대내역 + 올린 서류·사진 + 사무소 정보."""
+    office = await pool().fetchrow(
+        """SELECT name, office_name, agent_name, agent_title, phone, fax, email, office_addr,
+                  (logo_path IS NOT NULL) AS has_logo
+           FROM app.teams WHERE id=$1""", team_id)
+
+    # 층별 임대내역 — 팀 입력이 있는 층은 실제값, 없으면 대장 추정(층별임대 표와 같은 하이브리드)
+    hidden = {r["floor"] for r in await pool().fetch(
+        "SELECT floor FROM app.floor_hidden WHERE building_pk=$1 AND team_id=$2", building_pk, team_id)}
+    team_rows = await pool().fetch(
+        """SELECT floor, unit_no, use, exclusive_area, contract_area, deposit, rent, maintenance, is_vacant
+           FROM app.floor_rents WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL""",
+        building_pk, team_id)
+    team_floors = {r["floor"] for r in team_rows}
+    est_rows = await pool().fetch(
+        """SELECT fo.floor, fo.use, fo.exclusive_area, fre.rent_est, fre.deposit_est
+           FROM master.floor_outline fo LEFT JOIN master.floor_rent_est fre USING (building_pk, seq)
+           WHERE fo.building_pk=$1 ORDER BY fo.seq""", building_pk)
+    floors = [
+        {"floor": r["floor"], "unit_no": r["unit_no"], "use": r["use"],
+         "exclusive_area": _fnum(r["exclusive_area"]), "contract_area": _fnum(r["contract_area"]),
+         "deposit": r["deposit"], "rent": r["rent"], "maintenance": r["maintenance"],
+         "is_vacant": r["is_vacant"], "est": False}
+        for r in team_rows if r["floor"] not in hidden
+    ] + [
+        {"floor": r["floor"], "unit_no": None, "use": r["use"],
+         "exclusive_area": _fnum(r["exclusive_area"]), "contract_area": None,
+         "deposit": r["deposit_est"], "rent": r["rent_est"], "maintenance": None,
+         "is_vacant": None, "est": True}
+        for r in est_rows if r["floor"] not in hidden and r["floor"] not in team_floors
+    ]
+    floors.sort(key=lambda x: _floor_key(x["floor"]), reverse=True)
+
+    photos = [dict(r) for r in await pool().fetch(
+        """SELECT id, kind::text, caption, sort_order, transform FROM app.photos
+           WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL
+           ORDER BY kind, sort_order, id""", building_pk, team_id)]
+
+    # 매매가는 팀 수기값 우선, 없으면 배치 적정가(_assemble이 안 싣는 값이라 여기서 채운다)
+    if b.get("sale_est") is None:
+        b = {**b, "sale_est": await pool().fetchval(
+            "SELECT sale_est FROM master.building_sale_est WHERE building_pk=$1", building_pk)}
+
+    keep = ("addr", "road_addr", "land_area", "total_area", "build_area", "far_area", "bcr", "far",
+            "floors_above", "floors_below", "parking", "elevator", "approval_ymd", "remodel_ymd",
+            "use_zone", "main_use_name", "etc_use", "structure", "jimok", "land_use", "road_frontage",
+            "shape", "slope", "station_dist", "gongsi_latest", "sale_price", "sale_est",
+            "last_sale_price", "last_sale_ym", "lng", "lat")
+    return {
+        "kind": "briefing",
+        "subject": {k: (_fnum(b.get(k)) if isinstance(b.get(k), (int, float)) else
+                        (str(b[k]) if b.get(k) is not None else None)) for k in keep},
+        "office": dict(office) if office else {},
+        "floors": floors,
+        "photos": photos,
+    }
+
+
 async def run_generate(report_id: int, team_id: int) -> dict:
     """잡 본체. 성공=크레딧 차감+완료 / 실패=failed+미차감.
     산출물은 result_json 스냅샷 하나 — 웹 리포트(/reports/:id)가 이걸 렌더한다.
@@ -565,7 +625,10 @@ async def run_generate(report_id: int, team_id: int) -> dict:
                             "rent_floors": syn.get("rent_floors"), "comps_used": syn.get("comps_used")},
             }
 
-        cost = settings.cost_analysis   # 분석보고서만(브리핑 폐지)
+        if rep["kind"] == "briefing":
+            snapshot = await _briefing_snapshot(rep["building_pk"], b, team_id)
+
+        cost = settings.cost_briefing if rep["kind"] == "briefing" else settings.cost_analysis
         async with tx() as conn:  # 성공 트랜잭션: 차감+완료+워터마크 원자
             await conn.execute("SELECT app.deduct_credit($1,$2,$3)", rep["account_id"], cost, report_id)
             await conn.execute(

@@ -1,0 +1,59 @@
+/* 브리핑 자료 — 사실만 담는 기초자료. 리포트 덱(reportslide.css)의 틀을 쓰되
+   표와 서류 슬롯이 주인공이라 여백·비율을 다르게 잡는다. */
+
+.bf-slide .rs-sec { padding-bottom: .8cqw; }
+.bf-thumb { display: flex; align-items: center; justify-content: center; height: 46px; }
+.bf-thumb-t { font-size: 11.5px; font-weight: 700; color: var(--navy); }
+.bf-thumb.on .bf-thumb-t { color: var(--blue); }
+
+/* ── 표지·마무리 ── */
+.bf-cover { background: linear-gradient(160deg, #1E2A4A 0%, #16203A 60%, #101827 100%); color: #fff; }
+.bf-cover-in { height: 100%; display: flex; flex-direction: column; justify-content: center;
+  padding: 3cqw 4cqw; box-sizing: border-box; }
+.bf-office { font-size: 1.3cqw; letter-spacing: .18em; color: #8FB0E0; font-weight: 700; }
+.bf-cover-addr { font-size: 4.4cqw; font-weight: 800; letter-spacing: -.02em; margin: 1cqw 0 .5cqw; }
+.bf-cover-sub { font-size: 1.5cqw; color: #C7D3E6; }
+.bf-cover-meta { margin-top: 2.4cqw; font-size: 1.1cqw; line-height: 1.9; color: #AAB6CC; }
+.bf-cover-rno { margin-top: 2cqw; font-size: .95cqw; color: #7F8CA6; }
+.bf-cover.end .bf-end-1 { font-size: 2.2cqw; color: #8FB0E0; font-weight: 700; }
+.bf-cover.end .bf-end-2 { font-size: 3.4cqw; font-weight: 800; margin-top: .6cqw; }
+
+/* ── 01 매물 개요 ── */
+.bf-slide .rs-body:has(.bf-overview) { display: block; }
+.bf-overview { display: flex; gap: 2cqw; align-items: stretch; }
+.bf-ov-photo { flex: 0 0 27%; border-radius: .8cqw; overflow: hidden; background: #EEF0F4; }
+.bf-ov-photo img { width: 100%; height: 100%; }
+
+.bf-table { width: 100%; border-collapse: collapse; font-size: 1.05cqw; }
+.bf-table th, .bf-table td { border: 1px solid var(--rl); padding: .48cqw .7cqw; text-align: left; }
+.bf-table th.g { width: 8%; background: var(--navy); color: #fff; font-weight: 700; text-align: center; }
+.bf-table th.g { writing-mode: horizontal-tb; }
+.bf-table th.k { width: 19%; background: #F2F4F8; color: var(--navy); font-weight: 700; }
+.bf-table td.s { width: 24%; color: var(--rmuted); }
+
+/* ── 04 임대 내역 ── */
+.bf-table.rent th { background: var(--navy); color: #fff; text-align: center; font-weight: 700; }
+.bf-table.rent td { padding: .42cqw .6cqw; }
+.bf-table.rent .n { text-align: right; font-variant-numeric: tabular-nums; }
+.bf-table.rent tr.est td { color: var(--rmuted); }
+.bf-table.rent tr.sum td { background: #F2F4F8; font-weight: 800; color: var(--navy); }
+.bf-est { font-size: .85cqw; background: #EEF1F6; color: var(--rmuted); border-radius: .3cqw; padding: .1cqw .4cqw; }
+
+/* ── 서류·사진 슬롯 ── */
+.bf-docs { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6cqw; height: 100%; }
+.bf-doc { display: flex; flex-direction: column; min-height: 0; }
+.bf-doc-t { font-size: 1.05cqw; font-weight: 700; color: var(--navy); margin-bottom: .5cqw; }
+.bf-doc-img { flex: 1; border: 1px solid var(--rl); border-radius: .5cqw; overflow: hidden; background: #F6F7F9; }
+.bf-doc-img img { width: 100%; height: 100%; }
+
+.bf-wide { height: 100%; border: 1px solid var(--rl); border-radius: .5cqw; overflow: hidden; background: #F6F7F9; }
+.bf-wide img { width: 100%; height: 100%; }
+
+.bf-photos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.4cqw; height: 100%; }
+.bf-photos figure { margin: 0; display: flex; flex-direction: column; min-height: 0; }
+.bf-ph { flex: 1; border-radius: .5cqw; overflow: hidden; background: #EEF0F4; }
+.bf-ph img { width: 100%; height: 100%; }
+.bf-photos figcaption { font-size: .95cqw; color: var(--rmuted); margin-top: .4cqw; }
+
+.bf-empty { display: grid; place-items: center; height: 100%; color: #9AA3B2; font-size: 1.05cqw; }
+.bf-note { font-size: .9cqw; color: var(--rmuted); margin-top: .8cqw; line-height: 1.6; }

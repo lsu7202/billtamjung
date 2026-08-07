@@ -1,10 +1,10 @@
 import { Loading } from "../../shared/ui/Spinner";
 import { Icon } from "../../shared/ui/Icon";
 import { useState, useEffect, useRef, Fragment } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  buildingsApi, overlaysApi, rentsApi, listingsApi, creditsApi, seriesApi, FloorRent,
+  buildingsApi, overlaysApi, rentsApi, listingsApi, creditsApi, seriesApi, reportsApi, FloorRent,
 } from "../../shared/api/endpoints";
 import { PhotoPanel } from "../../shared/map/PhotoPanel";
 import { won, wonShort } from "../../shared/format";
@@ -79,7 +79,24 @@ export function BuildingPage() {
 
   const credits = useQuery({ queryKey: ["credits"], queryFn: creditsApi.balance });
   const [reportOpen, setReportOpen] = useState(false);
-  const [genState, setGenState] = useState<string | null>(null);   // S02b 생성 완료 메시지
+  const [genState, setGenState] = useState<string | null>(null);
+  const nav = useNavigate();
+  // 브리핑 생성 — 계산이 없어 바로 완료된다. 완료되면 덱으로 이동.
+  const briefing = useMutation({
+    mutationFn: async () => {
+      const { report_id } = await reportsApi.create(pk, "briefing");
+      for (let i = 0; i < 20; i++) {
+        const r = await reportsApi.get(report_id);
+        if (r.status === "done") return report_id;
+        if (r.status === "failed") throw new Error("브리핑 생성에 실패했습니다");
+        await new Promise((z) => setTimeout(z, 900));
+      }
+      throw new Error("생성이 지연되고 있습니다 — 마이페이지에서 확인해 주세요");
+    },
+    onMutate: () => setGenState("브리핑 자료를 만들고 있습니다…"),
+    onSuccess: (rid) => { setGenState(null); nav(`/briefings/${rid}`); },
+    onError: (e) => setGenState(String((e as Error)?.message ?? e)),
+  });   // S02b 생성 완료 메시지
 
   // ── 파생값 ──
   const b = (building.data ?? {}) as Record<string, any>;
@@ -189,6 +206,10 @@ export function BuildingPage() {
           {stat("층수", `${Number(b.floors_below) > 0 ? `B${b.floors_below}F/` : ""}${b.floors_above != null ? `${b.floors_above}F` : ""}`)}
         </div>
         <div style={{ display: "flex", gap: 10 }}>
+          {/* 브리핑 = 이 건물의 사실 정리(사무소 정보·서류·임대내역). 우리 판단은 매물 분석에. */}
+          <button className="btn" disabled={briefing.isPending} style={{ marginRight: 8 }}
+            onClick={() => { if (confirm("브리핑 자료를 만들까요? 크레딧 10이 소모됩니다.")) briefing.mutate(); }}>
+            브리핑 자료 (10)</button>
           <button className="btn primary" onClick={() => { setReportOpen(true); setGenState(null); }}>매물 분석하기 (30)</button>
         </div>
       </div>

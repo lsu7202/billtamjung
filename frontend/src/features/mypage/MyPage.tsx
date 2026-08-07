@@ -11,7 +11,8 @@ import "./mypage.css";
 /** S0M 마이페이지 — 크레딧(잔액·사용내역) · 내 산출물(stale·재생성) · 팀 · 저장한 검색조건 */
 
 const TYPE_LABEL: Record<string, string> = { grant: "지급", spend: "소비", earn: "적립", expire: "소멸", adjust: "조정" };
-const REPORT_COST = 30;   // 리포트 1건 = 30크레딧(BT_COST_ANALYSIS 기본값)
+const REPORT_COST = 30;     // 분석보고서 1건(BT_COST_ANALYSIS 기본값)
+const BRIEFING_COST = 10;   // 브리핑 1건(BT_COST_BRIEFING)
 
 /** 크레딧 — 숫자만 던지지 않고 "리포트 몇 건인지"로 환산해 준다. */
 function CreditPanel() {
@@ -316,7 +317,7 @@ export function MyPage() {
   const saved = useQuery({ queryKey: ["saved"], queryFn: savedApi.list });
 
   const regen = useMutation({
-    mutationFn: (r: { building_pk: string; kind: "analysis" }) => reportsApi.create(r.building_pk, r.kind),
+    mutationFn: (r: { building_pk: string; kind: "analysis" | "briefing" }) => reportsApi.create(r.building_pk, r.kind),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["reports"] }); qc.invalidateQueries({ queryKey: ["credits"] }); },
   });
   const delSaved = useMutation({
@@ -340,11 +341,12 @@ export function MyPage() {
             {rows.length > 0 && <span className="sub">{rows.length}건</span>}</span>
         </div>
         <table className="wf">
-          <thead><tr><th>생성일</th><th>매물</th><th className="num">크레딧</th><th>상태</th><th></th></tr></thead>
+          <thead><tr><th>생성일</th><th>종류</th><th>매물</th><th className="num">크레딧</th><th>상태</th><th></th></tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.id}>
                 <td className="num">{new Date(r.created_at).toLocaleDateString("ko")}</td>
+                <td><span className={`tag ${r.kind === "briefing" ? "" : "mine"}`}>{r.kind === "briefing" ? "브리핑" : "분석"}</span></td>
                 <td style={{ cursor: "pointer" }} onClick={() => openDetail(r.building_pk)}>{r.addr ?? r.building_pk}</td>
                 <td className="num">{r.credits_spent ?? "—"}</td>
                 <td>{r.status === "done"
@@ -352,15 +354,17 @@ export function MyPage() {
                   : <span style={{ color: "var(--muted)" }}>{r.status === "failed" ? "실패" : "생성 중…"}</span>}</td>
                 <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                   {r.status === "done" && <>
-                    <button className="btn" style={{ marginRight: 6 }} onClick={() => nav(`/reports/${r.id}`)}><Icon name="external" size={13} />열기</button>
+                    <button className="btn" style={{ marginRight: 6 }}
+                      onClick={() => nav(r.kind === "briefing" ? `/briefings/${r.id}` : `/reports/${r.id}`)}><Icon name="external" size={13} />열기</button>
                     {r.is_stale && <button className="btn primary" disabled={regen.isPending}
-                      onClick={() => regen.mutate({ building_pk: r.building_pk, kind: "analysis" })}>재생성 ({REPORT_COST})</button>}
+                      onClick={() => regen.mutate({ building_pk: r.building_pk, kind: (r.kind as "analysis" | "briefing") ?? "analysis" })}>
+                      재생성 ({r.kind === "briefing" ? BRIEFING_COST : REPORT_COST})</button>}
                   </>}
                 </td>
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={5} className="mp-empty">
+              <tr><td colSpan={6} className="mp-empty">
                 아직 만든 리포트가 없습니다 — 매물 상세에서 「매물 분석하기」로 시작하세요</td></tr>
             )}
           </tbody>

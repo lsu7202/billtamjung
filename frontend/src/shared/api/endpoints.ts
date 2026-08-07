@@ -9,11 +9,12 @@ export interface FloorRent {
   deposit: number; rent: number; maintenance: number; is_vacant: boolean | null;   // null=미지정·false=임대중·true=공실
 }
 export interface Report {
-  id: number; building_pk: string; kind: "analysis";
+  id: number; building_pk: string; kind: "analysis" | "briefing";
   status: "pending" | "generating" | "done" | "failed";
   credits_spent?: number; created_at: string;
   is_stale?: boolean; addr?: string; failed_reason?: string;
-  result_json?: { subject: CompsResponse["subject"]; preview: ReportPreview } | null;
+  // 종류별로 모양이 다르다. analysis=우리 판단(subject·preview) · briefing=사실 나열(subject·office·floors·photos)
+  result_json?: ({ subject: CompsResponse["subject"]; preview: ReportPreview } & Record<string, unknown>) | null;
 }
 
 export const authApi = {
@@ -290,7 +291,7 @@ export interface CompsResponse {
 }
 
 export const reportsApi = {
-  create: (building_pk: string, kind: "analysis" = "analysis", options: Record<string, unknown> = {}) =>
+  create: (building_pk: string, kind: "analysis" | "briefing" = "analysis", options: Record<string, unknown> = {}) =>
     api<{ report_id: number }>("/reports", { method: "POST", body: JSON.stringify({ building_pk, kind, options }) }),
   get: (id: number) => api<Report>(`/reports/${id}`),
   list: () => api<Report[]>("/reports"),
