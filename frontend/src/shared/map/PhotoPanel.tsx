@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../../shared/ui/Icon";
 import { useQuery } from "@tanstack/react-query";
 import { loadNaver } from "./naver";
-import { photosApi, searchApi } from "../api/endpoints";
+import { photosApi, searchApi, PHOTO_KINDS, type Photo, type PhotoKind } from "../api/endpoints";
+import { PhotoFitEditor, fitStyle, DEFAULT_FIT, type Fit } from "../ui/PhotoFit";
 import { useAuth } from "../store/auth";
 import { MarketArea, CompPoint, meters, areaM2, geoToPaths, fmtArea, fmtDist, openDetail, conePath } from "./geo";
 import { makeRuler, Ruler } from "./ruler";
@@ -392,13 +393,15 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
   );
 }
 
-/** 업로드 사진 — 파일 업로드(멀티) + 썸네일. 인증 헤더 필요 → blob 로드. */
+/** 업로드 사진·서류 — 브리핑 자료가 종류로 슬롯을 찾는다(0032).
+ *  건물 사진(외관·내부)은 여러 장, 서류 3종은 한 장씩. 올릴 때 슬롯 비율에 맞춰 배치를 맞춘다. */
 function UploadTab({ pk }: { pk: string }) {
   const access = useAuth((s) => s.access);
   const [urls, setUrls] = useState<Record<number, string>>({});
-  const [sel, setSel] = useState<number | null>(null);
+  const [edit, setEdit] = useState<{ photo: Photo; fit: Fit } | null>(null);
+  const [busy, setBusy] = useState(false);
   const list = useQuery({ queryKey: ["photos", pk], queryFn: () => photosApi.list(pk) });
-  const photos = list.data ?? [];
+  const photos: Photo[] = useMemo(() => list.data ?? [], [list.data]);
 
   useEffect(() => {
     photos.forEach((p) => {
@@ -408,47 +411,125 @@ function UploadTab({ pk }: { pk: string }) {
         .then((blob) => setUrls((u) => ({ ...u, [p.id]: URL.createObjectURL(blob) })))
         .catch(() => {});
     });
-    if (sel == null && photos.length) setSel(photos[0].id);   // 첫 사진 자동 선택
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list.data]);
 
-  async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files) return;
-    for (const f of Array.from(files)) {
-      const fd = new FormData();
-      fd.append("file", f);
-      await fetch(`/api/buildings/${pk}/photos`, { method: "POST", headers: { Authorization: `Bearer ${access}` }, body: fd });
-    }
+  async function upload(files: FileList | null, kind: PhotoKind) {
+    if (!files?.length) return;
+    setBusy(true);
+    try {
+      for (const f of Array.from(files)) await photosApi.upload(pk, f, kind);
+      await list.refetch();
+    } finally { setBusy(false); }
+  }
+  async function del(id: number) {
+    await photosApi.del(pk, id);
+    setUrls((u) => { const n = { ...u }; delete n[id]; return n; });
     list.refetch();
   }
-  async function del(id: number) { await photosApi.del(pk, id); if (sel === id) setSel(null); list.refetch(); }
+  async function move(p: Photo, dir: -1 | 1) {
+    const same = photos.filter((x) => x.kind === p.kind);
+    const i = same.findIndex((x) => x.id === p.id);
+    const j = i + dir;
+    if (j < 0 || j >= same.length) return;
+    await Promise.all([
+      photosApi.patch(pk, p.id, { sort_order: same[j].sort_order }),
+      photosApi.patch(pk, same[j].id, { sort_order: p.sort_order }),
+    ]);
+    list.refetch();
+  }
+  async function saveFit() {
+    if (!edit) return;
+    setBusy(true);
+    try { await photosApi.patch(pk, edit.photo.id, { transform: edit.fit }); setEdit(null); list.refetch(); }
+    finally { setBusy(false); }
+  }
 
-  const selUrl = sel != null ? urls[sel] : null;
-  return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", gap: 8, padding: 10 }}>
-      {/* 좌: 썸네일 목록(스크롤) + 업로드 박스 */}
-      <div style={{ width: 100, flex: "0 0 auto", display: "flex", flexDirection: "column", gap: 6, overflowY: "auto" }}>
-        {photos.map((p) => (
-          <div key={p.id} onClick={() => setSel(p.id)} title="클릭 = 크게 보기"
-            style={{ position: "relative", aspectRatio: "4/3", flex: "0 0 auto", borderRadius: 6, overflow: "hidden", cursor: "pointer", background: "#fff", border: `2px solid ${sel === p.id ? "var(--signal)" : "var(--line)"}` }}>
-            {urls[p.id]
-              ? <img src={urls[p.id]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              : <div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--muted)", fontSize: 11 }}>로딩…</div>}
-            <button className="tool-btn" style={{ position: "absolute", top: 2, right: 2, minWidth: 20, height: 20, fontSize: 11, background: "rgba(255,255,255,.92)", color: "var(--up)" }}
-              onClick={(e) => { e.stopPropagation(); del(p.id); }} title="삭제">✕</button>
-          </div>
-        ))}
-        <label style={{ aspectRatio: "4/3", flex: "0 0 auto", border: "1px dashed var(--line-2)", borderRadius: 6, display: "grid", placeItems: "center", cursor: "pointer", color: "var(--muted)", fontSize: 22 }} title="사진 추가">
-          ＋<input type="file" accept="image/*" multiple hidden onChange={onUpload} />
-        </label>
+  const card = (p: Photo, ratio: number) => (
+    <div key={p.id} style={{ position: "relative", borderRadius: 8, overflow: "hidden",
+      border: "1px solid var(--line)", background: "#fff", aspectRatio: String(ratio) }}>
+      {urls[p.id]
+        ? <img src={urls[p.id]} alt="" style={fitStyle(p.transform)} />
+        : <div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--muted)", fontSize: 11 }}>로딩…</div>}
+      <div style={{ position: "absolute", right: 4, top: 4, display: "flex", gap: 3 }}>
+        {urls[p.id] && (
+          <button className="tool-btn" style={PB} title="배치 맞추기"
+            onClick={() => setEdit({ photo: p, fit: { ...DEFAULT_FIT, ...(p.transform ?? {}) } })}>⤢</button>
+        )}
+        <button className="tool-btn" style={{ ...PB, color: "var(--up)" }} title="삭제"
+          onClick={() => del(p.id)}>✕</button>
       </div>
-      {/* 우: 큰 미리보기 */}
-      <div style={{ flex: 1, minWidth: 0, borderRadius: 8, background: "var(--surface-2)", display: "grid", placeItems: "center", overflow: "hidden" }}>
-        {selUrl
-          ? <img src={selUrl} alt="" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
-          : <span style={{ color: "var(--muted)", fontSize: 13, textAlign: "center", padding: 16 }}>{photos.length ? "사진을 선택하세요" : "＋로 사진을 추가하세요\n사적 · 팀 공유(매도자·현장 사진)"}</span>}
+      <div style={{ position: "absolute", left: 4, bottom: 4, display: "flex", gap: 3 }}>
+        <button className="tool-btn" style={PB} title="앞으로" onClick={() => move(p, -1)}>‹</button>
+        <button className="tool-btn" style={PB} title="뒤로" onClick={() => move(p, 1)}>›</button>
       </div>
     </div>
   );
+
+  const adder = (kind: PhotoKind, multi: boolean, ratio: number, label: string) => (
+    <label style={{ aspectRatio: String(ratio), border: "1px dashed var(--line-2)", borderRadius: 8,
+      display: "grid", placeItems: "center", cursor: busy ? "wait" : "pointer", color: "var(--muted)",
+      fontSize: 12, textAlign: "center", padding: 8, lineHeight: 1.5 }}>
+      <span>＋<br />{label}</span>
+      <input type="file" accept="image/*" multiple={multi} hidden disabled={busy}
+        onChange={(e) => { upload(e.target.files, kind); e.target.value = ""; }} />
+    </label>
+  );
+
+  const of = (k: PhotoKind) => photos.filter((p) => p.kind === k);
+
+  return (
+    <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: 12 }}>
+      {/* 건물 사진 — 여러 장. 브리핑 사진 장(4.20x6.49) 비율에 맞춘다 */}
+      {(["exterior", "interior"] as PhotoKind[]).map((k) => (
+        <div key={k} style={{ marginBottom: 14 }}>
+          <div style={SEC}>{PHOTO_KINDS.find((x) => x.k === k)!.label}
+            <span style={{ color: "var(--muted)", fontWeight: 400, marginLeft: 6 }}>여러 장 · 순서 조정</span></div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(112px,1fr))", gap: 8 }}>
+            {of(k).map((p) => card(p, PHOTO_RATIO))}
+            {adder(k, true, PHOTO_RATIO, "사진 추가")}
+          </div>
+        </div>
+      ))}
+
+      {/* 서류 — 종류별 1장이면 충분(세로가 긴 스캔본) */}
+      <div style={SEC}>서류<span style={{ color: "var(--muted)", fontWeight: 400, marginLeft: 6 }}>브리핑에 그대로 실립니다</span></div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(132px,1fr))", gap: 8 }}>
+        {PHOTO_KINDS.filter((x) => x.doc).map(({ k, label }) => {
+          const got = of(k)[0];
+          return (
+            <div key={k}>
+              <div style={{ fontSize: 11.5, color: "var(--ink-2)", marginBottom: 4 }}>{label}</div>
+              {got ? card(got, DOC_RATIO) : adder(k, false, DOC_RATIO, "올리기")}
+            </div>
+          );
+        })}
+      </div>
+
+      {edit && urls[edit.photo.id] && (
+        <div className="bt-lightbox" style={{ display: "grid", placeItems: "center", background: "rgba(12,14,20,.62)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setEdit(null); }}>
+          <div className="panel" style={{ width: "min(560px,92vw)", padding: 16 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontWeight: 800, marginBottom: 4 }}>브리핑 칸에 맞추기</div>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
+              보이는 만큼만 브리핑에 실립니다. 원본은 그대로 보관됩니다.
+            </div>
+            <PhotoFitEditor src={urls[edit.photo.id]}
+              ratio={PHOTO_KINDS.find((x) => x.k === edit.photo.kind)?.doc ? DOC_RATIO : PHOTO_RATIO}
+              value={edit.fit} onChange={(fit) => setEdit({ ...edit, fit })} />
+            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 14 }}>
+              <button className="btn" onClick={() => setEdit(null)}>취소</button>
+              <button className="btn primary" disabled={busy} onClick={saveFit}>맞춤 저장</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
+
+const PB: React.CSSProperties = { minWidth: 20, height: 20, fontSize: 11, background: "rgba(255,255,255,.92)" };
+const SEC: React.CSSProperties = { fontSize: 12.5, fontWeight: 700, color: "var(--ink)", margin: "0 0 7px" };
+// 브리핑 슬롯 비율(원본 pptx 실측) — 사진 4.20x6.49 · 서류 4.76x5.91
+const PHOTO_RATIO = 4.20 / 6.49;
+const DOC_RATIO = 4.76 / 5.91;
