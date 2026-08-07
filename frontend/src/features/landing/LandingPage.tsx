@@ -7,7 +7,9 @@ import "../auth/login.css";
 import "./landing.css";
 
 /** 최초 진입(/) — 퍼블릭 랜딩. 몰입형 월드 위 단일 CTA.
- * 시작하기 → 스캔 플래시 전환 → 세션 있으면 /search, 없으면 /login(가치 인지 후 로그인이라 거부감 낮음). */
+ * 세션이 있으면 곧장 /search로 들어간다(별도 클릭 없음). 없으면 /login.
+ * 예전엔 「빌탐정 시작하기」를 눌러야 넘어갔는데, 이미 로그인한 사람에겐 한 번 더 누르게 하는
+ * 관문일 뿐이었다. 화면은 이동 직전 잠깐만 보이므로 스캔 플래시는 그대로 둔다. */
 export function LandingPage() {
   const nav = useNavigate();
   const authed = useAuth((s) => Boolean(s.access));
@@ -18,13 +20,13 @@ export function LandingPage() {
     authApi.publicConfig().then((c) => setSignupsOpen(c.signups_open)).catch(() => {});
   }, []);
 
-  function start() {
-    if (leaving) return;
+  // 진입 즉시 이동. 세션 있으면 매물 검색, 없으면 로그인.
+  useEffect(() => {
     setLeaving(true);
-    // 스캔 플래시(560ms) 후 이동 — reduced-motion이면 즉시
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    setTimeout(() => nav(authed ? "/search" : "/login"), reduced ? 0 : 560);
-  }
+    const t = setTimeout(() => nav(authed ? "/search" : "/login", { replace: true }), reduced ? 0 : 560);
+    return () => clearTimeout(t);
+  }, [authed, nav]);
 
   return (
     <div className="s00">
@@ -47,15 +49,8 @@ export function LandingPage() {
         </h1>
         <p className="ld-sub">서울 모든 건물의 검색 · 가치분석 · 매물관리를 한 화면에서.</p>
 
-        <button className="ld-cta" onClick={start}>
-          빌탐정 시작하기
-          <svg width={17} height={17} viewBox="0 0 24 24" aria-hidden>
-            <path d="M5 12h13M13 6.5 18.5 12 13 17.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
         <div className="ld-note">
-          {authed ? "로그인되어 있어요 — 바로 이어서 시작합니다"
-            : signupsOpen ? "가입 1분 · 체험 1개월 무료" : "관리자만 이용 가능합니다"}
+          {authed ? "들어가는 중…" : signupsOpen ? "가입 1분 · 체험 1개월 무료" : "관리자만 이용 가능합니다"}
         </div>
       </div>
 
