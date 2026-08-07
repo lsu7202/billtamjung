@@ -122,9 +122,9 @@ export function BriefingPage() {
 
   // ── 01 매물 기본정보 — 담는 값은 원본 표 그대로(소재지·토지·건물·금융).
   // 표현은 우리 언어로: 핵심 3지표를 먼저 세우고 나머지는 묶음별 스펙시트로 읽힌다.
-  // 브리핑에 실리는 가격은 팀이 입력한 실제 가격뿐이다.
-  // 우리 추정치(적정가)는 고객에게 주는 자료에 들어갈 값이 아니다 — 그건 분석보고서의 몫.
-  const price = num(s.sale_price);
+  // 하이브리드 — 팀 수기 매매가 우선, 없으면 적정가. 값은 쓰되 '(빌탐정 적정가)' 같은
+  // 우리 내부 표기는 고객에게 주는 자료에 넣지 않는다.
+  const price = num(s.sale_price) ?? num(s.sale_est);
   const perLand = price && num(s.land_area) ? price / (Number(s.land_area) / P) : null;
   const perTotal = price && num(s.total_area) ? price / (Number(s.total_area) / P) : null;
   const gongsiSum = num(s.gongsi_latest) && num(s.land_area)
@@ -225,7 +225,6 @@ export function BriefingPage() {
           {snap.floors.map((f, i) => (
             <tr key={i}>
               <td>{f.floor}{f.unit_no ? ` ${f.unit_no}` : ""}
-                {f.est && <span className="bf-est">추정</span>}
                 {f.is_vacant === true && <span className="bf-vac">공실</span>}</td>
               <td>{f.use ?? "—"}</td>
               <td className="n">{py(f.contract_area ?? f.exclusive_area)}</td>
@@ -241,8 +240,7 @@ export function BriefingPage() {
         </tbody>
       </table>
       <div className="bf-note">
-        ※ 임대 내역은 임대인의 진술에 의해 작성되었으므로 사실과 차이가 발생할 수 있음 · 월임대료 부가세 별도<br />
-        ※ ‘추정’ 표시 행은 팀 입력이 없어 건축물대장·주변 시세로 산출한 값입니다
+        ※ 임대 내역은 임대인의 진술에 의해 작성되었으므로 사실과 차이가 발생할 수 있음 · 월임대료 부가세 별도
       </div>
     </Frame>,
 
