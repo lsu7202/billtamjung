@@ -130,6 +130,21 @@ export const creditsApi = {
   entries: () => api<{ occurred_at: string; type: string; bucket: string; amount: number; reason: string; ref_id: number | null }[]>("/credits/entries"),
 };
 
+export interface Office {
+  name: string; office_name: string | null; agent_name: string | null; agent_title: string | null;
+  phone: string | null; fax: string | null; email: string | null; office_addr: string | null; has_logo: boolean;
+}
+/** 브리핑 표지·마무리에 들어가는 사무소 정보(0032) — 팀 단위. */
+export const officeApi = {
+  get: () => api<Office>("/team/office"),
+  save: (b: Partial<Office>) => api("/team/office", { method: "PATCH", body: JSON.stringify(b) }),
+  uploadLogo: (f: File) => {
+    const fd = new FormData(); fd.append("file", f);
+    return api("/team/office/logo", { method: "POST", body: fd });
+  },
+  delLogo: () => api("/team/office/logo", { method: "DELETE" }),
+};
+
 export const savedApi = {
   list: () => api<{ id: number; name: string; conditions_json: Record<string, unknown>; created_at: string }[]>("/saved-searches"),
   save: (name: string, conditions: Record<string, unknown>) =>
@@ -142,10 +157,30 @@ export const buildingsApi = {
   parcels: (pk: string) => api<Record<string, unknown>>(`/buildings/${pk}/parcels`),
 };
 
+export type PhotoKind = "exterior" | "interior" | "land_use" | "building_ledger" | "cadastral" | "etc";
+export interface Photo {
+  id: number; url: string; kind: PhotoKind; caption: string | null; sort_order: number;
+  transform: { zoom: number; x: number; y: number } | null;   // 슬롯 배치 — 원본은 그대로
+}
 export const photosApi = {
-  list: (pk: string) => api<{ id: number; url: string }[]>(`/buildings/${pk}/photos`),
+  list: (pk: string) => api<Photo[]>(`/buildings/${pk}/photos`),
+  upload: (pk: string, f: File, kind: PhotoKind, caption?: string) => {
+    const fd = new FormData(); fd.append("file", f); fd.append("kind", kind);
+    if (caption) fd.append("caption", caption);
+    return api<{ id: number }>(`/buildings/${pk}/photos`, { method: "POST", body: fd });
+  },
+  patch: (pk: string, id: number, b: Partial<Pick<Photo, "kind" | "caption" | "sort_order" | "transform">>) =>
+    api(`/buildings/${pk}/photos/${id}`, { method: "PATCH", body: JSON.stringify(b) }),
   del: (pk: string, id: number) => api(`/buildings/${pk}/photos/${id}`, { method: "DELETE" }),
 };
+export const PHOTO_KINDS: { k: PhotoKind; label: string; doc?: boolean }[] = [
+  { k: "exterior", label: "건물 외관" },
+  { k: "interior", label: "내부" },
+  { k: "land_use", label: "토지이용계획확인원", doc: true },
+  { k: "building_ledger", label: "건축물대장", doc: true },
+  { k: "cadastral", label: "지적도·위치도", doc: true },
+  { k: "etc", label: "기타" },
+];
 
 export const overlaysApi = {
   put: (target_id: string, field: string, value: string | null, target_type: "building" | "parcel" = "building") =>

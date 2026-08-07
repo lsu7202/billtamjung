@@ -1,10 +1,13 @@
 """팀 협업: 조회·팀명·초대(생성/재전송/취소/수락)·제외·탈퇴 + 담당 매물 대표 승계.
 specs S0M-마이페이지 §3.2~3.6. 한 계정=활성 팀 1개(0023 one_active_membership).
 베타: 초대는 실제 이메일/SMS 발송 없이 코드(token) 반환 — 대표가 직접 전달, 수락자가 코드 입력."""
+import os
 import secrets
+import uuid
 import datetime as dt
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from pydantic import BaseModel
+from ..core import storage
 from ..core.db import pool, tx
 from ..core.deps import current_user, CurrentUser
 from .auth import _issue  # 활성 멤버십 기준 access 재발급(+refresh 쿠키). 팀 이동 후 team_id 갱신
@@ -117,6 +120,70 @@ async def rename_team(body: RenameIn, user: CurrentUser = Depends(current_user))
         raise HTTPException(422, "팀 이름을 입력하세요")
     await pool().execute("UPDATE app.teams SET name=$1 WHERE id=$2", name, user.team_id)
     return {"ok": True, "name": name}
+
+
+class OfficeIn(BaseModel):
+    """브리핑 표지·마무리에 들어가는 사무소 정보(0032). 받는 쪽이 보는 건 '어느 사무소가 준 자료인가'."""
+    office_name: str | None = None
+    agent_name: str | None = None
+    agent_title: str | None = None
+    phone: str | None = None
+    fax: str | None = None
+    email: str | None = None
+    office_addr: str | None = None
+
+
+_OFFICE_COLS = ("office_name", "agent_name", "agent_title", "phone", "fax", "email", "office_addr")
+
+
+@router.get("/office")
+async def get_office(user: CurrentUser = Depends(current_user)):
+    row = await pool().fetchrow(
+        f"SELECT name, {', '.join(_OFFICE_COLS)}, logo_path FROM app.teams WHERE id=$1", user.team_id)
+    d = dict(row) if row else {}
+    d["has_logo"] = bool(d.pop("logo_path", None))
+    return d
+
+
+@router.patch("/office")
+async def set_office(body: OfficeIn, user: CurrentUser = Depends(current_user)):
+    if user.role != "owner":
+        raise HTTPException(403, "대표만 사무소 정보를 수정할 수 있습니다")
+    vals = body.model_dump()
+    sets = ", ".join(f"{c}=${i + 2}" for i, c in enumerate(_OFFICE_COLS))
+    await pool().execute(
+        f"UPDATE app.teams SET {sets} WHERE id=$1", user.team_id,
+        *[(vals[c] or "").strip() or None for c in _OFFICE_COLS])
+    return {"ok": True}
+
+
+@router.post("/office/logo")
+async def upload_logo(file: UploadFile = File(...), user: CurrentUser = Depends(current_user)):
+    if user.role != "owner":
+        raise HTTPException(403, "대표만 로고를 등록할 수 있습니다")
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(422, "이미지 파일만 올릴 수 있습니다")
+    key = f"logos/team{user.team_id}_{uuid.uuid4().hex}{os.path.splitext(file.filename or '')[1][:8] or '.png'}"
+    await storage.save(key, await file.read(), file.content_type or "image/png")
+    await pool().execute("UPDATE app.teams SET logo_path=$1 WHERE id=$2", key, user.team_id)
+    return {"ok": True}
+
+
+@router.get("/office/logo")
+async def get_logo(user: CurrentUser = Depends(current_user)):
+    key = await pool().fetchval("SELECT logo_path FROM app.teams WHERE id=$1", user.team_id)
+    data = await storage.load(key) if key else None
+    if data is None:
+        raise HTTPException(404, "등록된 로고가 없습니다")
+    return Response(content=data, media_type="image/png", headers={"Cache-Control": "private, max-age=300"})
+
+
+@router.delete("/office/logo")
+async def del_logo(user: CurrentUser = Depends(current_user)):
+    if user.role != "owner":
+        raise HTTPException(403, "대표만 로고를 지울 수 있습니다")
+    await pool().execute("UPDATE app.teams SET logo_path=NULL WHERE id=$1", user.team_id)
+    return {"ok": True}
 
 
 # ── 초대 ─────────────────────────────────────────────

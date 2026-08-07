@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { authApi, creditsApi, reportsApi, savedApi, teamApi, type TokenOut } from "../../shared/api/endpoints";
+import { authApi, creditsApi, officeApi, reportsApi, savedApi, teamApi, type Office, type TokenOut } from "../../shared/api/endpoints";
 import { useAuth } from "../../shared/store/auth";
 import { Loading } from "../../shared/ui/Spinner";
 import { openDetail } from "../../shared/map/geo";
@@ -80,6 +80,83 @@ function AccountPanel() {
             </div>
           </div>
         )}
+        {msg && <div style={{ fontSize: 12.5, color: "var(--signal)", marginTop: 10 }}>{msg}</div>}
+      </div>
+    </div>
+  );
+}
+
+/** 사무소 정보 — 브리핑 자료의 표지·마무리·문서 하단에 그대로 들어간다.
+ *  받는 쪽이 보는 건 '어느 중개사무소가 준 자료인가'라서 팀 단위로 둔다. */
+function OfficePanel() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["office"], queryFn: officeApi.get });
+  const [form, setForm] = useState<Partial<Office> | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [logoV, setLogoV] = useState(0);   // 로고 교체 후 캐시 무시용
+
+  const d = form ?? q.data ?? {};
+  const set = (k: keyof Office) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm({ ...(form ?? q.data ?? {}), [k]: e.target.value });
+
+  const save = useMutation({
+    mutationFn: () => officeApi.save(form ?? {}),
+    onSuccess: () => { setMsg("저장했습니다."); setForm(null); qc.invalidateQueries({ queryKey: ["office"] }); },
+    onError: (e) => setMsg(String((e as Error)?.message ?? e)),
+  });
+  const logo = useMutation({
+    mutationFn: (f: File) => officeApi.uploadLogo(f),
+    onSuccess: () => { setLogoV((v) => v + 1); qc.invalidateQueries({ queryKey: ["office"] }); },
+    onError: (e) => setMsg(String((e as Error)?.message ?? e)),
+  });
+  const delLogo = useMutation({
+    mutationFn: () => officeApi.delLogo(),
+    onSuccess: () => { setLogoV((v) => v + 1); qc.invalidateQueries({ queryKey: ["office"] }); },
+  });
+
+  const F = (k: keyof Office, label: string, ph?: string) => (
+    <label className="mp-f">
+      <span>{label}</span>
+      <input className="input" value={(d as any)[k] ?? ""} placeholder={ph} onChange={set(k)} />
+    </label>
+  );
+
+  return (
+    <div className="panel">
+      <div className="sec-head">
+        <span className="lead"><span>사무소 정보</span>
+          <span className="sub">브리핑 자료의 표지·마무리에 들어갑니다</span></span>
+        {form && <button className="btn primary" style={{ padding: "3px 10px", fontSize: 11.5 }}
+          disabled={save.isPending} onClick={() => save.mutate()}><Icon name="save" size={13} />저장</button>}
+      </div>
+      <div className="mp-body">
+        <div className="mp-office">
+          {F("office_name", "상호", "예: 탐정공인중개사사무소")}
+          {F("agent_name", "담당자", "이름")}
+          {F("agent_title", "직함", "대표 · 이사 등")}
+          {F("phone", "연락처", "010-0000-0000")}
+          {F("fax", "팩스", "선택")}
+          {F("email", "이메일", "선택")}
+          {F("office_addr", "주소", "선택")}
+          <label className="mp-f">
+            <span>로고</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {q.data?.has_logo && (
+                <img src={`/api/team/office/logo?v=${logoV}`} alt="로고"
+                  style={{ height: 30, maxWidth: 120, objectFit: "contain",
+                    border: "1px solid var(--line)", borderRadius: 4, background: "#fff" }} />
+              )}
+              <input ref={fileRef} type="file" accept="image/*" hidden
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) logo.mutate(f); e.target.value = ""; }} />
+              <button className="btn" style={{ padding: "4px 10px", fontSize: 11.5 }}
+                disabled={logo.isPending} onClick={() => fileRef.current?.click()}>
+                {q.data?.has_logo ? "교체" : "올리기"}</button>
+              {q.data?.has_logo && <button className="btn" style={{ padding: "4px 10px", fontSize: 11.5, color: "var(--up)" }}
+                onClick={() => delLogo.mutate()}>삭제</button>}
+            </span>
+          </label>
+        </div>
         {msg && <div style={{ fontSize: 12.5, color: "var(--signal)", marginTop: 10 }}>{msg}</div>}
       </div>
     </div>
@@ -326,6 +403,7 @@ export function MyPage() {
         </div>
       </div>
 
+      <OfficePanel />
       <TeamPanel />
       <PlansPanel />
     </div>

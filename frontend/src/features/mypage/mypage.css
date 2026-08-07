@@ -87,3 +87,10 @@
 
 .mp-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 26px 0; }
 .mp-note { font-size: 11.5px; color: var(--muted); margin: 0; padding: 0 16px 14px; }
+
+/* ── 사무소 정보(브리핑 표지·마무리에 들어감) ── */
+.mp-office { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 22px; }
+@media (max-width: 760px) { .mp-office { grid-template-columns: 1fr; } }
+.mp-f { display: grid; grid-template-columns: 68px 1fr; align-items: center; gap: 10px; }
+.mp-f > span:first-child { font-size: 12.5px; color: var(--muted); }
+.mp-f .input { height: 32px; font-size: 13px; }
