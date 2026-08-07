@@ -122,14 +122,19 @@ export function BriefingPage() {
 
   // ── 01 매물 기본정보 — 담는 값은 원본 표 그대로(소재지·토지·건물·금융).
   // 표현은 우리 언어로: 핵심 3지표를 먼저 세우고 나머지는 묶음별 스펙시트로 읽힌다.
-  const price = num(s.sale_price) ?? num(s.sale_est);
+  // 브리핑에 실리는 가격은 팀이 입력한 실제 가격뿐이다.
+  // 우리 추정치(적정가)는 고객에게 주는 자료에 들어갈 값이 아니다 — 그건 분석보고서의 몫.
+  const price = num(s.sale_price);
   const perLand = price && num(s.land_area) ? price / (Number(s.land_area) / P) : null;
   const perTotal = price && num(s.total_area) ? price / (Number(s.total_area) / P) : null;
   const gongsiSum = num(s.gongsi_latest) && num(s.land_area)
     ? Number(s.gongsi_latest) * Number(s.land_area) : null;
+  const totDepPre = snap.floors.reduce((a, f) => a + (f.deposit ?? 0), 0);
+  const totRentPre = snap.floors.reduce((a, f) => a + (f.rent ?? 0), 0);
 
-  const groups: { g: string; rows: [string, string][] }[] = [
+  const groups: { g: string; rows: [string, string, boolean?][] }[] = [
     { g: "토지", rows: [
+      ["대지면적", `${py(s.land_area)} (${s.land_area ?? "—"}㎡)`],
       ["도로상황", String(s.road_frontage ?? "—")],
       ["용도지역", String(s.use_zone ?? "—")],
       ["지목 / 형상", `${s.jimok ?? "—"} / ${s.shape ?? "—"}`],
@@ -137,6 +142,7 @@ export function BriefingPage() {
       ["공시지가 합계", eokman(gongsiSum)],
     ] },
     { g: "건물", rows: [
+      ["연면적", `${py(s.total_area)} (${s.total_area ?? "—"}㎡)`],
       ["건축면적", `${py(s.build_area)} (${s.build_area ?? "—"}㎡)`],
       ["건폐율 / 용적률", `${s.bcr ?? "—"}% / ${s.far ?? "—"}%`],
       ["규모", `지하 ${s.floors_below ?? "—"}층 · 지상 ${s.floors_above ?? "—"}층`],
@@ -145,15 +151,15 @@ export function BriefingPage() {
       ["구조 / 주용도", `${s.structure ?? "—"} / ${s.main_use_name ?? "—"}`],
     ] },
     { g: "금액", rows: [
-      ["매매가", `${eokman(price)}${s.sale_price ? "" : " (빌탐정 적정가)"}`],
+      ["매매가", eokman(price), true],          // 이 장에서 가장 중요한 값 — 한 번만, 여기서 강조
       ["대지 평단가", `${man(perLand)}원`],
       ["연면적 평단가", `${man(perTotal)}원`],
+      ["보증금 / 월임대료", `${man(totDepPre)}원 / ${man(totRentPre)}원`],
     ] },
   ];
 
-  const totDep = snap.floors.reduce((a, f) => a + (f.deposit ?? 0), 0);
-  const totRent = snap.floors.reduce((a, f) => a + (f.rent ?? 0), 0);
   const totMgmt = snap.floors.reduce((a, f) => a + (f.maintenance ?? 0), 0);
+  const totDep = totDepPre, totRent = totRentPre;
 
   const slides = [
     // 표지
@@ -184,21 +190,14 @@ export function BriefingPage() {
             {s.road_addr ? <span className="q">{String(s.road_addr)}</span> : null}
           </div>
 
-          {/* 먼저 눈에 들어와야 하는 세 값 */}
-          <div className="bf-key">
-            {[["대지면적", py(s.land_area), `${s.land_area ?? "—"}㎡`],
-              ["연면적", py(s.total_area), `${s.total_area ?? "—"}㎡`],
-              ["매매가", eokman(price), s.sale_price ? "팀 입력" : "빌탐정 적정가"]].map(([k, v, sub]) => (
-              <div key={k}><div className="k">{k}</div><div className="v">{v}</div><div className="s">{sub}</div></div>
-            ))}
-          </div>
-
           <div className="bf-spec">
             {groups.map(({ g, rows: rs }) => (
               <section key={g}>
                 <h4>{g}</h4>
-                {rs.map(([k, v]) => (
-                  <div className="r" key={k}><span className="k">{k}</span><span className="v">{v}</span></div>
+                {rs.map(([k, v, strong]) => (
+                  <div className={"r" + (strong ? " lead" : "")} key={k}>
+                    <span className="k">{k}</span><span className="v">{v}</span>
+                  </div>
                 ))}
               </section>
             ))}
