@@ -43,13 +43,16 @@ async def revert(body: OverlayIn, user: CurrentUser = Depends(current_user)):
 
 @router.delete("/all/{target_id}")
 async def revert_all(target_id: str, user: CurrentUser = Depends(current_user)):
-    """전체 되돌리기(S02 §5) — 그 건물의 팀 오버레이 전부 삭제(확인은 프론트)."""
+    """전체 되돌리기(S02 §5) — 그 건물의 팀 오버레이 전부 삭제(확인은 프론트).
+    없앤 층(0029)도 함께 되살린다 — '전체 되돌리기'인데 층이 사라진 채로 남으면 안 된다."""
     n = await pool().fetchval(
         """WITH d AS (DELETE FROM app.overlays
              WHERE team_id=$1 AND target_id=$2 RETURNING 1)
            SELECT count(*) FROM d""",
         user.team_id, target_id,
     )
+    await pool().execute(
+        "DELETE FROM app.floor_hidden WHERE team_id=$1 AND building_pk=$2", user.team_id, target_id)
     return {"ok": True, "reverted": n}
 
 

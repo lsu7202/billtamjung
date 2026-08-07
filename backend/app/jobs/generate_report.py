@@ -312,6 +312,12 @@ async def _nearby_rent_apply(building_pk: str, subject: dict, team_id: int) -> d
     sf: dict = {r["floor"]: {"area": r["area"] or 0.0, "rent": r["rent"] or 0, "deposit": r["deposit"] or 0} for r in mrows}
     for r in trows:   # 팀 입력 층 = 대체(오버레이 우선)
         sf[r["floor"]] = {"area": r["area"] or 0.0, "rent": r["rent"] or 0, "deposit": r["deposit"] or 0}
+    # 팀이 없앤 층(0029)은 이 건물에 존재하지 않는 층 — 임대수익·주변시세 비교에서 뺀다.
+    hidden = {r["floor"] for r in await pool().fetch(
+        "SELECT floor FROM app.floor_hidden WHERE building_pk=$1 AND team_id=$2", building_pk, team_id)}
+    hidden_sf = {_floor_key(f) for f in hidden}
+    for fl in [f for f in sf if _floor_key(f) in hidden_sf]:
+        del sf[fl]
     if not sf:
         return None
     floors, applied_rent, applied_deposit, cur_rent, cur_deposit = [], 0, 0, 0, 0

@@ -187,11 +187,13 @@ export const teamApi = {
 };
 
 export const rentsApi = {
-  list: (pk: string) => api<{ items: FloorRent[]; total: Record<string, number> }>(`/buildings/${pk}/floor-rents`),
+  list: (pk: string) => api<{ items: FloorRent[]; total: Record<string, number>; hidden_floors: string[] }>(`/buildings/${pk}/floor-rents`),
   upsert: (pk: string, r: FloorRent) =>
     api(`/buildings/${pk}/floor-rents`, { method: "PUT", body: JSON.stringify(r) }),
   del: (pk: string, id: number) =>
     api(`/buildings/${pk}/floor-rents/${id}`, { method: "DELETE" }),
+  hideFloor: (pk: string, floor: string, hidden: boolean) =>
+    api(`/buildings/${pk}/floor-rents/hidden`, { method: "POST", body: JSON.stringify({ floor, hidden }) }),
   outline: (pk: string) =>
     api<{ floor: string | null; use: string | null; exclusive_area: number | null; rent_est: number | null; deposit_est: number | null }[]>(`/buildings/${pk}/floor-outline`),
 };

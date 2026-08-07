@@ -2,7 +2,7 @@
 import re
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from ..core.db import pool
+from ..core.db import pool, tx
 from ..core.deps import current_user, CurrentUser
 
 router = APIRouter(prefix="/buildings/{building_pk}/floor-rents", tags=["floor-rents"])
@@ -42,28 +42,27 @@ async def list_rents(building_pk: str, user: CurrentUser = Depends(current_user)
                     * COALESCE(NULLIF(regexp_replace(floor, '\\D', '', 'g'), '')::int, 0) DESC, unit_no""",
         building_pk, user.team_id,
     )
-    items = [dict(r) for r in rows]
+    hidden = [r["floor"] for r in await pool().fetch(
+        "SELECT floor FROM app.floor_hidden WHERE building_pk=$1 AND team_id=$2",
+        building_pk, user.team_id)]
+    hidden_sf = {_signed_floor(f) for f in hidden}
+
+    items = [dict(r) for r in rows if _signed_floor(r["floor"]) not in hidden_sf]
     team_rent = sum(r["rent"] or 0 for r in items)
     team_deposit = sum(r["deposit"] or 0 for r in items)
-    # 호실단위 하이브리드 총액: 표에 보이는 호실별로 오버레이 있으면 실제값, 없으면 마스터 추정.
-    # 마스터 호실(seq) = 대장 층별개요. 팀이 한 층에 K개 입력하면 그 층 마스터 seq 앞 K개가 '대체'되고
-    # 나머지 seq는 추정 유지 → 다호실 층에서 일부만 입력해도 나머지 호실이 총액에 남음(과소 방지).
+    # 총액의 마스터 추정 = '팀이 손대지 않은 층'만. 층 단위로 대체한다(0029).
+    # 예전엔 층 안에서 앞 K개만 대체해서, 2호실을 하나로 합쳐 입력하면 나머지 1호실 추정이 총액에 남았다.
     est_rows = await pool().fetch(
         """SELECT fo.floor, fre.rent_est, fre.deposit_est
            FROM master.floor_outline fo JOIN master.floor_rent_est fre USING (building_pk, seq)
            WHERE fo.building_pk=$1 AND fre.rent_est > 0 ORDER BY fo.seq""",
         building_pk,
     )
-    team_cnt: dict[int | None, int] = {}
-    for r in items:
-        f = _signed_floor(r["floor"])
-        team_cnt[f] = team_cnt.get(f, 0) + 1
+    team_floors = {_signed_floor(r["floor"]) for r in items}
     est_rent_full = est_dep_full = 0
-    used: dict[int | None, int] = {}
     for r in est_rows:
         f = _signed_floor(r["floor"])
-        if used.get(f, 0) < team_cnt.get(f, 0):
-            used[f] = used.get(f, 0) + 1   # 이 마스터 호실은 팀 입력이 대체
+        if f in team_floors or f in hidden_sf:   # 팀이 관리하는 층 · 없앤 층은 추정 제외
             continue
         est_rent_full += r["rent_est"] or 0
         est_dep_full += r["deposit_est"] or 0
@@ -78,7 +77,32 @@ async def list_rents(building_pk: str, user: CurrentUser = Depends(current_user)
         "rent_full": team_rent + est_rent_full,
         "deposit_full": team_deposit + est_dep_full,
     }
-    return {"items": items, "total": total}
+    return {"items": items, "total": total, "hidden_floors": hidden}
+
+
+class HiddenIn(BaseModel):
+    floor: str
+    hidden: bool = True
+
+
+@router.post("/hidden")
+async def set_hidden(building_pk: str, body: HiddenIn, user: CurrentUser = Depends(current_user)):
+    """층 없애기/되살리기. 없앨 때 그 층의 팀 입력도 함께 정리한다(빈 층으로 남기지 않음)."""
+    if body.hidden:
+        async with tx() as conn:
+            await conn.execute(
+                """UPDATE app.floor_rents SET deleted_at=now()
+                   WHERE building_pk=$1 AND team_id=$2 AND floor=$3 AND deleted_at IS NULL""",
+                building_pk, user.team_id, body.floor)
+            await conn.execute(
+                """INSERT INTO app.floor_hidden(building_pk, team_id, floor) VALUES($1,$2,$3)
+                   ON CONFLICT DO NOTHING""",
+                building_pk, user.team_id, body.floor)
+    else:
+        await pool().execute(
+            "DELETE FROM app.floor_hidden WHERE building_pk=$1 AND team_id=$2 AND floor=$3",
+            building_pk, user.team_id, body.floor)
+    return {"ok": True}
 
 
 @router.put("")

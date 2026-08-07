@@ -299,7 +299,8 @@ export function BuildingPage() {
 
           {/* 층별 임대정보(§3.5) — 풀폭 */}
           {show("deal") && (
-            <RentTable pk={pk} items={rents.data?.items ?? []} total={total} unit={unit}
+            <RentTable pk={pk} items={rents.data?.items ?? []} total={total}
+              hiddenFloors={rents.data?.hidden_floors ?? []} unit={unit}
               refresh={() => { qc.invalidateQueries({ queryKey: ["rents", pk] }); qc.invalidateQueries({ queryKey: ["nearby"] }); }} eok={eok} />
           )}
 
@@ -458,9 +459,10 @@ const toForm = (r: FloorRent, unit: "py" | "m2"): RentForm => ({
   maintenance: r.maintenance ? String(Math.round(r.maintenance / 1e4)) : "",
   is_vacant: r.is_vacant ?? null,   // 기본 미지정
 });
-function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden, isPrefill }: {
+function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden, isPrefill, onAddUnit, onDelete }: {
   pk: string; r: FloorRent; unit: "py" | "m2"; eok: (n?: number | null) => string;
   refresh: () => void; isDraft?: boolean; onSaved?: () => void; hidden?: boolean; isPrefill?: boolean;
+  onAddUnit?: () => void; onDelete?: () => void;   // 구조 편집(0029) — 대장 구조 밖의 층·호실 조정
 }) {
   const [f, setF] = useState<RentForm>(toForm(r, unit));
   const [hover, setHover] = useState(false);
@@ -515,9 +517,14 @@ function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden, isPrefil
           <button className="btn" style={{ padding: "2px 9px", fontSize: 12, color: vColor }}
             onClick={cycleVacancy} title="클릭 = 미지정→임대중→공실">{vLabel}</button>
         )}
-        {(isDraft ? !draftEmpty : (!isPrefill && r.id != null)) && (
+        {!isDraft && onAddUnit && (
+          <button className="btn" style={{ padding: "2px 7px", fontSize: 12, marginLeft: 6, visibility: hover ? "visible" : "hidden" }}
+            onClick={(e) => { e.stopPropagation(); onAddUnit(); }} title="이 층에 호실 추가">＋</button>
+        )}
+        {(isDraft ? !draftEmpty : (onDelete || (!isPrefill && r.id != null))) && (
           <button className="btn" style={{ padding: "2px 7px", fontSize: 12, marginLeft: 6, color: "var(--up)", visibility: hover || isDraft ? "visible" : "hidden" }}
-            onClick={del} title={isDraft ? "입력 지우기" : "이 행 삭제"}>×</button>
+            onClick={(e) => { e.stopPropagation(); (onDelete ?? del)(); }}
+            title={isDraft ? "입력 지우기" : "이 호실 삭제 (층에 하나뿐이면 층이 사라집니다)"}>×</button>
         )}
       </td>
     </tr>
@@ -525,9 +532,9 @@ function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden, isPrefil
 }
 
 /* 층별임대 표 — 저장버튼 없음(자동저장) · 하단 빈 행에 입력=추가 · 행 호버 ×=삭제 */
-function RentTable({ pk, items, total, unit, refresh, eok }: {
-  pk: string; items: FloorRent[]; total?: Record<string, number>; unit: "py" | "m2"; refresh: () => void;
-  eok: (n?: number | null) => string;
+function RentTable({ pk, items, total, hiddenFloors, unit, refresh, eok }: {
+  pk: string; items: FloorRent[]; total?: Record<string, number>; hiddenFloors: string[];
+  unit: "py" | "m2"; refresh: () => void; eok: (n?: number | null) => string;
 }) {
   const [draftKey, setDraftKey] = useState(0);
   const [hover, setHover] = useState(false);
@@ -542,15 +549,81 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
     if (/지하|^\s*B/i.test(fl)) return isNaN(n) ? -1 : -n;
     return isNaN(n) ? null : n;
   };
-  const teamCnt = new Map<number, number>();
-  items.forEach((i) => { const f = sfloor(i.floor); if (f != null) teamCnt.set(f, (teamCnt.get(f) ?? 0) + 1); });
-  const usedCnt = new Map<number, number>();
+  // 층 단위 인수(0029): 그 층에 팀 입력이 하나라도 있으면 그 층 대장 프리필은 전부 대체된다.
+  // 예전엔 '앞 K개'만 대체해서, 2호실을 하나로 합쳐 입력해도 나머지 1호실이 계속 남았다.
+  const teamFloors = new Set(items.map((i) => sfloor(i.floor)).filter((f): f is number => f != null));
+  const hiddenSf = new Set(hiddenFloors.map(sfloor).filter((f): f is number => f != null));
   const prefill = (outline.data ?? []).filter((o) => {
     if (!o.floor) return false;
     const f = sfloor(o.floor);
-    if (f != null && (usedCnt.get(f) ?? 0) < (teamCnt.get(f) ?? 0)) { usedCnt.set(f, (usedCnt.get(f) ?? 0) + 1); return false; }
-    return true;
+    return f == null || (!teamFloors.has(f) && !hiddenSf.has(f));
   });
+  // ── 구조 편집 ──────────────────────────────────────────────────
+  // 대장 구조를 그대로 못 쓰는 건물이 많다(2호실을 하나로 합쳐 쓰거나, 대장에만 있는 층이거나).
+  // 프리필 행을 건드리는 순간 그 층을 팀이 인수한다 = 그 층 프리필을 팀 행으로 확정해두고 편집.
+  const [busy, setBusy] = useState(false);
+  const outlineOf = (floor: string) =>
+    (outline.data ?? []).filter((o) => o.floor && sfloor(o.floor) === sfloor(floor));
+
+  /** 그 층을 팀 행으로 확정(이미 팀 행이 있으면 아무것도 안 함). skipIdx=제외할 프리필 순번 */
+  async function adoptFloor(floor: string, skipIdx?: number) {
+    const sf = sfloor(floor);
+    if (sf != null && teamFloors.has(sf)) return;
+    const rows = outlineOf(floor);
+    await Promise.all(rows.map((o, i) =>
+      i === skipIdx ? null : rentsApi.upsert(pk, {
+        floor: o.floor ?? floor, unit_no: String(i + 1),
+        use: o.use ?? undefined, contract_area: o.exclusive_area ?? undefined,
+        deposit: o.deposit_est ?? 0, rent: o.rent_est ?? 0, maintenance: 0, is_vacant: null,
+      } as FloorRent)).filter(Boolean));
+  }
+
+  /** 호실 추가 — 그 층을 인수한 뒤 빈 호실 한 칸을 만든다. */
+  async function addUnit(floor: string) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await adoptFloor(floor);
+      const used = new Set([...items.filter((i) => sfloor(i.floor) === sfloor(floor)).map((i) => i.unit_no),
+                            ...outlineOf(floor).map((_, i) => String(i + 1))]);
+      let n = 1; while (used.has(String(n))) n++;
+      await rentsApi.upsert(pk, { floor, unit_no: String(n), deposit: 0, rent: 0, maintenance: 0, is_vacant: null } as FloorRent);
+      refresh();
+    } finally { setBusy(false); }
+  }
+
+  /** 층 삭제 — 대장엔 있지만 실제로는 없는 층. 팀 입력도 함께 정리된다(백엔드). */
+  async function removeFloor(floor: string) {
+    if (busy || !confirm(`${floor}을(를) 이 건물에서 없앨까요? 입력한 임대정보도 함께 지워집니다.`)) return;
+    setBusy(true);
+    try { await rentsApi.hideFloor(pk, floor, true); refresh(); } finally { setBusy(false); }
+  }
+
+  async function restoreFloor(floor: string) {
+    setBusy(true);
+    try { await rentsApi.hideFloor(pk, floor, false); refresh(); } finally { setBusy(false); }
+  }
+
+  /** 프리필 행 삭제 = 그 층 인수하면서 그 행만 뺀다. 그 층에 행이 하나뿐이면 층 삭제와 같다. */
+  async function removePrefillRow(floor: string, idx: number) {
+    if (busy) return;
+    if (outlineOf(floor).length <= 1) return removeFloor(floor);
+    setBusy(true);
+    try { await adoptFloor(floor, idx); refresh(); } finally { setBusy(false); }
+  }
+
+  /** 행 삭제 — 그 층의 마지막 행이면 층째로 없앤다. 안 그러면 대장 프리필이 되살아나 혼란스럽다. */
+  function rowDelete(floor: string, dr: { r: FloorRent; isPrefill?: boolean }, idxInFloor: number, rowsInFloor: number) {
+    return async () => {
+      if (busy) return;
+      if (dr.isPrefill) return removePrefillRow(floor, idxInFloor);
+      if (rowsInFloor <= 1) return removeFloor(floor);
+      if (dr.r.id == null) return;
+      setBusy(true);
+      try { await rentsApi.del(pk, dr.r.id); refresh(); } finally { setBusy(false); }
+    };
+  }
+
   const blank: FloorRent = { floor: "", unit_no: "", deposit: 0, rent: 0, maintenance: 0, is_vacant: null };
   // 층별 그룹핑: 팀입력+프리필을 한 배열로 → 층별 그룹 → 서명층수 내림차순. 다호실 층만 접고펴기.
   type DRow = { r: FloorRent; isPrefill?: boolean; key: string };
@@ -567,9 +640,17 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
   return (
     <div className="panel">
       <div className="sec-head">층별 임대정보
-        {items.length > 0 && (
+        {(items.length > 0 || hiddenFloors.length > 0) && (
           <button className="btn" style={{ marginLeft: "auto", padding: "3px 10px", fontSize: 12 }}
-            onClick={async () => { if (confirm("입력한 층별 임대정보를 모두 되돌릴까요? (대장 프리필로 복원)")) { await Promise.all(items.filter((i) => i.id != null).map((i) => rentsApi.del(pk, i.id!))); refresh(); } }}>↺ 되돌리기</button>
+            onClick={async () => {
+              if (!confirm("입력한 층별 임대정보를 모두 되돌릴까요? (대장 구조로 복원)")) return;
+              // 없앤 층(0029)도 함께 되살린다 — 구조를 되돌리는데 층이 사라진 채 남으면 안 된다.
+              await Promise.all([
+                ...items.filter((i) => i.id != null).map((i) => rentsApi.del(pk, i.id!)),
+                ...hiddenFloors.map((f) => rentsApi.hideFloor(pk, f, false)),
+              ]);
+              refresh();
+            }}>↺ 되돌리기</button>
         )}
       </div>
       <table className="wf" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
@@ -578,7 +659,9 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
           {/* 층별 그룹: 1호실=행 그대로, 다호실=접이식 헤더(층·호실수·합계). 프리필 면적은 계약 컬럼(바닥면적). */}
           {shownGroups.map(([floor, rows]) => {
             if (rows.length === 1)
-              return <RentRow key={rows[0].key} pk={pk} r={rows[0].r} unit={unit} eok={eok} refresh={refresh} isPrefill={rows[0].isPrefill} />;
+              return <RentRow key={rows[0].key} pk={pk} r={rows[0].r} unit={unit} eok={eok} refresh={refresh}
+                isPrefill={rows[0].isPrefill} onAddUnit={() => addUnit(floor)}
+                onDelete={rowDelete(floor, rows[0], 0, 1)} />;
             const open = openFloors.has(floor);
             const sD = rows.reduce((s, dr) => s + (dr.r.deposit || 0), 0);
             const sR = rows.reduce((s, dr) => s + (dr.r.rent || 0), 0);
@@ -591,9 +674,16 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
                   <td className="num">{eok(sD)}</td>
                   <td className="num">{eok(sR)}</td>
                   <td className="num">{eok(sM)}</td>
-                  <td></td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    <button className="btn" style={{ padding: "2px 7px", fontSize: 12 }}
+                      onClick={(e) => { e.stopPropagation(); addUnit(floor); }} title="이 층에 호실 추가">＋</button>
+                    <button className="btn" style={{ padding: "2px 7px", fontSize: 12, marginLeft: 6, color: "var(--up)" }}
+                      onClick={(e) => { e.stopPropagation(); removeFloor(floor); }} title="이 층을 없앰">×</button>
+                  </td>
                 </tr>
-                {open && rows.map((dr) => <RentRow key={dr.key} pk={pk} r={dr.r} unit={unit} eok={eok} refresh={refresh} isPrefill={dr.isPrefill} />)}
+                {open && rows.map((dr, i) => <RentRow key={dr.key} pk={pk} r={dr.r} unit={unit} eok={eok} refresh={refresh}
+                  isPrefill={dr.isPrefill} onAddUnit={() => addUnit(floor)}
+                  onDelete={rowDelete(floor, dr, i, rows.length)} />)}
               </Fragment>
             );
           })}
@@ -609,6 +699,15 @@ function RentTable({ pk, items, total, unit, refresh, eok }: {
           )}
         </tbody>
       </table>
+      {hiddenFloors.length > 0 && (
+        <div style={{ padding: "0 14px 10px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>없앤 층</span>
+          {hiddenFloors.map((f) => (
+            <button key={f} className="btn" style={{ padding: "2px 9px", fontSize: 11.5 }}
+              disabled={busy} onClick={() => restoreFloor(f)} title="대장 구조로 되살리기">{f} ↺</button>
+          ))}
+        </div>
+      )}
       {sortedGroups.length > 5 && (
         <div style={{ padding: "0 14px 12px" }}>
           <button className="btn" style={{ padding: "4px 12px", fontSize: 12 }} onClick={() => setShowAllFloors((v) => !v)}>
