@@ -238,7 +238,10 @@ async def main() -> int:
         # 4-b) 지역 집계 MV 갱신(0028) — 자동완성·필터 지역목록이 이걸 읽는다.
         # 스왑 후에 돌려야 새 데이터가 반영된다. CONCURRENTLY라 조회를 막지 않는다.
         for mv, srcs in (("master.region_index", ("buildings",)),
-                         ("master.sales_agg", ("sales_history",))):
+                         ("master.sales_agg", ("sales_history",)),
+                         # 0030 — 검색 수익률이 층 기준 하이브리드라 층 추정이 바뀌면 함께 굴린다.
+                         ("master.floor_est_by_floor", ("floor_outline", "floor_rent_est")),
+                         ("master.floor_est_total", ("floor_outline", "floor_rent_est"))):
             if args.source not in srcs:
                 continue
             try:

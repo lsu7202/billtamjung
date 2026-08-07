@@ -50,6 +50,13 @@ async def main():
     await c.executemany(
         "INSERT INTO master.floor_rent_est(building_pk,seq,rent_est,deposit_est) VALUES($1,$2,$3,$4)", ins)
     print(f"floor_rent_est 재적재: {len(ins)}행 · 수익>0 {sum(1 for x in ins if x[2] > 0)}")
+    # 검색 수익률이 이 값을 층 단위로 쓰는 하이브리드라(0030) 롤업 MV를 함께 굴린다.
+    for mv in ("master.floor_est_by_floor", "master.floor_est_total"):
+        try:
+            await c.execute(f"REFRESH MATERIALIZED VIEW CONCURRENTLY {mv}")
+            print(f"  · {mv} 갱신")
+        except Exception as e:
+            print(f"  ⚠️ {mv} 갱신 실패(무시): {e}")
     await c.close()
 
 

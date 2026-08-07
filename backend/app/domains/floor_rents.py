@@ -76,6 +76,9 @@ async def list_rents(building_pk: str, user: CurrentUser = Depends(current_user)
         # 전층 하이브리드(건물 총임대료/보증금 = 팀 실제 + 미입력층 추정)
         "rent_full": team_rent + est_rent_full,
         "deposit_full": team_deposit + est_dep_full,
+        # 공실제외도 같은 하이브리드로. 팀 행만 쓰면 한 층만 입력해도 수익률이 그 층으로 떨어진다
+        # (실측: 헤더가 만실 2.4% / 공실제외 0.4%로 갈렸다). 미입력층 추정은 공실이 아니므로 포함.
+        "rent_occupied_full": sum(r["rent"] or 0 for r in items if r["is_vacant"] is not True) + est_rent_full,
     }
     return {"items": items, "total": total, "hidden_floors": hidden}
 

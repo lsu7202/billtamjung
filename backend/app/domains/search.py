@@ -483,6 +483,23 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
                count(*) FILTER (WHERE is_vacant) AS vacant_cnt
         FROM app.floor_rents WHERE team_id = $1 AND deleted_at IS NULL GROUP BY building_pk
       ),
+      -- 팀이 손댔거나 없앤 층의 대장 추정 — 하이브리드에서 빼야 할 몫(0030).
+      -- 상세·리포트는 "팀 입력 층은 실제값, 나머지 층은 대장 추정"으로 보는데 검색만 팀 입력만 봤다.
+      -- 한 층만 입력해도 그 층만으로 건물 전체 수익률이 계산돼 정렬·필터가 크게 틀어졌다.
+      touched AS (
+        SELECT building_pk, floor FROM app.floor_rents
+          WHERE team_id = $1 AND deleted_at IS NULL
+        UNION
+        SELECT building_pk, floor FROM app.floor_hidden WHERE team_id = $1
+      ),
+      est_drop AS (
+        SELECT t.building_pk,
+               SUM(fe.rent_est) AS rent_est, SUM(fe.deposit_est) AS deposit_est
+        FROM touched t JOIN master.floor_est_by_floor fe
+          ON fe.building_pk = t.building_pk
+         AND app.signed_floor(fe.floor) = app.signed_floor(t.floor)   -- '3층'='3F' 동일 취급
+        GROUP BY 1
+      ),
       sale_ov AS (     -- 팀 수기 매매가(sale_price 오버레이)
         SELECT target_id AS building_pk, value::bigint AS sale_price
         FROM app.overlays
@@ -496,6 +513,14 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
                b.last_sale_price, b.last_sale_ym,
                so.sale_price, se.sale_est, re.annual_rent,
                ra.rent_total, ra.deposit_total, ra.mgmt_total, ra.rent_nonvac, ra.vacant_cnt,
+               -- 하이브리드 연임대(0030) = 팀 입력 + 팀이 안 건드린 층의 대장 추정.
+               -- 상세·리포트와 같은 정의. 층 데이터가 없는 건물은 예전처럼 건물단위 추정으로 폴백.
+               CASE WHEN fet.rent_est IS NULL THEN COALESCE(ra.rent_total * 12.0, re.annual_rent)
+                    ELSE (COALESCE(ra.rent_total, 0)
+                          + GREATEST(0, fet.rent_est - COALESCE(ed.rent_est, 0))) * 12.0 END AS rent_year,
+               CASE WHEN fet.rent_est IS NULL THEN COALESCE(ra.rent_nonvac * 12.0, re.annual_rent)
+                    ELSE (COALESCE(ra.rent_nonvac, 0)
+                          + GREATEST(0, fet.rent_est - COALESCE(ed.rent_est, 0))) * 12.0 END AS rent_year_exvac,
                l.assignee_account_id, l.status, l.urgency, l.grade, l.ipji, l.owner_type,
                l.relation, l.cooperation, l.kindness, l.building_use, l.meongdo, l.use_change,
                l.myeolsil, l.nohudo, l.owner_phone, l.owner_name, l.listing_no, l.intent, l.received_on,
@@ -509,6 +534,8 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
         LEFT JOIN master.building_sale_est se ON se.building_pk = b.building_pk
         LEFT JOIN master.building_rent_est re ON re.building_pk = b.building_pk
         LEFT JOIN rent_agg ra ON ra.building_pk = b.building_pk
+        LEFT JOIN master.floor_est_total fet ON fet.building_pk = b.building_pk
+        LEFT JOIN est_drop ed ON ed.building_pk = b.building_pk
         LEFT JOIN app.listings l ON l.building_pk = b.building_pk AND l.team_id = $1
         LEFT JOIN master.sales_agg sa ON sa.building_pk = b.building_pk   -- MV(0028): 매 검색마다 11.4만행 재집계하던 CTE 대체
         LEFT JOIN photo_ex ph ON ph.building_pk = b.building_pk
@@ -526,10 +553,10 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
                CASE WHEN assignee_account_id IS NOT NULL THEN 'mine' ELSE 'normal' END AS col,
                COALESCE(sale_price, sale_est) AS price,
                (sale_price IS NULL) AS price_is_est,
-               CASE WHEN COALESCE(rent_total * 12.0, annual_rent) > 0 AND COALESCE(sale_price, sale_est) > 0
-                    THEN round(COALESCE(rent_total * 12.0, annual_rent) / COALESCE(sale_price, sale_est) * 100, 2) END AS roi,
-               CASE WHEN COALESCE(rent_nonvac * 12.0, annual_rent) > 0 AND COALESCE(sale_price, sale_est) > 0
-                    THEN round(COALESCE(rent_nonvac * 12.0, annual_rent) / COALESCE(sale_price, sale_est) * 100, 2) END AS roi_exvac,
+               CASE WHEN rent_year > 0 AND COALESCE(sale_price, sale_est) > 0
+                    THEN round(rent_year / COALESCE(sale_price, sale_est) * 100, 2) END AS roi,
+               CASE WHEN rent_year_exvac > 0 AND COALESCE(sale_price, sale_est) > 0
+                    THEN round(rent_year_exvac / COALESCE(sale_price, sale_est) * 100, 2) END AS roi_exvac,
                deposit_total, rent_total, mgmt_total, vacant_cnt,
                CASE WHEN land_area > 0 THEN round(COALESCE(sale_price, sale_est) * 3.305785 / land_area) END AS pp_land,
                CASE WHEN total_area > 0 THEN round(COALESCE(sale_price, sale_est) * 3.305785 / total_area) END AS pp_total,
