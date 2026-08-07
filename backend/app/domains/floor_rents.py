@@ -3,6 +3,7 @@ import re
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from ..core.db import pool, tx
+from ..core.floor_label import normalize as _norm_floor
 from ..core.deps import current_user, CurrentUser
 
 router = APIRouter(prefix="/buildings/{building_pk}/floor-rents", tags=["floor-rents"])
@@ -91,6 +92,7 @@ class HiddenIn(BaseModel):
 @router.post("/hidden")
 async def set_hidden(building_pk: str, body: HiddenIn, user: CurrentUser = Depends(current_user)):
     """층 없애기/되살리기. 없앨 때 그 층의 팀 입력도 함께 정리한다(빈 층으로 남기지 않음)."""
+    body.floor = _norm_floor(body.floor)[0] or body.floor
     if body.hidden:
         async with tx() as conn:
             await conn.execute(
@@ -110,7 +112,10 @@ async def set_hidden(building_pk: str, body: HiddenIn, user: CurrentUser = Depen
 
 @router.put("")
 async def upsert_rent(building_pk: str, body: RentIn, user: CurrentUser = Depends(current_user)):
-    """(building_pk, team_id, 층, 호실) 매칭키 upsert. 공실이어도 값 보존(만실 총계·공실제외는 플래그로 구분)."""
+    """(building_pk, team_id, 층, 호실) 매칭키 upsert. 공실이어도 값 보존(만실 총계·공실제외는 플래그로 구분).
+    층 표기는 대장과 같은 규칙으로 정규화한다(0031) — '3F'로 치고 대장이 '3층'이면 다른 층이 돼
+    추정이 안 빠지고 이중 계산된다."""
+    body.floor = _norm_floor(body.floor)[0] or body.floor
     await pool().execute(
         """INSERT INTO app.floor_rents
              (building_pk,team_id,floor,unit_no,use,exclusive_area,contract_area,
