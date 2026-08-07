@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { reportsApi, PHOTO_KINDS, type Photo, type PhotoKind } from "../../shared/api/endpoints";
 import { useAuth } from "../../shared/store/auth";
 import { fitStyle } from "../../shared/ui/PhotoFit";
+import { ParcelScene } from "./ParcelScene";
+import { ReportMap } from "./ReportMap";
 import { Loading } from "../../shared/ui/Spinner";
 import { Icon as ActionIcon } from "../../shared/ui/Icon";
 import "./reportslide.css";
@@ -17,17 +19,23 @@ import "./briefing.css";
 const P = 3.305785;
 const py = (m2: unknown) => (m2 ? `${(Number(m2) / P).toFixed(2)}평` : "—");
 const num = (v: unknown) => (v == null || v === "" ? null : Number(v));
-const eokman = (won: unknown) => {
-  const w = num(won);
-  if (!w) return "—";
-  const e = Math.floor(Math.abs(w) / 1e8), mn = Math.round((Math.abs(w) - e * 1e8) / 1e4);
-  return (w < 0 ? "−" : "") + (e && mn ? `${e.toLocaleString()}억 ${mn.toLocaleString()}만원`
-    : e ? `${e.toLocaleString()}억원` : `${mn.toLocaleString()}만원`);
+const man = (won: unknown) => { const w = num(won); return w ? `${Math.round(w / 1e4).toLocaleString()}만원` : "—"; };
+/** 원 단위 그대로 — 공시지가처럼 대장 원문을 옮기는 값(원본 표기: 15,450,000원) */
+const wonFull = (v: unknown) => { const w = num(v); return w ? `${Math.round(w).toLocaleString()}원` : "—"; };
+/** 억 단위 — 매매가(원본 표기: 140 억) */
+const eok = (v: unknown) => { const w = num(v); return w ? `${(w / 1e8).toFixed(w % 1e8 === 0 ? 0 : 1)}억` : "—"; };
+/** 규모 — 원본 표기: B1 ~ 6F */
+const scale = (below: unknown, above: unknown) => {
+  const b = num(below), a = num(above);
+  if (!a && !b) return "—";
+  return `${b ? `B${b}` : "1F"} ~ ${a ? `${a}F` : "1F"}`;
 };
-const man = (won: unknown) => { const w = num(won); return w ? `${Math.round(w / 1e4).toLocaleString()}만` : "—"; };
-const ymd = (v: unknown) => (v ? String(v).slice(0, 10).replace(/-/g, ".") : "—");
+/** 준공년도 — 원본 표기: 2004/01/15 */
+const ymdSlash = (v: unknown) => (v ? String(v).slice(0, 10).replace(/-/g, "/") : "—");
 
 type Snap = {
+  parcel: { type: string; coordinates: any } | null;
+  roads: { rn: string; road_bt: number; geojson: { type: string; coordinates: any } }[];
   subject: Record<string, unknown>;
   office: Record<string, unknown>;
   floors: { floor: string; unit_no: string | null; use: string | null; exclusive_area: number | null;
@@ -106,17 +114,19 @@ export function BriefingPage() {
   const shortAddr = addr.replace(/^서울특별시\s*/, "").replace(/\s*번지$/, "");
   const rno = `BT-${new Date(rq.data?.created_at ?? Date.now()).getFullYear()}-${String(rid).padStart(6, "0")}`;
   const date = new Date(rq.data?.created_at ?? Date.now()).toLocaleDateString("ko-KR").replace(/\.$/, "");
-  const contact = [o.agent_title, o.agent_name].filter(Boolean).join(" ");
+  // 담당자명은 브리핑에 넣지 않는다(상호·연락처만).
 
   const byKind = (k: PhotoKind) => photos.filter((p) => p.kind === k);
-  const img = (p?: Photo) => (p && urls[p.id]
-    ? <img src={urls[p.id]} alt="" style={fitStyle(p.transform)} />
+  // whole=true — 서류는 잘리면 안 된다. 사진처럼 슬롯을 채우는 대신 한 장을 통째로 보인다.
+  const img = (p?: Photo, whole = false) => (p && urls[p.id]
+    ? <img src={urls[p.id]} alt=""
+        style={whole ? { width: "100%", height: "100%", objectFit: "contain" } : fitStyle(p.transform)} />
     : <div className="bf-empty">{p ? "불러오는 중…" : "등록된 자료가 없습니다"}</div>);
 
   const docSlot = (k: PhotoKind) => (
     <div className="bf-doc">
       <div className="bf-doc-t">{PHOTO_KINDS.find((x) => x.k === k)?.label}</div>
-      <div className="bf-doc-img">{img(byKind(k)[0])}</div>
+      <div className="bf-doc-img">{img(byKind(k)[0], true)}</div>
     </div>
   );
 
@@ -132,29 +142,40 @@ export function BriefingPage() {
   const totDepPre = snap.floors.reduce((a, f) => a + (f.deposit ?? 0), 0);
   const totRentPre = snap.floors.reduce((a, f) => a + (f.rent ?? 0), 0);
 
+  // 중개인 코멘트 — 사실 나열만으로는 전달되지 않는 것(입지·활용·기대감)을 담당자가 직접 적는다.
+  // 저장은 건물 오버레이라 팀이 공유한다. 줄바꿈으로 항목을 나눈다.
+  const comment = String(s.briefing_comment ?? "").split("\n").map((x) => x.trim()).filter(Boolean);
+
+  const roi = price && totRentPre ? (totRentPre * 12) / price * 100 : null;
+  const roadTxt = [
+    s.road_front_m ? `전면 ${s.road_front_m}m` : null,
+    s.road_side_m ? `측면 ${s.road_side_m}m` : null,
+    s.road_rear_m ? `후면 ${s.road_rear_m}m` : null,
+  ].filter(Boolean).join(" / ") || String(s.road_frontage ?? "—");
+
   const groups: { g: string; rows: [string, string, boolean?][] }[] = [
-    { g: "토지", rows: [
-      ["대지면적", `${py(s.land_area)} (${s.land_area ?? "—"}㎡)`],
-      ["도로상황", String(s.road_frontage ?? "—")],
+    { g: "토지정보", rows: [
+      ["대지면적", `${s.land_area ?? "—"}m² · ${py(s.land_area)}`],
+      ["도로상황", roadTxt],
       ["용도지역", String(s.use_zone ?? "—")],
       ["지목 / 형상", `${s.jimok ?? "—"} / ${s.shape ?? "—"}`],
-      ["공시지가(㎡)", `${man(s.gongsi_latest)}원`],
-      ["공시지가 합계", eokman(gongsiSum)],
+      ["공시지가(m²)", wonFull(s.gongsi_latest)],
+      ["공시지가 합계", wonFull(gongsiSum)],
     ] },
-    { g: "건물", rows: [
-      ["연면적", `${py(s.total_area)} (${s.total_area ?? "—"}㎡)`],
-      ["건축면적", `${py(s.build_area)} (${s.build_area ?? "—"}㎡)`],
+    { g: "건물정보", rows: [
+      ["연면적", `${s.total_area ?? "—"}m² · ${py(s.total_area)}`],
+      ["건축면적", `${s.build_area ?? "—"}m² · ${py(s.build_area)}`],
       ["건폐율 / 용적률", `${s.bcr ?? "—"}% / ${s.far ?? "—"}%`],
-      ["규모", `지하 ${s.floors_below ?? "—"}층 · 지상 ${s.floors_above ?? "—"}층`],
-      ["주차 / 승강기", `${s.parking ?? "—"}대 / ${s.elevator ?? "—"}대`],
-      ["사용승인일", ymd(s.approval_ymd)],
+      ["규모 / 주차대수", `${scale(s.floors_below, s.floors_above)} · ${s.parking ?? "—"}대`],
+      ["준공년도 / 승강기", `${ymdSlash(s.approval_ymd)} · ${s.elevator ?? "—"}대`],
       ["구조 / 주용도", `${s.structure ?? "—"} / ${s.main_use_name ?? "—"}`],
     ] },
-    { g: "금액", rows: [
-      ["매매가", eokman(price), true],          // 이 장에서 가장 중요한 값 — 한 번만, 여기서 강조
-      ["대지 평단가", `${man(perLand)}원`],
-      ["연면적 평단가", `${man(perTotal)}원`],
-      ["보증금 / 월임대료", `${man(totDepPre)}원 / ${man(totRentPre)}원`],
+    { g: "금융정보", rows: [
+      ["매매가", eok(price), true],
+      ["수익률", roi != null ? `${roi.toFixed(2)}%` : "—"],
+      ["평단가", man(perLand)],
+      ["평단가(연면적당)", man(perTotal)],
+      ["보증금 / 임대료", `${man(totDepPre)} / ${man(totRentPre)}`],
     ] },
   ];
 
@@ -169,7 +190,6 @@ export function BriefingPage() {
         <div className="bf-cover-addr">{shortAddr}</div>
         <div className="bf-cover-sub">{String(s.use_zone ?? "")} · {String(s.main_use_name ?? "")}</div>
         <div className="bf-cover-meta">
-          {contact && <div>담당자 : {contact}</div>}
           {o.phone ? <div>연락처 : {String(o.phone)}</div> : null}
           {o.fax ? <div>팩스 : {String(o.fax)}</div> : null}
           {o.email ? <div>이메일 : {String(o.email)}</div> : null}
@@ -179,7 +199,7 @@ export function BriefingPage() {
       </div>
     </div>,
 
-    <Frame key="1" n="01" title="매물 기본정보" office={o} rno={rno} date={date}>
+    <Frame key="1" n="01" title="건물 개요" office={o} rno={rno} date={date}>
       <div className="bf-basic">
         <div className="bf-basic-photo">{img(byKind("exterior")[0])}</div>
         <div className="bf-basic-main">
@@ -204,15 +224,40 @@ export function BriefingPage() {
           </div>
         </div>
       </div>
+      {comment.length > 0 && (
+        <div className="bf-comment">
+          {comment.map((line, i) => <div key={i}>◆ {line}</div>)}
+        </div>
+      )}
       <div className="bf-note">※ 토지이용계획확인원 및 건축물대장 기준</div>
     </Frame>,
 
-    <Frame key="2" n="02" title="서류" office={o} rno={rno} date={date}>
-      <div className="bf-docs">{docSlot("land_use")}{docSlot("building_ledger")}</div>
+    <Frame key="2" n="02" title="위치도" office={o} rno={rno} date={date}>
+      <div className="bf-loc">
+        {/* 좌 — 실제 지도 위 필지. 업로드 없이 자동으로 그린다(지적도 레이어는 지도 API 제공) */}
+        <figure>
+          <ReportMap lng={num(s.lng)} lat={num(s.lat)} geom={snap.parcel} h="100%" />
+          <figcaption>위치 · 필지 경계</figcaption>
+        </figure>
+        {/* 우 — 입체 지적도. 대지 위에 현재 용적을 세우고 법정까지의 여유를 비워 보여준다 */}
+        <figure>
+          <div className="bf-scene">
+            <ParcelScene data={{
+              parcel: snap.parcel, roads: snap.roads,
+              landArea: num(s.land_area), totalArea: num(s.total_area),
+              bcr: num(s.bcr), far: num(s.far), legalFar: num(s.legal_far),
+              useZone: String(s.use_zone ?? "") || null,
+              frontRn: String(s.road_front_rn ?? "") || null,
+              floorsAbove: num(s.floors_above),
+            }} w={900} h={760} />
+          </div>
+          <figcaption>대지 · 접도 · 용적 — 파란 덩어리가 현재 건물, 점선까지가 법정 용적</figcaption>
+        </figure>
+      </div>
     </Frame>,
 
-    <Frame key="3" n="03" title="지적도·위치도" office={o} rno={rno} date={date}>
-      <div className="bf-wide">{img(byKind("cadastral")[0])}</div>
+    <Frame key="3" n="03" title="건축물정보 · 토지이용계획" office={o} rno={rno} date={date}>
+      <div className="bf-docs">{docSlot("land_use")}{docSlot("building_ledger")}</div>
     </Frame>,
 
     <Frame key="4" n="04" title="층별 임대정보" office={o} rno={rno} date={date}>
@@ -245,7 +290,7 @@ export function BriefingPage() {
     </Frame>,
 
     <Frame key="5" n="05" title="건물 사진" office={o} rno={rno} date={date}>
-      <div className="bf-photos">
+      <div className="bf-photos" data-n={[...byKind("exterior").slice(1), ...byKind("interior")].slice(0, 4).length}>
         {[...byKind("exterior").slice(1), ...byKind("interior")].slice(0, 4).map((p) => (
           <figure key={p.id}><div className="bf-ph">{img(p)}</div>{p.caption && <figcaption>{p.caption}</figcaption>}</figure>
         ))}
@@ -260,7 +305,7 @@ export function BriefingPage() {
         <div className="bf-end-1">성공적인 투자</div>
         <div className="bf-end-2">{String(o.office_name ?? o.name ?? "빌탐정")}가 함께하겠습니다</div>
         <div className="bf-cover-meta">
-          {contact && <div>{contact}{o.phone ? ` · ${String(o.phone)}` : ""}</div>}
+          {o.phone ? <div>{String(o.phone)}</div> : null}
           {o.email ? <div>{String(o.email)}</div> : null}
         </div>
       </div>
@@ -282,7 +327,7 @@ export function BriefingPage() {
           {slides.map((_, i) => (
             <button key={i} className={"deck-thumb bf-thumb" + (cur === i ? " on" : "")} onClick={() => setCur(i)}>
               <span className="tnum">{String(i + 1).padStart(2, "0")}</span>
-              <span className="bf-thumb-t">{["표지", "매물 기본정보", "서류", "지적도·위치도", "층별 임대정보", "건물 사진", "마무리"][i]}</span>
+              <span className="bf-thumb-t">{["표지", "건물 개요", "위치도", "건축물정보·토지이용계획", "층별 임대정보", "건물 사진", "마무리"][i]}</span>
             </button>
           ))}
         </aside>

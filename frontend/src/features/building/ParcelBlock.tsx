@@ -56,6 +56,9 @@ interface Parcel {
   use_zone?: string; legal_bcr?: string; legal_far?: string; gongsi_latest?: number | string | null; total_gongsi?: number | string | null;
   gongsi_series: [number, number][];
   regs: Record<string, string>;
+  road_front_m?: string | number | null;   // 실측 도로폭(오버레이 자유값)
+  road_side_m?: string | number | null;
+  road_rear_m?: string | number | null;
 }
 interface ParcelsResp { parcels: Parcel[]; reg_summary: Record<string, string>; count: number }
 
@@ -143,6 +146,17 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZo
         <KV label="토지이용상황" field="land_use" value={p.land_use ?? ""} editable current={p.land_use ?? ""} onSave={onSave} onRevert={onRevert} />
         <EnumField label="지형/형상" enumKey="shape" value={p.shape} onSave={(v) => onSave("shape", v)} onRevert={() => onRevert("shape")} />
         <EnumField label="도로접면" enumKey="road_frontage" value={p.road_frontage} onSave={(v) => onSave("road_frontage", v)} onRevert={() => onRevert("road_frontage")} />
+        {/* 실측 도로폭 — 대장 '도로접면'은 광대/중로/소로 같은 분류 코드라 실제 폭(m)이 없다.
+            연속지적도로 자동 계산도 해봤으나 도로 필지가 잘게 쪼개져 있어 대로변에서 크게 빗나갔다
+            (노량진동 54-8: 실제 25m → 추정 9.3m). 현장을 아는 값이 가장 정확하므로 직접 받는다.
+            도로폭 마스터 데이터가 확보되면 이 자리에 기본값으로 채워지고 수기값이 그대로 우선한다. */}
+        <div className="kv"><span className="k">실측 도로폭</span>
+          <span className="v num" style={{ display: "flex", gap: 4, alignItems: "center", justifyContent: "flex-end" }}>
+            <span className="rw">전면</span><NumCell v={p.road_front_m ?? ""} suffix="m" onSave={(x) => onSave("road_front_m", x)} />
+            <span className="rw">측면</span><NumCell v={p.road_side_m ?? ""} suffix="m" onSave={(x) => onSave("road_side_m", x)} />
+            <span className="rw">후면</span><NumCell v={p.road_rear_m ?? ""} suffix="m" onSave={(x) => onSave("road_rear_m", x)} />
+          </span>
+        </div>
         <EnumField label="지세" enumKey="slope" value={p.slope} onSave={(v) => onSave("slope", v)} onRevert={() => onRevert("slope")} />
         {/* 법정 건폐/용적 = 🔀 조례파생, override 가능(한 줄 두 값 인라인 편집) */}
         <div className="kv"><span className="k">법정 건폐/용적</span>

@@ -13,8 +13,9 @@ export function ReportMap({ lng, lat, geom, zones, h }: { lng?: number | null; l
   useEffect(() => {
     if (lng == null || lat == null || !ref.current) return;
     let map: any;
+    let dead = false;                      // SDK 로드 중에 언마운트되면 지도를 만들지 않는다(누수)
     loadNaver().then((naver) => {
-      if (!ref.current) return;
+      if (dead || !ref.current) return;
       const pos = new naver.maps.LatLng(lat, lng);
       map = new naver.maps.Map(ref.current, {
         center: pos, zoom: 16, draggable: false, scrollWheel: false, pinchZoom: false,
@@ -53,7 +54,9 @@ export function ReportMap({ lng, lat, geom, zones, h }: { lng?: number | null; l
           icon: { content: `<div style="width:15px;height:15px;border-radius:50%;background:#262320;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45)"></div>`, anchor: new naver.maps.Point(9, 9) } });
       }
     }).catch(() => setErr(true));
-    return () => map?.destroy?.();
+    // 네이버 SDK의 destroy()는 내부 리스너 정리 중 종종 터진다(removeDOMListener → isArray of null).
+    // 그대로 두면 덱에서 위치도 슬라이드를 넘기는 순간 ErrorBoundary가 화면 전체를 삼킨다.
+    return () => { dead = true; try { map?.destroy?.(); } catch { /* 정리 실패는 무시 */ } };
   }, [lng, lat, geom, zones]);
   if (lng == null || lat == null) return <div className="rs-map rs-map-empty">위치 정보 없음</div>;
   return <div className="rs-map" ref={ref} style={h ? { height: h, minHeight: 0, flex: "none" } : undefined}>{err && <span className="rs-map-empty">지도를 불러오지 못했습니다</span>}</div>;

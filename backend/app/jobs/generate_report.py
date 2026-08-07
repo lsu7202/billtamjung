@@ -517,6 +517,18 @@ def _flag_comp_outliers(comps: list[dict]) -> None:
 
 
 
+def _json_safe(v):
+    """스냅샷은 JSON으로 저장된다 — Decimal·date가 그대로 들어가면 터진다."""
+    if v is None:
+        return None
+    if isinstance(v, bool):
+        return v
+    f = _fnum(v)
+    if f is not None and not isinstance(v, str):
+        return f
+    return str(v)
+
+
 async def _briefing_snapshot(building_pk: str, b: dict, team_id: int) -> dict:
     """브리핑 = 그 건물에 대한 사실만. 적정가·매력도·미래가치 같은 우리 판단은 넣지 않는다
     (그건 빌탐정 리포트의 몫). 대장값 + 팀이 입력한 임대내역 + 올린 서류·사진 + 사무소 정보."""
@@ -552,10 +564,25 @@ async def _briefing_snapshot(building_pk: str, b: dict, team_id: int) -> dict:
     ]
     floors.sort(key=lambda x: _floor_key(x["floor"]), reverse=True)
 
-    photos = [dict(r) for r in await pool().fetch(
+    photos = [{**dict(r), "sort_order": int(r["sort_order"])} for r in await pool().fetch(
         """SELECT id, kind::text, caption, sort_order, transform FROM app.photos
            WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL
            ORDER BY kind, sort_order, id""", building_pk, team_id)]
+
+    # 법정 용적률 — 입체 지적도가 '남은 여유'를 그리려면 필요. 필지 규제에서 뽑는다.
+    lf = await pool().fetchval(
+        """SELECT max(pr.legal_far) FROM master.building_parcels bp
+           JOIN master.parcels pr ON pr.pnu = bp.pnu WHERE bp.building_pk = $1""", building_pk)
+    if lf is not None:
+        b = {**b, "legal_far": _parse_far(lf)}
+
+    # 접도 폭 — 배치(0033) 산출값. 팀 수기 오버레이가 있으면 그쪽이 이긴다(_assemble이 이미 덮음).
+    rw = await pool().fetchrow(
+        "SELECT front_m, side_m, rear_m, front_rn FROM master.building_road WHERE building_pk=$1", building_pk)
+    if rw:
+        # numeric → float. 스냅샷은 JSON이라 Decimal이 들어가면 직렬화에서 터진다.
+        b = {**b, **{f"road_{k}": b.get(f"road_{k}") or _fnum(rw[k]) for k in ("front_m", "side_m", "rear_m")},
+             "road_front_rn": rw["front_rn"]}
 
     # 매매가는 팀 수기값 우선, 없으면 배치 적정가(_assemble이 안 싣는 값이라 여기서 채운다)
     if b.get("sale_est") is None:
@@ -565,12 +592,34 @@ async def _briefing_snapshot(building_pk: str, b: dict, team_id: int) -> dict:
     keep = ("addr", "road_addr", "land_area", "total_area", "build_area", "far_area", "bcr", "far",
             "floors_above", "floors_below", "parking", "elevator", "approval_ymd", "remodel_ymd",
             "use_zone", "main_use_name", "etc_use", "structure", "jimok", "land_use", "road_frontage",
+            "road_front_m", "road_side_m", "road_rear_m", "road_front_rn",
+            "legal_far", "legal_bcr", "briefing_comment",
             "shape", "slope", "station_dist", "gongsi_latest", "sale_price", "sale_est",
             "last_sale_price", "last_sale_ym", "lng", "lat")
+    # 좌표 — _assemble이 싣지 않는다. 위치도 지도가 이 값으로 중심을 잡는다.
+    pt = await pool().fetchrow(
+        "SELECT ST_X(geom) AS lng, ST_Y(geom) AS lat FROM master.buildings WHERE building_pk=$1", building_pk)
+    if pt:
+        b = {**b, "lng": _fnum(pt["lng"]), "lat": _fnum(pt["lat"])}
+
+    # 입체 지적도용 — 필지 폴리곤과 접한 도로 구간. 지도 타일 없이 이 도형만으로 그린다.
+    parcel = await pool().fetchval(
+        """SELECT ST_AsGeoJSON(ST_Union(p.geom)) FROM master.building_parcels bp
+           JOIN master.parcels p ON p.pnu = bp.pnu WHERE bp.building_pk = $1""", building_pk)
+    roads = [dict(r) for r in await pool().fetch(
+        """SELECT r.rn, r.road_bt, ST_AsGeoJSON(r.geom) AS geojson
+           FROM master.road_segment r
+           WHERE ST_DWithin(r.geom::geography,
+                 (SELECT geom::geography FROM master.buildings WHERE building_pk=$1), 40)
+           ORDER BY r.road_bt DESC LIMIT 12""", building_pk)]
+
     return {
         "kind": "briefing",
-        "subject": {k: (_fnum(b.get(k)) if isinstance(b.get(k), (int, float)) else
-                        (str(b[k]) if b.get(k) is not None else None)) for k in keep},
+        "parcel": json.loads(parcel) if parcel else None,
+        "roads": [{"rn": r["rn"], "road_bt": _fnum(r["road_bt"]),
+                    "geojson": json.loads(r["geojson"])} for r in roads],
+        # Decimal·date 등이 섞여 있어 숫자는 float, 나머지는 문자열로 눕힌다(JSON 직렬화 안전).
+        "subject": {k: _json_safe(b.get(k)) for k in keep},
         "office": dict(office) if office else {},
         "floors": floors,
         "photos": photos,

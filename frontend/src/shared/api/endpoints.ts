@@ -177,9 +177,9 @@ export const photosApi = {
 export const PHOTO_KINDS: { k: PhotoKind; label: string; doc?: boolean }[] = [
   { k: "exterior", label: "건물 외관" },
   { k: "interior", label: "내부" },
-  { k: "land_use", label: "토지이용계획확인원", doc: true },
+  // 위치도·지적도는 지도 API로 자동 생성한다 — 업로드가 필요한 건 발급 서류뿐.
   { k: "building_ledger", label: "건축물대장", doc: true },
-  { k: "cadastral", label: "지적도·위치도", doc: true },
+  { k: "land_use", label: "토지이용계획확인원", doc: true },
   { k: "etc", label: "기타" },
 ];
 

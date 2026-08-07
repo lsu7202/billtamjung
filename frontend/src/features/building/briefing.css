@@ -73,6 +73,9 @@
 .bf-wide img { width: 100%; height: 100%; }
 
 .bf-photos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.4cqw; height: 100%; }
+/* 장수에 맞춰 칸을 채운다 — 빈 칸이 남으면 자료가 덜 준비된 것처럼 보인다 */
+.bf-photos[data-n="1"] { grid-template-columns: 1fr; }
+.bf-photos[data-n="3"] figure:first-child { grid-column: 1 / -1; }
 .bf-photos figure { margin: 0; display: flex; flex-direction: column; min-height: 0; }
 .bf-ph { flex: 1; border-radius: .5cqw; overflow: hidden; background: #EEF0F4; }
 .bf-ph img { width: 100%; height: 100%; }
@@ -80,3 +83,28 @@
 
 .bf-empty { display: grid; place-items: center; height: 100%; color: #9AA3B2; font-size: 1.25cqw; }
 .bf-note { font-size: 1.05cqw; color: var(--rmuted); margin-top: .8cqw; line-height: 1.6; }
+
+/* ── 03 위치도 — 실지도 + 입체 지적도 ── */
+.bf-slide .rs-body:has(.bf-loc) { display: block; }
+.bf-loc { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6cqw; height: 100%; }
+.bf-loc figure { margin: 0; display: flex; flex-direction: column; min-height: 0; }
+.bf-loc figure > *:first-child { flex: 1; border-radius: .6cqw; overflow: hidden;
+  border: 1px solid var(--rl); background: #0E1524; }
+.bf-loc figcaption { font-size: 1cqw; color: var(--rmuted); margin-top: .5cqw; }
+.bf-scene { background: linear-gradient(165deg, #131C2E 0%, #0C1220 100%); display: grid; place-items: center; }
+.ps { width: 100%; height: 100%; display: block; }
+.ps-empty { display: grid; place-items: center; height: 100%; color: #7F8CA6; font-size: 1.05cqw; }
+.ps .ps-v { fill: #fff; font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
+.ps .ps-k { fill: #9FB3D4; font-size: 11px; }
+.ps .ps-h { fill: #8FB0E0; font-size: 12px; font-weight: 700; }
+.ps .ps-road { font-size: 11px; font-weight: 800; }
+.ps .ps-zone { fill: #C7D3E6; font-size: 12.5px; font-weight: 700; letter-spacing: .04em; }
+/* 순차 등장 — 도로 → 대지 → 현재 용적 → 여유 → 수치 */
+.ps-fade { transition: opacity .5s ease; }
+.ps-rise { transition: opacity .55s ease; }
+@media (prefers-reduced-motion: reduce) { .ps-fade, .ps-rise { transition: none; } }
+
+/* ── 중개인 코멘트 ── */
+.bf-comment { margin-top: 1.2cqw; padding: .9cqw 1.1cqw; border-left: .25cqw solid var(--blue);
+  background: #F5F8FC; border-radius: 0 .4cqw .4cqw 0; display: grid; gap: .35cqw; }
+.bf-comment div { font-size: 1.15cqw; color: var(--rink); line-height: 1.55; }

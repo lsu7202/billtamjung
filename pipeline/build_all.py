@@ -36,6 +36,7 @@ def stages(exp):
         ("transit",            [f"{T}/build_transit.py", "ALL"]),
         ("sales",              [f"{T}/build_sales.py"]),
         ("floor_outline",      [f"{T}/build_floor_outline.py"]),
+        ("road_width",         [f"{T}/build_road_width.py"]),   # 도로명주소 도로구간 → 폭원
         ("integrated",         [f"{T}/build_integrated.py"]),
         ("sqlite",             [f"{T}/build_sqlite.py"]),
         ("export_seoul",       [f"{P}/export_seoul.py", "--out", f"{exp}/buildings.csv"]),

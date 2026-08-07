@@ -13,6 +13,7 @@ import { MarketTrend } from "./MarketTrend";
 import { MarketBlock } from "./MarketBlock";
 import { Sidebar } from "./Sidebar";
 import { ReportModal } from "./ReportModal";
+import { BriefingModal } from "./BriefingModal";
 import { ParcelBlock, GongsiCard } from "./ParcelBlock";
 import { ReportView } from "./ReportView";
 import { EnumField } from "./EnumField";
@@ -79,11 +80,14 @@ export function BuildingPage() {
 
   const credits = useQuery({ queryKey: ["credits"], queryFn: creditsApi.balance });
   const [reportOpen, setReportOpen] = useState(false);
+  const [briefOpen, setBriefOpen] = useState(false);
   const [genState, setGenState] = useState<string | null>(null);
   const nav = useNavigate();
   // 브리핑 생성 — 계산이 없어 바로 완료된다. 완료되면 덱으로 이동.
   const briefing = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (comment: string) => {
+      // 코멘트를 먼저 저장해야 스냅샷에 실린다(생성 시점의 오버레이를 그대로 굳힌다).
+      await overlaysApi.put(pk, "briefing_comment", comment);
       const { report_id } = await reportsApi.create(pk, "briefing");
       for (let i = 0; i < 20; i++) {
         const r = await reportsApi.get(report_id);
@@ -208,7 +212,7 @@ export function BuildingPage() {
         <div style={{ display: "flex", gap: 10 }}>
           {/* 브리핑 = 이 건물의 사실 정리(사무소 정보·서류·임대내역). 우리 판단은 매물 분석에. */}
           <button className="btn" disabled={briefing.isPending} style={{ marginRight: 8 }}
-            onClick={() => { if (confirm("브리핑 자료를 만들까요? 크레딧 10이 소모됩니다.")) briefing.mutate(); }}>
+            onClick={() => { setBriefOpen(true); setGenState(null); }}>
             브리핑 자료 (10)</button>
           <button className="btn primary" onClick={() => { setReportOpen(true); setGenState(null); }}>매물 분석하기 (30)</button>
         </div>
@@ -418,6 +422,13 @@ export function BuildingPage() {
         <ReportModal pk={pk} credits={credits.data?.total}
           onClose={() => setReportOpen(false)}
           onDone={(m) => { setReportOpen(false); setGenState(m); qc.invalidateQueries({ queryKey: ["credits"] }); }} />
+      )}
+
+      {/* 브리핑 생성 — 중개인 코멘트를 받아 스냅샷에 함께 굳힌다 */}
+      {briefOpen && (
+        <BriefingModal current={String(b.briefing_comment ?? "")} busy={briefing.isPending}
+          onClose={() => setBriefOpen(false)}
+          onSubmit={(c) => { setBriefOpen(false); briefing.mutate(c); }} />
       )}
 
     </div>
