@@ -104,7 +104,9 @@ function ribbon(line: V2[], w: number, y: number, mat: THREE.Material) {
   return { mesh: new THREE.Mesh(g, mat), edges: [edgeL, edgeR] };
 }
 
-type Label = { text: string; at: THREE.Vector3; kind: "front" | "road" | "mass" | "plate" | "legal" };
+/** dx/dy = 화면에서 치수선 옆으로 밀어낼 픽셀. 선 위에 얹으면 선을 가린다. */
+type Label = { text: string; at: THREE.Vector3; kind: "front" | "road" | "mass" | "plate" | "legal";
+  dx?: number; dy?: number };
 
 export function ParcelScene3D({ data, animate = true }: { data: SceneData; animate?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
@@ -267,7 +269,7 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
         [p.clone().setY(0), p.clone().setY(3)], col, { width: 2, dash: [0.5, 0.35], top: true },
       )));
       labs.push({
-        text: `${r.w}m`, kind: r.front ? "front" : "road",
+        text: `${r.w}m`, kind: r.front ? "front" : "road", dy: -12,
         at: new THREE.Vector3((p1.x + p2.x) / 2, 3.4, (p1.z + p2.z) / 2),
       });
     });
@@ -280,15 +282,14 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
       scene.add(thick([V(0), V(H)], C.massLine, { width: 2.4, dash: DASH, top: true }));
       scene.add(thick([new THREE.Vector3(corner.x, 0, corner.z), V(0)], C.massLine, { width: 1.6, dash: [0.5, 0.35], top: true }));
       scene.add(thick([new THREE.Vector3(corner.x, H, corner.z), V(H)], C.massLine, { width: 1.6, dash: [0.5, 0.35], top: true }));
-      labs.push({ text: `${H.toFixed(1)}m`, kind: "mass", at: V(H / 2) });
+      labs.push({ text: `${H.toFixed(1)}m`, kind: "mass", at: V(H / 2), dx: 30 });
     }
 
-    // 법정 여유는 개층으로 — 미터로 적으면 '+0.9m'처럼 한 개 층도 못 되는 값이 여지처럼 읽힌다.
-    // 한 개 층에 못 미치면 치수를 아예 안 긋는다(용적률 대비는 좌우 HUD에 이미 있다).
-    if (HL - H >= storey) {
+    // 법정 여유 — 실측 높이에 용적률 비율을 곱한 값이라 이제 미터로 그대로 적는다.
+    if (HL - H >= 0.3) {
       scene.add(thick([V(H), V(HL)], C.legal, { width: 2.4, dash: DASH, top: true }));
       scene.add(thick([new THREE.Vector3(corner.x, HL, corner.z), V(HL)], C.legal, { width: 1.6, dash: [0.5, 0.35], top: true }));
-      labs.push({ text: `+${((HL - H) / storey).toFixed(1)}개층`, kind: "legal", at: V((H + HL) / 2) });
+      labs.push({ text: `+${(HL - H).toFixed(1)}m`, kind: "legal", at: V((H + HL) / 2), dx: 30 });
     }
 
     // 대지 — 가장 긴 변에 길이 치수
@@ -306,7 +307,8 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
       scene.add(thick([
         new THREE.Vector3(p.x + ox, 0.25, p.z + oz), new THREE.Vector3(q.x + ox, 0.25, q.z + oz),
       ], C.plateEdge, { width: 2.4, dash: DASH, top: true }));
-      labs.push({ text: `${eLen.toFixed(1)}m`, kind: "plate", at: new THREE.Vector3(mx + ox, 0.9, mz + oz) });
+      labs.push({ text: `${eLen.toFixed(1)}m`, kind: "plate", dy: 12,
+        at: new THREE.Vector3(mx + ox, 0.9, mz + oz) });
     }
 
     // ── 카메라 — 고정. 끌면 돈다 ───────────────────────────
@@ -318,11 +320,11 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
     let elev = 0.60;
     let dist = Math.max(92, HL * 3.3, eLen * 4.2, widest * 2.4);
 
-    const project = (v: THREE.Vector3, w: number, h: number) => {
+    const project = (v: THREE.Vector3, w: number, h: number, dx = 0, dy = 0) => {
       const p = v.clone().project(cam);
       return {
-        sx: Math.min(w - 40, Math.max(40, (p.x * 0.5 + 0.5) * w)),
-        sy: Math.min(h - 16, Math.max(16, (-p.y * 0.5 + 0.5) * h)),
+        sx: Math.min(w - 40, Math.max(40, (p.x * 0.5 + 0.5) * w + dx)),
+        sy: Math.min(h - 16, Math.max(16, (-p.y * 0.5 + 0.5) * h + dy)),
         on: p.z < 1,
       };
     };
@@ -347,11 +349,14 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
       renderer.render(scene, cam);
 
       // 겹치는 치수는 아래로 밀어 떼어 놓는다 — 겹친 숫자는 둘 다 못 읽는다
-      const placed = labs.map((L) => ({ ...L, ...project(L.at, w, h) })).sort((a, b) => a.sy - b.sy);
+      const placed = labs.map((L) => ({ ...L, ...project(L.at, w, h, L.dx, L.dy) }))
+        .sort((a, b) => a.sy - b.sy);
+      // 실제로 겹칠 때만 떼어낸다. 넉넉하게 잡으면 멀쩡한 라벨까지 한 줄로 쌓여
+      // 자기 치수선에서 떨어져 나간다(실측: 9m·4m·21.6m가 한 열로 모였다).
       for (let i = 1; i < placed.length; i++)
         for (let j = 0; j < i; j++)
-          if (Math.abs(placed[i].sx - placed[j].sx) < 70 && placed[i].sy - placed[j].sy < 26)
-            placed[i].sy = Math.min(h - 16, placed[j].sy + 26);
+          if (Math.abs(placed[i].sx - placed[j].sx) < 46 && placed[i].sy - placed[j].sy < 22)
+            placed[i].sy = Math.min(h - 16, placed[j].sy + 22);
       setLabels(placed);
     };
     const invalidate = () => { if (!queued) { queued = true; requestAnimationFrame(draw); } };
