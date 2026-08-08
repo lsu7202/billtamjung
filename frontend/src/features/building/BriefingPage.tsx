@@ -102,6 +102,8 @@ export function BriefingPage() {
   const urls = useAuthedImages(pk, photos);
 
   const [cur, setCur] = useState(0);
+  // 지도판·지적도판이 같은 배율을 쓴다 — 배율이 다르면 나란히 놓아도 비교가 안 된다
+  const [mapZoom, setMapZoom] = useState(17);
   // 전체화면은 덱 루트에 건다 — 발표 모드 CSS가 .rslide-root:fullscreen에 걸려 있어서
   // stage에 걸면 툴바·사이드바가 그대로 남아 전체화면이 아무 의미가 없다(빌탐정 리포트와 동일).
   const root = useRef<HTMLDivElement>(null);
@@ -165,30 +167,33 @@ export function BriefingPage() {
     s.road_rear_m ? `후면 ${s.road_rear_m}m` : null,
   ].filter(Boolean).join(" / ") || String(s.road_frontage ?? "—");
 
-  const groups: { g: string; rows: [string, string, boolean?][] }[] = [
-    { g: "토지정보", rows: [
+  const cnt = (v: unknown, u: string) => (num(v) ? `${num(v)}${u}` : "—");
+  // 스펙시트는 토지 / 건물 / 임대 세 묶음. 금액은 위 헤로로 올려서 되풀이하지 않는다.
+  const groups: { g: string; rows: [string, string][] }[] = [
+    { g: "토지", rows: [
       ["대지면적", `${s.land_area ?? "—"}m² · ${py(s.land_area)}`],
-      ["도로상황", roadTxt],
       ["용도지역", String(s.use_zone ?? "—")],
+      ["도로상황", roadTxt],
       ["지목 / 형상", `${s.jimok ?? "—"} / ${s.shape ?? "—"}`],
       ["공시지가(m²)", wonFull(s.gongsi_latest)],
       ["공시지가 합계", wonFull(gongsiSum)],
     ] },
-    { g: "건물정보", rows: [
+    { g: "건물", rows: [
       ["연면적", `${s.total_area ?? "—"}m² · ${py(s.total_area)}`],
       ["건축면적", `${s.build_area ?? "—"}m² · ${py(s.build_area)}`],
       ["건폐율 / 용적률", `${s.bcr ?? "—"}% / ${s.far ?? "—"}%`],
-      ["규모 / 주차대수", `${scale(s.floors_below, s.floors_above)} · ${s.parking ?? "—"}대`],
-      ["준공년도 / 승강기", `${ymdSlash(s.approval_ymd)} · ${s.elevator ?? "—"}대`],
-      ["구조 / 주용도", `${s.structure ?? "—"} / ${s.main_use_name ?? "—"}`],
+      ["규모 / 높이", `${scale(s.floors_below, s.floors_above)}${num(s.height) ? ` · ${num(s.height)}m` : ""}`],
+      ["주차 / 승강기", `${cnt(s.parking, "대")} / ${cnt(s.elevator, "대")}`],
+      ["준공 / 구조", `${ymdSlash(s.approval_ymd)} · ${s.structure ?? "—"}`],
+      ["주용도", String(s.main_use_name ?? "—")],
     ] },
-    { g: "금융정보", rows: [
-      ["매매가", eok(price), true],
-      ["수익률", roi != null ? `${roi.toFixed(2)}%` : "—"],
-      ["평단가", man(perLand)],
-      ["평단가(연면적당)", man(perTotal)],
-      ["보증금 / 임대료", `${man(totDepPre)} / ${man(totRentPre)}`],
-    ] },
+  ];
+  // 금액은 한 패널에 모은다 — 스펙시트에 섞으면 사실과 값이 같은 무게로 읽힌다
+  const money: [string, string][] = [
+    ["수익률", roi != null ? `${roi.toFixed(2)}%` : "—"],
+    ["보증금 / 월임대료", `${man(totDepPre)} / ${man(totRentPre)}`],
+    ["평단가(대지)", man(perLand)],
+    ["평단가(연면적)", man(perTotal)],
   ];
 
   const totMgmt = snap.floors.reduce((a, f) => a + (f.maintenance ?? 0), 0);
@@ -205,10 +210,9 @@ export function BriefingPage() {
           <Logo mono size={2.6} />
           <span className="bf-cover3-rno">Report No. {rno} · {date}</span>
         </div>
+        {/* 표지엔 주소만. 용도지역·주용도는 바로 다음 장(건물 개요)에 있다 */}
         <div className="bf-cover3-mid">
-          <div className="bf-cover3-eyebrow">브리핑 자료 — 매물 기초정보</div>
           <div className="bf-cover3-addr">{shortAddr}</div>
-          <div className="bf-cover3-sub">{String(s.use_zone ?? "")} · {String(s.main_use_name ?? "")}</div>
         </div>
         <div className="bf-cover3-foot">
           <Seal mono size={8.5} />
@@ -224,36 +228,49 @@ export function BriefingPage() {
     </div>,
 
     <Frame key="1" n="01" title="건물 개요" office={o} rno={rno} date={date}>
-      <div className="bf-basic">
-        <div className="bf-basic-photo">{img(byKind("exterior")[0])}</div>
-        <div className="bf-basic-main">
-          <div className="bf-addr">{addr}</div>
-          <div className="bf-chips">
-            <span>{String(s.use_zone ?? "—")}</span>
-            <span>{String(s.main_use_name ?? "—")}</span>
-            {s.road_addr ? <span className="q">{String(s.road_addr)}</span> : null}
+      {/* 대장을 옮긴 한 장 — 카드·알약·색면 없이 괘선과 정렬만으로 구획한다.
+          중개인이 손님 앞에 놓는 서류라 신뢰는 장식이 아니라 자리맞춤에서 온다.
+          제일 위 한 줄에 '어디'와 '얼마'를 나란히 — 손님이 먼저 묻는 두 가지다. */}
+      <div className="bf-ov">
+        <div className="bf-ov-head">
+          <div>
+            <div className="bf-addr">{addr}</div>
+            <div className="bf-sub">
+              {[s.use_zone, s.main_use_name, s.road_addr].filter(Boolean).map(String).join(" · ")}
+            </div>
           </div>
+          <div className="bf-ov-ask">
+            <span className="k">매매가</span>
+            <span className="v">{eok(price)}</span>
+          </div>
+        </div>
 
-          <div className="bf-spec">
-            {groups.map(({ g, rows: rs }) => (
-              <section key={g}>
-                <h4>{g}</h4>
-                {rs.map(([k, v, strong]) => (
-                  <div className={"r" + (strong ? " lead" : "")} key={k}>
-                    <span className="k">{k}</span><span className="v">{v}</span>
-                  </div>
-                ))}
-              </section>
-            ))}
+        <div className="bf-ov-money">
+          {money.map(([k, v]) => (
+            <div key={k}><span className="k">{k}</span><span className="v">{v}</span></div>
+          ))}
+        </div>
+
+        <div className="bf-ov-photo">{img(byKind("exterior")[0])}</div>
+
+        <div className="bf-spec">
+          {groups.map(({ g, rows: rs }) => (
+            <section key={g}>
+              <h4>{g}</h4>
+              {rs.map(([k, v]) => (
+                <div className="r" key={k}><span className="k">{k}</span><span className="v">{v}</span></div>
+              ))}
+            </section>
+          ))}
+        </div>
+
+        {comment.length > 0 && (
+          <div className="bf-comment">
+            {comment.map((line, i) => <div key={i}>{line}</div>)}
           </div>
-        </div>
+        )}
+        <div className="bf-note">※ 토지이용계획 및 건축물대장 기준</div>
       </div>
-      {comment.length > 0 && (
-        <div className="bf-comment">
-          {comment.map((line, i) => <div key={i}>◆ {line}</div>)}
-        </div>
-      )}
-      <div className="bf-note">※ 토지이용계획 및 건축물대장 기준</div>
     </Frame>,
 
     // 위치도 = 지도판 + 지적도판. 둘 다 지도 API가 그려주므로 업로드가 없다.
@@ -263,11 +280,13 @@ export function BriefingPage() {
         {/* 지도를 감싸는 칸 — h="100%"를 그대로 figure의 첫 자식으로 두면
             지도가 칸 전체를 먹고 캡션이 밖으로 밀려 잘린다. */}
         <figure>
-          <div className="bf-mapbox"><ReportMap lng={num(s.lng)} lat={num(s.lat)} geom={snap.parcel} h="100%" interactive /></div>
+          <div className="bf-mapbox"><ReportMap lng={num(s.lng)} lat={num(s.lat)} geom={snap.parcel} h="100%"
+            zoom={mapZoom} onZoom={setMapZoom} /></div>
           <figcaption>지도</figcaption>
         </figure>
         <figure>
-          <div className="bf-mapbox"><ReportMap lng={num(s.lng)} lat={num(s.lat)} geom={snap.parcel} h="100%" cadastral interactive /></div>
+          <div className="bf-mapbox"><ReportMap lng={num(s.lng)} lat={num(s.lat)} geom={snap.parcel} h="100%" cadastral
+            zoom={mapZoom} onZoom={setMapZoom} /></div>
           <figcaption>지적도</figcaption>
         </figure>
       </div>
@@ -297,7 +316,7 @@ export function BriefingPage() {
     <Frame key="5" n="05" title="층별 임대정보" office={o} rno={rno} date={date}>
       <table className="bf-table rent">
         <thead><tr>
-          <th>층(호)</th><th>형태</th><th className="n">평수</th>
+          <th>층(호)</th><th className="n">평수</th>
           <th className="n">보증금</th><th className="n">월임대료</th><th className="n">월관리비</th>
         </tr></thead>
         <tbody>
@@ -305,7 +324,6 @@ export function BriefingPage() {
             <tr key={i}>
               <td>{f.floor}{f.unit_no ? ` ${f.unit_no}` : ""}
                 {f.is_vacant === true && <span className="bf-vac">공실</span>}</td>
-              <td>{f.use ?? "—"}</td>
               <td className="n">{py(f.contract_area ?? f.exclusive_area)}</td>
               <td className="n">{man(f.deposit)}</td>
               <td className="n">{man(f.rent)}</td>
@@ -313,7 +331,7 @@ export function BriefingPage() {
             </tr>
           ))}
           <tr className="sum">
-            <td colSpan={3}>합 계</td>
+            <td colSpan={2}>합 계</td>
             <td className="n">{man(totDep)}</td><td className="n">{man(totRent)}</td><td className="n">{man(totMgmt)}</td>
           </tr>
         </tbody>

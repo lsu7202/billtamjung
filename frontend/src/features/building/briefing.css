@@ -73,8 +73,7 @@
 .bf-slide .rs-body:has(.bf-table.rent) { display: block; }
 .bf-table.rent { width: 100%; table-layout: fixed; }
 .bf-table.rent th { background: var(--navy); color: #fff; text-align: center; font-weight: 700; }
-.bf-table.rent th:first-child, .bf-table.rent td:first-child { width: 15%; }
-.bf-table.rent th:nth-child(2), .bf-table.rent td:nth-child(2) { width: 25%; }
+.bf-table.rent th:first-child, .bf-table.rent td:first-child { width: 22%; }
 .bf-table.rent td { padding: .42cqw .6cqw; }
 .bf-table.rent .n { text-align: right; font-variant-numeric: tabular-nums; }
 .bf-table.rent tr.sum td { background: #F2F4F8; font-weight: 800; color: var(--navy); }
@@ -170,3 +169,56 @@
 /* 지도 칸 — 캡션 자리를 남긴다(지도에 height:100%를 주면 캡션이 밖으로 밀린다) */
 .bf-mapbox { flex: 1; min-height: 0; border-radius: .6cqw; overflow: hidden;
   border: 1px solid var(--rl); background: #0E1524; }
+
+/* ── 01 건물 개요 ── 「대장을 옮긴 한 장」
+   카드·알약·색면을 쓰지 않는다. 중개인이 손님 앞에 놓는 서류라
+   신뢰는 장식이 아니라 괘선과 자리맞춤에서 온다.
+   맨 위 한 줄에 '어디'와 '얼마' — 손님이 먼저 묻는 두 가지를 나란히 둔다. */
+.bf-slide .rs-body:has(.bf-ov) { display: block; }
+.bf-ov { display: grid; height: 100%; min-height: 0;
+  grid-template-columns: 25% 1fr;
+  grid-template-rows: auto auto 1fr auto auto;
+  grid-template-areas:
+    "head  head"
+    "money money"
+    "photo spec"
+    "cmt   cmt"
+    "note  note";
+  column-gap: 2cqw; }
+
+.bf-ov-head { grid-area: head; display: flex; align-items: flex-end; gap: 2cqw;
+  padding-bottom: .7cqw; }
+.bf-ov-head .bf-addr { font-size: 2.15cqw; }
+.bf-ov-head .bf-sub { margin-top: .3cqw; font-size: 1.1cqw; color: var(--rmuted); }
+/* 매매가 — 이 장에서 제일 큰 활자 하나. 나머지는 조용히 둔다 */
+.bf-ov-ask { margin-left: auto; display: flex; align-items: baseline; gap: .9cqw; }
+.bf-ov-ask .k { font-size: 1.1cqw; color: var(--rmuted); }
+.bf-ov-ask .v { font-size: 3cqw; font-weight: 800; color: var(--navy);
+  letter-spacing: -.035em; line-height: 1; font-variant-numeric: tabular-nums; }
+
+/* 금액 나머지 — 굵은 괘선 사이에 한 줄. 표 머리처럼 읽힌다 */
+.bf-ov-money { grid-area: money; display: flex; flex-wrap: wrap; gap: .2cqw 2.6cqw; padding: .5cqw 0; margin-bottom: 1cqw;
+  border-top: 1px solid var(--rl); border-bottom: 2px solid var(--navy); }
+/* 라벨-값을 붙여 짝으로 읽히게 — 칸 폭만큼 벌리면 표도 아니고 캡션도 아니게 된다 */
+.bf-ov-money > div { display: flex; align-items: baseline; gap: .6cqw; font-size: 1.08cqw;
+  white-space: nowrap; }
+.bf-ov-money .k { color: var(--rmuted); }
+.bf-ov-money .v { font-weight: 700; color: var(--rink); font-variant-numeric: tabular-nums; }
+
+.bf-ov-photo { grid-area: photo; min-height: 0; overflow: hidden; background: #EEF0F4; }
+.bf-ov-photo img { width: 100%; height: 100%; }
+
+/* 스펙시트 — 항목명은 작게 회색, 값은 오른쪽 정렬. 자리맞춤이 표를 만든다 */
+.bf-ov .bf-spec { grid-area: spec; grid-template-columns: 1fr 1fr; column-gap: 2.6cqw;
+  margin-top: 0; padding-top: 0; border-top: 0; min-height: 0; }
+.bf-ov .bf-spec h4 { color: var(--navy); font-size: 1cqw; letter-spacing: .1em;
+  padding-bottom: .35cqw; margin-bottom: .2cqw; border-bottom: 1px solid var(--line); }
+.bf-ov .bf-spec .r { padding: .26cqw 0; font-size: 1.14cqw; border-bottom: 1px solid #F2F4F7; }
+.bf-ov .bf-spec .r:last-child { border-bottom: 0; }
+
+/* 중개인 코멘트 — 색면·아이콘 없이 괘선 아래 서술. 사실 위에 얹는 판단이라 조용해야 한다 */
+.bf-ov .bf-comment { grid-area: cmt; margin-top: 1cqw; padding: .8cqw 0 0;
+  background: none; border: 0; border-top: 2px solid var(--navy); border-radius: 0;
+  display: grid; gap: .25cqw; }
+.bf-ov .bf-comment div { font-size: 1.1cqw; line-height: 1.5; color: var(--rink); }
+.bf-ov .bf-note { grid-area: note; margin-top: .7cqw; }
