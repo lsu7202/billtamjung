@@ -62,9 +62,12 @@ const centroid = (pts: V2[]): V2 => ({
 const shrink = (pts: V2[], k: number, c: V2): V2[] =>
   pts.map((p) => ({ x: c.x + (p.x - c.x) * k, z: c.z + (p.z - c.z) * k }));
 
+/** 압출용 단면 — 도형의 (u,v)가 눕힌 뒤 (x,z)가 된다.
+ *  rotateX(90°)가 (u,v,d) → (u, −d, v)로 보내므로 v에는 z를 **그대로** 넣어야 한다.
+ *  여기서 −z를 넣으면 매스만 Z축으로 뒤집혀 대지·도로와 어긋난다(경계선은 안 뒤집히므로 티가 난다). */
 const shapeOf = (pts: V2[]) => {
   const s = new THREE.Shape();
-  pts.forEach((p, i) => (i ? s.lineTo(p.x, -p.z) : s.moveTo(p.x, -p.z)));
+  pts.forEach((p, i) => (i ? s.lineTo(p.x, p.z) : s.moveTo(p.x, p.z)));
   s.closePath();
   return s;
 };
@@ -74,6 +77,7 @@ function slab(pts: V2[], y0: number, h: number, mat: THREE.Material) {
   const g = new THREE.ExtrudeGeometry(shapeOf(pts), { depth: h, bevelEnabled: false });
   g.rotateX(Math.PI / 2);
   g.translate(0, y0 + h, 0);
+  g.computeVertexNormals();          // 감김 방향이 바뀌었으니 법선을 다시 계산한다
   return new THREE.Mesh(g, mat);
 }
 
