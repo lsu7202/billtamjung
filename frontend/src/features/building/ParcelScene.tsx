@@ -20,6 +20,7 @@ export type SceneData = {
   bcr?: number | null;           // %
   far?: number | null;           // %
   legalFar?: number | null;      // %
+  legalBcr?: number | null;      // % — 기존 건축물이 넘는 경우가 흔하다(신축 시 바닥이 줄어든다)
   useZone?: string | null;
   frontRn?: string | null;
   floorsAbove?: number | null;

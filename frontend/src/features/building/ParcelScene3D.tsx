@@ -27,7 +27,7 @@ const C = {
   grid: 0x1f2b3e,
   road: 0x2c3a50,          // 일반 접도(면)
   roadEdge: 0x9db0cc,
-  front: 0x40371f,         // 전면도로(면)
+  front: 0x322d1d,         // 전면도로(면) — 넓어서 밝게 칠하면 화면을 덩어리로 덮는다
   frontEdge: 0xffa23c,     // 주황 = 전면도로
   plate: 0x16223a,         // 대지
   plateEdge: 0x39e0c8,     // 청록 = 대지 경계
@@ -415,6 +415,8 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
 
   return (
     <div className="ps3" ref={host}>
+      {/* 좌 — 무엇을 보고 있는지. 우 — 현재값과 법정한도를 나란히.
+          현재가 법정을 넘으면 색으로 표시한다(기존 건축물. 신축하면 그만큼 줄어든다). */}
       <div className="ps3-hud left">
         {data.useZone && <div className="ps3-zone">{data.useZone}</div>}
         <div className="ps3-k">대지면적</div>
@@ -423,14 +425,23 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
         <div className="ps3-v">{data.totalArea ? `${(data.totalArea / 3.305785).toFixed(1)}평` : "—"}</div>
       </div>
       <div className="ps3-hud right">
-        <div className="ps3-k">건폐율 / 용적률</div>
-        <div className="ps3-v">{data.bcr ?? "—"}% · {data.far ?? "—"}%</div>
-        {data.legalFar != null && (
-          <>
-            <div className="ps3-k">법정 용적률</div>
-            <div className="ps3-h">{data.legalFar}%</div>
-          </>
-        )}
+        <table className="ps3-tbl">
+          <thead><tr><th /><th>현재</th><th>법정</th></tr></thead>
+          <tbody>
+            <tr>
+              <th>건폐율</th>
+              <td className={data.legalBcr != null && (data.bcr ?? 0) > data.legalBcr ? "over" : ""}>
+                {data.bcr ?? "—"}%</td>
+              <td>{data.legalBcr != null ? `${data.legalBcr}%` : "—"}</td>
+            </tr>
+            <tr>
+              <th>용적률</th>
+              <td className={data.legalFar != null && (data.far ?? 0) > data.legalFar ? "over" : ""}>
+                {data.far ?? "—"}%</td>
+              <td>{data.legalFar != null ? `${data.legalFar}%` : "—"}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       {/* 치수 — 3D 위치를 화면 좌표로 옮겨 붙인다(글자는 또렷하게) */}

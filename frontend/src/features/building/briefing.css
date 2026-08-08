@@ -6,7 +6,28 @@
 .bf-thumb-t { font-size: 11.5px; font-weight: 700; color: var(--navy); }
 .bf-thumb.on .bf-thumb-t { color: var(--blue); }
 
-/* ── 표지·마무리 ── */
+/* ── 표지 ── 빌탐정 리포트 표지와 같은 틀(BuildingArt + 로고 + 직인).
+   다른 점은 발행 주체 하나다: 리포트는 빌탐정, 브리핑은 중개사무소. */
+.bf-cover3 { position: relative; overflow: hidden; color: #fff; }
+.bf-cover3-art { position: absolute; inset: 0; }
+.bf-cover3-veil { position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(8,12,22,.5) 0%, rgba(8,12,22,.12) 34%, rgba(8,12,22,.82) 100%); }
+.bf-cover3-in { position: relative; height: 100%; display: flex; flex-direction: column;
+  padding: 2.8cqw 3.4cqw; box-sizing: border-box; }
+.bf-cover3-top { display: flex; align-items: center; }
+.bf-cover3-rno { margin-left: auto; font-size: 1cqw; color: #c7d3e6; }
+.bf-cover3-mid { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.bf-cover3-eyebrow { font-size: 1.15cqw; letter-spacing: .24em; color: #8fb0e0; font-weight: 700;
+  margin-bottom: 1cqw; }
+.bf-cover3-addr { font-size: 4.8cqw; font-weight: 800; letter-spacing: -.02em; line-height: 1.04;
+  text-shadow: 0 2px 26px rgba(0,0,0,.55); }
+.bf-cover3-sub { font-size: 1.5cqw; color: #c7d3e6; margin-top: .9cqw; }
+.bf-cover3-foot { display: flex; align-items: center; gap: 1.4cqw; }
+.bf-cover3-office { display: flex; flex-direction: column; gap: .25cqw;
+  font-size: .95cqw; color: #aab6cc; line-height: 1.55; }
+.bf-cover3-office b { color: #fff; font-size: 1.35cqw; font-weight: 800; letter-spacing: -.01em; }
+
+/* ── (구) 표지·마무리 — 등각 SVG 폴백 등에서 여전히 쓰는 틀 ── */
 .bf-cover { background: linear-gradient(160deg, #1E2A4A 0%, #16203A 60%, #101827 100%); color: #fff; }
 .bf-cover-in { height: 100%; display: flex; flex-direction: column; justify-content: center;
   padding: 3cqw 4cqw; box-sizing: border-box; }
@@ -92,6 +113,9 @@
   border: 1px solid var(--rl); background: #0E1524; }
 .bf-loc figcaption { font-size: 1cqw; color: var(--rmuted); margin-top: .5cqw; }
 .bf-scene { background: linear-gradient(165deg, #131C2E 0%, #0C1220 100%); display: grid; place-items: center; }
+/* 입체 지적도 전용 장 — 한 장을 통째로 */
+.bf-slide .rs-body:has(.bf-scene.wide) { display: block; }
+.bf-scene.wide { height: 100%; border-radius: .6cqw; overflow: hidden; border: 1px solid var(--rl); }
 .ps { width: 100%; height: 100%; display: block; }
 .ps-empty { display: grid; place-items: center; height: 100%; color: #7F8CA6; font-size: 1.05cqw; }
 
@@ -106,6 +130,15 @@
 .ps3-k { color: #9FB3D4; font-size: .82cqw; margin-top: .45cqw; }
 .ps3-v { color: #fff; font-size: 1.15cqw; font-weight: 800; letter-spacing: -.01em; }
 .ps3-h { color: #8FB0E0; font-size: .95cqw; font-weight: 700; }
+
+/* 현재 vs 법정 — 나란히 놓으면 넘는지 남는지 한 줄로 읽힌다 */
+.ps3-tbl { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.ps3-tbl th, .ps3-tbl td { padding: .18cqw .5cqw; text-align: right; font-weight: 400; }
+.ps3-tbl thead th { color: #7F8CA6; font-size: .78cqw; font-weight: 700; letter-spacing: .04em; }
+.ps3-tbl tbody th { color: #9FB3D4; font-size: .85cqw; text-align: left; padding-left: 0; }
+.ps3-tbl td { color: #fff; font-size: 1.05cqw; font-weight: 800; letter-spacing: -.01em; }
+.ps3-tbl td:last-child { color: #8FB0E0; font-weight: 700; padding-right: 0; }
+.ps3-tbl td.over { color: #FF9E7A; }   /* 법정 초과 = 기존 건축물. 신축하면 줄어든다 */
 
 /* 치수 — 점선 끝에 숫자만. 색으로 무엇의 치수인지 구분한다(선 색과 같다) */
 .ps3-dim { position: absolute; z-index: 2; transform: translate(-50%, -50%); pointer-events: none;
@@ -133,3 +166,7 @@
 .bf-comment { margin-top: 1.2cqw; padding: .9cqw 1.1cqw; border-left: .25cqw solid var(--blue);
   background: #F5F8FC; border-radius: 0 .4cqw .4cqw 0; display: grid; gap: .35cqw; }
 .bf-comment div { font-size: 1.15cqw; color: var(--rink); line-height: 1.55; }
+
+/* 지도 칸 — 캡션 자리를 남긴다(지도에 height:100%를 주면 캡션이 밖으로 밀린다) */
+.bf-mapbox { flex: 1; min-height: 0; border-radius: .6cqw; overflow: hidden;
+  border: 1px solid var(--rl); background: #0E1524; }

@@ -569,12 +569,14 @@ async def _briefing_snapshot(building_pk: str, b: dict, team_id: int) -> dict:
            WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL
            ORDER BY kind, sort_order, id""", building_pk, team_id)]
 
-    # 법정 용적률 — 입체 지적도가 '남은 여유'를 그리려면 필요. 필지 규제에서 뽑는다.
-    lf = await pool().fetchval(
-        """SELECT max(pr.legal_far) FROM master.building_parcels bp
+    # 법정 용적률·건폐율 — 입체 지적도가 '남은 여유'를 그리려면 필요. 필지 규제에서 뽑는다.
+    # 건폐율도 같이 싣는다: 기존 건축물이 법정을 넘는 경우가 흔하고(종로2가 71-6은 97.98% vs 법정 60%),
+    # 그건 '신축하면 바닥이 줄어든다'는 뜻이라 브리핑에서 빠지면 안 되는 사실이다.
+    lr = await pool().fetchrow(
+        """SELECT max(pr.legal_far) far, max(pr.legal_bcr) bcr FROM master.building_parcels bp
            JOIN master.parcels pr ON pr.pnu = bp.pnu WHERE bp.building_pk = $1""", building_pk)
-    if lf is not None:
-        b = {**b, "legal_far": _parse_far(lf)}
+    if lr:
+        b = {**b, "legal_far": _parse_far(lr["far"]), "legal_bcr": _parse_far(lr["bcr"])}
 
     # 접도 폭 — 배치(0033) 산출값. 팀 수기 오버레이가 있으면 그쪽이 이긴다(_assemble이 이미 덮음).
     rw = await pool().fetchrow(

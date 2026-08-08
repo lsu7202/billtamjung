@@ -5,6 +5,7 @@ import { reportsApi, PHOTO_KINDS, type Photo, type PhotoKind } from "../../share
 import { useAuth } from "../../shared/store/auth";
 import { fitStyle } from "../../shared/ui/PhotoFit";
 import { ReportMap } from "./ReportMap";
+import { Logo, Seal, BuildingArt } from "./ReportAssets";
 // three.js는 이 슬라이드에서만 쓴다 — 첫 화면 번들에 얹지 않는다
 const ParcelScene3D = lazy(() => import("./ParcelScene3D").then((m) => ({ default: m.ParcelScene3D })));
 import { Loading } from "../../shared/ui/Spinner";
@@ -14,8 +15,9 @@ import "./briefing.css";
 
 /** 브리핑 자료 — 그 건물에 대한 '사실'만 담는 기초자료.
  *  빌탐정 리포트가 우리 판단(적정가·매력도·미래가치)을 서술하는 것과 반대다.
- *  구성은 원본(specs/03-features/브리핑자료.pptx) 7장을 따른다:
- *    표지 · 매물 기본정보 · 서류 · 지적도·위치도 · 층별 임대정보 · 건물 사진 · 마무리 */
+ *  구성(7장): 표지 · 건물 개요 · 위치도(지도·지적도) · 입체 지적도 ·
+ *  건축물정보·토지이용계획 · 층별 임대정보 · 건물 사진.
+ *  원본 pptx의 '마무리'(성공적인 투자…)는 사실이 아니라 인사말이라 뺐다. */
 
 const P = 3.305785;
 const py = (m2: unknown) => (m2 ? `${(Number(m2) / P).toFixed(2)}평` : "—");
@@ -86,6 +88,9 @@ const Frame = ({ n, title, office, rno, date, children }: {
   </div>
 );
 
+const THUMBS = ["표지", "건물 개요", "위치도", "입체 지적도",
+  "건축물정보·토지이용계획", "층별 임대정보", "건물 사진"];
+
 export function BriefingPage() {
   const { id } = useParams();
   const nav = useNavigate();
@@ -97,10 +102,16 @@ export function BriefingPage() {
   const urls = useAuthedImages(pk, photos);
 
   const [cur, setCur] = useState(0);
-  const stage = useRef<HTMLDivElement>(null);
+  // 전체화면은 덱 루트에 건다 — 발표 모드 CSS가 .rslide-root:fullscreen에 걸려 있어서
+  // stage에 걸면 툴바·사이드바가 그대로 남아 전체화면이 아무 의미가 없다(빌탐정 리포트와 동일).
+  const root = useRef<HTMLDivElement>(null);
+  const toggleFs = () => {
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else root.current?.requestFullscreen?.().catch(() => {});
+  };
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight" || e.key === " ") setCur((c) => Math.min(c + 1, 6));
+      if (e.key === "ArrowRight" || e.key === " ") setCur((c) => Math.min(c + 1, THUMBS.length - 1));
       if (e.key === "ArrowLeft") setCur((c) => Math.max(c - 1, 0));
     };
     window.addEventListener("keydown", k);
@@ -184,19 +195,31 @@ export function BriefingPage() {
   const totDep = totDepPre, totRent = totRentPre;
 
   const slides = [
-    // 표지
-    <div className="rs-slide bf-cover" key="cover">
-      <div className="bf-cover-in">
-        <div className="bf-office">{String(o.office_name ?? o.name ?? "")}</div>
-        <div className="bf-cover-addr">{shortAddr}</div>
-        <div className="bf-cover-sub">{String(s.use_zone ?? "")} · {String(s.main_use_name ?? "")}</div>
-        <div className="bf-cover-meta">
-          {o.phone ? <div>연락처 : {String(o.phone)}</div> : null}
-          {o.fax ? <div>팩스 : {String(o.fax)}</div> : null}
-          {o.email ? <div>이메일 : {String(o.email)}</div> : null}
-          {o.office_addr ? <div>주소 : {String(o.office_addr)}</div> : null}
+    // 표지 — 빌탐정 리포트와 같은 틀(BuildingArt + 로고 + 직인). 자료가 두 종류로 보이면 안 된다.
+    // 다른 점은 발행 주체 하나다: 리포트는 빌탐정, 브리핑은 중개사무소.
+    <div className="rs-slide bf-cover3" key="cover">
+      <div className="bf-cover3-art"><BuildingArt /></div>
+      <div className="bf-cover3-veil" />
+      <div className="bf-cover3-in">
+        <div className="bf-cover3-top">
+          <Logo mono size={2.6} />
+          <span className="bf-cover3-rno">Report No. {rno} · {date}</span>
         </div>
-        <div className="bf-cover-rno">Report No. {rno} · {date}</div>
+        <div className="bf-cover3-mid">
+          <div className="bf-cover3-eyebrow">브리핑 자료 — 매물 기초정보</div>
+          <div className="bf-cover3-addr">{shortAddr}</div>
+          <div className="bf-cover3-sub">{String(s.use_zone ?? "")} · {String(s.main_use_name ?? "")}</div>
+        </div>
+        <div className="bf-cover3-foot">
+          <Seal mono size={8.5} />
+          <div className="bf-cover3-office">
+            <b>{String(o.office_name ?? o.name ?? "")}</b>
+            <span>
+              {[o.phone && `연락처 ${o.phone}`, o.fax && `팩스 ${o.fax}`, o.email].filter(Boolean).join(" · ")}
+            </span>
+            {o.office_addr ? <span>{String(o.office_addr)}</span> : null}
+          </div>
+        </div>
       </div>
     </div>,
 
@@ -230,38 +253,48 @@ export function BriefingPage() {
           {comment.map((line, i) => <div key={i}>◆ {line}</div>)}
         </div>
       )}
-      <div className="bf-note">※ 토지이용계획확인원 및 건축물대장 기준</div>
+      <div className="bf-note">※ 토지이용계획 및 건축물대장 기준</div>
     </Frame>,
 
+    // 위치도 = 지도판 + 지적도판. 둘 다 지도 API가 그려주므로 업로드가 없다.
+    // 확대·이동을 열어 둔다 — 손님과 같이 들여다보는 장면이라 고정 화면이면 답답하다.
     <Frame key="2" n="02" title="위치도" office={o} rno={rno} date={date}>
       <div className="bf-loc">
-        {/* 좌 — 실제 지도 위 필지. 업로드 없이 자동으로 그린다(지적도 레이어는 지도 API 제공) */}
+        {/* 지도를 감싸는 칸 — h="100%"를 그대로 figure의 첫 자식으로 두면
+            지도가 칸 전체를 먹고 캡션이 밖으로 밀려 잘린다. */}
         <figure>
-          <ReportMap lng={num(s.lng)} lat={num(s.lat)} geom={snap.parcel} h="100%" />
+          <div className="bf-mapbox"><ReportMap lng={num(s.lng)} lat={num(s.lat)} geom={snap.parcel} h="100%" interactive /></div>
+          <figcaption>지도</figcaption>
         </figure>
-        {/* 우 — 입체 지적도. 대지 위에 현재 용적을 세우고 법정까지의 여유를 비워 보여준다 */}
         <figure>
-          <div className="bf-scene">
-            <Suspense fallback={<div className="ps-empty">입체 지적도 불러오는 중…</div>}>
-              <ParcelScene3D data={{
-                parcel: snap.parcel, roads: snap.roads,
-                landArea: num(s.land_area), totalArea: num(s.total_area),
-                bcr: num(s.bcr), far: num(s.far), legalFar: num(s.legal_far),
-                useZone: String(s.use_zone ?? "") || null,
-                frontRn: String(s.road_front_rn ?? "") || null,
-                floorsAbove: num(s.floors_above), height: num(s.height),
-              }} />
-            </Suspense>
-          </div>
+          <div className="bf-mapbox"><ReportMap lng={num(s.lng)} lat={num(s.lat)} geom={snap.parcel} h="100%" cadastral interactive /></div>
+          <figcaption>지적도</figcaption>
         </figure>
       </div>
     </Frame>,
 
-    <Frame key="3" n="03" title="건축물정보 · 토지이용계획" office={o} rno={rno} date={date}>
+    // 입체 지적도 — 한 장을 통째로 쓴다. 좁게 넣으면 치수가 서로 밀려 읽히지 않는다.
+    <Frame key="3" n="03" title="입체 지적도" office={o} rno={rno} date={date}>
+      <div className="bf-scene wide">
+        <Suspense fallback={<div className="ps-empty">입체 지적도 불러오는 중…</div>}>
+          <ParcelScene3D data={{
+            parcel: snap.parcel, roads: snap.roads,
+            landArea: num(s.land_area), totalArea: num(s.total_area),
+            bcr: num(s.bcr), far: num(s.far),
+            legalFar: num(s.legal_far), legalBcr: num(s.legal_bcr),
+            useZone: String(s.use_zone ?? "") || null,
+            frontRn: String(s.road_front_rn ?? "") || null,
+            floorsAbove: num(s.floors_above), height: num(s.height),
+          }} />
+        </Suspense>
+      </div>
+    </Frame>,
+
+    <Frame key="4" n="04" title="건축물정보 · 토지이용계획" office={o} rno={rno} date={date}>
       <div className="bf-docs">{docSlot("land_use")}{docSlot("building_ledger")}</div>
     </Frame>,
 
-    <Frame key="4" n="04" title="층별 임대정보" office={o} rno={rno} date={date}>
+    <Frame key="5" n="05" title="층별 임대정보" office={o} rno={rno} date={date}>
       <table className="bf-table rent">
         <thead><tr>
           <th>층(호)</th><th>형태</th><th className="n">평수</th>
@@ -290,7 +323,7 @@ export function BriefingPage() {
       </div>
     </Frame>,
 
-    <Frame key="5" n="05" title="건물 사진" office={o} rno={rno} date={date}>
+    <Frame key="6" n="06" title="건물 사진" office={o} rno={rno} date={date}>
       <div className="bf-photos" data-n={[...byKind("exterior").slice(1), ...byKind("interior")].slice(0, 4).length}>
         {[...byKind("exterior").slice(1), ...byKind("interior")].slice(0, 4).map((p) => (
           <figure key={p.id}><div className="bf-ph">{img(p)}</div>{p.caption && <figcaption>{p.caption}</figcaption>}</figure>
@@ -300,27 +333,16 @@ export function BriefingPage() {
         )}
       </div>
     </Frame>,
-
-    <div className="rs-slide bf-cover end" key="end">
-      <div className="bf-cover-in">
-        <div className="bf-end-1">성공적인 투자</div>
-        <div className="bf-end-2">{String(o.office_name ?? o.name ?? "빌탐정")}가 함께하겠습니다</div>
-        <div className="bf-cover-meta">
-          {o.phone ? <div>{String(o.phone)}</div> : null}
-          {o.email ? <div>{String(o.email)}</div> : null}
-        </div>
-      </div>
-    </div>,
   ];
 
   return (
-    <div className="rslide-root deck">
+    <div className="rslide-root deck" ref={root}>
       <div className="deck-top">
         <button className="btn" onClick={() => nav(`/buildings/${pk}`)} style={{ padding: "6px 12px" }}>
           <ActionIcon name="back" size={15} />매물로</button>
         <span className="ttl">브리핑 자료 · {rno}</span>
         <button className="btn" style={{ marginLeft: "auto", padding: "6px 12px" }}
-          onClick={() => stage.current?.requestFullscreen?.().catch(() => {})}>
+          onClick={toggleFs} title="전체화면 (발표 모드)">
           <ActionIcon name="fullscreen" size={14} />전체화면</button>
       </div>
       <div className="deck-main">
@@ -328,11 +350,11 @@ export function BriefingPage() {
           {slides.map((_, i) => (
             <button key={i} className={"deck-thumb bf-thumb" + (cur === i ? " on" : "")} onClick={() => setCur(i)}>
               <span className="tnum">{String(i + 1).padStart(2, "0")}</span>
-              <span className="bf-thumb-t">{["표지", "건물 개요", "위치도", "건축물정보·토지이용계획", "층별 임대정보", "건물 사진", "마무리"][i]}</span>
+              <span className="bf-thumb-t">{THUMBS[i]}</span>
             </button>
           ))}
         </aside>
-        <div className="deck-stage" ref={stage}>
+        <div className="deck-stage">
           <div className="stage-slide rs-enter" key={cur}>{slides[cur]}</div>
           <div className="deck-counter">{cur + 1} / {slides.length}</div>
         </div>

@@ -179,7 +179,7 @@ export const PHOTO_KINDS: { k: PhotoKind; label: string; doc?: boolean }[] = [
   { k: "interior", label: "내부" },
   // 위치도·지적도는 지도 API로 자동 생성한다 — 업로드가 필요한 건 발급 서류뿐.
   { k: "building_ledger", label: "건축물대장", doc: true },
-  { k: "land_use", label: "토지이용계획확인원", doc: true },
+  { k: "land_use", label: "토지이용계획", doc: true },
   { k: "etc", label: "기타" },
 ];
 
