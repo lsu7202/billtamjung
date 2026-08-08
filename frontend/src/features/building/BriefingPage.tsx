@@ -19,14 +19,15 @@ import "./briefing.css";
  *  건축물정보·토지이용계획 · 층별 임대정보 · 건물 사진.
  *  원본 pptx의 '마무리'(성공적인 투자…)는 사실이 아니라 인사말이라 뺐다. */
 
+/** [값, 단위] → {n, u}. 지표 카드가 단위를 작게 붙여 쓰기 위해 나눠 받는다. */
+const z = ([n, u]: [string, string]) => ({ n, u });
+
 const P = 3.305785;
 const py = (m2: unknown) => (m2 ? `${(Number(m2) / P).toFixed(2)}평` : "—");
 const num = (v: unknown) => (v == null || v === "" ? null : Number(v));
 const man = (won: unknown) => { const w = num(won); return w ? `${Math.round(w / 1e4).toLocaleString()}만원` : "—"; };
 /** 원 단위 그대로 — 공시지가처럼 대장 원문을 옮기는 값(원본 표기: 15,450,000원) */
 const wonFull = (v: unknown) => { const w = num(v); return w ? `${Math.round(w).toLocaleString()}원` : "—"; };
-/** 억 단위 — 매매가(원본 표기: 140 억) */
-const eok = (v: unknown) => { const w = num(v); return w ? `${(w / 1e8).toFixed(w % 1e8 === 0 ? 0 : 1)}억` : "—"; };
 /** 규모 — 원본 표기: B1 ~ 6F */
 const scale = (below: unknown, above: unknown) => {
   const b = num(below), a = num(above);
@@ -66,8 +67,9 @@ function useAuthedImages(pk: string, photos: Photo[]) {
   return urls;
 }
 
-const Frame = ({ n, title, office, rno, date, children }: {
-  n: string; title: string; office: Record<string, unknown>; rno: string; date: string; children: React.ReactNode;
+const Frame = ({ n, title, desc, office, rno, date, children }: {
+  n: string; title: string; desc?: string; office: Record<string, unknown>;
+  rno: string; date: string; children: React.ReactNode;
 }) => (
   <div className="rs-slide bf-slide">
     <div className="rs-head">
@@ -77,7 +79,10 @@ const Frame = ({ n, title, office, rno, date, children }: {
     </div>
     <div className="rs-sec">
       <span className="rs-badge">{n}</span>
-      <div><div className="rs-title">{title}</div></div>
+      <div>
+        <div className="rs-title">{title}</div>
+        {desc ? <div className="rs-desc">{desc}</div> : null}
+      </div>
     </div>
     <div className="rs-body">{children}</div>
     <div className="rs-foot">
@@ -177,6 +182,7 @@ export function BriefingPage() {
       ["지목 / 형상", `${s.jimok ?? "—"} / ${s.shape ?? "—"}`],
       ["공시지가(m²)", wonFull(s.gongsi_latest)],
       ["공시지가 합계", wonFull(gongsiSum)],
+      ["평단가", man(perLand)],
     ] },
     { g: "건물", rows: [
       ["연면적", `${s.total_area ?? "—"}m² · ${py(s.total_area)}`],
@@ -184,16 +190,22 @@ export function BriefingPage() {
       ["건폐율 / 용적률", `${s.bcr ?? "—"}% / ${s.far ?? "—"}%`],
       ["규모 / 높이", `${scale(s.floors_below, s.floors_above)}${num(s.height) ? ` · ${num(s.height)}m` : ""}`],
       ["주차 / 승강기", `${cnt(s.parking, "대")} / ${cnt(s.elevator, "대")}`],
-      ["준공 / 구조", `${ymdSlash(s.approval_ymd)} · ${s.structure ?? "—"}`],
+      ["준공", ymdSlash(s.approval_ymd)],
+      ["구조", String(s.structure ?? "—")],
       ["주용도", String(s.main_use_name ?? "—")],
+      ["평단가", man(perTotal)],
     ] },
   ];
-  // 금액은 한 패널에 모은다 — 스펙시트에 섞으면 사실과 값이 같은 무게로 읽힌다
-  const money: [string, string][] = [
-    ["수익률", roi != null ? `${roi.toFixed(2)}%` : "—"],
-    ["보증금 / 월임대료", `${man(totDepPre)} / ${man(totRentPre)}`],
-    ["평단가(대지)", man(perLand)],
-    ["평단가(연면적)", man(perTotal)],
+
+  // 지표 카드 — 빌탐정 리포트의 .rs-sc 어법(라벨 작게, 값 크게, 단위는 작게 붙여서).
+  // 금액을 라벨-값 한 줄로 늘어놓으면 글줄로 읽혀서 눈에 안 들어온다. 큰 숫자 네 개로 세운다.
+  const split = (v: number | null, unit: string, digits = 0): [string, string] =>
+    v == null ? ["—", ""] : [v.toLocaleString(undefined, { maximumFractionDigits: digits }), unit];
+  const metrics: { k: string; n: string; u: string; lead?: boolean }[] = [
+    { k: "매매가", ...z(split(price != null ? price / 1e8 : null, "억", 1)), lead: true },
+    { k: "수익률", ...z(split(roi, "%", 2)) },
+    { k: "보증금", ...z(split(totDepPre ? totDepPre / 1e4 : null, "만원")) },
+    { k: "월임대료", ...z(split(totRentPre ? totRentPre / 1e4 : null, "만원")) },
   ];
 
   const totMgmt = snap.floors.reduce((a, f) => a + (f.maintenance ?? 0), 0);
@@ -227,46 +239,38 @@ export function BriefingPage() {
       </div>
     </div>,
 
-    <Frame key="1" n="01" title="건물 개요" office={o} rno={rno} date={date}>
-      {/* 대장을 옮긴 한 장 — 카드·알약·색면 없이 괘선과 정렬만으로 구획한다.
-          중개인이 손님 앞에 놓는 서류라 신뢰는 장식이 아니라 자리맞춤에서 온다.
-          제일 위 한 줄에 '어디'와 '얼마'를 나란히 — 손님이 먼저 묻는 두 가지다. */}
+    <Frame key="1" n="01" title="건물 개요"
+      desc={[addr, s.use_zone, s.main_use_name, s.road_addr].filter(Boolean).map(String).join(" · ")}
+      office={o} rno={rno} date={date}>
+      {/* 소재지는 섹션 부제로 올렸다 — 본문 높이를 사진에 준다.
+          금액은 라벨-값 한 줄로 늘어놓으면 글줄로 읽혀 눈에 안 들어온다.
+          빌탐정 리포트의 지표 카드 어법(.rs-sc)을 그대로 써서 큰 숫자 네 개로 세운다. */}
       <div className="bf-ov">
-        <div className="bf-ov-head">
-          <div>
-            <div className="bf-addr">{addr}</div>
-            <div className="bf-sub">
-              {[s.use_zone, s.main_use_name, s.road_addr].filter(Boolean).map(String).join(" · ")}
-            </div>
-          </div>
-          <div className="bf-ov-ask">
-            <span className="k">매매가</span>
-            <span className="v">{eok(price)}</span>
-          </div>
-        </div>
+        <div className="bf-ov-photo">{img(byKind("exterior")[0])}</div>
 
-        <div className="bf-ov-money">
-          {money.map(([k, v]) => (
-            <div key={k}><span className="k">{k}</span><span className="v">{v}</span></div>
+        <div className="bf-mt">
+          {metrics.map((m) => (
+            <div className={`rs-sc${m.lead ? " lead" : ""}`} key={m.k}>
+              <div className="k">{m.k}</div>
+              <div className="v">{m.n}<u>{m.u}</u></div>
+            </div>
           ))}
         </div>
 
-        <div className="bf-ov-photo">{img(byKind("exterior")[0])}</div>
-
-        <div className="bf-spec">
+        <div className="bf-kv2">
           {groups.map(({ g, rows: rs }) => (
-            <section key={g}>
-              <h4>{g}</h4>
-              {rs.map(([k, v]) => (
-                <div className="r" key={k}><span className="k">{k}</span><span className="v">{v}</span></div>
-              ))}
-            </section>
+            <table className="rs-tbl rs-kv" key={g}>
+              <thead><tr><th colSpan={2}>{g}</th></tr></thead>
+              <tbody>
+                {rs.map(([k, v]) => <tr key={k}><td>{k}</td><td className="r b">{v}</td></tr>)}
+              </tbody>
+            </table>
           ))}
         </div>
 
         {comment.length > 0 && (
-          <div className="bf-comment">
-            {comment.map((line, i) => <div key={i}>{line}</div>)}
+          <div className="bf-cmt">
+            {comment.map((line, i) => <div className="rs-callout" key={i}>{line}</div>)}
           </div>
         )}
         <div className="bf-note">※ 토지이용계획 및 건축물대장 기준</div>

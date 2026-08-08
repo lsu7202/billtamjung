@@ -170,58 +170,43 @@
 .bf-mapbox { flex: 1; min-height: 0; border-radius: .6cqw; overflow: hidden;
   border: 1px solid var(--rl); background: #0E1524; }
 
-/* ── 01 건물 개요 ── 「대장을 옮긴 한 장」
-   카드·알약·색면을 쓰지 않는다. 중개인이 손님 앞에 놓는 서류라
-   신뢰는 장식이 아니라 괘선과 자리맞춤에서 온다.
-   맨 위 한 줄에 '어디'와 '얼마' — 손님이 먼저 묻는 두 가지를 나란히 둔다. */
+/* ── 01 건물 개요 ── 빌탐정 리포트의 어법을 그대로 쓴다(.rs-sc 지표 카드 · .rs-tbl · .rs-callout).
+   금액을 라벨-값 한 줄로 늘어놓으면 글줄로 읽혀 눈에 안 들어온다 → 큰 숫자 네 개로 세운다.
+   소재지는 섹션 부제(rs-desc)로 올려 본문 높이를 사진에 넘긴다. */
 .bf-slide .rs-body:has(.bf-ov) { display: block; }
 .bf-ov { display: grid; height: 100%; min-height: 0;
-  grid-template-columns: 33% 1fr;
-  grid-template-rows: auto auto 1fr auto auto;
+  grid-template-columns: 38% 1fr;
+  grid-template-rows: auto 1fr auto auto;
   grid-template-areas:
-    "head  head"
-    "photo money"
-    "photo spec"
+    "photo mt"
+    "photo kv"
     "cmt   cmt"
     "note  note";
-  column-gap: 1.8cqw; }
+  column-gap: 2.2cqw; }
 
-.bf-ov-head { grid-area: head; display: flex; align-items: flex-end; gap: 2cqw;
-  padding-bottom: .7cqw; }
-.bf-ov-head .bf-addr { font-size: 2.15cqw; }
-.bf-ov-head .bf-sub { margin-top: .3cqw; font-size: 1.1cqw; color: var(--rmuted); }
-/* 매매가 — 이 장에서 제일 큰 활자 하나. 나머지는 조용히 둔다 */
-.bf-ov-ask { margin-left: auto; display: flex; align-items: baseline; gap: .9cqw; }
-.bf-ov-ask .k { font-size: 1.1cqw; color: var(--rmuted); }
-.bf-ov-ask .v { font-size: 3cqw; font-weight: 800; color: var(--navy);
-  letter-spacing: -.035em; line-height: 1; font-variant-numeric: tabular-nums; }
-
-/* 금액 나머지 — 굵은 괘선 사이에 한 줄. 표 머리처럼 읽힌다 */
-.bf-ov-money { grid-area: money; display: flex; flex-wrap: wrap; gap: .2cqw 2.6cqw; padding: .5cqw 0; margin-bottom: 1cqw;
-  border-top: 1px solid var(--rl); border-bottom: 2px solid var(--navy); }
-/* 라벨-값을 붙여 짝으로 읽히게 — 칸 폭만큼 벌리면 표도 아니고 캡션도 아니게 된다 */
-.bf-ov-money > div { display: flex; align-items: baseline; gap: .6cqw; font-size: 1.08cqw;
-  white-space: nowrap; }
-.bf-ov-money .k { color: var(--rmuted); }
-.bf-ov-money .v { font-weight: 700; color: var(--rink); font-variant-numeric: tabular-nums; }
-
-/* 슬롯 비율을 4:3으로 못박고 칸 높이에 맞춘다 — 칸 모양대로 늘리면 사진 위아래가 잘린다.
-   폭이 남으면 왼쪽에 붙여 두고, 폭이 모자라면 높이가 줄어 비율은 그대로 유지된다. */
+/* 사진 — 슬롯 비율 4:3 고정. 칸 모양대로 늘리면 위아래가 잘린다.
+   폭이 남으면 왼쪽에 붙이고, 폭이 모자라면 높이가 줄어 비율은 유지된다. */
 .bf-ov-photo { grid-area: photo; min-height: 0; height: 100%; aspect-ratio: 4 / 3;
-  max-width: 100%; justify-self: start; overflow: hidden; background: #EEF0F4; }
+  max-width: 100%; justify-self: start; overflow: hidden; border-radius: .5cqw;
+  background: #EEF0F4; }
 .bf-ov-photo img { width: 100%; height: 100%; }
 
-/* 스펙시트 — 항목명은 작게 회색, 값은 오른쪽 정렬. 자리맞춤이 표를 만든다 */
-.bf-ov .bf-spec { grid-area: spec; grid-template-columns: 1fr 1fr; column-gap: 2cqw;
-  margin-top: 0; padding-top: 0; border-top: 0; min-height: 0; }
-.bf-ov .bf-spec h4 { color: var(--navy); font-size: 1cqw; letter-spacing: .1em;
-  padding-bottom: .35cqw; margin-bottom: .2cqw; border-bottom: 1px solid var(--line); }
-.bf-ov .bf-spec .r { padding: .26cqw 0; font-size: 1.08cqw; border-bottom: 1px solid #F2F4F7; }
-.bf-ov .bf-spec .r:last-child { border-bottom: 0; }
+/* 지표 카드 넷 — 매매가만 크게. 아래에 굵은 괘선을 둬서 표 머리처럼 받친다 */
+.bf-mt { grid-area: mt; display: grid; grid-template-columns: 1.35fr 1fr 1fr 1fr;
+  gap: 1.4cqw; padding-bottom: 1cqw; margin-bottom: 1cqw;
+  border-bottom: 1.5px solid var(--navy); }
+.bf-mt .rs-sc .v { font-size: 2cqw; color: var(--rink); font-variant-numeric: tabular-nums; }
+.bf-mt .rs-sc.lead .v { font-size: 3cqw; color: var(--navy); letter-spacing: -.03em; }
+.bf-mt .rs-sc.lead .k { color: var(--navy); font-weight: 700; }
 
-/* 중개인 코멘트 — 색면·아이콘 없이 괘선 아래 서술. 사실 위에 얹는 판단이라 조용해야 한다 */
-.bf-ov .bf-comment { grid-area: cmt; margin-top: 1cqw; padding: .8cqw 0 0;
-  background: none; border: 0; border-top: 2px solid var(--navy); border-radius: 0;
-  display: grid; gap: .25cqw; }
-.bf-ov .bf-comment div { font-size: 1.1cqw; line-height: 1.5; color: var(--rink); }
-.bf-ov .bf-note { grid-area: note; margin-top: .7cqw; }
+/* 토지 / 건물 — 리포트의 라벨-값 표 두 벌 */
+.bf-kv2 { grid-area: kv; display: grid; grid-template-columns: 1fr 1fr; gap: 1.6cqw;
+  align-content: start; min-height: 0; }
+.bf-kv2 .rs-tbl { font-size: 1.02cqw; }
+.bf-kv2 .rs-tbl th { padding: .3cqw .8cqw .28cqw; }
+.bf-kv2 .rs-tbl td { padding: .26cqw .8cqw; }
+.bf-kv2 .rs-kv td:first-child { width: 46%; }
+
+.bf-cmt { grid-area: cmt; display: grid; gap: .3cqw; margin-top: 1cqw; }
+.bf-cmt .rs-callout { font-size: 1.08cqw; padding: .2cqw 0 .2cqw 1.2cqw; }
+.bf-ov .bf-note { grid-area: note; margin-top: .6cqw; }
