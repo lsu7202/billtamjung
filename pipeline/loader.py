@@ -146,7 +146,7 @@ async def main() -> int:
                jimok, parcel_area, land_use, use_zone, use_zone_mix,
                slope, shape, road_frontage, station_dist, subway_json, bus_json,
                gongsi_latest, last_sale_ym, last_sale_price,
-               build_area, far_area, elevator, parking)
+               build_area, far_area, elevator, parking, height)
             SELECT building_pk, addr, jibun_norm,
                    ST_SetSRID(ST_MakePoint(lng::float, lat::float), 4326),
                    NULLIF(road_addr,''), NULLIF(pnu,''), NULLIF(sgg_code,''), NULLIF(bjd_code,''),
@@ -163,7 +163,8 @@ async def main() -> int:
                    NULLIF(station_dist,'')::int, NULLIF(subway_json,'')::jsonb, NULLIF(bus_json,'')::jsonb,
                    NULLIF(gongsi_latest,'')::bigint, NULLIF(last_sale_ym,''), NULLIF(last_sale_price,'')::bigint,
                    NULLIF(build_area,'')::numeric, NULLIF(far_area,'')::numeric,
-                   NULLIF(NULLIF(elevator,''),'0')::int, NULLIF(NULLIF(parking,''),'0')::int
+                   NULLIF(NULLIF(elevator,''),'0')::int, NULLIF(NULLIF(parking,''),'0')::int,
+                   NULLIF(height,'')::numeric
             FROM {tmp}""")
         await conn.execute(f"DROP TABLE {tmp}")
 

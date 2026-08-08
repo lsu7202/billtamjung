@@ -23,6 +23,7 @@ export type SceneData = {
   useZone?: string | null;
   frontRn?: string | null;
   floorsAbove?: number | null;
+  height?: number | null;        // m — 건축물대장 표제부 실측. 없으면 null(가정값을 넣지 않는다)
 };
 
 /* ── 도형 유틸 ───────────────────────────────────────────── */
@@ -101,11 +102,11 @@ export function ParcelScene({ data, w = 900, h = 520, animate = true }: {
     const base = parcel[0];
     const c = centroid(base);
 
-    // 매스 높이 — 도로 폭과 같은 축척(m→px)으로 세운다. 층수를 알면 층당 3.5m,
-    // 모르면 용적률÷건폐율로 층수를 되돌린다. 법정 여유는 용적률 비율만큼 더 올린다.
+    // 매스 높이 — 도로 폭과 같은 축척(m→px)으로 세운다. 대장 실측 높이가 있으면 그것,
+    // 없으면 층수×3.5m(층수도 없으면 용적률÷건폐율로 되돌린다). 법정 여유는 용적률 비율만큼 더.
     const far = data.far ?? 0, legal = data.legalFar ?? 0, bcr = data.bcr ?? 0;
     const floors = data.floorsAbove ?? (bcr > 0 && far > 0 ? Math.max(1, Math.round(far / bcr)) : 3);
-    const hCur = Math.min(floors * 3.5 * proj.scale, h * 0.45);
+    const hCur = Math.min((data.height ?? floors * 3.5) * proj.scale, h * 0.45);
     const hLegal = far > 0 && legal > far ? Math.min(hCur * (legal / far), h * 0.55) : hCur;
 
     const lift = (pts: [number, number][], dy: number) =>

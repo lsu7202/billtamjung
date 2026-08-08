@@ -228,13 +228,17 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
     // ── 건물 매스 ─────────────────────────────────────────
     const far = data.far ?? 0, legal = data.legalFar ?? 0, bcr = data.bcr ?? 0;
     const floors = data.floorsAbove ?? (bcr > 0 && far > 0 ? Math.max(1, Math.round(far / bcr)) : 3);
-    const H = floors * STOREY;
+    // 높이는 대장 실측값(표제부)이 있으면 그것만 쓴다. 없으면 층수×3.5m로 매스는 세우되
+    // 치수는 그리지 않는다 — 그림은 도해지만 숫자는 사실이어야 한다.
+    // (실측: 종로2가 71-6은 8층 21.6m = 층당 2.7m. 3.5m 가정이면 28m로 6.4m 빗나간다)
+    const H = data.height ?? floors * STOREY;
+    const storey = H / Math.max(1, floors);
     const foot = shrink(parcel, bcr > 0 ? Math.sqrt(Math.min(bcr, 100) / 100) : 0.9, c);
 
     scene.add(slab(foot, 0, H, new THREE.MeshStandardMaterial({
       color: C.mass, roughness: 0.45, metalness: 0.1,
     })));
-    for (let i = 1; i < floors; i++) scene.add(thick(loop(foot, i * STOREY), C.massLine, { width: 1, opacity: 0.3 }));
+    for (let i = 1; i < floors; i++) scene.add(thick(loop(foot, i * storey), C.massLine, { width: 1, opacity: 0.3 }));
     scene.add(thick(loop(foot, H), 0xffffff, { width: 2, opacity: 0.9 }));
 
     // ── 법정 용적까지 남은 여유 ────────────────────────────
@@ -268,19 +272,23 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
       });
     });
 
-    // 건물 높이 — 앞쪽 모서리 바깥에 세로 치수선
+    // 건물 높이 — 앞쪽 모서리 바깥에 세로 치수선. 대장 실측이 있을 때만 긋는다.
     const corner = foot.reduce((a, p) => (p.z > a.z ? p : a), foot[0]);
     const off = { x: corner.x + (corner.x - c.x) * 0.3 + 2, z: corner.z + (corner.z - c.z) * 0.3 + 2 };
     const V = (y: number) => new THREE.Vector3(off.x, y, off.z);
-    scene.add(thick([V(0), V(H)], C.massLine, { width: 2.4, dash: DASH, top: true }));
-    scene.add(thick([new THREE.Vector3(corner.x, 0, corner.z), V(0)], C.massLine, { width: 1.6, dash: [0.5, 0.35], top: true }));
-    scene.add(thick([new THREE.Vector3(corner.x, H, corner.z), V(H)], C.massLine, { width: 1.6, dash: [0.5, 0.35], top: true }));
-    labs.push({ text: `${H.toFixed(0)}m`, kind: "mass", at: V(H / 2) });
+    if (data.height != null) {
+      scene.add(thick([V(0), V(H)], C.massLine, { width: 2.4, dash: DASH, top: true }));
+      scene.add(thick([new THREE.Vector3(corner.x, 0, corner.z), V(0)], C.massLine, { width: 1.6, dash: [0.5, 0.35], top: true }));
+      scene.add(thick([new THREE.Vector3(corner.x, H, corner.z), V(H)], C.massLine, { width: 1.6, dash: [0.5, 0.35], top: true }));
+      labs.push({ text: `${H.toFixed(1)}m`, kind: "mass", at: V(H / 2) });
+    }
 
-    if (HL > H + 0.5) {
+    // 법정 여유는 개층으로 — 미터로 적으면 '+0.9m'처럼 한 개 층도 못 되는 값이 여지처럼 읽힌다.
+    // 한 개 층에 못 미치면 치수를 아예 안 긋는다(용적률 대비는 좌우 HUD에 이미 있다).
+    if (HL - H >= storey) {
       scene.add(thick([V(H), V(HL)], C.legal, { width: 2.4, dash: DASH, top: true }));
       scene.add(thick([new THREE.Vector3(corner.x, HL, corner.z), V(HL)], C.legal, { width: 1.6, dash: [0.5, 0.35], top: true }));
-      labs.push({ text: `+${(HL - H).toFixed(1)}m`, kind: "legal", at: V((H + HL) / 2) });
+      labs.push({ text: `+${((HL - H) / storey).toFixed(1)}개층`, kind: "legal", at: V((H + HL) / 2) });
     }
 
     // 대지 — 가장 긴 변에 길이 치수

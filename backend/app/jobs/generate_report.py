@@ -590,7 +590,7 @@ async def _briefing_snapshot(building_pk: str, b: dict, team_id: int) -> dict:
             "SELECT sale_est FROM master.building_sale_est WHERE building_pk=$1", building_pk)}
 
     keep = ("addr", "road_addr", "land_area", "total_area", "build_area", "far_area", "bcr", "far",
-            "floors_above", "floors_below", "parking", "elevator", "approval_ymd", "remodel_ymd",
+            "floors_above", "floors_below", "height", "parking", "elevator", "approval_ymd", "remodel_ymd",
             "use_zone", "main_use_name", "etc_use", "structure", "jimok", "land_use", "road_frontage",
             "road_front_m", "road_side_m", "road_rear_m", "road_front_rn",
             "legal_far", "legal_bcr", "briefing_comment",

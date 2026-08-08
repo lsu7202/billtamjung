@@ -249,7 +249,7 @@ export function BriefingPage() {
                 bcr: num(s.bcr), far: num(s.far), legalFar: num(s.legal_far),
                 useZone: String(s.use_zone ?? "") || null,
                 frontRn: String(s.road_front_rn ?? "") || null,
-                floorsAbove: num(s.floors_above),
+                floorsAbove: num(s.floors_above), height: num(s.height),
               }} />
             </Suspense>
           </div>

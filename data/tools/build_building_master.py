@@ -80,6 +80,15 @@ def load_daesuseon():
             if pnu not in latest or d>latest[pnu]: latest[pnu]=d
     return {pnu:{'최근대수선일':latest[pnu],'대수선건수':cnt[pnu]} for pnu in latest}
 
+def _height(p):
+    """표제부 높이(m, idx42). 실제 높이라 층고 가정(층수×3.5m)보다 정확하다.
+    다만 56%만 채워져 있고 원본 오류가 섞여 있다(실측: 0.1m·13438m).
+    층수와 대조해 층당 2~8m 밖이면 버린다 — 없는 것이 틀린 것보다 낫다."""
+    h = fnum(p[42]); fl = int(fnum(p[43]) or 0)
+    if not h or h <= 1 or h > 600: return None
+    if fl > 0 and not (fl * 2 <= h <= fl * 8): return None
+    return round(h, 1)
+
 def load_land_area():
     """토지특성 PNU→면적(A12)."""
     d={}
@@ -143,6 +152,7 @@ def main():
                 '대지건폐용적_출처':s,'건폐용적_클린':clean,
                 '연면적':fnum(p[28]), '주용도코드':p[34],'주용도':p[35],'기타용도':p[36],
                 '구조':p[32], '지상층수':int(fnum(p[43])),'지하층수':int(fnum(p[44])),
+                '높이':_height(p),
                 '엘리베이터':_elev(p, kel, elmulti),             # 대장(p[45]) 우선, 없으면 승강기공단 보정
                 '주차':int(fnum(p[50])+fnum(p[52])+fnum(p[54])+fnum(p[56])) or None,
                 '용적률산정연면적':round(용적산정,2) if 용적산정>0 else None,

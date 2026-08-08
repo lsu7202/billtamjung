@@ -119,6 +119,7 @@ def main() -> int:
                 row[ci["건축면적"]] or "", row[ci["용적률산정연면적"]] or "",
                 row[ci["엘리베이터"]] if row[ci["엘리베이터"]] is not None else "",
                 row[ci["주차"]] if row[ci["주차"]] is not None else "",
+                row[ci["높이"]] if row[ci["높이"]] is not None else "",
             ]
             if len(rowvals) != len(COLUMNS):   # SSOT와 값 개수 불일치 = 컬럼 추가 시 writerow 누락
                 sys.exit(f"열 개수 불일치: writerow {len(rowvals)} ≠ COLUMNS {len(COLUMNS)}")
