@@ -107,17 +107,18 @@
 .ps3-v { color: #fff; font-size: 1.15cqw; font-weight: 800; letter-spacing: -.01em; }
 .ps3-h { color: #8FB0E0; font-size: .95cqw; font-weight: 700; }
 
-/* 치수 라벨 — 점선 치수선 끝에 붙는다. 위치는 3D 투영값(인라인 style) */
+/* 치수 — 점선 끝에 숫자만. 색으로 무엇의 치수인지 구분한다(선 색과 같다) */
 .ps3-dim { position: absolute; z-index: 2; transform: translate(-50%, -50%); pointer-events: none;
-  white-space: nowrap; display: flex; align-items: baseline; gap: .35cqw;
-  padding: .3cqw .6cqw; border-radius: 999px; background: rgba(11,17,28,.86);
-  border: 1px solid rgba(143,176,224,.32); }
-.ps3-dim b { color: #fff; font-size: .98cqw; font-weight: 800; letter-spacing: -.01em; }
-.ps3-dim .s { color: #9FB3D4; font-size: .8cqw; }
-.ps3-dim.road { border-color: rgba(231,200,118,.5); }
-.ps3-dim.road b { color: #F0DCA4; }
-.ps3-dim.far { border-color: rgba(231,200,118,.42); }
-.ps3-dim.far b { color: #E7C876; }
+  white-space: nowrap; font-size: 1.05cqw; font-weight: 800; letter-spacing: -.01em;
+  text-shadow: 0 0 .35cqw #070C14, 0 0 .8cqw #070C14, 0 .1cqw .2cqw rgba(0,0,0,.9); }
+.ps3-dim.front { color: #FFA23C; }   /* 전면도로 */
+.ps3-dim.road  { color: #C6D6EE; }   /* 그 밖의 접도 */
+.ps3-dim.mass  { color: #9BC0FF; }   /* 건물 높이 */
+.ps3-dim.plate { color: #39E0C8; }   /* 대지 */
+.ps3-dim.legal { color: #F2D072; }   /* 법정 여유 */
+
+.ps3-hint { position: absolute; z-index: 2; left: 1.1cqw; bottom: .9cqw; pointer-events: none;
+  color: #4E5F79; font-size: .8cqw; }
 .ps .ps-v { fill: #fff; font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
 .ps .ps-k { fill: #9FB3D4; font-size: 11px; }
 .ps .ps-h { fill: #8FB0E0; font-size: 12px; font-weight: 700; }

@@ -238,7 +238,6 @@ export function BriefingPage() {
         {/* 좌 — 실제 지도 위 필지. 업로드 없이 자동으로 그린다(지적도 레이어는 지도 API 제공) */}
         <figure>
           <ReportMap lng={num(s.lng)} lat={num(s.lat)} geom={snap.parcel} h="100%" />
-          <figcaption>위치 · 필지 경계</figcaption>
         </figure>
         {/* 우 — 입체 지적도. 대지 위에 현재 용적을 세우고 법정까지의 여유를 비워 보여준다 */}
         <figure>
@@ -254,7 +253,6 @@ export function BriefingPage() {
               }} />
             </Suspense>
           </div>
-          <figcaption>대지 · 접도 · 용적 — 파란 덩어리가 현재 건물, 그 위 유리 부피가 법정 용적까지 남은 여유</figcaption>
         </figure>
       </div>
     </Frame>,
