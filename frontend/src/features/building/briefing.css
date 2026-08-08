@@ -180,7 +180,7 @@
   grid-template-rows: auto auto 1fr auto auto;
   grid-template-areas:
     "head  head"
-    "money money"
+    "photo money"
     "photo spec"
     "cmt   cmt"
     "note  note";
@@ -205,7 +205,10 @@
 .bf-ov-money .k { color: var(--rmuted); }
 .bf-ov-money .v { font-weight: 700; color: var(--rink); font-variant-numeric: tabular-nums; }
 
-.bf-ov-photo { grid-area: photo; min-height: 0; overflow: hidden; background: #EEF0F4; }
+/* 슬롯 비율을 4:3으로 못박고 칸 높이에 맞춘다 — 칸 모양대로 늘리면 사진 위아래가 잘린다.
+   폭이 남으면 왼쪽에 붙여 두고, 폭이 모자라면 높이가 줄어 비율은 그대로 유지된다. */
+.bf-ov-photo { grid-area: photo; min-height: 0; height: 100%; aspect-ratio: 4 / 3;
+  max-width: 100%; justify-self: start; overflow: hidden; background: #EEF0F4; }
 .bf-ov-photo img { width: 100%; height: 100%; }
 
 /* 스펙시트 — 항목명은 작게 회색, 값은 오른쪽 정렬. 자리맞춤이 표를 만든다 */
