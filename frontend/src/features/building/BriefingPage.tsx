@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { reportsApi, PHOTO_KINDS, type Photo, type PhotoKind } from "../../shared/api/endpoints";
 import { useAuth } from "../../shared/store/auth";
 import { fitStyle } from "../../shared/ui/PhotoFit";
-import { ParcelScene } from "./ParcelScene";
 import { ReportMap } from "./ReportMap";
+// three.js는 이 슬라이드에서만 쓴다 — 첫 화면 번들에 얹지 않는다
+const ParcelScene3D = lazy(() => import("./ParcelScene3D").then((m) => ({ default: m.ParcelScene3D })));
 import { Loading } from "../../shared/ui/Spinner";
 import { Icon as ActionIcon } from "../../shared/ui/Icon";
 import "./reportslide.css";
@@ -242,16 +243,18 @@ export function BriefingPage() {
         {/* 우 — 입체 지적도. 대지 위에 현재 용적을 세우고 법정까지의 여유를 비워 보여준다 */}
         <figure>
           <div className="bf-scene">
-            <ParcelScene data={{
-              parcel: snap.parcel, roads: snap.roads,
-              landArea: num(s.land_area), totalArea: num(s.total_area),
-              bcr: num(s.bcr), far: num(s.far), legalFar: num(s.legal_far),
-              useZone: String(s.use_zone ?? "") || null,
-              frontRn: String(s.road_front_rn ?? "") || null,
-              floorsAbove: num(s.floors_above),
-            }} w={900} h={760} />
+            <Suspense fallback={<div className="ps-empty">입체 지적도 불러오는 중…</div>}>
+              <ParcelScene3D data={{
+                parcel: snap.parcel, roads: snap.roads,
+                landArea: num(s.land_area), totalArea: num(s.total_area),
+                bcr: num(s.bcr), far: num(s.far), legalFar: num(s.legal_far),
+                useZone: String(s.use_zone ?? "") || null,
+                frontRn: String(s.road_front_rn ?? "") || null,
+                floorsAbove: num(s.floors_above),
+              }} />
+            </Suspense>
           </div>
-          <figcaption>대지 · 접도 · 용적 — 파란 덩어리가 현재 건물, 점선까지가 법정 용적</figcaption>
+          <figcaption>대지 · 접도 · 용적 — 파란 덩어리가 현재 건물, 그 위 유리 부피가 법정 용적까지 남은 여유</figcaption>
         </figure>
       </div>
     </Frame>,

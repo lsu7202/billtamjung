@@ -94,6 +94,30 @@
 .bf-scene { background: linear-gradient(165deg, #131C2E 0%, #0C1220 100%); display: grid; place-items: center; }
 .ps { width: 100%; height: 100%; display: block; }
 .ps-empty { display: grid; place-items: center; height: 100%; color: #7F8CA6; font-size: 1.05cqw; }
+
+/* ── 입체 지적도(3D) ── 캔버스 위에 HUD·치수를 얹는다 */
+.ps3 { position: relative; width: 100%; height: 100%; overflow: hidden; }
+.ps3 > canvas { position: absolute; inset: 0; }
+.ps3-hud { position: absolute; z-index: 2; top: 1.1cqw; padding: .8cqw 1cqw; border-radius: .5cqw;
+  background: rgba(11,17,28,.74); backdrop-filter: blur(2px); pointer-events: none; }
+.ps3-hud.left { left: 1.1cqw; }
+.ps3-hud.right { right: 1.1cqw; text-align: right; }
+.ps3-zone { color: #C7D3E6; font-size: .95cqw; font-weight: 700; letter-spacing: .04em; margin-bottom: .5cqw; }
+.ps3-k { color: #9FB3D4; font-size: .82cqw; margin-top: .45cqw; }
+.ps3-v { color: #fff; font-size: 1.15cqw; font-weight: 800; letter-spacing: -.01em; }
+.ps3-h { color: #8FB0E0; font-size: .95cqw; font-weight: 700; }
+
+/* 치수 라벨 — 점선 치수선 끝에 붙는다. 위치는 3D 투영값(인라인 style) */
+.ps3-dim { position: absolute; z-index: 2; transform: translate(-50%, -50%); pointer-events: none;
+  white-space: nowrap; display: flex; align-items: baseline; gap: .35cqw;
+  padding: .3cqw .6cqw; border-radius: 999px; background: rgba(11,17,28,.86);
+  border: 1px solid rgba(143,176,224,.32); }
+.ps3-dim b { color: #fff; font-size: .98cqw; font-weight: 800; letter-spacing: -.01em; }
+.ps3-dim .s { color: #9FB3D4; font-size: .8cqw; }
+.ps3-dim.road { border-color: rgba(231,200,118,.5); }
+.ps3-dim.road b { color: #F0DCA4; }
+.ps3-dim.far { border-color: rgba(231,200,118,.42); }
+.ps3-dim.far b { color: #E7C876; }
 .ps .ps-v { fill: #fff; font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
 .ps .ps-k { fill: #9FB3D4; font-size: 11px; }
 .ps .ps-h { fill: #8FB0E0; font-size: 12px; font-weight: 700; }
