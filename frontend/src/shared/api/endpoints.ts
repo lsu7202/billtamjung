@@ -99,21 +99,23 @@ export interface MapPinDTO {
 export const searchApi = {
   suggest: (q: string) => api<Suggestion[]>(`/search/suggest?q=${encodeURIComponent(q)}`),
   regions: () => api<Record<string, { sgg_code: string; dongs: { bjd_code: string; dong: string; count: number }[] }>>("/search/regions"),
-  list: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string; page_mine?: number; page_normal?: number }) =>
+  list: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string; page_mine?: number; page_normal?: number; mine_only?: boolean }) =>
     api("/search", {
       method: "POST",
       body: JSON.stringify({
         polygon: p.polygon ?? null,
+        mine_only: p.mine_only ?? false,
         filters: { bjd_code: p.bjd_code ?? null, ...(p.filters ?? {}) },
         sort: p.sort ?? "price",
         page_mine: p.page_mine ?? 1, page_normal: p.page_normal ?? 1,
       }),
     }),
-  pins: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string }) =>
+  pins: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string; mine_only?: boolean }) =>
     api<MapPinDTO[]>("/search/pins", {                // 지도 핀: 페이징 없이 전체 매물(경량)
       method: "POST",
       body: JSON.stringify({
         polygon: p.polygon ?? null,
+        mine_only: p.mine_only ?? false,
         filters: { bjd_code: p.bjd_code ?? null, ...(p.filters ?? {}) },
         sort: p.sort ?? "price",
       }),

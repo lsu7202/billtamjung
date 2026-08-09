@@ -271,6 +271,7 @@ class Filters(BaseModel):
 
 class SearchIn(BaseModel):
     polygon: dict | None = None       # GeoJSON — 있으면 지역범위 대체(§3.6c)
+    mine_only: bool = False           # 지역·영역 없이 '내 매물'만 — 첫 화면(로그인 직후) 기본 목록
     filters: Filters = Filters()
     sort: str = "price"               # price|roi|addr
     page_mine: int = 1                # 열별 독립 페이징(§3.4)
@@ -610,6 +611,12 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
         return {"items": [dict(r) for r in rows], "total": total, "page": page,
                 "pages": max(1, -(-total // body.per_page))}
 
+    # 내 매물만 — 지역·영역이 없으면 '일반' 열은 서울 전체가 되어 의미도 없고 느리다.
+    # 담당자 있는 행만 훑으므로(listings_claim 부분 인덱스) 범위 조건 없이도 가볍다.
+    if body.mine_only:
+        return {"mine": await column("mine", body.page_mine),
+                "normal": {"items": [], "total": 0, "page": 1, "pages": 1}}
+
     # 두 열은 서로 독립 — 순차로 돌면 합계만큼 기다린다(구 단위 실측 합 0.83s → 최댓값 0.62s).
     mine, normal = await asyncio.gather(
         column("mine", body.page_mine), column("normal", body.page_normal))
@@ -621,7 +628,7 @@ async def pins(body: SearchIn, user: CurrentUser = Depends(current_user)):
     """지도 핀 — 페이징 없이 조건에 맞는 매물(경량: 좌표·분류·가격).
     프론트가 뷰포트 컬링(화면 안 핀만 렌더)하므로 넉넉히 반환하되, 3000개 상한(응답 크기·극단 방지).
     가격 있는 매물 우선(NULLS LAST) → 상한에 걸려도 유의미한 핀부터."""
-    base, args, outer_sql = _build_base(body, user)
+    base, args, outer_sql = _build_base(body, user, col="mine" if body.mine_only else None)
     rows = await pool().fetch(
         base + f"""SELECT building_pk, addr, lng, lat, col, price, roi,
                          last_sale_price, sale_est

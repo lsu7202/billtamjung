@@ -116,25 +116,27 @@ export function SearchPage() {
     enabled: dq.length > 0,
     placeholderData: (prev) => prev,   // 새 결과 오기 전 이전 목록 유지(깜빡임 제거)
   });
+  // 지역도 영역도 없으면 = 첫 화면. 빈 화면 대신 내 매물을 보여준다 —
+  // 로그인하고 들어와서 지역을 고르기 전까지 아무것도 안 뜨는 게 제일 큰 불만이었다.
+  const mineOnly = !bjd && !polygon;
   // 영역(폴리곤)이 있으면 지역범위 대체(S01 §3.6c)
   const result = useQuery<SearchResult>({
-    queryKey: ["search3", bjd, polygon, sort, filters, pages],
+    queryKey: ["search3", bjd, polygon, sort, filters, pages, mineOnly],
     queryFn: () =>
       searchApi.list({
         bjd_code: polygon ? undefined : bjd || undefined,
-        polygon: polygon ?? undefined, filters, sort,
+        polygon: polygon ?? undefined, filters, sort, mine_only: mineOnly,
         page_mine: pages.mine, page_normal: pages.normal,
       }) as Promise<SearchResult>,
-    enabled: !!bjd || !!polygon,
   });
   // 지도 핀 — 리스트는 페이징하되 지도엔 조건에 맞는 '전체' 매물을 표시(페이징 없음)
   const mapPins = useQuery<MapPin[]>({
-    queryKey: ["mapPins", bjd, polygon, sort, filters],
+    queryKey: ["mapPins", bjd, polygon, sort, filters, mineOnly],
     queryFn: () => searchApi.pins({
       bjd_code: polygon ? undefined : bjd || undefined,
-      polygon: polygon ?? undefined, filters, sort,
+      polygon: polygon ?? undefined, filters, sort, mine_only: mineOnly,
     }) as Promise<MapPin[]>,
-    enabled: (!!bjd || !!polygon) && view === "map",
+    enabled: view === "map",
   });
   const mapPinList = mapPins.data ?? [];
 
@@ -258,8 +260,8 @@ export function SearchPage() {
         </>)}
       </div>
 
-      {/* 결과바 — 건수 + 정렬 (목업 별도 바) */}
-      {(bjd || polygon) && (
+      {/* 결과바 — 건수 + 정렬 (목업 별도 바). 첫 화면(내 매물)에도 띄운다. */}
+      {result.data && (
         <div className="toolbar" style={{ margin: "0 2px", flex: "0 0 auto" }}>
           <span style={{ color: "var(--muted)", fontSize: 13 }}>전체 <b className="num">{total.toLocaleString()}</b>건</span>
           <span style={{ flex: 1 }} />
@@ -336,10 +338,16 @@ export function SearchPage() {
         <>
         {COLS.every(({ key }) => (result.data![key]?.total ?? 0) === 0) && (
           <div className="col-empty" style={{ textAlign: "center", padding: 28 }}>
-            조건에 맞는 매물이 없습니다
-            <small>{filterCount ? "필터를 줄이거나 지역을 넓혀 보세요" : "주소·지역을 입력해 검색하세요"}</small>
+            {mineOnly ? "등록한 매물이 없습니다" : "조건에 맞는 매물이 없습니다"}
+            <small>{mineOnly ? "매물 상세에서 담당자를 지정하면 여기에 모입니다 · 주소·지역으로 검색해 보세요"
+              : filterCount ? "필터를 줄이거나 지역을 넓혀 보세요" : "주소·지역을 입력해 검색하세요"}</small>
             {filterCount > 0 && <button className="btn" style={{ marginTop: 10 }}
               onClick={() => { setFilters({}); setFValues({}); setFRegions([]); resetPages(); }}><Icon name="reset" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />필터 초기화</button>}
+          </div>
+        )}
+        {mineOnly && (result.data!.mine.total > 0) && (
+          <div className="wf-note" style={{ fontSize: 12, color: "var(--blue)", padding: "2px 4px 6px" }}>
+            내 매물 전체를 보고 있습니다 — 주소·지역으로 검색하면 일반 매물도 함께 나옵니다.
           </div>
         )}
         <div className="wf-note" style={{ fontSize: 12, color: "var(--muted)", padding: "2px 4px 8px" }}>
