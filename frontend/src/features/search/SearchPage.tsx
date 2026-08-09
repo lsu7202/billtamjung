@@ -1,7 +1,8 @@
 import { LoadingOverlay } from "../../shared/ui/Spinner";
 import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { searchApi, buildingsApi, listingsApi, marketApi, type AttrFilters, type NearbySales } from "../../shared/api/endpoints";
+import { searchApi, buildingsApi, listingsApi, marketApi, buyersApi, type AttrFilters, type NearbySales } from "../../shared/api/endpoints";
 import { openDetail, mergeGeo } from "../../shared/map/geo";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
 import { FilterModal, activeCount, conditionChips, type Values, type RegionPick } from "./FilterModal";
@@ -100,7 +101,17 @@ function SelCard({ picked, bldg, nearby, onDetail }: {
 
 const SESSION_KEY = "s01_search_state_v1";
 
+/** 영업 탭에서 "지도에서 열기"로 넘어온 매수자 조건. 지도·필터·그리기로 다듬고 그 자리에서 되저장한다.
+ *  조건 편집을 모달로만 두면 지도가 없어 영역 그리기를 쓸 수 없다. */
+type BuyerCondNav = {
+  buyer_id: number; buyer_name: string; cond_id: number | null; name: string;
+  conditions: { values?: Values; regions?: RegionPick[]; polygon?: object | null; filters?: AttrFilters };
+};
+
 export function SearchPage() {
+  const loc = useLocation();
+  const nav2 = useNavigate();
+  const [bc] = useState<BuyerCondNav | null>(() => (loc.state as { buyerCond?: BuyerCondNav } | null)?.buyerCond ?? null);
   // 세션 유지: 검색 조건·뷰·페이지를 sessionStorage에 저장 → 상세 다녀오거나 새로고침해도 복원(S01 [MVP])
   const [saved] = useState<Record<string, unknown>>(() => {
     try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || "{}"); } catch { return {}; }
@@ -111,14 +122,16 @@ export function SearchPage() {
   const [priceMode, setPriceMode] = useState<"fair" | "real">((saved.priceMode as "fair" | "real") ?? "fair");   // 핀 태그 가격
   // 그린 영역은 여러 개 쌓인다 — 예전엔 단일 객체라 새로 그리면 앞의 것이 사라졌다.
   // 서버로는 mergeGeo로 MultiPolygon 하나로 합쳐 보낸다(서버는 손댈 것이 없다).
-  const [polygons, setPolygons] = useState<object[]>((saved.polygons as object[]) ?? []);
+  const [polygons, setPolygons] = useState<object[]>(
+    bc?.conditions.polygon ? [bc.conditions.polygon] : ((saved.polygons as object[]) ?? []));
   const polygon = mergeGeo(polygons);
   const [picked, setPicked] = useState<MapPin | null>(null);
   const [centerReq, setCenterReq] = useState<{ lng: number; lat: number; zoom?: number } | null>(null);  // 지도 중심 이동 요청
   const [sort, setSort] = useState((saved.sort as string) ?? "price");
-  const [filters, setFilters] = useState<AttrFilters>((saved.filters as AttrFilters) ?? {});      // 백엔드 쿼리용(모달 산출)
-  const [fValues, setFValues] = useState<Values>((saved.fValues as Values) ?? {});           // 필터 모달 원본값(칩·재편집용)
-  const [fRegions, setFRegions] = useState<RegionPick[]>((saved.fRegions as RegionPick[]) ?? []);   // 지역 앵커
+  // 매수자 조건을 싣고 왔으면 그 조건으로 시작한다(세션 복원보다 우선)
+  const [filters, setFilters] = useState<AttrFilters>(bc?.conditions.filters ?? (saved.filters as AttrFilters) ?? {});
+  const [fValues, setFValues] = useState<Values>(bc?.conditions.values ?? (saved.fValues as Values) ?? {});
+  const [fRegions, setFRegions] = useState<RegionPick[]>(bc?.conditions.regions ?? (saved.fRegions as RegionPick[]) ?? []);
   const [showFilter, setShowFilter] = useState(false);
   const [barCollapsed, setBarCollapsed] = useState(false);      // 검색바 접기(공간 절약)
   const [pages, setPages] = useState<{ mine: number; normal: number }>((saved.pages as { mine: number; normal: number }) ?? { mine: 1, normal: 1 });
@@ -293,6 +306,10 @@ export function SearchPage() {
         </>)}
       </div>
 
+      {/* 매수자 조건 편집 중 — 지도·필터·그리기로 다듬고 여기서 되저장한다 */}
+      {bc && <BuyerCondBar bc={bc} values={fValues} regions={fRegions} filters={filters}
+        polygon={polygon} onDone={() => nav2("/sales")} />}
+
       {/* 결과바 — 건수 + 정렬 (목업 별도 바). 첫 화면(내 매물)에도 띄운다. */}
       {result.data && (
         <div className="toolbar" style={{ margin: "0 2px", flex: "0 0 auto" }}>
@@ -438,6 +455,37 @@ export function SearchPage() {
           지도 탭에서 영역을 직접 그려 검색할 수도 있습니다.
         </div>
       ))}
+    </div>
+  );
+}
+
+/* 매수자 조건 저장 바 — 지금 화면의 조건(필터·지역·그린 영역)을 그대로 그 매수자에게 붙인다. */
+function BuyerCondBar({ bc, values, regions, filters, polygon, onDone }: {
+  bc: BuyerCondNav; values: Values; regions: RegionPick[]; filters: AttrFilters;
+  polygon: object | null; onDone: () => void;
+}) {
+  const [name, setName] = useState(bc.name);
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    setSaving(true);
+    const conditions = { values, regions, polygon, filters };
+    try {
+      if (bc.cond_id) await buyersApi.updateCondition(bc.cond_id, name.trim() || "조건", conditions);
+      else await buyersApi.addCondition(bc.buyer_id, name.trim() || "조건", conditions);
+      onDone();
+    } finally { setSaving(false); }
+  };
+  const n = activeCount(values, regions);
+  return (
+    <div className="bc-bar">
+      <Icon name="filter" size={14} />
+      <b>{bc.buyer_name}</b> 조건 편집 중
+      <input className="input" value={name} onChange={(e) => setName(e.target.value)}
+        placeholder="조건 이름" style={{ width: 150, padding: "4px 8px", fontSize: 12.5 }} />
+      <span className="cnt">조건 {n}개{polygon ? " · 그린 영역" : ""}</span>
+      <span style={{ flex: 1 }} />
+      <button className="btn" onClick={onDone}>취소</button>
+      <button className="btn primary" disabled={saving} onClick={save}>{saving ? "저장 중…" : "이 조건으로 저장"}</button>
     </div>
   );
 }

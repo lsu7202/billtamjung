@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, type CSSProperties } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { listingsApi, extrasApi, overlaysApi, buildingsApi, buyersApi, proposalsApi } from "../../shared/api/endpoints";
+import { listingsApi, extrasApi, overlaysApi, buildingsApi, buyersApi, proposalsApi, REJECT_REASONS, type MatchingBuyer } from "../../shared/api/endpoints";
 import { Loading } from "../../shared/ui/Spinner";
 import { KV, wonToEok, vPos, formatPhone } from "./KV";
 import { api } from "../../shared/api/client";
@@ -42,31 +42,63 @@ export function Sidebar({ pk }: { pk: string }) {
   );
 }
 
-/* ── 맞는 매수자(S04) — 조건이 이 매물에 걸리는 팀 매수자. 담으면 제안(후보)이 된다. ── */
+/* ── 매수자 추천(S04) — "이 매물, 누구에게?"
+   조건 O/X만 내면 그건 필터지 추천이 아니다. 왜 맞는지·무엇이 걸리는지를 같이 낸다.
+   조건 밖 매수자도 접어서 둔다 — 조건은 참고지 규칙이 아니고,
+   "조건엔 없지만 이건 보여줄 만하다"가 현장에서 자주 일어난다. */
 function MatchTab({ pk }: { pk: string }) {
   const qc = useQueryClient();
+  const [showOut, setShowOut] = useState(false);
   const q = useQuery({ queryKey: ["matching-buyers", pk], queryFn: () => buyersApi.matching(pk) });
   const add = async (id: number) => {
     await proposalsApi.upsert({ buyer_id: id, building_pk: pk });
     qc.invalidateQueries({ queryKey: ["matching-buyers", pk] });
   };
   if (q.isLoading) return <Loading label="찾는 중" minHeight="120px" />;
-  const list = q.data ?? [];
-  if (!list.length) {
+  const all = q.data ?? [];
+  if (!all.length) {
     return <p style={{ color: "var(--muted)", fontSize: 12.5, lineHeight: 1.6, margin: 0 }}>
-      조건이 맞는 매수자가 없습니다.<br />영업 탭에서 매수자와 조건을 등록하면 여기에 뜹니다.</p>;
+      등록된 매수자가 없습니다.<br />영업 탭에서 매수자를 등록하면 여기에 뜹니다.</p>;
   }
+  const hit = all.filter((b) => b.matched);
+  const out = all.filter((b) => !b.matched);
+  const card = (b: MatchingBuyer) => (
+    <div className={`mb-card ${b.matched ? "" : "out"}`} key={b.id}>
+      <div className="h">
+        <b>{b.name}</b>{b.grade ? <span className="g">{b.grade}</span> : null}
+        <span className="sp" />
+        {b.proposal_status
+          ? <span className="st">{b.proposal_status}</span>
+          : <button className="btn" onClick={() => add(b.id)}>후보로</button>}
+      </div>
+      {b.matched_condition && <div className="c">{b.matched_condition}</div>}
+      {b.checks.length > 0 && (
+        <div className="ck">
+          {b.checks.map((k, i) => (
+            <div className={k.ok ? "y" : "n"} key={i}>
+              <i>{k.ok ? "✓" : "✗"}</i>{k.label}
+              <span>{k.want} · 이 매물 {k.got}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {b.rejects.length > 0 && (
+        <div className="rj">지난 거절 {b.rejects.map((r) =>
+          `${REJECT_REASONS.find((x) => x.k === r.reason)?.label ?? r.reason}${r.n > 1 ? ` ${r.n}` : ""}`).join(" · ")}</div>
+      )}
+    </div>
+  );
   return (
     <div className="mb-list">
-      {list.map((b) => (
-        <div className="mb-row" key={b.id}>
-          <div className="n"><b>{b.name}</b>{b.grade ? <span className="g">{b.grade}</span> : null}
-            {b.phone ? <div className="p">{b.phone}</div> : null}</div>
-          {b.proposal_status
-            ? <span className="st">{b.proposal_status}</span>
-            : <button className="btn" onClick={() => add(b.id)}>후보로</button>}
-        </div>
-      ))}
+      {hit.length ? hit.map(card)
+        : <p style={{ color: "var(--muted)", fontSize: 12.5, margin: "0 0 8px" }}>조건에 걸리는 매수자가 없습니다.</p>}
+      {out.length > 0 && (
+        <>
+          <button className="mb-more" onClick={() => setShowOut((v) => !v)}>
+            조건 밖 {out.length}명 {showOut ? "접기" : "보기"}</button>
+          {showOut && out.map(card)}
+        </>
+      )}
     </div>
   );
 }

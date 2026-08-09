@@ -71,3 +71,9 @@
 .map-legend { position: absolute; left: 14px; top: 14px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 7px 11px; font-size: 12px; display: flex; gap: 14px; box-shadow: var(--shadow); font-weight: 600; z-index: 4; }
 .map-legend b { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
 
+
+/* 매수자 조건 편집 바 — 지도 위에서 조건을 다듬는 중임을 알린다 */
+.bc-bar { display: flex; align-items: center; gap: 8px; margin: 0 2px 8px; padding: 8px 12px;
+  background: color-mix(in srgb, var(--blue) 8%, var(--surface)); border: 1px solid var(--blue);
+  border-radius: 10px; font-size: 12.5px; }
+.bc-bar .cnt { color: var(--muted); }

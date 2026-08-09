@@ -1,26 +1,28 @@
 import { Fragment, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import {
   buyersApi, proposalsApi, PROPOSAL_STATUSES, REJECT_REASONS,
-  type Buyer, type Proposal, type ProposalStatus,
+  type Buyer, type BuyerCondition, type Proposal, type ProposalStatus, type AttrFilters,
 } from "../../shared/api/endpoints";
-import { FilterModal, activeCount, type Values, type RegionPick } from "../search/FilterModal";
-import type { AttrFilters } from "../../shared/api/endpoints";
+import { activeCount, type Values, type RegionPick } from "../search/FilterModal";
 import { Loading } from "../../shared/ui/Spinner";
 import { Icon } from "../../shared/ui/Icon";
 import { Segmented } from "../../shared/ui/Segmented";
+import { Chips } from "../building/EnumField";
+import { useEnums } from "../../shared/hooks/useEnums";
 import { openDetail } from "../../shared/map/geo";
-import { searchApi } from "../../shared/api/endpoints";
 import { won } from "../../shared/format";
 import "./sales.css";
 
-/** S04 영업관리 — 매도자·매물·매수자를 잇는 자리.
- *  중심축은 '제안'이다. 엑셀의 매수자 시트가 실제로는 제안 이력 장부였다.
- *  매수자 조건은 검색 필터와 **같은 스키마**라 조건 편집에 상세검색 모달을 그대로 쓴다. */
+/** S04 영업관리 — 매도자·매물·매수자를 잇는 자리. 중심축은 '제안'이다.
+ *
+ *  여기서 매물을 고르지 않는다. 조건에 걸리는 매물을 목록으로 뿌리고 담게 하면,
+ *  "이 사람에게 돌릴 만한가"를 필터 한 번으로 정하는 셈이 된다. 실제 판단은
+ *  지도(위치·입지) · 사이드바(주변 실거래) · 상세보기(수익률·건물상태)를 보고 나온다.
+ *  그래서 조건은 **검색 화면으로 들고 나가고**(영역 그리기도 지도가 있어야 된다),
+ *  담는 일은 매물 상세의 「매수자」 탭에서 한다. */
 
-/** 매수자 조건 = 검색 필터와 같은 모양.
- *  values/regions는 모달 재편집용 원본, filters는 검색 엔진에 그대로 넘기는 산출물.
- *  둘 다 저장해야 "조건 편집"과 "매칭"이 같은 것을 보고 돈다. */
 type Cond = { values?: Values; regions?: RegionPick[]; polygon?: object | null; filters?: AttrFilters };
 
 const py = (m2?: number | null) => (m2 ? `${Math.round(m2 / 3.305785)}평` : "—");
@@ -60,7 +62,7 @@ function Board({ rows, loading, onDone }: { rows?: Proposal[]; loading: boolean;
     return (
       <div className="panel sales-empty">
         아직 제안이 없습니다
-        <small>매수자를 등록하고, 매물 상세에서 「맞는 매수자」로 담으면 여기 모입니다</small>
+        <small>매물 상세의 「매수자」 탭에서 담으면 여기 모입니다</small>
       </div>
     );
   }
@@ -154,86 +156,98 @@ function RejectModal({ p, onClose, onDone }: { p: Proposal; onClose: () => void;
 
 /* ── 매수자 ── */
 function Buyers({ rows, loading, onDone }: { rows?: Buyer[]; loading: boolean; onDone: () => void }) {
-  const [cond, setCond] = useState<Buyer | null>(null);
-  const [open, setOpen] = useState<Buyer | null>(null);   // 맞는 매물 펼침
+  const [open, setOpen] = useState<number | null>(null);
+  const { options } = useEnums();
   if (loading) return <Loading label="불러오는 중" minHeight="40vh" />;
   const list = rows ?? [];
   if (!list.length) {
     return <div className="panel sales-empty">등록된 매수자가 없습니다<small>「매수자 추가」로 시작합니다</small></div>;
   }
+  const save = async (b: Buyer, patch: Record<string, unknown>) => { await buyersApi.update(b.id, patch); onDone(); };
   return (
-    <>
-      <div className="panel">
-        <table className="wf">
-          <thead><tr>
-            <th>이름</th><th>등급</th><th>연락처</th><th>유입</th><th>조건</th><th>맞는 매물</th><th className="num">진행</th><th>메모</th>
-          </tr></thead>
-          <tbody>
-            {list.map((b) => {
-              const c = (b.conditions_json ?? {}) as Cond;
-              const n = activeCount(c.values ?? {}, c.regions ?? []);
-              const ready = !!(c.filters && Object.keys(c.filters).length) || (c.regions ?? []).length > 0;
-              return (
-                <Fragment key={b.id}>
-                <tr>
-                  <td><b>{b.name}</b>{b.is_corp ? <span className="tag">법인</span> : null}</td>
-                  <td>{b.grade ?? "—"}</td>
-                  <td>{b.phone ?? "—"}</td>
-                  <td>{b.source ?? "—"}</td>
-                  <td>
-                    <button className="lnk" onClick={() => setCond(b)}>
-                      <Icon name="filter" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />
-                      {n ? `조건 ${n}개` : "조건 설정"}
-                    </button>
-                  </td>
-                  <td>
-                    {ready
-                      ? <button className="lnk" onClick={() => setOpen(open?.id === b.id ? null : b)}>
-                          {open?.id === b.id ? "접기" : "찾기"}</button>
-                      : <span style={{ color: "var(--muted)" }}>조건 먼저</span>}
-                  </td>
-                  <td className="num">{b.active_proposals}</td>
-                  <td className="memo">{b.memo ?? ""}</td>
-                </tr>
-                {open?.id === b.id && (
-                  <tr><td colSpan={8} style={{ padding: 0, background: "var(--surface-2)" }}>
-                    <Matches buyer={b} onDone={onDone} />
-                  </td></tr>
-                )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      {/* 조건 = 검색 필터와 같은 스키마라 상세검색 모달을 그대로 쓴다. 두 벌을 따로 만들지 않는다. */}
-      {cond && (
-        <FilterModal
-          initialValues={((cond.conditions_json as Cond).values) ?? {}}
-          initialRegions={((cond.conditions_json as Cond).regions) ?? []}
-          initialPolygon={((cond.conditions_json as Cond).polygon) ?? null}
-          onClose={() => setCond(null)}
-          onApply={async (r) => {
-            await buyersApi.update(cond.id, {
-              conditions: { values: r.values, regions: r.regions, polygon: r.polygon ?? null, filters: r.filters },
-            });
-            setCond(null); onDone();
-          }}
-        />
-      )}
-    </>
+    <div className="panel">
+      <table className="wf">
+        <thead><tr>
+          <th>이름</th><th>등급</th><th>유입</th><th>연락처</th><th>조건</th><th className="num">진행</th><th>메모</th>
+        </tr></thead>
+        <tbody>
+          {list.map((b) => (
+            <Fragment key={b.id}>
+              <tr>
+                <td><b>{b.name}</b>{b.is_corp ? <span className="tag">법인</span> : null}</td>
+                {/* 선택형은 전부 칩 — 자유입력이면 사람마다 다르게 적고 집계가 안 된다(시스템 일관성) */}
+                <td><Chips opts={options("buyer_grade")} cur={b.grade ?? "미지정"}
+                  onSelect={(v) => save(b, { grade: v === "미지정" ? null : v })} /></td>
+                <td><Chips opts={options("buyer_source")} cur={b.source ?? "미지정"}
+                  onSelect={(v) => save(b, { source: v === "미지정" ? null : v })} /></td>
+                <td>{b.phone ?? "—"}</td>
+                <td>
+                  <button className="lnk" onClick={() => setOpen(open === b.id ? null : b.id)}>
+                    <Icon name="filter" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />
+                    조건 {b.conditions.length}개
+                  </button>
+                </td>
+                <td className="num">{b.active_proposals}</td>
+                <td className="memo">{b.memo ?? ""}</td>
+              </tr>
+              {open === b.id && (
+                <tr><td colSpan={7} style={{ padding: 0, background: "var(--surface-2)" }}>
+                  <Conditions buyer={b} onDone={onDone} />
+                </td></tr>
+              )}
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* 조건 세트 — 여러 개. 편집·신규 모두 **검색 화면으로 나간다**.
+   모달만 띄우면 지도가 없어 「영역 그리기」를 못 쓴다. 조건을 잡는 일 자체가 지도를 보며 하는 일이다. */
+function Conditions({ buyer, onDone }: { buyer: Buyer; onDone: () => void }) {
+  const nav = useNavigate();
+  const edit = (c?: BuyerCondition) => {
+    nav("/search", { state: { buyerCond: {
+      buyer_id: buyer.id, buyer_name: buyer.name,
+      cond_id: c?.id ?? null, name: c?.name ?? "새 조건",
+      conditions: c?.conditions_json ?? {},
+    } } });
+  };
+  const del = async (cid: number) => { await buyersApi.removeCondition(cid); onDone(); };
+  return (
+    <div className="cd-wrap">
+      {buyer.conditions.map((c) => {
+        const j = (c.conditions_json ?? {}) as Cond;
+        const n = activeCount(j.values ?? {}, j.regions ?? []);
+        return (
+          <div className="cd-row" key={c.id}>
+            <span className="nm">{c.name}</span>
+            <span className="ct">조건 {n}개{j.polygon ? " · 그린 영역" : ""}</span>
+            <span className="sp" />
+            <button className="lnk" onClick={() => edit(c)}>지도에서 열기</button>
+            <button className="lnk del" onClick={() => del(c.id)}>삭제</button>
+          </div>
+        );
+      })}
+      {!buyer.conditions.length && <div className="cd-none">조건이 없습니다 — 지도에서 잡아 저장합니다</div>}
+      <button className="btn" style={{ marginTop: 6, padding: "3px 10px", fontSize: 12 }} onClick={() => edit()}>
+        <Icon name="plus" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />조건 추가</button>
+    </div>
   );
 }
 
 function NewBuyer({ onDone }: { onDone: () => void }) {
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ name: "", phone: "", grade: "", source: "", is_corp: false, memo: "" });
-  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setF({ ...f, [k]: k === "is_corp" ? (e.target as HTMLInputElement).checked : e.target.value });
+  const { options } = useEnums();
+  const [f, setF] = useState({ name: "", phone: "", grade: "미지정", source: "미지정", is_corp: false, memo: "" });
   const save = async () => {
     if (!f.name.trim()) return;
-    await buyersApi.create({ ...f, name: f.name.trim(), conditions: {} });
-    setOpen(false); setF({ name: "", phone: "", grade: "", source: "", is_corp: false, memo: "" });
+    await buyersApi.create({
+      name: f.name.trim(), phone: f.phone || null, memo: f.memo || null, is_corp: f.is_corp,
+      grade: f.grade === "미지정" ? null : f.grade, source: f.source === "미지정" ? null : f.source,
+    });
+    setOpen(false); setF({ name: "", phone: "", grade: "미지정", source: "미지정", is_corp: false, memo: "" });
     onDone();
   };
   return (
@@ -245,14 +259,20 @@ function NewBuyer({ onDone }: { onDone: () => void }) {
           <div className="mini" onClick={(e) => e.stopPropagation()}>
             <h3>매수자 추가</h3>
             <div className="nb-grid">
-              <label>이름<input className="input" autoFocus value={f.name} onChange={set("name")} /></label>
-              <label>연락처<input className="input" value={f.phone} onChange={set("phone")} /></label>
-              <label>등급<input className="input" placeholder="A / B / C" value={f.grade} onChange={set("grade")} /></label>
-              <label>유입경로<input className="input" placeholder="소개 · 광고 · 직접문의" value={f.source} onChange={set("source")} /></label>
-              <label className="chk"><input type="checkbox" checked={f.is_corp} onChange={set("is_corp")} />법인</label>
+              <label>이름<input className="input" autoFocus value={f.name}
+                onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
+              <label>연락처<input className="input" value={f.phone}
+                onChange={(e) => setF({ ...f, phone: e.target.value })} /></label>
+              <label>등급<span><Chips opts={options("buyer_grade")} cur={f.grade}
+                onSelect={(v) => setF({ ...f, grade: v })} /></span></label>
+              <label>유입경로<span><Chips opts={options("buyer_source")} cur={f.source}
+                onSelect={(v) => setF({ ...f, source: v })} /></span></label>
+              <label className="chk"><input type="checkbox" checked={f.is_corp}
+                onChange={(e) => setF({ ...f, is_corp: e.target.checked })} />법인</label>
             </div>
             {/* 필터로 안 잡히는 조건은 여기 남긴다 — 매칭에는 안 걸린다 */}
-            <textarea className="input" rows={2} placeholder="메모 (예: 식당 임차X · 대로변)" value={f.memo} onChange={set("memo")} />
+            <textarea className="input" rows={2} placeholder="메모 (예: 식당 임차X · 대로변)"
+              value={f.memo} onChange={(e) => setF({ ...f, memo: e.target.value })} />
             <div className="mini-foot">
               <button className="mini-cancel" onClick={() => setOpen(false)}>취소</button>
               <button className="apply" disabled={!f.name.trim()} onClick={save}>추가</button>
@@ -263,63 +283,3 @@ function NewBuyer({ onDone }: { onDone: () => void }) {
     </>
   );
 }
-
-/* 조건에 맞는 매물 — **검색 엔진을 그대로 부른다.**
-   매칭용 쿼리를 따로 만들면 "검색 결과"와 "매칭 결과"가 언젠가 어긋난다.
-   여기서 담으면 제안(후보)이 되고 보드 첫 열에 뜬다 — 조건 → 매물 → 제안이 한 줄로 이어진다. */
-function Matches({ buyer, onDone }: { buyer: Buyer; onDone: () => void }) {
-  const c = (buyer.conditions_json ?? {}) as Cond;
-  const bjd = c.regions?.[0]?.bjd_code;
-  const q = useQuery({
-    queryKey: ["buyer-match", buyer.id, c.filters, bjd, c.polygon],
-    queryFn: () => searchApi.list({
-      bjd_code: c.polygon ? undefined : bjd,
-      polygon: (c.polygon as object) ?? undefined,
-      filters: c.filters ?? {},
-      page_mine: 1, page_normal: 1,
-    }) as Promise<{ mine: { items: MatchHit[]; total: number }; normal: { items: MatchHit[]; total: number } }>,
-  });
-  const already = useQuery({
-    queryKey: ["proposals", buyer.id],
-    queryFn: () => proposalsApi.list({ buyer_id: buyer.id }),
-  });
-  const sent = new Set((already.data ?? []).map((p) => p.building_pk));
-
-  if (q.isLoading) return <div className="mt-wrap"><Loading label="맞는 매물 찾는 중" minHeight="90px" /></div>;
-  const items = [...(q.data?.mine.items ?? []), ...(q.data?.normal.items ?? [])];
-  const total = (q.data?.mine.total ?? 0) + (q.data?.normal.total ?? 0);
-  if (!items.length) {
-    return <div className="mt-wrap mt-none">조건에 맞는 매물이 없습니다 — 조건을 넓혀 보세요</div>;
-  }
-  const add = async (pk: string) => {
-    await proposalsApi.upsert({ buyer_id: buyer.id, building_pk: pk });   // 후보로 담는다(아직 안 보냄)
-    onDone();
-  };
-  return (
-    <div className="mt-wrap">
-      <div className="mt-head">조건에 맞는 매물 <b>{total.toLocaleString()}</b>건 <small>· 상위 {items.length}건</small></div>
-      <table className="wf mt-tbl">
-        <thead><tr><th>주소</th><th className="num">매매가</th><th className="num">수익률</th><th className="num">대지</th><th /></tr></thead>
-        <tbody>
-          {items.slice(0, 12).map((h) => (
-            <tr key={h.building_pk}>
-              <td><span className="lnk" onClick={() => openDetail(h.building_pk)}>
-                {h.addr.replace("서울특별시 ", "").replace("번지", "")}</span></td>
-              <td className="num">{h.price ? won(h.price) : "—"}</td>
-              <td className="num">{h.roi != null ? `${h.roi}%` : "—"}</td>
-              <td className="num">{py(h.land_area)}</td>
-              <td className="num">
-                {sent.has(h.building_pk)
-                  ? <span style={{ color: "var(--muted)", fontSize: 11.5 }}>담김</span>
-                  : <button className="btn" style={{ padding: "2px 8px", fontSize: 11.5 }}
-                      onClick={() => add(h.building_pk)}>후보로</button>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-type MatchHit = { building_pk: string; addr: string; price: number | null; roi: number | null; land_area: number | null };

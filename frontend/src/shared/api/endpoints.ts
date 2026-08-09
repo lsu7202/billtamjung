@@ -358,10 +358,14 @@ export const REJECT_REASONS = [
   { k: "buyer_side", label: "매수자 사정" }, { k: "etc", label: "기타" },
 ] as const;
 
+/** 조건 세트 — 한 매수자가 "종로 수익형"과 "강남 신축부지"를 같이 들고 다닌다. */
+export interface BuyerCondition {
+  id: number; buyer_id: number; name: string; conditions_json: Record<string, unknown>;
+}
 export interface Buyer {
   id: number; name: string; phone: string | null; grade: string | null; source: string | null;
   is_corp: boolean | null; status: string; memo: string | null;
-  conditions_json: Record<string, unknown>;
+  conditions: BuyerCondition[];
   assignee_account_id: number | null; active_proposals: number; updated_at: string;
 }
 export interface Proposal {
@@ -377,9 +381,15 @@ export interface Contact {
   occurred_on: string; note: string | null;
 }
 
+/** 조건 항목별 충족 — 점수 하나로 뭉개지 않는다. "수익률만 0.5%p 모자란다"가 보여야 판단한다. */
+export interface MatchCheck { label: string; ok: boolean; want: string; got: string }
 export interface MatchingBuyer {
   id: number; name: string; grade: string | null; phone: string | null;
-  proposal_status: string | null;   // 이미 제안했으면 그 상태
+  matched: boolean;                   // 조건에 걸렸는지
+  matched_condition: string | null;   // 어느 조건 세트로
+  checks: MatchCheck[];               // 왜 맞는지 / 무엇이 걸리는지
+  rejects: { reason: string; n: number }[];   // 과거 거절 패턴(매물 탓 사유만)
+  proposal_status: string | null;
 }
 
 export const buyersApi = {
@@ -391,6 +401,11 @@ export const buyersApi = {
   update: (id: number, patch: Record<string, unknown>) =>
     api(`/buyers/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   remove: (id: number) => api(`/buyers/${id}`, { method: "DELETE" }),
+  addCondition: (bid: number, name: string, conditions: Record<string, unknown>) =>
+    api<{ id: number }>(`/buyers/${bid}/conditions`, { method: "POST", body: JSON.stringify({ name, conditions }) }),
+  updateCondition: (cid: number, name: string, conditions: Record<string, unknown>) =>
+    api(`/conditions/${cid}`, { method: "PATCH", body: JSON.stringify({ name, conditions }) }),
+  removeCondition: (cid: number) => api(`/conditions/${cid}`, { method: "DELETE" }),
 };
 
 export const proposalsApi = {
