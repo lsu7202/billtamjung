@@ -64,7 +64,12 @@ async def get_listing(building_pk: str, user: CurrentUser = Depends(current_user
 
 @router.put("/claim")
 async def claim(body: ClaimIn, user: CurrentUser = Depends(current_user)):
-    """담당자 지정=매물 등록(선점). 팀원은 자기 자신만, 대표는 아무나(재배정)·해제."""
+    """담당자 지정=매물 등록(선점). 팀원은 자기 자신만, 대표는 아무나(재배정)·해제.
+
+    해제(target=None)도 **남의 담당은 못 푼다.** 예전엔 해제만 검사에서 빠져 있어서
+    팀원이 「해제 → 내가 담당」 두 번으로 대표·다른 팀원의 매물을 가져갈 수 있었다
+    (2026-08-09 발견 · 권한 QA C9·C13). 선점 규칙(S0M §3.5)이 통째로 무의미해지는 구멍이었다.
+    """
     target = body.assignee_account_id
     if target is not None and user.role != "owner" and target != user.account_id:
         raise HTTPException(403, "팀원은 자기 자신만 담당자로 지정할 수 있습니다")
@@ -81,6 +86,11 @@ async def claim(body: ClaimIn, user: CurrentUser = Depends(current_user)):
             body.building_pk, user.team_id,
         )
         cur_assignee = cur["assignee_account_id"] if cur else None
+        # 해제는 담당자 본인 또는 대표만. "해제 = 명시적 행위"(§3.5)는 부수효과로 풀리지 말라는 뜻이지
+        # 아무나 풀어도 된다는 뜻이 아니다.
+        if (target is None and cur_assignee is not None
+                and user.role != "owner" and cur_assignee != user.account_id):
+            raise HTTPException(403, "담당자 본인 또는 대표만 해제할 수 있습니다")
         # 이미 다른 팀원이 선점 → 팀원은 탈취 불가(대표만 재배정). specs S0M §3.5 "중복 선점 불가"
         if (target is not None and cur_assignee is not None
                 and cur_assignee != target and user.role != "owner"):

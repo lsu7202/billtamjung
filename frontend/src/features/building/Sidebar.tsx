@@ -120,6 +120,7 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
   const en = useEnums();
   const members = useQuery({ queryKey: ["team-members"], queryFn: listingsApi.members });
   const me = useQuery({ queryKey: ["me"], queryFn: () => api<{ account_id: number }>("/auth/me") });
+  const [assignErr, setAssignErr] = useState<string | null>(null);
   const building = useQuery({ queryKey: ["building", pk], queryFn: () => buildingsApi.get(pk) });
   const bd = building.data as Record<string, unknown> | undefined;
   async function saveOv(field: string, wonStr: string) {   // 원 입력 → 원 저장(오버레이)
@@ -128,6 +129,10 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
     building.refetch();
   }
   const assignee = listing?.assignee_account_id != null ? Number(listing.assignee_account_id) : null;
+  // 담당자 본인 또는 대표만 담당자를 바꾼다(서버 규칙과 같은 경계).
+  const myRole = (members.data ?? []).find((m) => m.account_id === me.data?.account_id)?.role;
+  const canAssign = myRole === "owner" || (assignee != null && assignee === me.data?.account_id);
+  const assigneeName = (members.data ?? []).find((m) => m.account_id === assignee)?.name ?? "—";
   const val = (k: string) => (listing?.[k] != null ? String(listing[k]) : "");
   const status = val("status") || "미지정";
 
@@ -135,9 +140,16 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
     await listingsApi.patchBiz(pk, { [k]: v || null });
     refresh();
   }
-  async function assign(id: number | null) {   // 담당자 지정=등록 · null=해제(claim이 팀권한 검증)
-    await listingsApi.claim(pk, id);
-    refresh();
+  // 담당자 지정=등록 · null=해제. 서버가 팀 권한을 검증한다(선점·해제 규칙 S0M §3.5).
+  // 거부되면 이유를 보여준다 — 눌렀는데 아무 일도 안 일어나면 고장으로 읽힌다.
+  async function assign(id: number | null) {
+    try {
+      setAssignErr(null);
+      await listingsApi.claim(pk, id);
+      refresh();
+    } catch (e) {
+      setAssignErr(String((e as Error)?.message ?? "담당자를 바꾸지 못했습니다"));
+    }
   }
 
   // 미등록 = 내 매물 아님 → 등록 CTA로 잠금. 등록하면 담당자=나로 지정되며 업무 정보 열림.
@@ -167,21 +179,28 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
       </div>
 
       <div style={{ margin: "6px 0 2px", fontWeight: 700 }}>업무 정보</div>
+      {/* 담당자 — 대표는 재배정·해제, 팀원은 자기 매물만. 남의 매물이면 이름만 보인다.
+          눌러도 거부될 컨트롤을 띄우면 "왜 안 되지"만 남는다(권한 QA 2026-08-09). */}
       <div className="kv" style={{ alignItems: "center" }}>
         <span className="k">담당자</span>
         <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <select className="input" style={{ maxWidth: 130, padding: "4px 8px", fontSize: 13 }}
-            value={assignee ?? ""} onChange={(e) => e.target.value && assign(Number(e.target.value))}>
-            {(members.data ?? []).map((m) => (
-              <option key={m.account_id} value={m.account_id}>
-                {m.name}{me.data?.account_id === m.account_id ? " (나)" : ""}{m.role === "owner" ? " · 대표" : ""}
-              </option>
-            ))}
-          </select>
-          <button className="btn" style={{ color: "var(--up)", padding: "3px 9px", fontSize: 12 }} title="내 매물에서 제거"
-            onClick={() => { if (confirm("내 매물에서 제거할까요? (담당자 해제)")) assign(null); }}>제거</button>
+          {canAssign
+            ? <select className="input" style={{ maxWidth: 130, padding: "4px 8px", fontSize: 13 }}
+                value={assignee ?? ""} onChange={(e) => e.target.value && assign(Number(e.target.value))}>
+                {(members.data ?? []).map((m) => (
+                  <option key={m.account_id} value={m.account_id}>
+                    {m.name}{me.data?.account_id === m.account_id ? " (나)" : ""}{m.role === "owner" ? " · 대표" : ""}
+                  </option>
+                ))}
+              </select>
+            : <span className="v">{assigneeName}</span>}
+          {canAssign && (
+            <button className="btn" style={{ color: "var(--up)", padding: "3px 9px", fontSize: 12 }} title="내 매물에서 제거"
+              onClick={() => { if (confirm("내 매물에서 제거할까요? (담당자 해제)")) assign(null); }}>제거</button>
+          )}
         </span>
       </div>
+      {assignErr && <div style={{ color: "var(--up)", fontSize: 11.5, margin: "-2px 0 4px" }}>{assignErr}</div>}
 
       {/* 가격 협의 — 오버레이(보고서 매도희망가·협의금액 근거). 억 단위 입력·클릭 편집. 매매가와 별개 */}
       <div style={{ margin: "8px 0 2px", fontWeight: 700 }}>가격 협의</div>
