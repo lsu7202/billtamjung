@@ -120,6 +120,35 @@ def _market_spatial(subject: dict) -> tuple[dict | None, int, dict | None]:
     return None, 500, None
 
 
+# 실거래 사례 조건(기간·가격대) — market_area 옆의 comp_filter 오버레이.
+# 기간이 5년으로 박혀 있고 가격대 필터가 없어서, 1,500억 매물의 사례에 3억짜리가 섞였다.
+# 기본값은 현행 그대로(5년·무제한)라 조건을 안 건드린 리포트는 값이 안 변한다.
+COMP_YEARS_DEFAULT = 5
+
+
+def _comp_filter(subject: dict) -> tuple[int, int | None, int | None]:
+    """comp_filter 오버레이 → (years, price_min, price_max). 없으면 (5, None, None)."""
+    cf = subject.get("comp_filter")
+    if isinstance(cf, str):
+        try:
+            cf = json.loads(cf)
+        except json.JSONDecodeError:
+            cf = None
+    if not isinstance(cf, dict):
+        return COMP_YEARS_DEFAULT, None, None
+
+    def _pos(k):
+        v = cf.get(k)
+        try:
+            v = int(v)
+        except (TypeError, ValueError):
+            return None
+        return v if v > 0 else None
+
+    years = _pos("years") or COMP_YEARS_DEFAULT
+    return min(years, 30), _pos("price_min"), _pos("price_max")
+
+
 def _f16_from_ymd(cb: dict) -> dict:
     """approval_ymd/remodel_ymd(date) → age_years/remodel_years 파생(F-16 입력용)."""
     today = dt.date.today()
@@ -166,6 +195,7 @@ async def _fetch_comps(building_pk: str, subject: dict, params: dict,
         clng, clat = geom["lng"], geom["lat"]
 
     allowed, allowed_mu, adj = _comp_type_filter(subject.get("land_use"), subject.get("main_use"))   # 성격(섹터) 필터. None=미적용
+    years, pmin, pmax = _comp_filter(subject)
     rows = await pool().fetch(
         f"""SELECT DISTINCT ON (sh.building_pk)
                   sh.building_pk, sh.contract_ym, sh.price, sh.total_area, sh.land_area,
@@ -177,12 +207,15 @@ async def _fetch_comps(building_pk: str, subject: dict, params: dict,
                         ST_SetSRID(ST_MakePoint($1,$2),4326)::geography)) AS dist_m
            FROM master.sales_history sh
            JOIN master.buildings b ON b.building_pk = sh.building_pk
-           WHERE sh.contract_ym >= to_char(now() - interval '5 years', 'YYYYMM')
+           WHERE sh.contract_ym >= to_char(now() - make_interval(years => $8::int), 'YYYYMM')
              AND sh.building_pk <> $4 AND sh.price > 0 AND sh.total_area > 0
+             AND ($9::bigint IS NULL OR sh.price >= $9)
+             AND ($10::bigint IS NULL OR sh.price <= $10)
              AND ($6::text[] IS NULL OR b.land_use = ANY($6) OR substr(b.main_use,1,2) = ANY($7))
              AND {_COMP_SPATIAL}
            ORDER BY sh.building_pk, sh.contract_ym DESC""",
         clng, clat, radius, building_pk, json.dumps(poly) if poly else None, allowed, allowed_mu,
+        years, pmin, pmax,
     )
     comps = []
     for r in rows:

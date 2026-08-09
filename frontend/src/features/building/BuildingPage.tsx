@@ -8,7 +8,7 @@ import {
 } from "../../shared/api/endpoints";
 import { PhotoPanel } from "../../shared/map/PhotoPanel";
 import { won, wonShort } from "../../shared/format";
-import { MarketArea, CompPoint } from "../../shared/map/geo";
+import { MarketArea, CompPoint, CompFilter, COMP_FILTER_DEFAULT } from "../../shared/map/geo";
 import { MarketTrend } from "./MarketTrend";
 import { MarketBlock } from "./MarketBlock";
 import { Sidebar } from "./Sidebar";
@@ -33,6 +33,8 @@ export function BuildingPage() {
   const [scope, setScope] = useState<Scope>("all");
   const [unit, setUnit] = useState<"py" | "m2">("py");
   const [marketArea, setMarketArea] = useState<MarketArea>({ kind: "circle", radius_m: 500 });   // 주변상권(지도 그리기)
+  // 실거래 사례 조건(기간·가격대) — 상권과 나란한 팀 오버레이. 리포트도 이 값을 읽는다.
+  const [compFilter, setCompFilter] = useState<CompFilter>(COMP_FILTER_DEFAULT);
   const [comps, setComps] = useState<CompPoint[]>([]);   // 지도에 찍을 주변 매물(실거래/임대)
   const hydrated = useRef(false);
 
@@ -43,12 +45,21 @@ export function BuildingPage() {
     hydrated.current = true;
     const raw = (building.data as Record<string, unknown>).market_area;
     if (typeof raw === "string") { try { setMarketArea(JSON.parse(raw)); } catch { /* 손상 시 기본 */ } }
+    const cf = (building.data as Record<string, unknown>).comp_filter;
+    if (typeof cf === "string") { try { setCompFilter({ ...COMP_FILTER_DEFAULT, ...JSON.parse(cf) }); } catch { /* 손상 시 기본 */ } }
   }, [building.data]);
   // 주변상권 변경 = 유저 오버레이로 저장(팀 공유). 그리기·이동·초기화 모두 여기로.
   // 저장 후 report-comps 무효화 — 리포트 요약(ReportView)·검토모달이 같은 캐시를 봐서, 안 하면 새 상권이 새로고침 전까지 반영 안 됨.
   const saveArea = (a: MarketArea) => {
     setMarketArea(a);
     overlaysApi.put(pk, "market_area", JSON.stringify(a))
+      .then(() => qc.invalidateQueries({ queryKey: ["report-comps", pk] }))
+      .catch(() => {});
+  };
+  // 사례 조건도 팀 공유 오버레이 — 리포트가 같은 값을 읽어야 화면과 보고서가 안 어긋난다.
+  const saveComp = (c: CompFilter) => {
+    setCompFilter(c);
+    overlaysApi.put(pk, "comp_filter", JSON.stringify(c))
       .then(() => qc.invalidateQueries({ queryKey: ["report-comps", pk] }))
       .catch(() => {});
   };
@@ -333,7 +344,8 @@ export function BuildingPage() {
 
           {/* 주변시세(S03 §3.9) — 층별임대 바로 아래(임대 관련 인접 배치) */}
           {show("deal") && typeof b.lng === "number" && typeof b.lat === "number" && (
-            <MarketBlock pk={pk} lng={b.lng} lat={b.lat} area={marketArea} onComps={setComps} />
+            <MarketBlock pk={pk} lng={b.lng} lat={b.lat} area={marketArea}
+              comp={compFilter} onComp={saveComp} onComps={setComps} />
           )}
 
           {/* 토지정보 · 규제 · 공시지가 = 필지 셀렉터(§3.6 · 다필지·규제 2레벨) — 풀폭 */}

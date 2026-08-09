@@ -20,6 +20,11 @@ class NearbyIn(BaseModel):
     floors: list[str] = []           # 본매물 층 — 임대 미입력 후보를 이 층 기준으로 노출
     floor_from: int = -1     # 지하1
     floor_to: int = 5        # 지상5
+    # 실거래 사례 조건 — 리포트(comp_filter 오버레이)와 같은 뜻. 기본은 현행(5년·무제한).
+    # 조건이 화면마다 다르면 같은 매물의 '주변 실거래'가 두 값으로 보인다.
+    sale_years: int = 5
+    sale_price_min: int | None = None
+    sale_price_max: int | None = None
 
 
 # 공간 필터: 폴리곤($5) 있으면 그 영역, 없으면 반경($3). $1 lng·$2 lat·$3 radius·$5 polygon(json)
@@ -108,7 +113,7 @@ async def nearby(body: NearbyIn, _: CurrentUser = Depends(current_user)):
         for f, xs in sorted(by_floor.items())
     ]
 
-    # 매각 comps: 반경 내 최근 5년 매각 이력(추정) — S03 §3.3
+    # 매각 comps: 반경 내 매각 이력 — S03 §3.3. 기간·가격대는 상권 조건을 따른다.
     sale_rows = await pool().fetch(
         f"""SELECT DISTINCT ON (sh.building_pk)
                   sh.building_pk, sh.contract_ym, sh.price, sh.total_area, b.addr,
@@ -117,12 +122,16 @@ async def nearby(body: NearbyIn, _: CurrentUser = Depends(current_user)):
                         ST_SetSRID(ST_MakePoint($1,$2),4326)::geography)) AS dist_m
            FROM master.sales_history sh
            JOIN master.buildings b ON b.building_pk = sh.building_pk
-           WHERE sh.contract_ym >= to_char(now() - interval '5 years', 'YYYYMM')
+           WHERE sh.contract_ym >= to_char(now() - make_interval(years => $6::int), 'YYYYMM')
              AND ($4::text IS NULL OR sh.building_pk <> $4)
+             AND ($7::bigint IS NULL OR sh.price >= $7)
+             AND ($8::bigint IS NULL OR sh.price <= $8)
              AND {_SPATIAL.format(geom='b.geom')}
            ORDER BY sh.building_pk, sh.contract_ym DESC""",   # 같은 매물=최근 거래만(DISTINCT ON)
         body.center_lng, body.center_lat, body.radius_m, body.building_pk,
         json.dumps(body.polygon) if body.polygon else None,
+        max(1, min(body.sale_years or 5, 30)),
+        body.sale_price_min or None, body.sale_price_max or None,
     )
     sales = []
     for r in sale_rows:

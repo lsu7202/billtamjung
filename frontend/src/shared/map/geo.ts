@@ -4,6 +4,11 @@ export type MarketArea =
   | { kind: "circle"; radius_m: number; center?: { lng: number; lat: number } }
   | { kind: "polygon"; geojson: object; area_m2: number };
 
+/** 실거래 사례 조건 — 기간(년)·가격 하한/상한(원). 리포트와 매물상세가 같은 값을 쓴다.
+ *  기본은 현행 그대로(5년·무제한)라 조건을 안 건드리면 값이 안 변한다. */
+export type CompFilter = { years: number; price_min: number | null; price_max: number | null };
+export const COMP_FILTER_DEFAULT: CompFilter = { years: 5, price_min: null, price_max: null };
+
 /** 여러 영역을 한 GeoJSON으로 합친다 — 백엔드는 폴리곤 하나만 받으므로 MultiPolygon으로 넘긴다.
  *  ST_Within(b.geom, MultiPolygon)이 그대로 성립해서 서버는 손댈 것이 없다. */
 export function mergeGeo(list: object[]): object | null {

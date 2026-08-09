@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { marketApi, rentsApi } from "../../shared/api/endpoints";
-import { MarketArea, CompPoint, circleToGeoJSON, fmtArea, fmtDist, openDetail } from "../../shared/map/geo";
+import { MarketArea, CompPoint, CompFilter, COMP_FILTER_DEFAULT, circleToGeoJSON, fmtArea, fmtDist, openDetail } from "../../shared/map/geo";
+import { parseWon } from "./KV";
 import { won, wonShort } from "../../shared/format";
 import { Icon } from "../../shared/ui/Icon";
 
@@ -30,7 +31,29 @@ const signedFloor = (fl: string): number => {   // 서명층수: 지상 양수·
 };
 const shortAddr = (a: string) => a.replace("서울특별시 ", "").replace("번지", "");
 
-export function MarketBlock({ pk, lng, lat, area, onComps }: { pk: string; lng: number; lat: number; area: MarketArea; onComps?: (pts: CompPoint[]) => void }) {
+/** 억 단위로 치는 금액 칸 — 매매가 입력과 같은 파서(15억·1500000000 둘 다 받는다). 빈칸=제한 없음. */
+function EokInput({ v, ph, onSave }: { v: number | null; ph: string; onSave: (won: number | null) => void }) {
+  const [t, setT] = useState("");
+  const [on, setOn] = useState(false);
+  const disp = v == null ? "" : `${+(v / 1e8).toFixed(2)}억`;
+  if (!on) return (
+    <span style={{ cursor: "pointer", minWidth: 52, display: "inline-block", textAlign: "right",
+      color: v == null ? "var(--muted)" : "var(--ink)", borderBottom: "1px dashed var(--line)" }}
+      onClick={() => { setT(disp); setOn(true); }}>{disp || ph}</span>
+  );
+  return (
+    <input className="input" autoFocus value={t} placeholder={ph}
+      style={{ width: 72, padding: "3px 6px", fontSize: 12, textAlign: "right" }}
+      onChange={(e) => setT(e.target.value)}
+      onBlur={() => { setOn(false); onSave(t.trim() ? parseWon(t) : null); }}
+      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setOn(false); }} />
+  );
+}
+
+export function MarketBlock({ pk, lng, lat, area, comp, onComp, onComps }: {
+  pk: string; lng: number; lat: number; area: MarketArea;
+  comp: CompFilter; onComp: (c: CompFilter) => void; onComps?: (pts: CompPoint[]) => void;
+}) {
   const [unchecked, setUnchecked] = useState<Set<string>>(new Set());
   const [openFloors, setOpenFloors] = useState<Set<string>>(new Set());   // 층별 접고펴기
   const [salesOpen, setSalesOpen] = useState(false);   // 실거래 접고펴기(기본 10개 요약)
@@ -48,11 +71,12 @@ export function MarketBlock({ pk, lng, lat, area, onComps }: { pk: string; lng: 
   }, [subjRents.data, subjOutline.data]);
 
   const q = useQuery<Nearby>({
-    queryKey: ["nearby", lng, lat, pk, area, subjectFloors],
+    queryKey: ["nearby", lng, lat, pk, area, subjectFloors, comp],
     queryFn: () => marketApi.nearby({
       center_lat: lat, center_lng: lng, building_pk: pk, radius_m: 0,
       polygon: area.kind === "circle" ? circleToGeoJSON(area.center ?? { lng, lat }, area.radius_m) : area.geojson,
       floors: subjectFloors,
+      sale_years: comp.years, sale_price_min: comp.price_min, sale_price_max: comp.price_max,
     }) as unknown as Promise<Nearby>,
   });
 
@@ -147,8 +171,25 @@ export function MarketBlock({ pk, lng, lat, area, onComps }: { pk: string; lng: 
 
     {/* 주변 실거래 — 별도 카드 */}
     <div className="panel">
-      <div className="sec-head">주변 실거래 <small style={{ color: "var(--muted)", fontWeight: 400 }}>최근 5년 · 매물별 최근 거래 · 반경 내 {sales.length}건</small>
+      <div className="sec-head">주변 실거래 <small style={{ color: "var(--muted)", fontWeight: 400 }}>매물별 최근 거래 · 영역 내 {sales.length}건</small>
         {areaBadge}
+      </div>
+      {/* 사례 조건 — 기간이 5년으로 박혀 있고 가격대 필터가 없어서
+          1,500억 매물의 사례에 3억짜리가 섞였다. 리포트도 같은 값을 쓴다. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "0 2px 8px", fontSize: 12, color: "var(--muted)" }}>
+        <span>기간</span>
+        <select className="input" style={{ width: "auto", minWidth: 0, padding: "4px 8px", fontSize: 12 }}
+          value={comp.years} onChange={(e) => onComp({ ...comp, years: Number(e.target.value) })}>
+          {[1, 2, 3, 5, 10].map((y) => <option key={y} value={y}>최근 {y}년</option>)}
+        </select>
+        <span style={{ marginLeft: 6 }}>가격대</span>
+        <EokInput v={comp.price_min} ph="하한" onSave={(w) => onComp({ ...comp, price_min: w })} />
+        <span>~</span>
+        <EokInput v={comp.price_max} ph="상한" onSave={(w) => onComp({ ...comp, price_max: w })} />
+        {(comp.years !== 5 || comp.price_min != null || comp.price_max != null) && (
+          <button className="btn" style={{ padding: "2px 8px", fontSize: 11 }}
+            onClick={() => onComp(COMP_FILTER_DEFAULT)}>조건 초기화</button>
+        )}
       </div>
       <table className="wf">
         <thead><tr><th>주소</th><th className="num">거리</th><th>거래일</th><th className="num">실거래가</th><th className="num">연면적 평단가</th></tr></thead>
@@ -172,7 +213,7 @@ export function MarketBlock({ pk, lng, lat, area, onComps }: { pk: string; lng: 
               </button>
             </td></tr>
           )}
-          {sales.length === 0 && <tr><td colSpan={5} style={{ color: "var(--muted)", textAlign: "center", padding: 16 }}>반경 내 최근 5년 실거래가 없습니다 — 반경을 넓혀보세요</td></tr>}
+          {sales.length === 0 && <tr><td colSpan={5} style={{ color: "var(--muted)", textAlign: "center", padding: 16 }}>조건에 맞는 실거래가 없습니다 — 영역을 넓히거나 기간·가격대를 풀어보세요</td></tr>}
         </tbody>
       </table>
     </div>

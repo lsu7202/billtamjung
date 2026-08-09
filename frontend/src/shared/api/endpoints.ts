@@ -249,7 +249,8 @@ export const seriesApi = {
 };
 
 export const marketApi = {
-  nearby: (b: { center_lat: number; center_lng: number; radius_m: number; building_pk?: string; polygon?: object | null; floors?: string[] }) =>
+  nearby: (b: { center_lat: number; center_lng: number; radius_m: number; building_pk?: string; polygon?: object | null; floors?: string[];
+                sale_years?: number; sale_price_min?: number | null; sale_price_max?: number | null }) =>
     api<Record<string, unknown>>("/market/nearby", { method: "POST", body: JSON.stringify(b) }),
 };
 
