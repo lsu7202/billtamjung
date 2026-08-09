@@ -70,46 +70,25 @@ function SelCard({ picked, bldg, nearby, onDetail }: {
         </div>
         {/* 주변 실거래 — "이 매물이 어느 정도인가"에 답하는 자리.
             자기 실거래 이력이 있는 건물은 13.5%뿐이라(2026-08-09 실측) 자기 이력만 그리면 대개 빈 칸이었다.
-            축은 연면적 평단가 — 리포트 04 비교와 같아서 두 화면이 같은 말을 한다. */}
+            축은 연면적 평단가 — 리포트 04 비교와 같아서 두 화면이 같은 말을 한다.
+            차트만 둔다. 반경·건수·중앙값을 글자로 덧붙이면 그래프가 읽히기 전에 글부터 읽힌다. */}
         <div className="sel-spark">
           <div className="sh"><span>주변 실거래 평단가</span>
-            <small style={{ color: "var(--muted)", fontWeight: 400 }}>
-              {nearby ? `${nearby.radius_m}m · 최근 ${nearby.years}년 · ${nearby.total}건${nearby.excluded ? ` · 이상치 ${nearby.excluded}건 제외` : ""}` : "불러오는 중…"}
-            </small>
-          </div>
-          {/* 기준선 글자는 차트 밖에 — 좁은 칸이라 안에 그리면 본매물 막대 값과 겹친다 */}
-          {nearby?.median_per_area ? (
-            <div className="sel-nb-sum">
-              <span><i style={{ background: "var(--blue)" }} />주변 중앙 <b>{Math.round(nearby.median_per_area / 1e4).toLocaleString()}만</b>/평</span>
-              {subjPer ? <span>본매물 <b style={{ color: "var(--blue)" }}>{Math.round(subjPer / 1e4).toLocaleString()}만</b>/평 <small>(적정가 기준)</small></span> : null}
-            </div>
-          ) : null}
+            <small style={{ color: "var(--muted)", fontWeight: 400 }}>연면적 만원/평</small></div>
           {nearby && nearby.sales.length > 0 ? (
-            <CompareBar height={132} refLabel={false} fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}`}
-              refLine={nearby.median_per_area ? { value: nearby.median_per_area, label: "주변 중앙" } : null}
+            <CompareBar height={140} refLabel={false} fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}`}
+              refLine={nearby.median_per_area ? { value: nearby.median_per_area, label: "" } : null}
               items={[
-                ...nearby.sales.filter((x) => x.per_area).map((x, i) => ({
-                  label: `${i + 1}`, value: x.per_area!, color: "var(--navy)",
+                // 가까운 순 5건 — 좁은 칸이라 더 넣으면 막대가 붙고 값이 겹친다.
+                // x축은 거리다. 목록 없이도 "얼마나 가까운 사례인지"가 축에서 읽힌다.
+                ...nearby.sales.slice(0, 5).filter((x) => x.per_area).map((x) => ({
+                  label: `${x.dist_m}m`, value: x.per_area!, color: "var(--navy)",
                 })),
-                ...(subjPer ? [{ label: "본매물", value: subjPer, color: "var(--blue)", strong: true }] : []),   // 적정가 기준
+                ...(subjPer ? [{ label: "본매물", value: subjPer, color: "var(--blue)", strong: true }] : []),
               ]} />
           ) : (
             <div style={{ color: "var(--muted)", fontSize: 12, padding: "14px 2px" }}>
               {nearby ? "반경 내 최근 실거래가 없습니다" : "\u00a0"}
-            </div>
-          )}
-          {/* 막대는 가까운 순 위에서 8건. 어느 매물인지는 아래 목록에서 본다. */}
-          {nearby && nearby.sales.length > 0 && (
-            <div className="sel-nb">
-              {nearby.sales.slice(0, 3).map((x, i) => (
-                <div key={x.building_pk} className="r">
-                  <span className="i">{i + 1}</span>
-                  <span className="a">{x.addr.replace("서울특별시 ", "").replace("번지", "")}</span>
-                  <span className="d">{x.dist_m}m</span>
-                  <span className="p">{eok1(x.price)}</span>
-                  <span className="u">{x.per_area ? `${Math.round(x.per_area / 1e4).toLocaleString()}만` : "—"}</span>
-                </div>
-              ))}
             </div>
           )}
         </div>
