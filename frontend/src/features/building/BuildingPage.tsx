@@ -435,13 +435,24 @@ export function BuildingPage() {
   );
 }
 
-/* 투자분석: 자기자본·대출금리 → 레버리지(대출액·LTV·이자·자기자본수익률). 매매가 기준 대출액 자동. */
+/** 취득 부대비용 기본률(%) — 중개보수 0.9 + 취득세등 4.6 + 법무사 0.2.
+ *  상업용 일반 거래 기준이고 개별 협의로 달라지니 화면에서 고칠 수 있게 둔다. */
+const FEE_PCT_DEFAULT = 5.7;
+
+/* 투자분석: 자기자본·대출금리 → 레버리지(대출액·LTV·이자·자기자본수익률).
+   총투자비 = 매매가 + 취득 부대비용. 실제로 손에서 나가는 돈은 매매가가 아니라 이쪽이라
+   대출액도 여기서 자기자본을 뺀다(매매가만 보면 부대비용만큼 대출을 과소평가한다). */
 function InvestCalc({ price, yearRent }: { price: number | null; yearRent: number }) {
   const [equity, setEquity] = useState("");                 // 콤마 포함 원 문자열(KV money와 동일)
   const [rate, setRate] = useState("");
+  const [feePct, setFeePct] = useState(String(FEE_PCT_DEFAULT));
   const eq = Number(equity.replace(/,/g, "")) || 0;         // 자기자본(원)
   const r = parseFloat(rate) || 0;                          // 대출금리(연 %)
-  const loan = price && eq ? Math.max(0, price - eq) : 0;   // 대출액 = 매매가 − 자기자본
+  const fp = feePct === "" ? 0 : parseFloat(feePct) || 0;   // 부대비용률(%)
+  const fee = price ? Math.round(price * (fp / 100)) : 0;   // 취득 부대비용(원)
+  const acq = price ? price + fee : 0;                      // 총투자비 = 매매가 + 부대비용
+  const loan = acq && eq ? Math.max(0, acq - eq) : 0;       // 대출액 = 총투자비 − 자기자본
+  // LTV는 담보가치(매매가) 기준이 표준이다 — 총투자비로 나누면 은행이 말하는 LTV와 달라진다.
   const ltv = price && loan ? (loan / price) * 100 : null;
   const annInt = Math.round(loan * (r / 100));              // 연 이자
   const annNet = yearRent - annInt;                          // 연 순수익(임대료 − 이자)
@@ -459,6 +470,12 @@ function InvestCalc({ price, yearRent }: { price: number | null; yearRent: numbe
       {/* 대출 금리 = 건폐율·용적률 등 %필드와 동일한 KV(클릭→편집·% 표시·↺) */}
       <KV label="대출 금리(연)" field="rate" value={rate !== "" ? rate : ""} unit="%" editable
         current={rate} validate={vNonNeg} onSave={(_f, v) => setRate(v)} onRevert={() => setRate("")} />
+      {/* 부대비용률 — 기본 5.7%(중개 0.9 + 취득세등 4.6 + 법무사 0.2). 협의로 달라지니 고칠 수 있다. */}
+      <KV label="취득 부대비용률" field="feePct" value={feePct !== "" ? feePct : ""} unit="%" editable
+        current={feePct} validate={vNonNeg}
+        onSave={(_f, v) => setFeePct(v)} onRevert={() => setFeePct(String(FEE_PCT_DEFAULT))} />
+      {row("취득 부대비용", fee ? won(fee) : "—")}
+      {row("총투자비", acq ? won(acq) : "—")}
       {row("대출액", loan ? `${won(loan)}${ltv != null ? `  ·  LTV ${ltv.toFixed(0)}%` : ""}` : (eq && price ? "0 (전액 자기자본)" : "—"))}
       {row("연 이자", annInt ? won(annInt) : "—")}
       {row("연 순수익", eq && price ? won(annNet) : "—")}
