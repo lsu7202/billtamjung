@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { marketApi, rentsApi } from "../../shared/api/endpoints";
 import { MarketArea, CompPoint, CompFilter, COMP_FILTER_DEFAULT, circleToGeoJSON, fmtArea, fmtDist, openDetail } from "../../shared/map/geo";
-import { parseWon } from "./KV";
+import { parseAmount, seedAmount } from "./KV";
 import { won, wonShort } from "../../shared/format";
 import { Icon } from "../../shared/ui/Icon";
 
@@ -31,21 +31,21 @@ const signedFloor = (fl: string): number => {   // 서명층수: 지상 양수·
 };
 const shortAddr = (a: string) => a.replace("서울특별시 ", "").replace("번지", "");
 
-/** 억 단위로 치는 금액 칸 — 매매가 입력과 같은 파서(15억·1500000000 둘 다 받는다). 빈칸=제한 없음. */
+/** 억 단위로 치는 금액 칸 — 매매가 입력과 같은 어법(맨숫자 = 억). 빈칸 = 제한 없음. */
 function EokInput({ v, ph, onSave }: { v: number | null; ph: string; onSave: (won: number | null) => void }) {
   const [t, setT] = useState("");
   const [on, setOn] = useState(false);
-  const disp = v == null ? "" : `${+(v / 1e8).toFixed(2)}억`;
+  const disp = v == null ? "" : `${seedAmount(v)}억`;
   if (!on) return (
     <span style={{ cursor: "pointer", minWidth: 52, display: "inline-block", textAlign: "right",
       color: v == null ? "var(--muted)" : "var(--ink)", borderBottom: "1px dashed var(--line)" }}
-      onClick={() => { setT(disp); setOn(true); }}>{disp || ph}</span>
+      onClick={() => { setT(seedAmount(v)); setOn(true); }}>{disp || ph}</span>
   );
   return (
-    <input className="input" autoFocus value={t} placeholder={ph}
-      style={{ width: 72, padding: "3px 6px", fontSize: 12, textAlign: "right" }}
+    <input className="input" autoFocus value={t} placeholder={`${ph}(억)`}
+      style={{ width: 64, padding: "3px 6px", fontSize: 12, textAlign: "right" }}
       onChange={(e) => setT(e.target.value)}
-      onBlur={() => { setOn(false); onSave(t.trim() ? parseWon(t) : null); }}
+      onBlur={() => { setOn(false); onSave(t.trim() ? parseAmount(t) : null); }}
       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setOn(false); }} />
   );
 }

@@ -119,11 +119,11 @@ function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string,
         </span>
       </div>
 
-      {/* 가격 협의 — 오버레이(보고서 매도희망가·협의금액 근거). 원 입력·억 노출·클릭 편집. 매매가와 별개 */}
+      {/* 가격 협의 — 오버레이(보고서 매도희망가·협의금액 근거). 억 단위 입력·클릭 편집. 매매가와 별개 */}
       <div style={{ margin: "8px 0 2px", fontWeight: 700 }}>가격 협의</div>
       {([["ask_price", "매도희망가"], ["bid_price", "매수희망가"]] as const).map(([f, label]) => (
         <KV key={`${f}-${String(bd?.[f] ?? "")}`} label={label} field={f} value={wonToEok(bd?.[f])}
-          editable money current={bd?.[f] != null ? String(bd[f]) : ""} parse={(v) => v} validate={vPos}
+          editable money current={bd?.[f] != null ? String(bd[f]) : ""} validate={vPos}
           onSave={(field, v) => saveOv(field, v)} onRevert={() => saveOv(f, "")} />
       ))}
 

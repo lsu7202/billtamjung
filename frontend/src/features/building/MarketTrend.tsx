@@ -3,6 +3,7 @@ import { seriesApi, type SeriesPt } from "../../shared/api/endpoints";
 import { TrendChart } from "./TrendChart";
 import { MetricStack } from "./ReportPrimitives";
 import { perPyMan } from "../../shared/format";
+import { parseAmount, seedAmount } from "./KV";
 
 /** 거래 시세 — 실거래 단일계열 카드(그래프 + 편집표 + 상승률).
  * 공시지가는 토지 섹션(ParcelBlock)에 값+추이로 통합. specs S02 §3.7.
@@ -141,14 +142,19 @@ function SeriesRow({ p, fmt, perPy, areaPy, onSave, onDel, hidden }: {
       <td className="num">
         {yEdit
           ? <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
-              <input className="input" style={{ width: 120, padding: "3px 6px", fontSize: 12 }} autoFocus value={yv}
-                onChange={(e) => setYv(e.target.value.replace(/[^\d]/g, ""))}
-                onBlur={() => { setYEdit(false); if (yv) trySave(draft ? xv : p!.x, yv); else if (!draft && p!.ov) onDel(p!.x); }}
-                onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setYEdit(false); }} />
-              {yv && <span style={{ fontSize: 10, color: "var(--muted)" }}>{fmt(parseInt(yv, 10))}</span>}
+              {/* 실거래가는 억 단위로 친다 — "140"=140억. 원 열 자리를 세게 하지 않는다(매매가와 같은 어법). */}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                <input className="input" style={{ width: 74, padding: "3px 6px", fontSize: 12, textAlign: "right" }} autoFocus value={yv}
+                  onChange={(e) => setYv(e.target.value.replace(/[^\d.,조억만천원]/g, ""))}
+                  onBlur={() => { setYEdit(false); const w = yv.trim() ? parseAmount(yv) : null;
+                    if (w) trySave(draft ? xv : p!.x, String(w)); else if (!draft && p!.ov) onDel(p!.x); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setYEdit(false); }} />
+                <span style={{ fontSize: 12, fontWeight: 600 }}>억</span>
+              </span>
+              {yv && <span style={{ fontSize: 10, color: "var(--muted)" }}>{(() => { const w = parseAmount(yv); return w ? fmt(w) : ""; })()}</span>}
             </span>
-          : <span style={{ cursor: "pointer", display: "inline-block", minWidth: 40, minHeight: 15 }} title="클릭 = 수정(원 단위)"
-              onClick={() => { setYv(p ? String(p.y) : ""); setYEdit(true); }}>{p ? fmt(p.y) : ""}</span>}
+          : <span style={{ cursor: "pointer", display: "inline-block", minWidth: 40, minHeight: 15 }} title="클릭 = 수정(억 단위)"
+              onClick={() => { setYv(p ? seedAmount(p.y) : ""); setYEdit(true); }}>{p ? fmt(p.y) : ""}</span>}
       </td>
       {perPy && <td className="num" style={{ color: "var(--muted)", fontSize: 12 }}>{p ? perPyFmt(p.y, areaPy) : ""}</td>}
       <td style={{ width: 30 }}>

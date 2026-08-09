@@ -159,8 +159,6 @@ export function BuildingPage() {
   // 🔀 직접입력 단위: 금액=억(저장 원), 집계금액=만원(저장 원), 율=% 그대로
   const seedEok = (n: number | null) => (n != null ? +(n / 1e8).toFixed(2) : "");
   const parseEok = (v: string) => String(Math.round(parseFloat(v) * 1e8));
-  const seedMan = (n: number | null) => (n != null ? Math.round(n / 1e4) : "");
-  const parseMan = (v: string) => String(Math.round(parseFloat(v) * 1e4));
   const ymdDisp = (v: unknown) => (v ? String(v).replace(/-/g, "/") : "");                    // 저장 YYYY-MM-DD → 표시 YYYY/MM/DD
   const parseYmd = (v: string) => { const d = v.replace(/\D/g, ""); return d.length === 8 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}` : v; };   // 입력 → 저장 ISO
 
@@ -264,8 +262,9 @@ export function BuildingPage() {
               <div className="sec-head">금액정보</div>
               <div className="kv-grid">
                 {/* 🔀 매매가 = 중개인 판단(기본=빌탐정 적정가 sale_est). 매도·매수희망가는 업무탭 '가격 협의'. 빌탐정 적정가 별도표시는 리포트에서만 */}
+                {/* 억 단위로 친다 — "140"=140억 · "2.1"=2.1억. 저장은 원. */}
                 <KV label="매매가" field="sale_price" value={price != null ? eok(price) : ""}
-                  editable money current={priceActual != null ? String(priceActual) : ""} parse={(v) => v} validate={vPos}
+                  editable money current={priceActual != null ? String(priceActual) : ""} validate={vPos}
                   onSave={onSave} onRevert={onRevert} />
                 <KV label="수익률(만실)" field="roi_full" value={roiFull != null ? `${roiFull.toFixed(2)}%` : ""} calc
                   editable current={roiFull ?? ""} parse={(v) => v} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
@@ -276,11 +275,11 @@ export function BuildingPage() {
                 <KV label="연면적 평단가" field="price_per_total" value={eok(ppTotal)} calc
                   editable current={seedEok(ppTotal)} parse={parseEok} validate={vPos} onSave={onSave} onRevert={onRevert} />
                 <KV label="총보증금" field="total_deposit" value={eok(tDeposit)} calc
-                  editable current={seedMan(tDeposit)} parse={parseMan} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
+                  editable money="man" current={tDeposit ?? ""} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
                 <KV label="총임대료" field="total_rent" value={eok(tRent)} calc
-                  editable current={seedMan(tRent)} parse={parseMan} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
+                  editable money="man" current={tRent ?? ""} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
                 <KV label="총관리비" field="total_maintenance" value={eok(tMaint)} calc
-                  editable current={seedMan(tMaint)} parse={parseMan} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
+                  editable money="man" current={tMaint ?? ""} validate={vNonNeg} onSave={onSave} onRevert={onRevert} />
                 <KV label="총공실" value={total && total.vacant_count > 0 ? `있음 (${total.vacant_count}실)` : total && total.status_count > 0 ? "없음" : "미지정"} />
               </div>
             </div>
@@ -475,9 +474,9 @@ function InvestCalc({ price, yearRent }: { price: number | null; yearRent: numbe
   );
   return (
     <div className="kv-grid">
-      {/* 자기자본 = 매매가와 동일한 KV money(클릭→편집·원 입력·억 환산·↺). 저장 대신 로컬 상태에 반영 */}
+      {/* 자기자본 = 매매가와 동일한 KV money(클릭→편집·억 단위 입력·↺). 저장 대신 로컬 상태에 반영 */}
       <KV label="자기자본" field="equity" value={eq ? won(eq) : ""} editable money
-        current={equity} parse={(v) => v} validate={vNonNeg}
+        current={equity} validate={vNonNeg}
         onSave={(_f, v) => setEquity(v)} onRevert={() => setEquity("")} />
       {/* 대출 금리 = 건폐율·용적률 등 %필드와 동일한 KV(클릭→편집·% 표시·↺) */}
       <KV label="대출 금리(연)" field="rate" value={rate !== "" ? rate : ""} unit="%" editable
