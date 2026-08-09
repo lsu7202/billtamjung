@@ -180,7 +180,14 @@ function Buyers({ rows, loading, onDone }: { rows?: Buyer[]; loading: boolean; o
                   onSelect={(v) => save(b, { grade: v === "미지정" ? null : v })} /></td>
                 <td><Chips opts={options("buyer_source")} cur={b.source ?? "미지정"}
                   onSelect={(v) => save(b, { source: v === "미지정" ? null : v })} /></td>
-                <td>{b.phone ?? "—"}</td>
+                {/* 연락처는 담당자 본인·대표만 원본. 가려진 값은 표시로 알린다 —
+                    가려진 줄 모르고 그 값을 옮겨 적으면 안 된다. */}
+                <td>{b.phone
+                  ? <span title={b.phone_masked ? "담당자 본인 또는 대표만 볼 수 있습니다" : undefined}
+                      style={b.phone_masked ? { color: "var(--muted)" } : undefined}>
+                      {b.phone}{b.phone_masked ? <Icon name="lock" size={11} style={{ verticalAlign: "-1px", marginLeft: 3 }} /> : null}
+                    </span>
+                  : "—"}</td>
                 <td>
                   <button className="lnk" onClick={() => setOpen(open === b.id ? null : b.id)}>
                     <Icon name="filter" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />

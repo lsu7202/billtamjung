@@ -110,6 +110,11 @@ async def main():
         chk("V2", "대표가 전화번호 열람", "1111" in str((await get(A)).json().get("owner_phone")))
         v3 = (await get(M2)).json().get("owner_phone")
         chk("V3", "다른 팀원에겐 가려짐", v3 is None or "1111" not in str(v3), f"본값={v3}")
+        # V7 — 못 보는 사람은 쓰지도 못해야 한다. 안 막으면 마스킹된 값을 그대로 저장해 원본을 덮는다.
+        w7 = await c.patch("/listings/biz", headers=M2,
+                           json={"building_pk": PK2, "fields": {"owner_phone": "010-****-2222"}})
+        chk("V7", "다른 팀원의 전화번호 수정 차단", w7.status_code == 403, f"status={w7.status_code}")
+        chk("V8", "차단 후 원본 보존", "1111" in str((await get(M)).json().get("owner_phone")))
 
         wm = await c.put(f"/buildings/{PK2}/memos", headers=M, json={"kind": "secret", "body": "비밀"})
         chk("V4a", "담당 본인이 비밀메모 작성", wm.status_code == 200, f"status={wm.status_code} {wm.text[:80]}")
@@ -138,11 +143,33 @@ async def main():
         chk("S3", "승계 후 진행상태 유지", row.get("status") == "협의중", f"status={row.get('status')}")
 
         # ── 2.5 영업(S04) ───────────────────────────────────
+        # 대표가 만든 매수자 → 담당자 = 대표
         bid = (await c.post("/buyers", headers=A, json={"name": "매수자X", "phone": "010-9999-8888"})).json()["id"]
+        find = lambda rows: next(x for x in rows if x["id"] == bid)   # noqa: E731
+
         seen = (await c.get("/buyers", headers=M2)).json()
         chk("B1", "팀원이 팀 매수자 조회", any(x["id"] == bid for x in seen))
         upd = await c.patch(f"/buyers/{bid}", headers=M2, json={"name": "고침"})
-        chk("B1b", "팀원이 팀 매수자 수정(팀 공유 정책)", upd.status_code == 200, f"status={upd.status_code}")
+        chk("B1b", "팀원이 팀 매수자 이름 수정(팀 공유)", upd.status_code == 200, f"status={upd.status_code}")
+
+        # B2 — 연락처는 개인정보. 매물 전화번호(R6)와 같은 경계여야 한다.
+        chk("B2a", "담당(대표)은 연락처 원본",
+            find((await c.get("/buyers", headers=A)).json())["phone"] == "010-9999-8888")
+        mp = find((await c.get("/buyers", headers=M2)).json())["phone"]
+        chk("B2b", "다른 팀원에겐 연락처 마스킹", mp != "010-9999-8888" and "****" in str(mp), f"본값={mp}")
+        wp = await c.patch(f"/buyers/{bid}", headers=M2, json={"phone": "010-0000-0000"})
+        chk("B2c", "다른 팀원의 연락처 수정 차단", wp.status_code == 403, f"status={wp.status_code}")
+        chk("B2d", "차단 후 원본 보존",
+            find((await c.get("/buyers", headers=A)).json())["phone"] == "010-9999-8888")
+
+        # B4 — 추천 목록에도 같은 경계가 걸려야 한다(다른 경로로 새면 소용없다)
+        await c.post(f"/buyers/{bid}/conditions", headers=A, json={
+            "name": "종로", "conditions": {"values": {}, "regions": [{"bjd_code": "1111013800", "label": "종로2가"}],
+                                          "polygon": None, "filters": {"bjd_code": "1111013800"}}})
+        mm = (await c.get(f"/buildings/{PK}/matching-buyers", headers=M2)).json()
+        row = next((x for x in mm if x["id"] == bid), None)
+        chk("B4", "추천 목록에서도 연락처 마스킹",
+            row is not None and "****" in str(row["phone"]), str(row and row["phone"]))
 
     ng = [x for x in R if not x[2]]
     print(f"\n통과 {len(R)-len(ng)} / 실패 {len(ng)}\n")

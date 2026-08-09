@@ -22,11 +22,27 @@ REJECT_REASONS = ("price", "roi", "location", "condition", "size",
                   "meongdo", "tenant", "use", "buyer_side", "etc")
 
 
-def _row(r) -> dict:
+def _can_see(user: CurrentUser, assignee: int | None) -> bool:
+    """개인정보 경계 — 담당자 본인 + 대표만. 매물 소유자 전화번호와 같은 규칙(S0M §3.4)."""
+    return user.role == "owner" or user.account_id == assignee
+
+
+def _mask(phone: str | None) -> str | None:
+    if not phone:
+        return phone
+    return phone[:3] + "-****-" + phone[-4:] if len(phone) >= 8 else "****"
+
+
+def _row(r, user: CurrentUser | None = None) -> dict:
     d = dict(r)
     v = d.get("conditions_json")
     if isinstance(v, str):
         d["conditions_json"] = json.loads(v)
+    # 매수자 연락처도 개인정보다. 팀 전체 공유(R7)의 예외 — 매물 전화번호와 같은 급인데
+    # 매수자만 뚫려 있었다(권한 QA 2026-08-09).
+    if user is not None and not _can_see(user, d.get("assignee_account_id")):
+        d["phone"] = _mask(d.get("phone"))
+        d["phone_masked"] = True
     return d
 
 
@@ -63,7 +79,7 @@ async def list_buyers(user: CurrentUser = Depends(current_user)):
         if isinstance(d["conditions_json"], str):
             d["conditions_json"] = json.loads(d["conditions_json"])
         by.setdefault(d["buyer_id"], []).append(d)
-    return [{**dict(r), "conditions": by.get(r["id"], [])} for r in rows]
+    return [{**_row(r, user), "conditions": by.get(r["id"], [])} for r in rows]
 
 
 @router.post("/buyers", status_code=201)
@@ -93,6 +109,12 @@ class BuyerPatch(BaseModel):
 
 @router.patch("/buyers/{bid}")
 async def update_buyer(bid: int, body: BuyerPatch, user: CurrentUser = Depends(current_user)):
+    # 연락처는 읽기와 같은 경계로 쓰기도 막는다 — 마스킹된 값을 그대로 저장해 원본을 덮는 사고를 막는다.
+    if body.phone is not None:
+        cur = await pool().fetchval(
+            "SELECT assignee_account_id FROM app.buyers WHERE id=$1 AND team_id=$2", bid, user.team_id)
+        if not _can_see(user, cur):
+            raise HTTPException(403, "연락처는 담당자 본인 또는 대표만 수정할 수 있습니다")
     n = await pool().execute(
         """UPDATE app.buyers SET
              name = COALESCE($3, name), phone = COALESCE($4, phone),
@@ -327,8 +349,8 @@ async def matching_buyers(building_pk: str, user: CurrentUser = Depends(current_
     from . import search as S   # 순환 임포트 방지 — 호출 시점에
 
     rows = await pool().fetch(
-        """SELECT b.id, b.name, b.grade, b.phone, c.id AS cond_id, c.name AS cond_name,
-                  c.conditions_json
+        """SELECT b.id, b.name, b.grade, b.phone, b.assignee_account_id,
+                  c.id AS cond_id, c.name AS cond_name, c.conditions_json
            FROM app.buyers b LEFT JOIN app.buyer_conditions c ON c.buyer_id = b.id
            WHERE b.team_id=$1 AND b.deleted_at IS NULL AND b.status='활성'
            ORDER BY b.name""", user.team_id)
@@ -389,7 +411,9 @@ async def matching_buyers(building_pk: str, user: CurrentUser = Depends(current_
         if cur and (cur["matched"] or not hit):
             continue
         best[bid] = {
-            "id": bid, "name": r["name"], "grade": r["grade"], "phone": r["phone"],
+            "id": bid, "name": r["name"], "grade": r["grade"],
+            # 연락처는 담당자 본인+대표만(S0M §3.4 경계를 매수자에도 적용)
+            "phone": r["phone"] if _can_see(user, r["assignee_account_id"]) else _mask(r["phone"]),
             "matched": hit,
             "matched_condition": r["cond_name"] if hit else None,
             "checks": _explain(filters, subj) if hit or filters else [],

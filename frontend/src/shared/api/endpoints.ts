@@ -363,7 +363,11 @@ export interface BuyerCondition {
   id: number; buyer_id: number; name: string; conditions_json: Record<string, unknown>;
 }
 export interface Buyer {
-  id: number; name: string; phone: string | null; grade: string | null; source: string | null;
+  id: number; name: string;
+  phone: string | null;
+  /** 담당자 본인·대표가 아니면 연락처가 가려진다(개인정보 — S0M §3.4 경계) */
+  phone_masked?: boolean;
+  grade: string | null; source: string | null;
   is_corp: boolean | null; status: string; memo: string | null;
   conditions: BuyerCondition[];
   assignee_account_id: number | null; active_proposals: number; updated_at: string;

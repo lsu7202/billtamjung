@@ -111,6 +111,14 @@ async def patch_biz(body: BizPatch, user: CurrentUser = Depends(current_user)):
     bad = set(body.fields) - BIZ_FIELDS
     if bad:
         raise HTTPException(422, f"허용되지 않은 필드: {sorted(bad)}")
+    # 전화번호는 읽기와 같은 경계로 쓰기도 막는다(S0M §3.4 예외 2곳).
+    # 안 막으면 마스킹된 값(010-****-5678)을 보는 팀원이 그대로 저장해 진짜 번호를 덮는다.
+    if "owner_phone" in body.fields:
+        cur = await pool().fetchval(
+            "SELECT assignee_account_id FROM app.listings WHERE building_pk=$1 AND team_id=$2",
+            body.building_pk, user.team_id)
+        if not (user.role == "owner" or user.account_id == cur):
+            raise HTTPException(403, "전화번호는 담당자 본인 또는 대표만 수정할 수 있습니다")
     await pool().execute(
         """INSERT INTO app.listings(building_pk,team_id) VALUES($1,$2)
            ON CONFLICT (building_pk,team_id) DO NOTHING""",
