@@ -668,8 +668,10 @@ function RentTable({ pk, items, total, hiddenFloors, unit, refresh, eok }: {
   type DRow = { r: FloorRent; isPrefill?: boolean; key: string };
   const allRows: DRow[] = [
     ...items.map((r) => ({ r, key: (r.id ?? `${r.floor}-${r.unit_no}`).toString() })),
-    // 대장 층별개요가 주는 면적은 '전용면적'이다(mart_djy_04 idx28 · 임대료 추정도 이 값 기준).
-    // 예전엔 계약면적 칸에 넣어 라벨이 사실과 달랐다.
+    // 대장 층별개요가 주는 면적은 그 층의 **바닥면적**이다 — 전용면적이 아니다(2026-08-09 실측).
+    // 근거: 층별개요 합 = 연면적. 옥탑 제외 시 55.9만동 중 95.2%가 소수점까지 일치하고,
+    // 연면적보다 작은 건 1.8%뿐. 전용면적이라면 공용을 뺀 값이라 항상 연면적보다 작아야 한다.
+    // 지금은 그 값을 exclusive_area(전용) 칸에 넣고 있어 라벨이 사실과 다르다 — 미해결.
     ...prefill.map((o, i) => ({ isPrefill: true, key: `pf-${o.floor}-${i}`,
       r: { floor: o.floor ?? "", unit_no: "", use: o.use ?? undefined, exclusive_area: o.exclusive_area ?? undefined,
            deposit: o.deposit_est ?? 0, rent: o.rent_est ?? 0, maintenance: 0, is_vacant: null } as FloorRent })),
