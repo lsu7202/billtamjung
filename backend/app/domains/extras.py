@@ -68,6 +68,33 @@ async def list_searches(user: CurrentUser = Depends(current_user)):
     ]
 
 
+class SavedSearchPatch(BaseModel):
+    """부분 수정 — 이름만 바꾸거나(rename) 조건만 덮어쓴다(현재 조건으로 갱신)."""
+    name: str | None = None
+    conditions: dict | None = None
+
+
+@router.patch("/saved-searches/{sid}")
+async def update_search(sid: int, body: SavedSearchPatch, user: CurrentUser = Depends(current_user)):
+    if body.name is None and body.conditions is None:
+        raise HTTPException(422, "바꿀 항목이 없습니다")
+    if body.name is not None and not body.name.strip():
+        raise HTTPException(422, "이름은 비울 수 없습니다")
+    # COALESCE로 넘어온 것만 갱신 — 이름만 바꿀 때 조건이 날아가면 안 된다
+    n = await pool().execute(
+        """UPDATE app.saved_searches
+              SET name = COALESCE($3, name),
+                  conditions_json = COALESCE($4, conditions_json)
+            WHERE id=$1 AND account_id=$2""",
+        sid, user.account_id,
+        body.name.strip() if body.name is not None else None,
+        json.dumps(body.conditions) if body.conditions is not None else None,
+    )
+    if n.endswith(" 0"):
+        raise HTTPException(404, "저장된 조건을 찾을 수 없습니다")
+    return {"ok": True}
+
+
 @router.delete("/saved-searches/{sid}")
 async def delete_search(sid: int, user: CurrentUser = Depends(current_user)):
     await pool().execute(

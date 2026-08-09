@@ -150,6 +150,9 @@ export const savedApi = {
   list: () => api<{ id: number; name: string; conditions_json: Record<string, unknown>; created_at: string }[]>("/saved-searches"),
   save: (name: string, conditions: Record<string, unknown>) =>
     api<{ id: number }>("/saved-searches", { method: "POST", body: JSON.stringify({ name, conditions }) }),
+  /** 부분 수정 — 이름만 바꾸거나 조건만 덮어쓴다(둘 다 보내도 된다). */
+  update: (id: number, patch: { name?: string; conditions?: Record<string, unknown> }) =>
+    api(`/saved-searches/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   remove: (id: number) => api(`/saved-searches/${id}`, { method: "DELETE" }),
 };
 

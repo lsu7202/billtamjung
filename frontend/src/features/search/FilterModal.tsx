@@ -310,11 +310,24 @@ export function FilterModal({
   const [tab, setTab] = useState<"all" | number>("all");
   const [values, setValues] = useState<Values>(initialValues ?? {});
   const [regions, setRegions] = useState<RegionPick[]>(initialRegions ?? []);
-  const [pgon, setPgon] = useState<object | null>(initialPolygon ?? null);   // 그린 영역(필터·저장 대상)
+  const [pgon] = useState<object | null>(initialPolygon ?? null);   // 그린 영역(필터·저장 대상) — 그리기는 지도에서 한다
   const [gu, setGu] = useState("");
   const [pop, setPop] = useState<{ f: Field; x: number; y: number } | null>(null);
   const [showSave, setShowSave] = useState(false); const [showLoad, setShowLoad] = useState(false);
   const [saveName, setSaveName] = useState(""); const [saveWarn, setSaveWarn] = useState("");
+  const [renameId, setRenameId] = useState<number | null>(null);   // 저장조건 이름 편집 중인 항목
+  const [renameVal, setRenameVal] = useState("");
+
+  /** 조건을 확정해 부모로 넘긴다. '적용'과 '불러오기'가 같은 길을 타야 결과가 어긋나지 않는다.
+   *  구만 고르고 동을 안 고른 경우 = 구 전체로 자동 등록 — 지역 없이 적용되면 검색이
+   *  조용히 안 돌아서(enabled 게이트) 모든 필터가 "안 먹는" 것처럼 보이는 함정을 막는다. */
+  function apply(v: Values, rs: RegionPick[], pg: object | null) {
+    let regs = rs;
+    const sgg = gu ? regionsQ.data?.[gu]?.sgg_code : null;
+    if (sgg && !rs.some((r) => r.bjd_code.startsWith(sgg))) regs = [...rs, { bjd_code: sgg, label: `${gu} 전체` }];
+    onApply({ values: v, regions: regs, filters: toFilters(v, membersQ.data ?? []), polygon: pg });
+    onClose();
+  }
   const popRef = useRef<HTMLDivElement>(null);
 
   const guList = Object.keys(regionsQ.data ?? {});
@@ -428,14 +441,7 @@ export function FilterModal({
             <span className="applied">적용 조건 <b>{count}</b>개</span>
             <span className="sp" />
             <button className="cancel" onClick={onClose}>취소</button>
-            <button className="apply" onClick={() => {
-              // 구만 고르고 동을 안 고른 경우 = 구 전체로 자동 등록 — 지역 없이 적용되면 검색이
-              // 조용히 안 돌아서(enabled 게이트) 모든 필터가 "안 먹는" 것처럼 보이는 함정 방지.
-              let regs = regions;
-              const sgg = gu ? regionsQ.data?.[gu]?.sgg_code : null;
-              if (sgg && !regions.some((r) => r.bjd_code.startsWith(sgg))) regs = [...regions, { bjd_code: sgg, label: `${gu} 전체` }];
-              onApply({ values, regions: regs, filters: toFilters(values, membersQ.data ?? []), polygon: pgon }); onClose();
-            }}>적용</button>
+            <button className="apply" onClick={() => apply(values, regions, pgon)}>적용</button>
           </div>
         </div>
       </div>
@@ -479,11 +485,33 @@ export function FilterModal({
               {(saved.data ?? []).length === 0 && <div className="preset-empty">저장된 조건이 없습니다</div>}
               {(saved.data ?? []).map((p) => {
                 const c = p.conditions_json as { values?: Values; regions?: RegionPick[]; polygon?: object | null };
+                const editing = renameId === p.id;
                 return (
                   <div key={p.id} className="preset">
-                    <div><div className="pn">{p.name}</div><div className="pc">조건 {activeCount(c.values ?? {}, c.regions ?? [])}개{c.polygon ? " · 영역" : ""}</div></div>
+                    <div style={{ minWidth: 0 }}>
+                      {editing
+                        ? <input className="input" autoFocus value={renameVal} style={{ padding: "2px 6px", maxWidth: 150 }}
+                            onChange={(e) => setRenameVal(e.target.value)}
+                            onKeyDown={async (e) => {
+                              if (e.key === "Escape") setRenameId(null);
+                              if (e.key === "Enter" && renameVal.trim()) {
+                                await savedApi.update(p.id, { name: renameVal.trim() });
+                                setRenameId(null); saved.refetch();
+                              }
+                            }}
+                            onBlur={() => setRenameId(null)} />
+                        : <div className="pn">{p.name}</div>}
+                      <div className="pc">조건 {activeCount(c.values ?? {}, c.regions ?? [])}개{c.polygon ? " · 영역" : ""}</div>
+                    </div>
                     <span className="sp" />
-                    <button className="pload" onClick={() => { setValues(c.values ?? {}); setRegions(c.regions ?? []); setPgon(c.polygon ?? null); setShowLoad(false); }}><Icon name="load" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />불러오기</button>
+                    {/* 불러오기 = 그 자리에서 적용. 모달 값만 채워두고 「적용」을 또 누르게 하면
+                        불러왔는데 아무 일도 안 일어난 것처럼 보인다. */}
+                    <button className="pload" onClick={() => apply(c.values ?? {}, c.regions ?? [], c.polygon ?? null)}><Icon name="load" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />불러오기</button>
+                    <button className="pdel" title="이름 바꾸기"
+                      onMouseDown={(e) => { e.preventDefault(); setRenameId(p.id); setRenameVal(p.name); }}><Icon name="edit" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />이름</button>
+                    {/* 덮어쓰기 — 저장조건을 고쳐 쓰는 가장 흔한 길. 지우고 다시 저장하지 않아도 된다. */}
+                    <button className="pdel" title="지금 화면의 조건으로 덮어쓰기"
+                      onClick={async () => { await savedApi.update(p.id, { conditions: { values, regions, polygon: pgon } as Record<string, unknown> }); saved.refetch(); }}><Icon name="save" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />덮어쓰기</button>
                     <button className="pdel" onClick={async () => { await savedApi.remove(p.id); saved.refetch(); }}><Icon name="trash" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />삭제</button>
                   </div>
                 );
