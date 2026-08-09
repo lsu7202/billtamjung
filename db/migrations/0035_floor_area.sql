@@ -11,16 +11,27 @@
 
 BEGIN;
 
--- 1) 팀 입력 — 전용에만 값이 있으면 계약으로 옮긴다.
---    둘 다 있으면 계약을 남긴다(사용자가 계약면적으로 적은 값이 더 정확한 의도).
-UPDATE app.floor_rents
-   SET contract_area = exclusive_area
- WHERE contract_area IS NULL AND exclusive_area IS NOT NULL;
+-- apply.sh는 적용 이력 테이블 없이 매번 전부 다시 돌린다. 두 번 돌아도 안전해야 한다.
+DO $$
+BEGIN
+  -- 1) 팀 입력 — 전용에만 값이 있으면 계약으로 옮기고 컬럼을 뗀다.
+  --    둘 다 있으면 계약을 남긴다(사용자가 계약면적으로 적은 값이 더 정확한 의도).
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema='app' AND table_name='floor_rents'
+                AND column_name='exclusive_area') THEN
+    UPDATE app.floor_rents
+       SET contract_area = exclusive_area
+     WHERE contract_area IS NULL AND exclusive_area IS NOT NULL;
+    ALTER TABLE app.floor_rents DROP COLUMN exclusive_area;
+  END IF;
 
-ALTER TABLE app.floor_rents DROP COLUMN exclusive_area;
-
--- 2) 대장 층별개요 — 이름을 사실에 맞춘다. 값은 그대로다.
---    MV(floor_est_by_floor·floor_est_total)는 파싱된 참조를 들고 있어 rename을 따라온다.
-ALTER TABLE master.floor_outline RENAME COLUMN exclusive_area TO floor_area;
+  -- 2) 대장 층별개요 — 이름을 사실에 맞춘다. 값은 그대로다.
+  --    MV(floor_est_by_floor·floor_est_total)는 파싱된 참조를 들고 있어 rename을 따라온다.
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema='master' AND table_name='floor_outline'
+                AND column_name='exclusive_area') THEN
+    ALTER TABLE master.floor_outline RENAME COLUMN exclusive_area TO floor_area;
+  END IF;
+END $$;
 
 COMMIT;
