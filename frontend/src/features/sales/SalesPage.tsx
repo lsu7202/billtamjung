@@ -11,6 +11,7 @@ import { Icon } from "../../shared/ui/Icon";
 import { Segmented } from "../../shared/ui/Segmented";
 import { Chips } from "../building/EnumField";
 import { formatPhone, parseAmount } from "../building/KV";
+import { useUnit } from "../../shared/hooks/useUnit";
 import { useEnums } from "../../shared/hooks/useEnums";
 import { openDetail } from "../../shared/map/geo";
 import { won } from "../../shared/format";
@@ -25,8 +26,6 @@ import "./sales.css";
  *  담는 일은 매물 상세의 「매수자」 탭에서 한다. */
 
 type Cond = { values?: Values; regions?: RegionPick[]; polygon?: object | null; filters?: AttrFilters };
-
-const py = (m2?: number | null) => (m2 ? `${Math.round(m2 / 3.305785)}평` : "—");
 
 export function SalesPage() {
   const qc = useQueryClient();
@@ -66,6 +65,8 @@ function Board({ rows, loading, onDone, onBuyer }: {
   rows?: Proposal[]; loading: boolean; onDone: () => void; onBuyer: (id: number) => void;
 }) {
   const [reject, setReject] = useState<Proposal | null>(null);
+  const { area } = useUnit();   // 매물 상세에서 ㎡로 보다가 여기 오면 평이 되면 안 된다
+  const [err, setErr] = useState<string | null>(null);
   if (loading) return <Loading label="불러오는 중" minHeight="40vh" />;
   const list = rows ?? [];
   if (!list.length) {
@@ -78,11 +79,17 @@ function Board({ rows, loading, onDone, onBuyer }: {
   }
   const move = async (p: Proposal, status: ProposalStatus) => {
     if (status === "거절") { setReject(p); return; }
-    await proposalsApi.update(p.id, { status });
-    onDone();
+    try {
+      setErr(null);
+      await proposalsApi.update(p.id, { status });
+      onDone();
+    } catch (e) {
+      setErr(String((e as Error)?.message ?? "상태를 바꾸지 못했습니다"));
+    }
   };
   return (
     <>
+      {err && <div className="sales-err">{err}</div>}
       <div className="board">
         {PROPOSAL_STATUSES.map((st) => {
           const col = list.filter((p) => p.status === st);
@@ -97,7 +104,7 @@ function Board({ rows, loading, onDone, onBuyer }: {
                     </div>
                     <div className="m">
                       <b>{p.price ? won(p.price) : "—"}</b>
-                      <span>대지 {py(p.land_area)} · 연 {py(p.total_area)}</span>
+                      <span>대지 {area(p.land_area, 0)} · 연 {area(p.total_area, 0)}</span>
                     </div>
                     <div className="b">
                       <span className="who lnk" onClick={() => onBuyer(p.buyer_id)}
@@ -239,7 +246,11 @@ function Conditions({ buyer, onDone }: { buyer: Buyer; onDone: () => void }) {
       conditions: c?.conditions_json ?? {},
     } } });
   };
-  const del = async (cid: number) => { await buyersApi.removeCondition(cid); onDone(); };
+  // 앱의 파괴적 행위는 전부 확인을 받는다(매물 층 삭제·팀원 제외·전체 되돌리기와 같은 규칙)
+  const del = async (cid: number, name: string) => {
+    if (!confirm(`조건 「${name}」을(를) 지울까요?`)) return;
+    await buyersApi.removeCondition(cid); onDone();
+  };
   return (
     <div className="cd-wrap">
       {buyer.conditions.map((c) => {
@@ -251,7 +262,7 @@ function Conditions({ buyer, onDone }: { buyer: Buyer; onDone: () => void }) {
             <span className="ct">조건 {n}개{j.polygon ? " · 그린 영역" : ""}</span>
             <span className="sp" />
             <button className="lnk" onClick={() => edit(c)}>지도에서 열기</button>
-            <button className="lnk del" onClick={() => del(c.id)}>삭제</button>
+            <button className="lnk del" onClick={() => del(c.id, c.name)}>삭제</button>
           </div>
         );
       })}
@@ -311,16 +322,31 @@ function NewBuyer({ onDone }: { onDone: () => void }) {
 }
 
 /* 접촉 이력 — 매도자 쪽과 같은 표를 쓴다(app.contacts). "마지막으로 언제 연락했나"가 안 보이면
-   매수자 관리가 결국 수첩으로 돌아간다. */
+   매수자 관리가 결국 수첩으로 돌아간다.
+   날짜는 업무탭(접수일·사용승인일)과 같은 규칙 — 8자리를 치면 ISO로 저장한다.
+   오늘 고정이면 어제 통화를 못 적는다. */
 function Contacts({ buyerId }: { buyerId: number }) {
   const qc = useQueryClient();
   const key = ["contacts", "buyer", buyerId];
   const q = useQuery({ queryKey: key, queryFn: () => contactsApi.list("buyer", String(buyerId)) });
   const [kind, setKind] = useState("전화");
   const [note, setNote] = useState("");
+  const [when, setWhen] = useState(todayYmd());
+  const [err, setErr] = useState<string | null>(null);
+
   const add = async () => {
-    await contactsApi.create({ target_type: "buyer", target_id: String(buyerId), kind, note: note || undefined });
-    setNote(""); qc.invalidateQueries({ queryKey: key });
+    const iso = parseYmd(when);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) { setErr("날짜는 20260809 또는 2026-08-09 형식"); return; }
+    try {
+      setErr(null);
+      await contactsApi.create({
+        target_type: "buyer", target_id: String(buyerId), kind,
+        occurred_on: iso, note: note || undefined,
+      });
+      setNote(""); qc.invalidateQueries({ queryKey: key });
+    } catch (e) {
+      setErr(String((e as Error)?.message ?? "기록하지 못했습니다"));
+    }
   };
   const list = q.data ?? [];
   return (
@@ -330,16 +356,19 @@ function Contacts({ buyerId }: { buyerId: number }) {
         {["전화", "문자", "방문", "메일"].map((k) => (
           <button key={k} className={kind === k ? "on" : ""} onClick={() => setKind(k)}>{k}</button>
         ))}
+        <input className="input ct-date" value={when} inputMode="numeric" title="날짜"
+          onChange={(e) => setWhen(ymdMask(e.target.value))} />
         <input className="input" placeholder="메모" value={note} onChange={(e) => setNote(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
         <button className="btn" onClick={add}>기록</button>
       </div>
+      {err && <div className="ct-err">{err}</div>}
       {list.length === 0
         ? <div className="ct-none">아직 없습니다</div>
         : <div className="ct-list">
             {list.slice(0, 6).map((x) => (
               <div className="r" key={x.id}>
-                <span className="d">{x.occurred_on?.slice(5).replace("-", "/")}</span>
+                <span className="d">{(x.occurred_on ?? "").slice(0, 10).replace(/-/g, "/")}</span>
                 <span className="k">{x.kind ?? "—"}</span>
                 <span className="n">{x.note ?? ""}</span>
               </div>
@@ -347,4 +376,20 @@ function Contacts({ buyerId }: { buyerId: number }) {
           </div>}
     </div>
   );
+}
+
+/* 날짜 — 업무탭(BuildingPage)의 parseYmd와 같은 규칙. 화면마다 다른 날짜 문법을 두지 않는다. */
+function todayYmd(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function ymdMask(v: string): string {
+  const d = v.replace(/\D/g, "").slice(0, 8);
+  if (d.length <= 4) return d;
+  if (d.length <= 6) return `${d.slice(0, 4)}-${d.slice(4)}`;
+  return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}`;
+}
+function parseYmd(v: string): string {
+  const d = v.replace(/\D/g, "");
+  return d.length === 8 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}` : v;
 }

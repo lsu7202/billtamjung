@@ -4,6 +4,7 @@
 핵심: 매수자 조건은 `saved_searches.conditions_json`과 **같은 모양**이다.
       조건 편집 = 상세검색 모달, 매칭 = 검색 엔진. 규칙이 한 벌이라 결과가 어긋나지 않는다.
 """
+import datetime as dt
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -453,9 +454,17 @@ async def list_contacts(target_type: str, target_id: str,
 async def create_contact(body: ContactIn, user: CurrentUser = Depends(current_user)):
     if body.target_type not in ("buyer", "listing"):
         raise HTTPException(422, "target_type은 buyer 또는 listing")
+    # asyncpg는 date 컬럼에 문자열을 못 받는다(str에 toordinal이 없다며 500).
+    # 파이썬 date로 바꿔서 넘긴다 — listings.patch_biz의 received_on과 같은 처리.
+    day: dt.date | None = None
+    if body.occurred_on:
+        try:
+            day = dt.date.fromisoformat(body.occurred_on[:10])
+        except ValueError:
+            raise HTTPException(422, "occurred_on은 YYYY-MM-DD")
     cid = await pool().fetchval(
         """INSERT INTO app.contacts(team_id, target_type, target_id, kind, occurred_on, note, created_by)
            VALUES($1,$2,$3,$4,COALESCE($5::date, current_date),$6,$7) RETURNING id""",
         user.team_id, body.target_type, body.target_id, body.kind,
-        body.occurred_on, body.note, user.account_id)
+        day, body.note, user.account_id)
     return {"id": cid}

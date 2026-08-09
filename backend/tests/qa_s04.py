@@ -84,10 +84,19 @@ async def main():
         chk("거절 패턴 노출", any(x["rejects"] for x in m), str([(x["name"],x["rejects"]) for x in m]))
         chk("제안 상태 표시", [x for x in m if x["name"]=="김투자"][0]["proposal_status"]=="거절")
 
-        # 8) 접촉 이력
+        # 8) 접촉 이력 — 지난 날짜도 적을 수 있어야 한다(오늘 고정이면 어제 통화를 못 적는다)
         await c.post("/contacts", headers=H, json={"target_type":"buyer","target_id":str(a),"kind":"전화","note":"1차"})
+        past=await c.post("/contacts", headers=H,
+                          json={"target_type":"buyer","target_id":str(a),"kind":"방문",
+                                "occurred_on":"2026-08-01","note":"지난주"})
+        chk("접촉 이력 · 지난 날짜 기록", past.status_code==201, f"status={past.status_code} {past.text[:80]}")
         ct=(await c.get("/contacts", headers=H, params={"target_type":"buyer","target_id":str(a)})).json()
-        chk("접촉 이력", len(ct)==1 and ct[0]["kind"]=="전화")
+        chk("접촉 이력", len(ct)==2)
+        chk("지난 날짜 그대로 저장", any(str(x["occurred_on"]).startswith("2026-08-01") for x in ct),
+            str([x["occurred_on"] for x in ct]))
+        badd=await c.post("/contacts", headers=H,
+                          json={"target_type":"buyer","target_id":str(a),"occurred_on":"2026"})
+        chk("잘못된 날짜 차단", badd.status_code==422, f"status={badd.status_code}")
         badt=await c.post("/contacts", headers=H, json={"target_type":"xxx","target_id":"1"})
         chk("target_type 검증", badt.status_code==422)
 

@@ -18,6 +18,7 @@ import { ParcelBlock, GongsiCard } from "./ParcelBlock";
 import { ReportView } from "./ReportView";
 import { EnumField } from "./EnumField";
 import { KV, FloorsRow, vRate100, vNonNeg, vPos, vYmd, vInt } from "./KV";
+import { useUnit } from "../../shared/hooks/useUnit";
 
 /** S02 매물 상세 — 목업 전체 구조:
  * 헤더지표 · 사진(지도/로드뷰) · 표시범위 · 금액 · 투자분석 · 층별임대 · 상세정보
@@ -31,7 +32,8 @@ export function BuildingPage() {
   const { pk = "" } = useParams();
   const qc = useQueryClient();
   const [scope, setScope] = useState<Scope>("all");
-  const [unit, setUnit] = useState<"py" | "m2">("py");
+  // 면적 단위는 사람의 취향이라 화면마다 두지 않고 앱 전체가 같은 값을 본다(useUnit)
+  const { unit, setUnit } = useUnit();
   const [marketArea, setMarketArea] = useState<MarketArea>({ kind: "circle", radius_m: 500 });   // 주변상권(지도 그리기)
   // 실거래 사례 조건(기간·가격대) — 상권과 나란한 팀 오버레이. 리포트도 이 값을 읽는다.
   const [compFilter, setCompFilter] = useState<CompFilter>(COMP_FILTER_DEFAULT);
