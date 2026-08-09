@@ -32,12 +32,12 @@ const fmtDist = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(2)}km` : `${Ma
 const fmtArea = (a: number) => `${a >= 10000 ? `${(a / 10000).toFixed(2)}ha` : `${Math.round(a).toLocaleString()}㎡`} (${Math.round(a / 3.3058).toLocaleString()}평)`;
 
 export function MapPanel({
-  pins, onPick, onPolygon, polygon, polygonActive, selectedPk, selectedCol, onParcelClick, centerReq, priceMode = "fair",
+  pins, onPick, onPolygon, polygons, polygonActive, selectedPk, selectedCol, onParcelClick, centerReq, priceMode = "fair",
 }: {
   pins: MapPin[];
   onPick: (pk: string) => void;
-  onPolygon: (geojson: object | null) => void;
-  polygon?: object | null;                    // 외부 주입 영역(불러오기 등) — 지도에 표시
+  onPolygon: (geojson: object | null) => void;   // 새 영역 1개(누적은 부모가) · null=전체 지우기
+  polygons?: object[] | null;                 // 그려둔 영역들 — 지도에 전부 표시
   polygonActive: boolean;
   selectedPk?: string | null;                 // 선택 건물(필지 분류색 오버레이)
   selectedCol?: "mine" | "normal" | null;
@@ -49,7 +49,7 @@ export function MapPanel({
   const mapRef = useRef<any>(null);
   const pinLayerRef = useRef<CanvasLayer | null>(null);
   const cadastralRef = useRef<any>(null);
-  const overlayRef = useRef<any>(null);       // 그린 영역 폴리곤 표시
+  const overlayRef = useRef<any[]>([]);       // 그린 영역 폴리곤들(여러 개 유지)
   const selParcelRef = useRef<any>(null);     // 선택 필지(분류색 오버레이 — 지도)
   const drawingRef = useRef<{ mode: DrawMode; pts: any[]; temp: any | null }>({ mode: "off", pts: [], temp: null });
   const [ready, setReady] = useState(false);
@@ -318,13 +318,13 @@ export function MapPanel({
       else if (geo.type === "MultiPolygon") geo.coordinates.forEach(add);
       return rings;
     };
+    // 그린 영역은 쌓인다 — 새로 그릴 때 기존 것을 지우지 않는다(예전엔 마지막 하나만 남았다).
     const drawOverlay = (paths: any[], snapped: boolean) => {
-      overlayRef.current?.setMap(null);
-      overlayRef.current = new naver.maps.Polygon({
+      overlayRef.current.push(new naver.maps.Polygon({
         map, paths,
         fillColor: "#3A5DA8", fillOpacity: 0.12,
         strokeColor: "#3A5DA8", strokeWeight: snapped ? 2 : 1.5, strokeStyle: snapped ? "solid" : "shortdash",
-      });
+      }));
     };
 
     const finish = async () => {
@@ -407,16 +407,18 @@ export function MapPanel({
   useEffect(() => {
     if (!ready || !mapRef.current) return;
     const naver = window.naver;
-    overlayRef.current?.setMap(null);
-    overlayRef.current = null;
-    const paths = polygon ? geoToPaths(naver, polygon) : [];
-    if (!paths.length) return;
-    overlayRef.current = new naver.maps.Polygon({
-      map: mapRef.current, paths,
-      fillColor: "#3A5DA8", fillOpacity: 0.12, strokeColor: "#3A5DA8", strokeWeight: 2,
+    overlayRef.current.forEach((o) => o.setMap(null));
+    overlayRef.current = [];
+    (polygons ?? []).forEach((g) => {
+      const paths = geoToPaths(naver, g);
+      if (!paths.length) return;
+      overlayRef.current.push(new naver.maps.Polygon({
+        map: mapRef.current, paths,
+        fillColor: "#3A5DA8", fillOpacity: 0.12, strokeColor: "#3A5DA8", strokeWeight: 2,
+      }));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, polygon]);
+  }, [ready, polygons]);
 
   // 자(ruler) 생성/제거 — 자유곡선 스냅 가이드로 유지
   useEffect(() => {
@@ -495,9 +497,9 @@ export function MapPanel({
   }, [ready]);
 
   function clearPolygon() {
-    overlayRef.current?.setMap(null);
-    overlayRef.current = null;
-    onPolygon(null);
+    overlayRef.current.forEach((o) => o.setMap(null));
+    overlayRef.current = [];
+    onPolygon(null);   // null = 전부 지우기
   }
 
   if (err) return <div className="panel" style={{ padding: 24, color: "var(--up)" }}>{err}</div>;

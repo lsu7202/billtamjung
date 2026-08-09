@@ -4,6 +4,18 @@ export type MarketArea =
   | { kind: "circle"; radius_m: number; center?: { lng: number; lat: number } }
   | { kind: "polygon"; geojson: object; area_m2: number };
 
+/** 여러 영역을 한 GeoJSON으로 합친다 — 백엔드는 폴리곤 하나만 받으므로 MultiPolygon으로 넘긴다.
+ *  ST_Within(b.geom, MultiPolygon)이 그대로 성립해서 서버는 손댈 것이 없다. */
+export function mergeGeo(list: object[]): object | null {
+  const polys: unknown[] = [];
+  for (const g of list) {
+    const o = g as { type?: string; coordinates?: unknown[] };
+    if (o.type === "Polygon") polys.push(o.coordinates);
+    else if (o.type === "MultiPolygon") polys.push(...(o.coordinates ?? []));
+  }
+  return polys.length ? { type: "MultiPolygon", coordinates: polys } : null;
+}
+
 /** 지도에 찍을 주변 매물 포인트 — 실거래(sale)/임대(rent) 색 구분. */
 export type CompPoint = { building_pk: string; lng: number; lat: number; kind: "sale" | "rent" };
 

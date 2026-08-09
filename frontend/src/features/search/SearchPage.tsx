@@ -2,7 +2,7 @@ import { LoadingOverlay } from "../../shared/ui/Spinner";
 import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { searchApi, buildingsApi, listingsApi, type AttrFilters } from "../../shared/api/endpoints";
-import { openDetail } from "../../shared/map/geo";
+import { openDetail, mergeGeo } from "../../shared/map/geo";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
 import { FilterModal, activeCount, conditionChips, type Values, type RegionPick } from "./FilterModal";
 import { buildTrendSeries, type TrendSeries } from "../../shared/ui/PriceTrendChart";
@@ -87,7 +87,10 @@ export function SearchPage() {
   const [active, setActive] = useState(-1);
   const [view, setView] = useState<"list" | "map">((saved.view as "list" | "map") ?? "map");   // 기본 = 지도 우선
   const [priceMode, setPriceMode] = useState<"fair" | "real">((saved.priceMode as "fair" | "real") ?? "fair");   // 핀 태그 가격
-  const [polygon, setPolygon] = useState<object | null>((saved.polygon as object | null) ?? null);
+  // 그린 영역은 여러 개 쌓인다 — 예전엔 단일 객체라 새로 그리면 앞의 것이 사라졌다.
+  // 서버로는 mergeGeo로 MultiPolygon 하나로 합쳐 보낸다(서버는 손댈 것이 없다).
+  const [polygons, setPolygons] = useState<object[]>((saved.polygons as object[]) ?? []);
+  const polygon = mergeGeo(polygons);
   const [picked, setPicked] = useState<MapPin | null>(null);
   const [centerReq, setCenterReq] = useState<{ lng: number; lat: number; zoom?: number } | null>(null);  // 지도 중심 이동 요청
   const [sort, setSort] = useState((saved.sort as string) ?? "price");
@@ -100,8 +103,8 @@ export function SearchPage() {
 
   // 조건 변경 시 스냅샷 저장(전환·새로고침 복원용)
   useEffect(() => {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ q, view, priceMode, polygon, sort, filters, fValues, fRegions, pages }));
-  }, [q, view, priceMode, polygon, sort, filters, fValues, fRegions, pages]);
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ q, view, priceMode, polygons, sort, filters, fValues, fRegions, pages }));
+  }, [q, view, priceMode, polygons, sort, filters, fValues, fRegions, pages]);
   const bjd = fRegions[0]?.bjd_code ?? "";                       // 단일지역(멀티는 백엔드 확장 예정)
   const filterCount = activeCount(fValues, fRegions);
   const resetPages = () => setPages({ mine: 1, normal: 1 });
@@ -246,12 +249,16 @@ export function SearchPage() {
           <button className="tool-btn" onClick={() => setBarCollapsed(true)} title="검색바 접기"><Icon name="minus" size={15} /></button>
         </div>
         {/* 적용된 조건 칩(§3.2) — 지역 + 조건 + 그린영역 */}
-        {(fRegions.length > 0 || polygon || filterCount > 0) && (
+        {(fRegions.length > 0 || polygons.length > 0 || filterCount > 0) && (
           <div className="chips">
             {fRegions.map((r) => (
               <span key={r.bjd_code} className="chip">{r.label}<span className="x" onClick={() => setFRegions(fRegions.filter((x) => x.bjd_code !== r.bjd_code))}>×</span></span>
             ))}
-            {polygon && <span className="chip"><Icon name="edit" size={13} style={{verticalAlign:"-2px",marginRight:3}} />그린 영역<span className="x" onClick={() => setPolygon(null)}>×</span></span>}
+            {polygons.map((_, i) => (
+              <span className="chip" key={i}><Icon name="edit" size={13} style={{verticalAlign:"-2px",marginRight:3}} />
+                그린 영역{polygons.length > 1 ? ` ${i + 1}` : ""}
+                <span className="x" onClick={() => { setPolygons((ps) => ps.filter((_, j) => j !== i)); resetPages(); }}>×</span></span>
+            ))}
             {conditionChips(fValues).map((c) => (
               <span key={c.label} className="chip">{c.label} {c.text}<span className="x" onClick={() => setFValues((s) => { const n = { ...s }; delete n[c.label]; return n; })}>×</span></span>
             ))}
@@ -277,7 +284,7 @@ export function SearchPage() {
       {showFilter && (
         <FilterModal
           initialValues={fValues} initialRegions={fRegions} initialPolygon={polygon}
-          onApply={(r) => { setFilters(r.filters); setFValues(r.values); setFRegions(r.regions); setPolygon(r.polygon ?? null); resetPages(); }}
+          onApply={(r) => { setFilters(r.filters); setFValues(r.values); setFRegions(r.regions); setPolygons(r.polygon ? [r.polygon] : []); resetPages(); }}
           onClose={() => setShowFilter(false)}
           onDraw={() => { setShowFilter(false); setView("map"); }}
         />
@@ -315,15 +322,16 @@ export function SearchPage() {
               options={[{ value: "fair", label: "적정가" }, { value: "real", label: "실거래가" }]} />
             <MapPanel
               pins={mapPinList}
-              polygon={polygon}
-              polygonActive={!!polygon}
+              polygons={polygons}
+              polygonActive={polygons.length > 0}
               selectedPk={picked?.building_pk ?? null}
               selectedCol={picked?.col ?? null}
               centerReq={centerReq}
               priceMode={priceMode}
               onParcelClick={(pk) => { if (pk) selectBuilding(pk); }}
               onPick={(pk) => setPicked(mapPinList.find((p) => p.building_pk === pk) ?? null)}
-              onPolygon={(g) => { setPolygon(g); setPages({ mine: 1, normal: 1 }); }}
+              // 새 영역은 더한다(null = 전부 지우기). 여러 상권을 동시에 보는 게 현장 방식이다.
+              onPolygon={(g) => { setPolygons((ps) => (g ? [...ps, g] : [])); setPages({ mine: 1, normal: 1 }); }}
             />
             <div className="map-legend">
               <span><b style={{ background: "var(--blue)" }} />내 매물</span>
