@@ -2,7 +2,7 @@ import { Fragment, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
-  buyersApi, proposalsApi, PROPOSAL_STATUSES, REJECT_REASONS,
+  buyersApi, proposalsApi, contactsApi, PROPOSAL_STATUSES, REJECT_REASONS,
   type Buyer, type BuyerCondition, type Proposal, type ProposalStatus, type AttrFilters,
 } from "../../shared/api/endpoints";
 import { activeCount, type Values, type RegionPick } from "../search/FilterModal";
@@ -192,7 +192,10 @@ function Buyers({ rows, loading, onDone }: { rows?: Buyer[]; loading: boolean; o
               </tr>
               {open === b.id && (
                 <tr><td colSpan={7} style={{ padding: 0, background: "var(--surface-2)" }}>
-                  <Conditions buyer={b} onDone={onDone} />
+                  <div className="bx-grid">
+                    <Conditions buyer={b} onDone={onDone} />
+                    <Contacts buyerId={b.id} />
+                  </div>
                 </td></tr>
               )}
             </Fragment>
@@ -281,5 +284,44 @@ function NewBuyer({ onDone }: { onDone: () => void }) {
         </div>
       )}
     </>
+  );
+}
+
+/* 접촉 이력 — 매도자 쪽과 같은 표를 쓴다(app.contacts). "마지막으로 언제 연락했나"가 안 보이면
+   매수자 관리가 결국 수첩으로 돌아간다. */
+function Contacts({ buyerId }: { buyerId: number }) {
+  const qc = useQueryClient();
+  const key = ["contacts", "buyer", buyerId];
+  const q = useQuery({ queryKey: key, queryFn: () => contactsApi.list("buyer", String(buyerId)) });
+  const [kind, setKind] = useState("전화");
+  const [note, setNote] = useState("");
+  const add = async () => {
+    await contactsApi.create({ target_type: "buyer", target_id: String(buyerId), kind, note: note || undefined });
+    setNote(""); qc.invalidateQueries({ queryKey: key });
+  };
+  const list = q.data ?? [];
+  return (
+    <div className="ct-wrap">
+      <div className="ct-head">접촉 이력</div>
+      <div className="ct-add">
+        {["전화", "문자", "방문", "메일"].map((k) => (
+          <button key={k} className={kind === k ? "on" : ""} onClick={() => setKind(k)}>{k}</button>
+        ))}
+        <input className="input" placeholder="메모" value={note} onChange={(e) => setNote(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
+        <button className="btn" onClick={add}>기록</button>
+      </div>
+      {list.length === 0
+        ? <div className="ct-none">아직 없습니다</div>
+        : <div className="ct-list">
+            {list.slice(0, 6).map((x) => (
+              <div className="r" key={x.id}>
+                <span className="d">{x.occurred_on?.slice(5).replace("-", "/")}</span>
+                <span className="k">{x.kind ?? "—"}</span>
+                <span className="n">{x.note ?? ""}</span>
+              </div>
+            ))}
+          </div>}
+    </div>
   );
 }

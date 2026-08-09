@@ -61,3 +61,22 @@
 .cd-row .sp { flex: 1; }
 .cd-row .del { color: var(--up); }
 .cd-none { font-size: 12.5px; color: var(--muted); padding: 4px 0; }
+
+/* 매수자 펼침 — 조건 · 접촉이력 두 칸 */
+.bx-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 0 18px; align-items: start; }
+@media (max-width: 900px) { .bx-grid { grid-template-columns: 1fr; } }
+
+.ct-wrap { padding: 8px 12px 12px; }
+.ct-head { font-size: 12px; color: var(--muted); font-weight: 700; margin-bottom: 5px; }
+.ct-add { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+.ct-add button { border: 1px solid var(--line); background: var(--surface); border-radius: 6px;
+  padding: 3px 8px; font-size: 11.5px; cursor: pointer; }
+.ct-add button.on { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700; }
+.ct-add .input { flex: 1; min-width: 0; padding: 3px 8px; font-size: 12px; }
+.ct-add .btn { padding: 3px 9px; font-size: 11.5px; }
+.ct-list { display: grid; gap: 2px; }
+.ct-list .r { display: flex; gap: 8px; font-size: 12px; line-height: 1.6; }
+.ct-list .d { color: var(--muted); font-variant-numeric: tabular-nums; flex: 0 0 34px; }
+.ct-list .k { flex: 0 0 30px; color: var(--ink-2); }
+.ct-list .n { flex: 1; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-none { font-size: 12px; color: var(--muted); }

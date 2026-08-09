@@ -1,4 +1,8 @@
-"""S04 전체 QA — API 레벨 계약 검증. 화면 QA는 브라우저로 별도."""
+"""S04 전체 QA — API 레벨 계약 검증. 화면 QA는 브라우저로 별도.
+
+사용: 로컬 API를 띄운 뒤  backend/.venv/bin/python tests/qa_s04.py
+시작할 때 팀의 매수자를 전부 지운다(테스트 계정 전용).
+"""
 import asyncio, httpx
 PK="1002117536"   # 종로2가 71-6 · 140억 · 수익률 2.52% · 대지 32.6평
 OK=[]; NG=[]
@@ -9,6 +13,10 @@ async def main():
     async with httpx.AsyncClient(base_url="http://localhost:8000", timeout=60) as c:
         r=await c.post("/auth/login", json={"email":"demo9@example.com","password":"testpw12345"})
         H={"Authorization":f"Bearer {r.json()['access_token']}"}
+        # 남은 데이터를 먼저 치운다 — 안 그러면 이전 실행/화면 테스트가 남긴 매수자 때문에
+        # "전원 노출"·"걸린 사람 먼저" 같은 단정이 엉뚱하게 깨진다.
+        for x in (await c.get("/buyers", headers=H)).json():
+            await c.delete(f"/buyers/{x['id']}", headers=H)
 
         # 1) 매수자 생성 · 칩 값
         a=(await c.post("/buyers", headers=H, json={"name":"김투자","grade":"A","source":"소개","is_corp":True,"memo":"식당 임차X"})).json()["id"]
