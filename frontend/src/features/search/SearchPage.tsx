@@ -123,15 +123,19 @@ export function SearchPage() {
   // 그린 영역은 여러 개 쌓인다 — 예전엔 단일 객체라 새로 그리면 앞의 것이 사라졌다.
   // 서버로는 mergeGeo로 MultiPolygon 하나로 합쳐 보낸다(서버는 손댈 것이 없다).
   const [polygons, setPolygons] = useState<object[]>(
-    bc?.conditions.polygon ? [bc.conditions.polygon] : ((saved.polygons as object[]) ?? []));
+    bc ? (bc.conditions.polygon ? [bc.conditions.polygon] : []) : ((saved.polygons as object[]) ?? []));
   const polygon = mergeGeo(polygons);
   const [picked, setPicked] = useState<MapPin | null>(null);
   const [centerReq, setCenterReq] = useState<{ lng: number; lat: number; zoom?: number } | null>(null);  // 지도 중심 이동 요청
   const [sort, setSort] = useState((saved.sort as string) ?? "price");
-  // 매수자 조건을 싣고 왔으면 그 조건으로 시작한다(세션 복원보다 우선)
-  const [filters, setFilters] = useState<AttrFilters>(bc?.conditions.filters ?? (saved.filters as AttrFilters) ?? {});
-  const [fValues, setFValues] = useState<Values>(bc?.conditions.values ?? (saved.fValues as Values) ?? {});
-  const [fRegions, setFRegions] = useState<RegionPick[]>(bc?.conditions.regions ?? (saved.fRegions as RegionPick[]) ?? []);
+  // 매수자 조건을 싣고 왔으면 **그 조건만** 쓴다. 세션에 남아 있던 검색 조건이 섞이면
+  // 새 조건을 만드는데 남의 조건이 미리 들어차 있고, 그대로 저장되면 잘못된 조건이 박힌다.
+  const [filters, setFilters] = useState<AttrFilters>(
+    bc ? (bc.conditions.filters ?? {}) : ((saved.filters as AttrFilters) ?? {}));
+  const [fValues, setFValues] = useState<Values>(
+    bc ? (bc.conditions.values ?? {}) : ((saved.fValues as Values) ?? {}));
+  const [fRegions, setFRegions] = useState<RegionPick[]>(
+    bc ? (bc.conditions.regions ?? []) : ((saved.fRegions as RegionPick[]) ?? []));
   const [showFilter, setShowFilter] = useState(false);
   const [barCollapsed, setBarCollapsed] = useState(false);      // 검색바 접기(공간 절약)
   const [pages, setPages] = useState<{ mine: number; normal: number }>((saved.pages as { mine: number; normal: number }) ?? { mine: 1, normal: 1 });

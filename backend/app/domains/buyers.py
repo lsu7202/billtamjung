@@ -363,15 +363,22 @@ async def matching_buyers(building_pk: str, user: CurrentUser = Depends(current_
         filters = {k: v for k, v in ((cond or {}).get("filters") or {}).items()
                    if v is not None and v != [] and v != ""}
         regions = (cond or {}).get("regions") or []
+        # 지도에서 그린 영역도 조건이다. 빼먹으면 "영역만 그린 조건"은 영원히 안 걸린다.
+        poly = (cond or {}).get("polygon") or None
 
         hit = False
-        if filters or regions:
+        if filters or regions or poly:
             f = dict(filters)
             f["building_pk"] = building_pk
-            if not f.get("bjd_code") and regions:
+            # 영역이 있으면 지역코드는 안 건다 — 영역이 더 좁고, 둘을 AND로 걸면
+            # 영역이 그 동 밖으로 조금만 나가도 아무것도 안 걸린다(검색 화면과 같은 규칙).
+            if poly:
+                f.pop("bjd_code", None)
+            elif not f.get("bjd_code") and regions:
                 f["bjd_code"] = regions[0].get("bjd_code")
             try:
-                b2, a2, o2 = S._build_base(S.SearchIn(filters=S.Filters(**f)), user)
+                b2, a2, o2 = S._build_base(
+                    S.SearchIn(filters=S.Filters(**f), polygon=poly), user)
                 hit = bool(await pool().fetchval(
                     b2 + f"SELECT count(*) FROM classified WHERE TRUE {o2}", *a2))
             except Exception:
