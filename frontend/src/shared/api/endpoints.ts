@@ -343,3 +343,67 @@ export const extrasApi = {
     api(`/buildings/${pk}/memos`, { method: "PUT", body: JSON.stringify({ kind, body }) }),
   memoDel: (pk: string, id: number) => api(`/buildings/${pk}/memos/${id}`, { method: "DELETE" }),
 };
+
+// ── 영업관리(S04) — 매수자 · 제안 · 접촉이력 ─────────────────
+/** 제안 상태 = 보드의 열. '후보'가 있어야 "골라놓고 아직 안 돌린 것"이 안 샌다. */
+export const PROPOSAL_STATUSES = ["후보", "제안", "관심", "거절", "계약"] as const;
+export type ProposalStatus = (typeof PROPOSAL_STATUSES)[number];
+
+/** 거절 사유 — 집계가 목적이라 적고 겹치지 않게. buyer_side는 매물 탓이 아니라 따로 센다. */
+export const REJECT_REASONS = [
+  { k: "price", label: "가격" }, { k: "roi", label: "수익률" },
+  { k: "location", label: "위치·입지" }, { k: "condition", label: "건물 상태" },
+  { k: "size", label: "규모" }, { k: "meongdo", label: "명도" },
+  { k: "tenant", label: "임차 구성" }, { k: "use", label: "용도·규제" },
+  { k: "buyer_side", label: "매수자 사정" }, { k: "etc", label: "기타" },
+] as const;
+
+export interface Buyer {
+  id: number; name: string; phone: string | null; grade: string | null; source: string | null;
+  is_corp: boolean | null; status: string; memo: string | null;
+  conditions_json: Record<string, unknown>;
+  assignee_account_id: number | null; active_proposals: number; updated_at: string;
+}
+export interface Proposal {
+  id: number; buyer_id: number; building_pk: string; status: ProposalStatus;
+  proposed_on: string | null; propose_count: number; channel: string | null;
+  report_id: number | null; reject_reason: string | null; reject_price: number | null; note: string | null;
+  buyer_name: string; buyer_grade: string | null;
+  addr: string | null; land_area: number | null; total_area: number | null; use_zone: string | null;
+  price: number | null; price_is_est: boolean;
+}
+export interface Contact {
+  id: number; target_type: string; target_id: string; kind: string | null;
+  occurred_on: string; note: string | null;
+}
+
+export const buyersApi = {
+  list: () => api<Buyer[]>("/buyers"),
+  create: (b: Partial<Buyer> & { name: string; conditions?: Record<string, unknown> }) =>
+    api<{ id: number }>("/buyers", { method: "POST", body: JSON.stringify(b) }),
+  update: (id: number, patch: Record<string, unknown>) =>
+    api(`/buyers/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  remove: (id: number) => api(`/buyers/${id}`, { method: "DELETE" }),
+};
+
+export const proposalsApi = {
+  list: (p: { buyer_id?: number; building_pk?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (p.buyer_id) q.set("buyer_id", String(p.buyer_id));
+    if (p.building_pk) q.set("building_pk", p.building_pk);
+    return api<Proposal[]>(`/proposals${q.toString() ? `?${q}` : ""}`);
+  },
+  /** 같은 (매수자, 매물)이면 새로 만들지 않고 그 행을 갱신한다 — 중복 제안은 구조로 막혀 있다. */
+  upsert: (b: { buyer_id: number; building_pk: string; status?: ProposalStatus; channel?: string; report_id?: number; note?: string }) =>
+    api<{ id: number }>("/proposals", { method: "POST", body: JSON.stringify(b) }),
+  update: (id: number, patch: Record<string, unknown>) =>
+    api(`/proposals/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  remove: (id: number) => api(`/proposals/${id}`, { method: "DELETE" }),
+};
+
+export const contactsApi = {
+  list: (target_type: string, target_id: string) =>
+    api<Contact[]>(`/contacts?target_type=${target_type}&target_id=${encodeURIComponent(target_id)}`),
+  create: (b: { target_type: string; target_id: string; kind?: string; occurred_on?: string; note?: string }) =>
+    api<{ id: number }>("/contacts", { method: "POST", body: JSON.stringify(b) }),
+};

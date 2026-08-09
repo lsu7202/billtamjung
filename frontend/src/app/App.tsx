@@ -15,6 +15,7 @@ import { ReportPage } from "../features/building/ReportPage";
 import { BriefingPage } from "../features/building/BriefingPage";
 import { ReportStory } from "../features/building/ReportStory";
 import { MyPage } from "../features/mypage/MyPage";
+import { SalesPage } from "../features/sales/SalesPage";
 import { IconSprite } from "../shared/ui/Icon";
 import { ErrorBoundary } from "../shared/ui/ErrorBoundary";
 
@@ -39,6 +40,7 @@ export function App() {
           <Route element={<AuthGuard><Shell /></AuthGuard>}>
             <Route path="/search" element={<ErrorBoundary><SearchPage /></ErrorBoundary>} />
             <Route path="/buildings/:pk" element={<ErrorBoundary><BuildingPage /></ErrorBoundary>} />
+            <Route path="/sales" element={<ErrorBoundary><SalesPage /></ErrorBoundary>} />
             <Route path="/mypage" element={<ErrorBoundary><MyPage /></ErrorBoundary>} />
           </Route>
           {/* 보고서 = 헤더 없는 전체화면(새 탭으로 여는 독립 뷰) */}

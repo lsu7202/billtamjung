@@ -16,6 +16,7 @@ export function Shell() {
         <Logo markSize={24} />
         <nav>
           <NavLink to="/search" className={({ isActive }) => (isActive ? "on" : "")}>매물 검색</NavLink>
+          <NavLink to="/sales" className={({ isActive }) => (isActive ? "on" : "")}>영업</NavLink>
           <NavLink to="/mypage" className={({ isActive }) => (isActive ? "on" : "")}>마이페이지</NavLink>
         </nav>
         <span className="credit">크레딧<b>{credits.data?.total ?? "…"}</b></span>
