@@ -56,6 +56,26 @@ export const wonToEok = (won: unknown): string => {   // 원(콤마 허용) → 
   return Number.isInteger(e) ? `${e}억` : `${e.toFixed(2)}억`;
 };
 
+/** 금액 입력 파서 — 중개인이 말하는 대로 친다. "1500억" · "15억5000만" · "1500.1억" · "1,500,000,000".
+ *  단위가 없으면 원 그대로다(기존 입력법 그대로). 해석 불가면 null.
+ *  숫자만 남기고 지우던 예전 방식은 "1500억"을 1500원으로, "1500.1"을 15001로 만들었다. */
+export function parseWon(text: string): number | null {
+  const t = String(text).replace(/[\s,]/g, "");
+  if (!t) return null;
+  if (/^\d+(\.\d+)?$/.test(t)) return Math.round(Number(t));          // 단위 없음 = 원
+  const UNIT: Record<string, number> = { 조: 1e12, 억: 1e8, 만: 1e4, 천: 1e3, 원: 1 };
+  // 단위 조각을 순서대로 훑는다 — 조각 사이에 단위 없는 꼬리가 붙으면(15억5000) 마지막 단위의 1/10000로 본다
+  const re = /(\d+(?:\.\d+)?)(조|억|만|천|원)?/g;
+  let m: RegExpExecArray | null, sum = 0, last = 0, seen = false;
+  while ((m = re.exec(t))) {
+    const n = Number(m[1]);
+    if (m[2]) { sum += n * UNIT[m[2]]; last = UNIT[m[2]]; seen = true; }
+    else if (last >= 1e4) sum += n * (last / 1e4);                     // 15억5000 → 5000만
+    else return null;
+  }
+  return seen && sum > 0 ? Math.round(sum) : null;
+}
+
 export interface KVProps {
   label: string; field?: string; value: React.ReactNode; unit?: string; editable?: boolean; calc?: boolean;
   validate?: Validate; current?: unknown; parse?: (v: string) => string;   // parse: 입력→저장값 변환(평→㎡·억→원)
@@ -68,7 +88,13 @@ export function KV({ label, field, value, unit: u, editable, validate, current, 
   const [val, setVal] = useState("");
   const [err, setErr] = useState<string | null>(null);
   function commit() {
-    const raw = money ? val.replace(/,/g, "") : val;   // 금액=콤마 제거한 숫자로 저장
+    // 금액은 억·만 표기를 받아 원 단위로 정규화한다. 해석 불가는 오류로 세워 값을 삼키지 않는다.
+    let raw = val;
+    if (money && val.trim()) {
+      const w = parseWon(val);
+      if (w == null) { setErr("금액을 알아볼 수 없습니다 — 예: 15억 · 15억5000만 · 1500000000"); return; }
+      raw = String(w);
+    }
     const e = validate && raw ? validate(raw) : null;
     if (e) { setErr(e); return; }                   // 오류 → 저장 안 함, 편집 유지
     setErr(null); setEditing(false);
@@ -82,13 +108,18 @@ export function KV({ label, field, value, unit: u, editable, validate, current, 
             <input className="input" inputMode={money ? "numeric" : undefined}
               style={{ maxWidth: money ? 120 : 110, padding: "3px 8px", textAlign: money ? "right" : undefined, borderColor: err ? "var(--up)" : undefined }} autoFocus value={val}
               onChange={(e) => {
-                if (money) { const d = e.target.value.replace(/[^\d]/g, ""); setVal(d ? Number(d).toLocaleString() : ""); }
+                if (money) {
+                  const t = e.target.value.replace(/[^\d.,조억만천원]/g, "");
+                  // 순수 숫자면 예전처럼 콤마를 붙여 읽기 쉽게, 단위가 섞이면 친 그대로 둔다
+                  const d = t.replace(/,/g, "");
+                  setVal(/^\d+$/.test(d) ? Number(d).toLocaleString() : t);
+                }
                 else setVal(format ? format(e.target.value) : e.target.value);
                 if (err) setErr(null);
               }}
               onBlur={commit}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setErr(null); setEditing(false); } }} />
-            {money && <span style={{ fontSize: 11, color: "var(--muted)", minWidth: 40 }}>{wonToEok(val) || "—"}</span>}
+            {money && <span style={{ fontSize: 11, color: "var(--muted)", minWidth: 40 }}>{wonToEok(parseWon(val) ?? "") || "—"}</span>}
             {/* ↺ = 편집 중에만 노출. mousedown preventDefault로 blur-commit 차단 후 되돌리기 */}
             <button className="btn" style={{ padding: "0 6px", fontSize: 11 }}
               onMouseDown={(e) => { e.preventDefault(); setErr(null); setEditing(false); onRevert?.(field); }}
