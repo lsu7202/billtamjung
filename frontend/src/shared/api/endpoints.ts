@@ -271,11 +271,15 @@ export interface FairBreakdown {
 }
 export interface CompUsed {
   building_pk: string; addr?: string | null; contract_ym?: string | null; price: number;
-  area_py?: number | null; score?: number; per_now?: number; time_adj?: number; weight?: number;
+  area_py?: number | null; land_py?: number | null;   // 연면적·대지 평수
+  score?: number; per_now?: number; per_land_now?: number;   // 평단가 — 연면적 기준 / 대지 기준
+  time_adj?: number; weight?: number;
 }
 export interface RentFloor { floor: string; cur: number; mkt: number; diff: number; count: number }
 export interface ReportPreview {
-  score: number; grade: string; fair_price: number | null; avg_per_pyeong: number | null;
+  score: number; grade: string; fair_price: number | null;
+  avg_per_pyeong: number | null;   // 연면적 평단가
+  avg_per_land?: number | null;    // 대지 평단가 — 리포트 주 지표
   expected_roi: number | null; gap: number | null; ask_price: number | null; broker_price?: number | null;
   applied_rent?: number | null; expected_deposit?: number | null; market_applied?: boolean;
   breakdown?: FairBreakdown | null; rent_floors?: RentFloor[] | null; comps_used?: CompUsed[] | null;

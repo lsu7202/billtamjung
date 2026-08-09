@@ -489,8 +489,10 @@ def synthesize(subject: dict, subject_score: float, comps: list[dict],
     blended = report_calc.blend_income(ap.get("fair_price"), ann_rent, cap, beta)
     if blended != ap.get("fair_price"):
         subj_py = (_fnum(subject.get("total_area")) or 0) / report_calc.M2_PER_PYEONG
+        subj_lpy = (_fnum(subject.get("land_area")) or 0) / report_calc.M2_PER_PYEONG
         ap = {**ap, "fair_price": blended,
-              "avg_per_pyeong": round(blended / subj_py) if subj_py else ap.get("avg_per_pyeong")}
+              "avg_per_pyeong": round(blended / subj_py) if subj_py else ap.get("avg_per_pyeong"),
+              "avg_per_land": round(blended / subj_lpy) if subj_lpy else ap.get("avg_per_land")}
     # 3층 가격(2026-07-29): 매도희망가(건물주) · 매매가(중개인, 기본=적정가) · 빌탐정 적정가(시스템=fair_price)
     ask = _fnum(subject.get("ask_price"))                            # 매도희망가 = 건물주 원하는 값(오버레이)
     broker = _fnum(subject.get("sale_price")) or ap.get("fair_price")  # 매매가 = 중개인 판단(오버레이), 없으면 적정가
@@ -700,7 +702,8 @@ async def run_generate(report_id: int, team_id: int) -> dict:
                             "land_area": _fnum(b.get("land_area")), "sale_price": _fnum(b.get("sale_price")),
                             "total_rent": _fnum(b.get("total_rent"))},
                 "preview": {"score": vs["score"], "grade": vs["grade"], "fair_price": syn["fair_price"],
-                            "avg_per_pyeong": syn["avg_per_pyeong"], "expected_roi": syn["expected_roi"],
+                            "avg_per_pyeong": syn["avg_per_pyeong"], "avg_per_land": syn.get("avg_per_land"),
+                            "expected_roi": syn["expected_roi"],
                             "gap": syn["gap"], "ask_price": syn["ask_price"], "broker_price": syn.get("broker_price"),
                             "applied_rent": syn.get("applied_rent"), "expected_deposit": syn.get("expected_deposit"),
                             "market_applied": syn.get("market_applied", False), "breakdown": syn.get("breakdown"),

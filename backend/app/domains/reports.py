@@ -29,7 +29,8 @@ async def _subject_ctx(building_pk: str, team_id: int):
 
 def _preview_dict(vs: dict, syn: dict) -> dict:
     return {"score": vs["score"], "grade": vs["grade"], "fair_price": syn["fair_price"],
-            "avg_per_pyeong": syn["avg_per_pyeong"], "expected_roi": syn["expected_roi"],
+            "avg_per_pyeong": syn["avg_per_pyeong"], "avg_per_land": syn.get("avg_per_land"),
+            "expected_roi": syn["expected_roi"],
             "gap": syn["gap"], "ask_price": syn["ask_price"], "broker_price": syn.get("broker_price"),
             "applied_rent": syn.get("applied_rent"), "expected_deposit": syn.get("expected_deposit"),
             "market_applied": syn.get("market_applied", False), "breakdown": syn.get("breakdown"),

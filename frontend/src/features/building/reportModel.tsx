@@ -103,19 +103,27 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   const totalArea = sub?.total_area ?? num(b.total_area);
   const landArea = num(b.land_area);
   const totalP = totalArea ? totalArea / P : null;
+  // 평단가 두 축 — 리포트의 주 지표는 **대지** 평단가다. 상업용 토지는 현장이 대지 기준으로 말하고,
+  // 적정가 산식도 대지평단가법을 0.4 비중으로 쓴다(공시배율 0.6 : 대지 0.4). 연면적은 보조로 병기.
+  const landP = landArea ? landArea / P : null;
   const avgPer = fair && totalP ? Math.round(fair / totalP) : (pv?.avg_per_pyeong ?? null);
+  const avgPerLand = fair && landP ? Math.round(fair / landP) : (pv?.avg_per_land ?? null);
   const usedComps = (pv?.comps_used ?? []) as CompUsed[];
   const comps = [...usedComps].sort((a, c) => (c.weight ?? 0) - (a.weight ?? 0)).slice(0, 4);
   const moreCount = Math.max(0, usedComps.length - comps.length);
   const avgPerNow = usedComps.length
     ? Math.round(usedComps.reduce((s, c) => s + (c.per_now || 0), 0) / usedComps.length) : null;
+  // 주변 평균(대지) — 대지면적이 없는 사례는 빼고 센다. 0으로 세면 평균이 주저앉는다.
+  const _landComps = usedComps.filter((c) => !!c.per_land_now);
+  const avgPerLandNow = _landComps.length
+    ? Math.round(_landComps.reduce((s, c) => s + (c.per_land_now || 0), 0) / _landComps.length) : null;
   const gLatest = num(b.gongsi_latest);
   const gTotal = gLatest && landArea ? gLatest * landArea : null;
   const gctx = pv?.gongsi_ctx ?? null;
   const nbhdGongsi = gctx?.nbhd_per_m2 ?? null;
   const gmult = gctx?.mult ?? null;
   const landPremium = gLatest && nbhdGongsi ? (gLatest / nbhdGongsi - 1) * 100 : null;
-  const _perVals = comps.map((c) => c.per_now).filter((v): v is number => !!v);
+  const _perVals = comps.map((c) => c.per_land_now).filter((v): v is number => !!v);
   const compMin = _perVals.length ? Math.round(Math.min(..._perVals) / 1e4) : null;
   const compMax = _perVals.length ? Math.round(Math.max(..._perVals) / 1e4) : null;
   const floors = _floors0;
@@ -194,7 +202,9 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     { k: "예상수익률", s: "매매가 기준 · 연 임대수익 (매매가 미입력 시 적정가)", v: roiFair != null ? `${roiFair.toFixed(2)}%` : "—", c: "var(--purple)" },
     { k: "매력도 등급", s: "입지·건물 매력도 (적정가와 별개)", v: `${grade}등급`, c: "var(--blue)" },
   ];
-  const summaryTail = { primary: ut?.primary ?? null, officeApt, avgPerMan: avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만원` : "—", totalPy: `${py(totalArea)}평` };
+  const summaryTail = { primary: ut?.primary ?? null, officeApt,
+    avgPerMan: avgPerLand ? `${Math.round(avgPerLand / 1e4).toLocaleString()}만원` : "—",   // 대지 기준
+    totalPy: `${py(totalArea)}평` };
 
   // ── 02 기본정보 ──
   const basicInfo: [string, string][] = [
@@ -276,7 +286,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
 
   return {
     pk, reportId, rq, sub, pv, b, loading, isError, rno, date, nonCommercial,
-    fair, ask, rent, curRent, totalArea, landArea, totalP, avgPer, usedComps, comps, moreCount, avgPerNow,
+    fair, ask, rent, curRent, totalArea, landArea, totalP, landP, avgPer, avgPerLand, usedComps, comps, moreCount, avgPerNow, avgPerLandNow,
     gLatest, gTotal, gctx, nbhdGongsi, gmult, landPremium, compMin, compMax, floors,
     roiFair, rs, rFloors, rCurDep, perPyRent, upsidePct, nbhdRoi, topStrengths,
     ut, officeApt, fut, useZone, mainUse, grade, score, gradeCol, addr, shortAddr,

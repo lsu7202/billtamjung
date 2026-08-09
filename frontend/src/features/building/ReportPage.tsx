@@ -59,7 +59,7 @@ export function ReportPage() {
   // ── 모든 값·의견·서술은 reportModel 단일 소스(애니메이션 모드와 동일) ──
   const {
     pk, sub, b, loading, isError, rno, date,
-    fair, rent, curRent, totalArea, avgPer, comps, moreCount, avgPerNow,
+    fair, rent, curRent, totalArea, landArea, avgPer, avgPerLand, comps, moreCount, avgPerLandNow,
     gLatest, gTotal, nbhdGongsi, gmult, compMin, compMax,
     roiFair, nbhdRoi,
     ut, officeApt, fut, useZone, mainUse, grade, score, gradeCol, shortAddr, opinions, conclusion,
@@ -120,7 +120,7 @@ export function ReportPage() {
             </div>
             <div className="rs-fade" style={{ display: "flex", alignItems: "center", gap: "2.6cqw", paddingTop: "1.3cqw", borderTop: "1px solid var(--rl)", fontSize: "1.1cqw", color: "var(--rmuted)", ["--d" as string]: "360ms" }}>
               {summaryTail.primary ? <span>투자 유형 <b style={{ color: "var(--blue)" }}>{summaryTail.primary}</b>{summaryTail.officeApt && <span style={{ fontSize: ".8cqw", color: "#fff", background: "var(--navy)", borderRadius: "1cqw", padding: ".1cqw .6cqw", marginLeft: ".4cqw", fontWeight: 700 }}>사옥 적합</span>}</span> : null}
-              <span>평당 적정가 <b style={{ color: "var(--navy)" }}>{summaryTail.avgPerMan}</b></span>
+              <span>대지 평당 적정가 <b style={{ color: "var(--navy)" }}>{summaryTail.avgPerMan}</b></span>
               <span>연면적 <b style={{ color: "var(--navy)" }}>{summaryTail.totalPy}</b></span>
             </div>
           </div>
@@ -169,7 +169,7 @@ export function ReportPage() {
         title={SM.deal.title} desc={SM.deal.desc}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.2cqw", width: "100%", height: "100%" }}>
           <table className="rs-tbl">
-            <thead><tr><th>사례</th><th>주소</th><th className="r">거리</th><th>거래일</th><th className="r">매매가</th><th className="r">연면적</th><th className="r">평단가</th><th className="r">시점보정</th></tr></thead>
+            <thead><tr><th>사례</th><th>주소</th><th className="r">거리</th><th>거래일</th><th className="r">매매가</th><th className="r">대지</th><th className="r">대지 평단가</th><th className="r">연면적 평단가</th><th className="r">시점보정</th></tr></thead>
             <tbody>
               <tr style={{ background: "color-mix(in srgb, var(--blue) 8%, transparent)" }}>
                 <td className="b blue">본매물</td>
@@ -177,8 +177,9 @@ export function ReportPage() {
                 <td className="r">—</td>
                 <td>—</td>
                 <td className="r b blue">{fair ? eokman(fair) : "—"}<span style={{ fontSize: ".82cqw", color: "var(--rmuted)", fontWeight: 500 }}> 적정가</span></td>
-                <td className="r">{py(totalArea)}평</td>
-                <td className="r b blue">{avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만` : "—"}</td>
+                <td className="r">{py(landArea)}평</td>
+                <td className="r b blue">{avgPerLand ? `${Math.round(avgPerLand / 1e4).toLocaleString()}만` : "—"}</td>
+                <td className="r">{avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만` : "—"}</td>
                 <td className="r">—</td>
               </tr>
               {comps.length ? comps.map((c, i) => (
@@ -188,26 +189,27 @@ export function ReportPage() {
                   <td className="r">{c.weight ? `${Math.max(0, Math.round(1 / c.weight - 50))}m` : "—"}</td>
                   <td>{c.contract_ym ?? "—"}</td>
                   <td className="r">{eokman(c.price)}</td>
-                  <td className="r">{c.area_py ?? "—"}평</td>
-                  <td className="r b blue">{c.per_now ? `${Math.round(c.per_now / 1e4).toLocaleString()}만` : "—"}</td>
+                  <td className="r">{c.land_py ?? "—"}평</td>
+                  <td className="r b blue">{c.per_land_now ? `${Math.round(c.per_land_now / 1e4).toLocaleString()}만` : "—"}</td>
+                  <td className="r">{c.per_now ? `${Math.round(c.per_now / 1e4).toLocaleString()}만` : "—"}</td>
                   <td className="r">{c.time_adj != null ? `${c.time_adj >= 0 ? "+" : ""}${Math.round(c.time_adj * 100)}%` : "—"}</td>
                 </tr>
-              )) : <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--rmuted)", padding: "2cqw" }}>반경 내 실거래 사례 없음</td></tr>}
-              {moreCount > 0 && <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--rmuted)", fontSize: ".95cqw", padding: ".55cqw", borderTop: "1px dashed var(--rl)" }}>가까운 순 4건 표시 · 외 <b style={{ color: "var(--navy)" }}>+{moreCount}건</b>도 적정가 산정에 반영됨</td></tr>}
+              )) : <tr><td colSpan={9} style={{ textAlign: "center", color: "var(--rmuted)", padding: "2cqw" }}>조건에 맞는 실거래 사례 없음</td></tr>}
+              {moreCount > 0 && <tr><td colSpan={9} style={{ textAlign: "center", color: "var(--rmuted)", fontSize: ".95cqw", padding: ".55cqw", borderTop: "1px dashed var(--rl)" }}>가까운 순 4건 표시 · 외 <b style={{ color: "var(--navy)" }}>+{moreCount}건</b>도 적정가 산정에 반영됨</td></tr>}
             </tbody>
           </table>
           <div style={{ display: "flex", gap: "2.5cqw", alignItems: "center", flex: 1 }}>
             <div style={{ flex: "0 0 42%", display: "flex", flexDirection: "column" }}>
-              <div style={{ fontSize: "1.1cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>연면적당 평단가 비교 <span style={{ color: "var(--rmuted)", fontWeight: 400 }}>(만원/평)</span></div>
+              <div style={{ fontSize: "1.1cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>대지 평단가 비교 <span style={{ color: "var(--rmuted)", fontWeight: 400 }}>(만원/평)</span></div>
               {comps.length >= 2 && <CompareBar height={150} fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}`}
-                refLine={avgPerNow ? { value: avgPerNow, label: "주변 평균" } : null}
-                items={[...comps.map((c, i) => ({ label: `${i + 1}`, value: c.per_now ?? 0, color: "var(--navy)" })),
-                  ...(avgPer ? [{ label: "본매물", value: avgPer, color: "var(--blue)", strong: true }] : [])].filter((x) => x.value > 0)} />}
+                refLine={avgPerLandNow ? { value: avgPerLandNow, label: "주변 평균" } : null}
+                items={[...comps.map((c, i) => ({ label: `${i + 1}`, value: c.per_land_now ?? 0, color: "var(--navy)" })),
+                  ...(avgPerLand ? [{ label: "본매물", value: avgPerLand, color: "var(--blue)", strong: true }] : [])].filter((x) => x.value > 0)} />}
             </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
               <div style={{ fontSize: "1.15cqw", lineHeight: 1.75, color: "var(--rink)" }}>
                 {compMin && compMax
-                  ? <>인근 유사 실거래의 연면적당 평단가는 사례별 약 <b>{compMin.toLocaleString()}~{compMax.toLocaleString()}만원</b> 수준입니다. 본 매물은 입지·용도·건물 규모 등 개별 특성을 반영해 <b style={{ color: "var(--blue)" }}>평당 약 {avgPer ? Math.round(avgPer / 1e4).toLocaleString() : "—"}만원</b> 수준으로 분석됩니다.</>
+                  ? <>인근 유사 실거래의 대지 평단가는 사례별 약 <b>{compMin.toLocaleString()}~{compMax.toLocaleString()}만원</b> 수준입니다. 본 매물은 입지·용도·건물 규모 등 개별 특성을 반영해 <b style={{ color: "var(--blue)" }}>대지 평당 약 {avgPerLand ? Math.round(avgPerLand / 1e4).toLocaleString() : "—"}만원</b> 수준으로 분석됩니다.</>
                   : <>반경 내 유사 실거래가 충분치 않아, 다른 기준을 함께 반영해 시세를 분석했습니다.</>}
               </div>
               <div style={{ fontSize: "1cqw", lineHeight: 1.6, color: "var(--rmuted)", marginTop: ".9cqw" }}>
@@ -381,7 +383,7 @@ export function ReportPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: ".9cqw", width: "100%", height: "100%", justifyContent: "center" }}>
           {/* 3축 — 작은 supporting 한 줄(결론보다 약하게) */}
           <div style={{ display: "flex", justifyContent: "center", gap: "1.6cqw", fontSize: ".98cqw", color: "var(--rmuted)" }}>
-            <span className="cv-l">실거래 {compMin && compMax ? <b style={{ color: "var(--navy)" }}>{compMin.toLocaleString()}~{compMax.toLocaleString()}만/평</b> : "—"}</span>
+            <span className="cv-l">실거래(대지) {compMin && compMax ? <b style={{ color: "var(--navy)" }}>{compMin.toLocaleString()}~{compMax.toLocaleString()}만/평</b> : "—"}</span>
             <span className="cv-l" style={{ color: "var(--rl)" }}>|</span>
             <span className="rs-fade" style={{ ["--d" as string]: "60ms" }}>공시배율 {gmult ? <b style={{ color: "var(--navy)" }}>×{gmult.toFixed(1)}</b> : "—"}</span>
             <span className="cv-r" style={{ color: "var(--rl)" }}>|</span>

@@ -181,10 +181,14 @@ def appraise(subject_score: float, subject: dict, comps: list[dict],
             P.append((padj / la, w))
         if ta:
             T.append((padj / ta, w))
+        # 평단가 두 축을 다 실어 보낸다 — 리포트는 대지 기준을 주로 쓰고 연면적은 보조로 병기한다.
+        # 적정가 산식 자체가 대지평단가법을 0.4 비중으로 쓰므로 대지 축이 모델과도 더 가깝다.
         used.append({"building_pk": c.get("building_pk"), "addr": c.get("addr"),
                      "contract_ym": c.get("contract_ym"), "price": price,
                      "area_py": round(ta / M2_PER_PYEONG, 2) if ta else None,
+                     "land_py": round(la / M2_PER_PYEONG, 2) if la else None,
                      "score": c.get("score"), "per_now": round(padj / ta * M2_PER_PYEONG) if ta else None,
+                     "per_land_now": round(padj / la * M2_PER_PYEONG) if la else None,
                      "time_adj": adj, "weight": round(w, 6)})
 
     gr, gp, gta = _geomean_iqr(R), _geomean_iqr(P), _geomean_iqr(T)
@@ -198,7 +202,7 @@ def appraise(subject_score: float, subject: dict, comps: list[dict],
     else:
         base = m_gong or m_land or ta_val
     if not base:
-        return {"fair_price": None, "avg_per_pyeong": None, "comps_used": used}
+        return {"fair_price": None, "avg_per_pyeong": None, "avg_per_land": None, "comps_used": used}
 
     eff_far = (subj_ta / subj_la * 100) if (subj_ta and subj_la) else 0   # 유효용적률
     a_floor = params_num.get("alpha.floor", 0.1)   # D: 저용적에도 연면적법 최소 반영(v3)
@@ -217,6 +221,7 @@ def appraise(subject_score: float, subject: dict, comps: list[dict],
         fair_f = (1 - cost_l) * fair_f + cost_l * (m_land + struct)
     fair = round(fair_f)
     avg_per = round(fair / (subj_ta / M2_PER_PYEONG)) if subj_ta else None
+    avg_per_land = round(fair / (subj_la / M2_PER_PYEONG)) if subj_la else None
     # 산출 분해(리포트 '적정가 근거 리빌'용) — 각 방법값 + 블렌드 비중
     breakdown = {
         "gong": round(m_gong) if m_gong else None,   # 공시배율법
@@ -227,7 +232,8 @@ def appraise(subject_score: float, subject: dict, comps: list[dict],
         "alpha": round(alpha, 3),                    # 연면적법 반영 비중(유효용적률↑일수록)
         "comp_fair": fair,                           # 수익환원 블렌드 전 comp 적정가
     }
-    return {"fair_price": fair, "avg_per_pyeong": avg_per, "comps_used": used, "breakdown": breakdown}
+    return {"fair_price": fair, "avg_per_pyeong": avg_per, "avg_per_land": avg_per_land,
+            "comps_used": used, "breakdown": breakdown}
 
 
 def blend_income(fair_price: int | None, ann_rent: float | None, cap: float | None, beta: float) -> int | None:
