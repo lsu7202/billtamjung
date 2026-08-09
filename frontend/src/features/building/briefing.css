@@ -147,7 +147,6 @@
 .ps3-dim.road  { color: #C6D6EE; }   /* 그 밖의 접도 */
 .ps3-dim.mass  { color: #9BC0FF; }   /* 건물 높이 */
 .ps3-dim.plate { color: #39E0C8; }   /* 대지 */
-.ps3-dim.legal { color: #F2D072; }   /* 법정 여유 */
 
 .ps3-hint { position: absolute; z-index: 2; left: 1.1cqw; bottom: .9cqw; pointer-events: none;
   color: #4E5F79; font-size: .8cqw; }

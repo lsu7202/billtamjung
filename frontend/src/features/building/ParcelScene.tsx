@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
  *
  *  지도 타일 위에 얹지 않는 이유: 타일이 시끄러워 수치가 묻히고, 자료로 캡처·인쇄할 때도 불리하다.
  *  우리가 가진 도형(필지 폴리곤·도로 구간)만 등각(isometric)으로 눕혀 그리면
- *  대지 위에 현재 용적을 매스로 세우고 법정 여유를 그 위에 비워 보여줄 수 있다.
+ *  대지 위에 현재 용적을 매스로 세운다. 담는 값은 전부 사실 — 여지·전망은 넣지 않는다.
  *
  *  담는 값은 전부 사실이다 — 대지면적·연면적·건폐율/용적률·법정 용적률·접도 폭·용도지역.
  */
@@ -104,11 +104,10 @@ export function ParcelScene({ data, w = 900, h = 520, animate = true }: {
     const c = centroid(base);
 
     // 매스 높이 — 도로 폭과 같은 축척(m→px)으로 세운다. 대장 실측 높이가 있으면 그것,
-    // 없으면 층수×3.5m(층수도 없으면 용적률÷건폐율로 되돌린다). 법정 여유는 용적률 비율만큼 더.
-    const far = data.far ?? 0, legal = data.legalFar ?? 0, bcr = data.bcr ?? 0;
+    // 없으면 층수×3.5m(층수도 없으면 용적률÷건폐율로 되돌린다).
+    const far = data.far ?? 0, bcr = data.bcr ?? 0;
     const floors = data.floorsAbove ?? (bcr > 0 && far > 0 ? Math.max(1, Math.round(far / bcr)) : 3);
     const hCur = Math.min((data.height ?? floors * 3.5) * proj.scale, h * 0.45);
-    const hLegal = far > 0 && legal > far ? Math.min(hCur * (legal / far), h * 0.55) : hCur;
 
     const lift = (pts: [number, number][], dy: number) =>
       pts.map(([x, y]) => [x, y - dy] as [number, number]);
@@ -125,11 +124,11 @@ export function ParcelScene({ data, w = 900, h = 520, animate = true }: {
       lines: ringsOf(r.geojson).map((ln) => ln.map(proj.at)),
     })).filter((r) => r.lines.length);
 
-    return { proj, parcel, base, c, hCur, hLegal, lift, sides, roads };
+    return { proj, parcel, base, c, hCur, lift, sides, roads };
   }, [data, w, h]);
 
   if (!scene) return <div className="ps-empty">필지 도형이 없어 그릴 수 없습니다</div>;
-  const { proj, parcel, base, c, hCur, hLegal, lift, sides, roads } = scene;
+  const { proj, parcel, base, c, hCur, lift, sides, roads } = scene;
 
   /** 도로 폭은 실제 축척으로 긋는다 — 35m 대로가 굵게 보이는 게 사실이다.
    *  다만 눕힌 각도 때문에 정면 도로가 과장되므로 0.75만 반영하고 화면 비율로 조인다. */
@@ -152,10 +151,6 @@ export function ParcelScene({ data, w = 900, h = 520, animate = true }: {
         <linearGradient id="ps-mass" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#5B7FC7" stopOpacity=".95" />
           <stop offset="100%" stopColor="#2B5AA8" stopOpacity=".85" />
-        </linearGradient>
-        <linearGradient id="ps-head" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#8FB0E0" stopOpacity=".30" />
-          <stop offset="100%" stopColor="#8FB0E0" stopOpacity=".05" />
         </linearGradient>
         <clipPath id="ps-clip"><rect x="0" y="0" width={w} height={h} rx="10" /></clipPath>
         <filter id="ps-glow"><feGaussianBlur stdDeviation="3.2" result="b" />
@@ -189,18 +184,6 @@ export function ParcelScene({ data, w = 900, h = 520, animate = true }: {
         <path d={path(lift(base, hCur))} fill="#6E8FD4" stroke="#fff" strokeWidth="1.2" strokeOpacity=".7" />
       </g>
 
-      {/* 4 · 법정 용적까지 남은 여유 */}
-      {hLegal > hCur + 2 && (
-        <g className="ps-rise" style={{ opacity: on(4) }}>
-          {sides(hCur, hLegal).map((q, i) => (
-            <path key={i} d={path(q)} fill="url(#ps-head)" stroke="#8FB0E0" strokeWidth=".7"
-              strokeDasharray="4 3" strokeOpacity=".7" />
-          ))}
-          <path d={path(lift(base, hLegal))} fill="none" stroke="#8FB0E0" strokeWidth="1"
-            strokeDasharray="4 3" strokeOpacity=".8" />
-        </g>
-      )}
-
       {/* 5 · 수치 — 겹치지 않게 자리를 나눈다 */}
       <g className="ps-fade" style={{ opacity: on(5) }}>
         {/* 좌상단 스펙 블록 — 도로 띠가 뒤로 지나가도 읽히게 바닥을 깐다 */}
@@ -221,12 +204,7 @@ export function ParcelScene({ data, w = 900, h = 520, animate = true }: {
           {data.legalFar != null && (
             <>
               <text className="ps-k" y="44">법정 용적률</text>
-              <text className="ps-h" y="63">
-                {data.legalFar}%
-                {(data.legalFar - (data.far ?? 0)) > 0
-                  ? ` · 여유 ${(data.legalFar - (data.far ?? 0)).toFixed(0)}%p`
-                  : " · 여유 없음"}
-              </text>
+              <text className="ps-h" y="63">{data.legalFar}%</text>
             </>
           )}
         </g>

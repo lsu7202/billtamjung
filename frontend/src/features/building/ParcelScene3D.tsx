@@ -33,7 +33,6 @@ const C = {
   plateEdge: 0x39e0c8,     // 청록 = 대지 경계
   mass: 0x3e6fd0,          // 파랑 = 현재 건물
   massLine: 0x9bc0ff,
-  legal: 0xf2d072,         // 노랑 = 법정 용적 여유
 };
 
 const ringsOf = (g: Geo | null | undefined): LngLat[][] => {
@@ -105,7 +104,7 @@ function ribbon(line: V2[], w: number, y: number, mat: THREE.Material) {
 }
 
 /** dx/dy = 화면에서 치수선 옆으로 밀어낼 픽셀. 선 위에 얹으면 선을 가린다. */
-type Label = { text: string; at: THREE.Vector3; kind: "front" | "road" | "mass" | "plate" | "legal";
+type Label = { text: string; at: THREE.Vector3; kind: "front" | "road" | "mass" | "plate";
   dx?: number; dy?: number };
 
 export function ParcelScene3D({ data, animate = true }: { data: SceneData; animate?: boolean }) {
@@ -228,7 +227,7 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
     scene.add(thick(loop(parcel, 0.03), C.plateEdge, { width: 2.6 }));
 
     // ── 건물 매스 ─────────────────────────────────────────
-    const far = data.far ?? 0, legal = data.legalFar ?? 0, bcr = data.bcr ?? 0;
+    const far = data.far ?? 0, bcr = data.bcr ?? 0;
     const floors = data.floorsAbove ?? (bcr > 0 && far > 0 ? Math.max(1, Math.round(far / bcr)) : 3);
     // 높이는 대장 실측값(표제부)이 있으면 그것만 쓴다. 없으면 층수×3.5m로 매스는 세우되
     // 치수는 그리지 않는다 — 그림은 도해지만 숫자는 사실이어야 한다.
@@ -242,16 +241,6 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
     })));
     for (let i = 1; i < floors; i++) scene.add(thick(loop(foot, i * storey), C.massLine, { width: 1, opacity: 0.3 }));
     scene.add(thick(loop(foot, H), 0xffffff, { width: 2, opacity: 0.9 }));
-
-    // ── 법정 용적까지 남은 여유 ────────────────────────────
-    const HL = far > 0 && legal > far ? H * (legal / far) : H;
-    if (HL > H + 0.5) {
-      scene.add(slab(foot, H, HL - H, new THREE.MeshStandardMaterial({
-        color: C.legal, transparent: true, opacity: 0.12, roughness: 1,
-        side: THREE.DoubleSide, depthWrite: false,
-      })));
-      scene.add(thick(loop(foot, HL), C.legal, { width: 2, opacity: 0.9 }));
-    }
 
     // ── 치수선 — 값을 대상 옆에 붙인다 ──────────────────────
     const labs: Label[] = [];
@@ -285,13 +274,6 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
       labs.push({ text: `${H.toFixed(1)}m`, kind: "mass", at: V(H / 2), dx: 30 });
     }
 
-    // 법정 여유 — 실측 높이에 용적률 비율을 곱한 값이라 이제 미터로 그대로 적는다.
-    if (HL - H >= 0.3) {
-      scene.add(thick([V(H), V(HL)], C.legal, { width: 2.4, dash: DASH, top: true }));
-      scene.add(thick([new THREE.Vector3(corner.x, HL, corner.z), V(HL)], C.legal, { width: 1.6, dash: [0.5, 0.35], top: true }));
-      labs.push({ text: `+${(HL - H).toFixed(1)}m`, kind: "legal", at: V((H + HL) / 2), dx: 30 });
-    }
-
     // 대지 — 가장 긴 변에 길이 치수
     let e0 = 0, eLen = 0;
     parcel.forEach((p, i) => {
@@ -318,7 +300,7 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
     const fr = drawn.find((r) => r.front) ?? drawn[0];
     let az = (fr ? Math.atan2(fr.near.z - c.z, fr.near.x - c.x) : 0.68) + 0.8;
     let elev = 0.60;
-    let dist = Math.max(92, HL * 3.3, eLen * 4.2, widest * 2.4);
+    let dist = Math.max(92, H * 3.3, eLen * 4.2, widest * 2.4);
 
     const project = (v: THREE.Vector3, w: number, h: number, dx = 0, dy = 0) => {
       const p = v.clone().project(cam);
@@ -342,10 +324,10 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
 
       cam.position.set(
         c.x + Math.cos(az) * dist * Math.cos(elev),
-        HL * 0.34 + dist * Math.sin(elev),
+        H * 0.34 + dist * Math.sin(elev),
         c.z + Math.sin(az) * dist * Math.cos(elev),
       );
-      cam.lookAt(c.x, HL * 0.34, c.z);
+      cam.lookAt(c.x, H * 0.34, c.z);
       renderer.render(scene, cam);
 
       // 겹치는 치수는 아래로 밀어 떼어 놓는다 — 겹친 숫자는 둘 다 못 읽는다
