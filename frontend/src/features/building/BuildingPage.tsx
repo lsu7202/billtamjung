@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  buildingsApi, overlaysApi, rentsApi, listingsApi, creditsApi, seriesApi, reportsApi, FloorRent,
+  buildingsApi, overlaysApi, rentsApi, listingsApi, creditsApi, seriesApi, reportsApi, proposalsApi, FloorRent,
 } from "../../shared/api/endpoints";
 import { PhotoPanel } from "../../shared/map/PhotoPanel";
 import { won, wonShort } from "../../shared/format";
@@ -96,13 +96,21 @@ export function BuildingPage() {
   const nav = useNavigate();
   // 브리핑 생성 — 계산이 없어 바로 완료된다. 완료되면 덱으로 이동.
   const briefing = useMutation({
-    mutationFn: async (comment: string) => {
+    mutationFn: async ({ comment, buyerIds }: { comment: string; buyerIds: number[] }) => {
       // 코멘트를 먼저 저장해야 스냅샷에 실린다(생성 시점의 오버레이를 그대로 굳힌다).
       await overlaysApi.put(pk, "briefing_comment", comment);
       const { report_id } = await reportsApi.create(pk, "briefing");
       for (let i = 0; i < 20; i++) {
         const r = await reportsApi.get(report_id);
-        if (r.status === "done") return report_id;
+        if (r.status === "done") {
+          // 보낼 대상을 골랐으면 제안으로 기록한다 — 만들고 나서 따로 적지 않는다(S04).
+          // 실패해도 브리핑은 이미 만들어졌으니 막지 않는다.
+          await Promise.all(buyerIds.map((id) =>
+            proposalsApi.upsert({ buyer_id: id, building_pk: pk, status: "제안", channel: "브리핑", report_id })
+              .catch(() => {})));
+          if (buyerIds.length) qc.invalidateQueries({ queryKey: ["matching-buyers", pk] });
+          return report_id;
+        }
         if (r.status === "failed") throw new Error("브리핑 생성에 실패했습니다");
         await new Promise((z) => setTimeout(z, 900));
       }
@@ -437,9 +445,9 @@ export function BuildingPage() {
 
       {/* 브리핑 생성 — 중개인 코멘트를 받아 스냅샷에 함께 굳힌다 */}
       {briefOpen && (
-        <BriefingModal current={String(b.briefing_comment ?? "")} busy={briefing.isPending}
+        <BriefingModal pk={pk} current={String(b.briefing_comment ?? "")} busy={briefing.isPending}
           onClose={() => setBriefOpen(false)}
-          onSubmit={(c) => { setBriefOpen(false); briefing.mutate(c); }} />
+          onSubmit={(c, buyerIds) => { setBriefOpen(false); briefing.mutate({ comment: c, buyerIds }); }} />
       )}
 
     </div>
