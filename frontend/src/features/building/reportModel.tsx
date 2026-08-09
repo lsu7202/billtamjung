@@ -242,7 +242,9 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   // ── 08 미래가치 — "그래서 얼마?" 실제 돈·양으로 설명 ──
   const _sign = (v: number) => (v >= 0 ? "+" : "−");
   const _rentDiff = fut && fut.cur_rent && fut.mkt_rent != null ? fut.mkt_rent - fut.cur_rent : null;          // 월 임대 차액(원)
-  const _overPct = fut && fut.far && fut.legal_far ? (fut.far / fut.legal_far - 1) * 100 : null;               // 법정 대비 초과 %
+  // 초과분도 여유분과 같은 단위(%p)로 읽는다 — F-09b(용적률 여유분 = 법정 − 현재).
+  // 비율(현재÷법정−1)로 적었더니 700/777인 건물이 "10% 초과"로 나와, 77%p 초과를 본 중개사와 말이 어긋났다.
+  const _overPp = fut?.headroom_far != null ? -fut.headroom_far : null;                                        // %p, 양수=초과
   const _buildP = fut && fut.headroom_far && fut.headroom_far > 0 && landArea ? landArea * (fut.headroom_far / 100) / P : null;  // 증축 가능 연면적(평)
   const _g5AgoWon = fut && fut.land_rate5 != null && gTotal ? gTotal / (1 + fut.land_rate5 / 100) : null;       // 5년 전 공시총액(원)
   const _gAnnualWon = _g5AgoWon != null && gTotal ? (gTotal - _g5AgoWon) / 5 : null;                           // 연평균 상승액(원)
@@ -252,7 +254,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
       sub: fut.far != null && fut.legal_far != null
         ? (fut.headroom_far! > 0
             ? `현재 용적률 ${fut.far}% / 법정 ${fut.legal_far}% → +${fut.headroom_far}%p 증축 여지`
-            : `현재 용적률 ${fut.far}% · 법정 ${fut.legal_far}% (법정 대비 약 ${_overPct!.toFixed(0)}% 초과)`)
+            : `현재 용적률 ${fut.far}% / 법정 ${fut.legal_far}% → ${_overPp!.toFixed(0)}%p 초과`)
         : "용적률 정보 없음" },
     { key: "upside", label: "임대 상향 여력", c: "var(--blue)",
       value: _rentDiff == null ? "—" : `${_sign(_rentDiff)}${Math.abs(Math.round(_rentDiff / 1e4)).toLocaleString()}만원/월`,
