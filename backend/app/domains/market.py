@@ -146,3 +146,55 @@ async def nearby(body: NearbyIn, _: CurrentUser = Depends(current_user)):
     # (구 rent_candidates 제거) — 미입력 매물은 이제 마스터 추정 comp(is_estimate)로 노출되므로 중복.
     return {"rents": rents, "floor_avg": floor_avg, "sales": sales,
             "radius_m": body.radius_m, "count": len(rents)}
+
+
+# ── 주변 실거래 (지도 선택 카드용) ────────────────────────────────
+# S01 지도에서 매물을 고르면 "이게 어느 정도인가"를 바로 가늠할 수 있어야 한다.
+# 자기 실거래 이력이 있는 건물은 13.5%뿐이라(2026-08-09 실측) 자기 이력만으로는 대개 빈 화면이다.
+# nearby()는 임대 추정 comp까지 무는 무거운 조회라 카드용으로는 매각 사례만 가볍게 뽑는다.
+@router.get("/nearby-sales/{building_pk}")
+async def nearby_sales(building_pk: str, radius_m: int = 500, years: int = 5, limit: int = 8,
+                       _: CurrentUser = Depends(current_user)):
+    """반경 내 최근 매각 사례 — 가까운 순. 본매물 제외, 매물당 최근 거래 1건(DISTINCT ON).
+    per_area = 연면적 평단가(원/평). 04 슬라이드 비교와 같은 축이라 두 화면이 같은 말을 한다."""
+    radius_m = max(100, min(radius_m, 3000))
+    years = max(1, min(years, 30))
+    rows = await pool().fetch(
+        """WITH me AS (SELECT geom FROM master.buildings WHERE building_pk = $1),
+                near AS MATERIALIZED (
+             SELECT b.building_pk, b.addr, b.total_area, b.land_area,
+                    round(ST_Distance(b.geom::geography, (SELECT geom FROM me)::geography)) AS dist_m
+             FROM master.buildings b, me
+             WHERE b.building_pk <> $1
+               AND ST_DWithin(b.geom::geography, me.geom::geography, $2))
+           SELECT DISTINCT ON (n.building_pk)
+                  n.building_pk, n.addr, n.dist_m, n.total_area, n.land_area,
+                  sh.contract_ym, sh.price
+           FROM near n JOIN master.sales_history sh USING (building_pk)
+           WHERE sh.price > 0 AND sh.total_area > 0
+             AND sh.contract_ym >= to_char(now() - make_interval(years => $3::int), 'YYYYMM')
+           ORDER BY n.building_pk, sh.contract_ym DESC""",
+        building_pk, radius_m, years)
+
+    sales = []
+    for r in rows:
+        d = dict(r)
+        d["is_outlier"] = False
+        ta = float(d["total_area"]) if d["total_area"] else None
+        d["per_area"] = round(d["price"] / ta * 3.305785) if ta else None
+        sales.append(d)
+
+    # 이상치 표시 — 막대 하나가 28,570만/평이면 나머지가 전부 바닥에 깔려 아무것도 못 읽는다.
+    # 반경 전체(가까운 8건이 아니라)를 기준으로 판정해야 표본이 충분하다.
+    _flag_outliers(sales, "per_area")
+    ok = [x for x in sales if x["per_area"] and not x["is_outlier"]]
+    ok.sort(key=lambda x: x["dist_m"])                # 가까운 순 — 가늠의 기준은 거리다
+
+    pers = sorted(x["per_area"] for x in ok)
+    median = pers[len(pers) // 2] if pers else None
+
+    return {"radius_m": radius_m, "years": years,
+            "total": len(sales),                      # 반경 내 전체(막대는 가까운 limit개만)
+            "excluded": len(sales) - len(ok),         # 이상치로 뺀 건수 — 숨기지 않고 말한다
+            "median_per_area": median,                # 주변 중앙값 — 이상치에 안 흔들린다
+            "sales": ok[:limit]}

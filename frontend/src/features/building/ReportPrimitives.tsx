@@ -72,9 +72,11 @@ export function ScoreRadar({ axes, size = 210, color = "var(--signal)", showValu
 }
 
 /* 비교 컬럼차트 — 세로 막대(그라디언트·호버 강조·값라벨·베이스라인). 가격/임대료 비교. TrendChart와 동일 감성. */
-export function CompareBar({ items, fmt, height = 178, refLine }: {
+export function CompareBar({ items, fmt, height = 178, refLine, refLabel = true }: {
   items: { label: string; value: number; color?: string; strong?: boolean }[]; fmt: (n: number) => string; height?: number;
   refLine?: { value: number; label: string } | null;
+  /** 기준선 글자를 차트 안에 그릴지. 좁은 칸(사이드바)에서는 마지막 막대 값과 겹쳐서 밖에 낸다. */
+  refLabel?: boolean;
 }) {
   const gid = useId();
   const ref = useRef<SVGSVGElement>(null);
@@ -112,7 +114,7 @@ export function CompareBar({ items, fmt, height = 178, refLine }: {
       {refLine && refLine.value > 0 ? <>
         <line x1={0} y1={yOf(refLine.value)} x2={W} y2={yOf(refLine.value)} stroke="var(--blue)" strokeWidth={1.5} strokeDasharray="5 4" vectorEffect="non-scaling-stroke"
           style={{ transformBox: "fill-box", transformOrigin: "left", animation: "bt-wipe .7s cubic-bezier(.22,1,.36,1) .45s both" }} />
-        <text x={W - 2} y={yOf(refLine.value) - 5} textAnchor="end" fontSize="11" fontWeight={700} fill="var(--blue)" style={{ animation: "bt-fade .4s ease 1s both" }}>{refLine.label} {fmt(refLine.value)}</text>
+        {refLabel && <text x={W - 2} y={yOf(refLine.value) - 5} textAnchor="end" fontSize="11" fontWeight={700} fill="var(--blue)" style={{ animation: "bt-fade .4s ease 1s both" }}>{refLine.label} {fmt(refLine.value)}</text>}
       </> : null}
       {list.map((it, i) => {
         const h = Math.max(3, (it.value / max) * (base - T));

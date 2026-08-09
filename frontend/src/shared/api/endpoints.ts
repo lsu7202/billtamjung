@@ -248,7 +248,20 @@ export const seriesApi = {
     api(`/buildings/${pk}/series?kind=${kind}&x=${encodeURIComponent(x)}`, { method: "DELETE" }),
 };
 
+export interface NearbySale {
+  building_pk: string; addr: string; dist_m: number; contract_ym: string;
+  price: number; total_area: number | null; land_area: number | null; per_area: number | null;
+}
+export interface NearbySales {
+  radius_m: number; years: number; total: number;
+  excluded: number;                 // 이상치로 뺀 건수
+  median_per_area: number | null; sales: NearbySale[];
+}
+
 export const marketApi = {
+  /** 주변 실거래 — 지도 선택 카드용. 매각 사례만 가볍게(임대 comp 없음). */
+  nearbySales: (pk: string, radius_m = 500, years = 5) =>
+    api<NearbySales>(`/market/nearby-sales/${pk}?radius_m=${radius_m}&years=${years}`),
   nearby: (b: { center_lat: number; center_lng: number; radius_m: number; building_pk?: string; polygon?: object | null; floors?: string[];
                 sale_years?: number; sale_price_min?: number | null; sale_price_max?: number | null }) =>
     api<Record<string, unknown>>("/market/nearby", { method: "POST", body: JSON.stringify(b) }),

@@ -1,12 +1,11 @@
 import { LoadingOverlay } from "../../shared/ui/Spinner";
-import { useMemo, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { searchApi, buildingsApi, listingsApi, type AttrFilters } from "../../shared/api/endpoints";
+import { searchApi, buildingsApi, listingsApi, marketApi, type AttrFilters, type NearbySales } from "../../shared/api/endpoints";
 import { openDetail, mergeGeo } from "../../shared/map/geo";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
 import { FilterModal, activeCount, conditionChips, type Values, type RegionPick } from "./FilterModal";
-import { buildTrendSeries, type TrendSeries } from "../../shared/ui/PriceTrendChart";
-import { TrendChart } from "../building/TrendChart";
+import { CompareBar } from "../building/ReportPrimitives";
 import { RoadviewMini } from "../../shared/map/Roadview";
 import "./search.css";
 import { Icon } from "../../shared/ui/Icon";
@@ -37,8 +36,8 @@ const py = (m2?: number | null) => (m2 == null ? "—" : (m2 / PY).toFixed(m2 / 
 /** 지도 선택 매물 요약 카드 — 마스터 즉시값만(적정가·수익률·층수·면적·시세추이). 수익률은 classified가
  *  마스터(rent_est÷매매가)로 산출해 핀에 실려옴(picked.roi). 라이브 계산값(매력도·투자유형·미래가치)만
  *  리포트에서 — 사이드바는 대기 없이 바로 뜨도록 배치/마스터 값으로 한정. */
-function SelCard({ picked, bldg, trend, onDetail }: {
-  picked: MapPin; bldg?: Record<string, unknown>; trend: TrendSeries;
+function SelCard({ picked, bldg, nearby, onDetail }: {
+  picked: MapPin; bldg?: Record<string, unknown>; nearby?: NearbySales;
   onDetail: () => void;
 }) {
   const num = (k: string) => (bldg && bldg[k] != null ? Number(bldg[k]) : null);
@@ -48,6 +47,9 @@ function SelCard({ picked, bldg, trend, onDetail }: {
   const fb = num("floors_below") ?? picked.floors_below ?? null;
   const fair = picked.sale_est ?? null;   // 적정가=배치값만(핀에 이미 실림) → 즉시. 매매가와 구분.
   const eok1 = (v: number | null) => v == null ? "—" : v >= 1e8 ? `${(v / 1e8).toFixed(0)}억` : `${Math.round(v / 1e4).toLocaleString()}만`;
+  // 본매물 막대 = **적정가** ÷ 연면적평. 카드 머리에 적정가를 띄워놓고 막대는 매매가로 그리면
+  // 두 숫자가 어긋난다. 사례도 실거래 ÷ 연면적평이라 같은 축이다.
+  const subjPer = fair && total ? Math.round(fair / (total / 3.305785)) : null;
   return (
     <div className="sel-card">
       {picked.lng && picked.lat
@@ -66,9 +68,50 @@ function SelCard({ picked, bldg, trend, onDetail }: {
             <div className="sel-area"><span><i>대지</i>{py(land)}</span><span><i>연면적</i>{py(total)}</span></div>
           </div>
         </div>
+        {/* 주변 실거래 — "이 매물이 어느 정도인가"에 답하는 자리.
+            자기 실거래 이력이 있는 건물은 13.5%뿐이라(2026-08-09 실측) 자기 이력만 그리면 대개 빈 칸이었다.
+            축은 연면적 평단가 — 리포트 04 비교와 같아서 두 화면이 같은 말을 한다. */}
         <div className="sel-spark">
-          <div className="sh"><span>실거래 시세추이</span></div>
-          <TrendChart points={trend.real.map((p) => ({ x: String(p.year), y: p.value }))} color="var(--c-real)" fmt={won} height={110} />
+          <div className="sh"><span>주변 실거래 평단가</span>
+            <small style={{ color: "var(--muted)", fontWeight: 400 }}>
+              {nearby ? `${nearby.radius_m}m · 최근 ${nearby.years}년 · ${nearby.total}건${nearby.excluded ? ` · 이상치 ${nearby.excluded}건 제외` : ""}` : "불러오는 중…"}
+            </small>
+          </div>
+          {/* 기준선 글자는 차트 밖에 — 좁은 칸이라 안에 그리면 본매물 막대 값과 겹친다 */}
+          {nearby?.median_per_area ? (
+            <div className="sel-nb-sum">
+              <span><i style={{ background: "var(--blue)" }} />주변 중앙 <b>{Math.round(nearby.median_per_area / 1e4).toLocaleString()}만</b>/평</span>
+              {subjPer ? <span>본매물 <b style={{ color: "var(--blue)" }}>{Math.round(subjPer / 1e4).toLocaleString()}만</b>/평 <small>(적정가 기준)</small></span> : null}
+            </div>
+          ) : null}
+          {nearby && nearby.sales.length > 0 ? (
+            <CompareBar height={132} refLabel={false} fmt={(v) => `${Math.round(v / 1e4).toLocaleString()}`}
+              refLine={nearby.median_per_area ? { value: nearby.median_per_area, label: "주변 중앙" } : null}
+              items={[
+                ...nearby.sales.filter((x) => x.per_area).map((x, i) => ({
+                  label: `${i + 1}`, value: x.per_area!, color: "var(--navy)",
+                })),
+                ...(subjPer ? [{ label: "본매물", value: subjPer, color: "var(--blue)", strong: true }] : []),   // 적정가 기준
+              ]} />
+          ) : (
+            <div style={{ color: "var(--muted)", fontSize: 12, padding: "14px 2px" }}>
+              {nearby ? "반경 내 최근 실거래가 없습니다" : "\u00a0"}
+            </div>
+          )}
+          {/* 막대는 가까운 순 위에서 8건. 어느 매물인지는 아래 목록에서 본다. */}
+          {nearby && nearby.sales.length > 0 && (
+            <div className="sel-nb">
+              {nearby.sales.slice(0, 3).map((x, i) => (
+                <div key={x.building_pk} className="r">
+                  <span className="i">{i + 1}</span>
+                  <span className="a">{x.addr.replace("서울특별시 ", "").replace("번지", "")}</span>
+                  <span className="d">{x.dist_m}m</span>
+                  <span className="p">{eok1(x.price)}</span>
+                  <span className="u">{x.per_area ? `${Math.round(x.per_area / 1e4).toLocaleString()}만` : "—"}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <button className="sel-detail" onClick={onDetail}>상세보기 →</button>
       </div>
@@ -199,7 +242,11 @@ export function SearchPage() {
     queryKey: ["pickBldg", picked?.building_pk],
     queryFn: () => buildingsApi.get(picked!.building_pk), enabled: !!picked,
   });
-  const trend = useMemo(() => buildTrendSeries(pickedBldg.data), [pickedBldg.data]);
+  // 주변 실거래 — 매물을 고른 뒤 따로 불러온다(약 190ms). 카드는 먼저 뜨고 그래프만 채워진다.
+  const nearbySales = useQuery({
+    queryKey: ["nearbySales", picked?.building_pk],
+    queryFn: () => marketApi.nearbySales(picked!.building_pk), enabled: !!picked,
+  });
 
   const total = result.data ? result.data.mine.total + result.data.normal.total : 0;
 
@@ -295,7 +342,7 @@ export function SearchPage() {
         <div className="map-split">
           {/* 좌: 선택 매물 요약 + 미니리스트(핀 동기) */}
           <div className="map-list">
-            {picked ? <SelCard picked={picked} bldg={pickedBldg.data} trend={trend} onDetail={() => go(picked.building_pk)} /> : null}
+            {picked ? <SelCard picked={picked} bldg={pickedBldg.data} nearby={nearbySales.data} onDetail={() => go(picked.building_pk)} /> : null}
             <div className="ml-head">
               <span>이 지도 영역 <b className="num">{mapPinList.length}</b>건{
                 mapPins.isFetching ? " · 불러오는 중…"
