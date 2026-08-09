@@ -128,9 +128,6 @@ export function KV({ label, field, value, unit: u, editable, validate, current, 
               onBlur={commit}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setErr(null); setEditing(false); } }} />
             {money && <span style={{ fontSize: 12, color: "var(--ink)", fontWeight: 600 }}>{baseLabel}</span>}
-            {/* 확인용 원 단위 — 자리수를 세지 않아도 되지만, 맞게 들어갔는지는 보여야 한다 */}
-            {money && <span style={{ fontSize: 10, color: "var(--muted)", whiteSpace: "nowrap" }}>
-              {(() => { const w = parseAmount(val, base); return w ? `${w.toLocaleString()}원` : ""; })()}</span>}
             {/* ↺ = 편집 중에만 노출. mousedown preventDefault로 blur-commit 차단 후 되돌리기 */}
             <button className="btn" style={{ padding: "0 6px", fontSize: 11 }}
               onMouseDown={(e) => { e.preventDefault(); setErr(null); setEditing(false); onRevert?.(field); }}

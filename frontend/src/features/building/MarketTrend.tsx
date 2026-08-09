@@ -151,7 +151,6 @@ function SeriesRow({ p, fmt, perPy, areaPy, onSave, onDel, hidden }: {
                   onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setYEdit(false); }} />
                 <span style={{ fontSize: 12, fontWeight: 600 }}>억</span>
               </span>
-              {yv && <span style={{ fontSize: 10, color: "var(--muted)" }}>{(() => { const w = parseAmount(yv); return w ? fmt(w) : ""; })()}</span>}
             </span>
           : <span style={{ cursor: "pointer", display: "inline-block", minWidth: 40, minHeight: 15 }} title="클릭 = 수정(억 단위)"
               onClick={() => { setYv(p ? seedAmount(p.y) : ""); setYEdit(true); }}>{p ? fmt(p.y) : ""}</span>}
