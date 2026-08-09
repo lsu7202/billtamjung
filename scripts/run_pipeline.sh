@@ -63,6 +63,16 @@ if step_ge load; then
     echo "  → $src ($csv)"
     "$LOADER_PY" pipeline/loader.py --source "$src" --csv "$csv"
   done
+
+  # 도로폭 — build_all.py는 만드는데 여기서 안 실어서 프로덕션에 road_segment가 비어 있었다(2026-08-09).
+  # loader의 세대 스왑(v1→v2) 구조는 검색이 붙는 대형 테이블용이고, 이건 파생 계산의 입력이라
+  # TRUNCATE+INSERT인 전용 스크립트를 쓴다. 대신 파이프라인 안에서 돌게 한다.
+  if [ -f data/tools/_road_width.csv ]; then
+    echo "  → road_width (road_segment · building_road)"
+    "$LOADER_PY" scripts/load_road_width.py "$DATABASE_URL"
+  else
+    echo "  ⏭ road_width: data/tools/_road_width.csv 없음, 건너뜀"
+  fi
 fi
 
 echo "== 완료 =="

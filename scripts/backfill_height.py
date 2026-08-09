@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
-"""건물 높이(m) 백필 — 표제부 42번을 master.buildings.height로. 멱등.
+"""건물 높이(master.buildings_v2.height) 백필 — 원천 CSV → UPDATE.
 
-다음 전체 파이프라인 재빌드 때는 build_building_master._height → export → loader 경로로
-자동 적재된다(schema_buildings.COLUMNS). 이 스크립트는 그 전에 한 번 채우기 위한 것이다.
+왜 필요한가:
+  0034_building_height.sql은 컬럼만 추가하고 값은 안 채운다. 값은 buildings CSV에 실려
+  loader가 buildings를 **재적재**할 때 들어온다. 그런데 프로덕션 buildings는 0034 이전 세대라
+  컬럼만 생기고 전부 NULL이 됐다(2026-08-09 발견 · 로컬 32.7만동 / 프로덕션 0).
 
-정리 규칙은 build_building_master._height와 같아야 한다 — 여기서만 바꾸면 재빌드 때 값이 달라진다.
-  h≤1m·h>600m 버림 · 층수 있으면 층당 2~8m 밖은 버림(실측: 0.1m·13438m 원본 오류)
+  buildings 전체(56만행)를 재적재하려면 원천부터 다시 빌드해야 해서, 이미 값이 있는 DB에서
+  (building_pk, height)만 뽑아 옮긴다. 1회성 백필이고, 다음 정기 적재부터는 CSV에 실려 자동으로 맞는다.
 
-사용: python3 scripts/backfill_height.py [DSN]
+사용:
+  # 1) 값이 있는 DB에서 뽑기
+  BT_DATABASE_URL=<원본DSN> python3 scripts/backfill_height.py dump  > /tmp/height.csv
+  # 2) 대상 DB에 넣기
+  BT_DATABASE_URL=<대상DSN> python3 scripts/backfill_height.py load  < /tmp/height.csv
+
+임시테이블 → UPDATE ... FROM 이라 기존 값은 덮지 않는다(height IS NULL 인 행만).
 """
 import asyncio
 import os
@@ -15,60 +23,56 @@ import sys
 
 import asyncpg
 
-DSN = sys.argv[1] if len(sys.argv) > 1 else os.environ.get(
-    "BT_DATABASE_URL", "postgresql://postgres:test@localhost:55432/billtamjung")
-MART = os.environ.get("BT_MART_DJY03", "data/raw/seoul/mart_djy_03_seoul.txt")
+DSN = os.environ.get("BT_DATABASE_URL", "postgresql://postgres:test@localhost:55432/billtamjung")
 
 
-def _f(s: str) -> float:
-    try:
-        return float((s or "").strip() or 0)
-    except ValueError:
-        return 0.0
-
-
-def rows():
-    with open(MART, "rb") as f:
-        for line in f:
-            c = line.decode("utf-8", "replace").rstrip("\n").split("|")
-            if len(c) < 62:
-                continue
-            pk, h, fl = c[0].strip(), _f(c[42]), int(_f(c[43]))
-            if not pk or h <= 1 or h > 600:
-                continue
-            if fl > 0 and not (fl * 2 <= h <= fl * 8):
-                continue
-            yield pk, round(h, 1)
-
-
-async def main() -> None:
+async def dump() -> None:
     c = await asyncpg.connect(DSN)
-    await c.execute("SET statement_timeout = 0")
-    await c.execute("CREATE TEMP TABLE _h(building_pk text, height numeric)")
-    n = 0
-    batch = []
-    for r in rows():
-        batch.append(r); n += 1
-        if len(batch) >= 50_000:
-            await c.copy_records_to_table("_h", records=batch); batch = []
-    if batch:
-        await c.copy_records_to_table("_h", records=batch)
-    print(f"표제부 유효 높이 {n:,}건")
+    try:
+        rows = await c.fetch(
+            "SELECT building_pk, height FROM master.buildings_v2 WHERE height IS NOT NULL")
+        out = sys.stdout
+        for r in rows:
+            out.write(f"{r['building_pk']},{r['height']}\n")
+        print(f"{len(rows):,}행 추출", file=sys.stderr)
+    finally:
+        await c.close()
 
-    await c.execute("CREATE INDEX ON _h(building_pk)")
-    live = await c.fetchval("""SELECT 'buildings_v' || max(substring(table_name from '_v(\\d+)$')::int)
-                               FROM information_schema.tables
-                               WHERE table_schema='master' AND table_name ~ '^buildings_v\\d+$'""")
-    upd = await c.execute(f"""
-        UPDATE master.{live} b SET height = h.height
-        FROM (SELECT building_pk, max(height) height FROM _h GROUP BY 1) h
-        WHERE b.building_pk = h.building_pk AND b.height IS DISTINCT FROM h.height""")
-    row = await c.fetchrow("""SELECT count(*) n, count(height) h, round(avg(height),1) avg
-                              FROM master.buildings""")
-    print(f"{live}: {upd} · 높이 확보 {row['h']:,}/{row['n']:,} "
-          f"({row['h'] / row['n'] * 100:.1f}%) · 평균 {row['avg']}m")
-    await c.close()
+
+async def load() -> None:
+    pairs = []
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        pk, h = line.rsplit(",", 1)
+        pairs.append((pk, float(h)))
+    if not pairs:
+        print("입력 없음", file=sys.stderr)
+        return
+
+    c = await asyncpg.connect(DSN)
+    try:
+        before = await c.fetchval("SELECT count(height) FROM master.buildings_v2")
+        async with c.transaction():
+            await c.execute("CREATE TEMP TABLE _h(building_pk text PRIMARY KEY, height numeric) ON COMMIT DROP")
+            await c.copy_records_to_table("_h", records=pairs)
+            # 이미 값이 있는 행은 건드리지 않는다 — 백필이지 덮어쓰기가 아니다.
+            n = await c.execute("""UPDATE master.buildings_v2 b SET height = h.height
+                                     FROM _h h
+                                    WHERE b.building_pk = h.building_pk AND b.height IS NULL""")
+        after = await c.fetchval("SELECT count(height) FROM master.buildings_v2")
+        print(f"입력 {len(pairs):,}행 · {n} · height 보유 {before:,} → {after:,}", file=sys.stderr)
+    finally:
+        await c.close()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    mode = sys.argv[1] if len(sys.argv) > 1 else ""
+    if mode == "dump":
+        asyncio.run(dump())
+    elif mode == "load":
+        asyncio.run(load())
+    else:
+        print(__doc__)
+        sys.exit(1)
