@@ -218,6 +218,56 @@ async def delete_proposal(pid: int, user: CurrentUser = Depends(current_user)):
     return {"ok": True}
 
 
+# ── 매물 → 맞는 매수자 ─────────────────────────────────
+@router.get("/buildings/{building_pk}/matching-buyers")
+async def matching_buyers(building_pk: str, user: CurrentUser = Depends(current_user)):
+    """이 매물이 조건에 걸리는 팀 매수자 목록.
+
+    매물을 받으면 중개인이 제일 먼저 하는 생각이 "누구한테 돌리지"다. 그 답을 화면이 낸다.
+    매칭용 쿼리를 새로 만들지 않는다 — 검색 엔진(_build_base)을 **이 매물 한 행으로 좁혀** 돌린다.
+    따로 만들면 '검색 결과'와 '매칭 결과'가 언젠가 어긋난다.
+    매수자 수는 팀 단위라 작다(수십). 한 행 조회를 그 수만큼 도는 편이 규칙을 쪼개는 것보다 낫다.
+    """
+    from . import search as S   # 순환 임포트 방지 — 라우터 등록 시점이 아니라 호출 시점에
+
+    rows = await pool().fetch(
+        """SELECT id, name, grade, phone, conditions_json FROM app.buyers
+           WHERE team_id=$1 AND deleted_at IS NULL AND status='활성'""", user.team_id)
+
+    # 이미 제안했는지 — 같은 매물을 또 담지 않게 화면에서 미리 보여준다.
+    sent = {r["buyer_id"]: r["status"] for r in await pool().fetch(
+        "SELECT buyer_id, status FROM app.proposals WHERE team_id=$1 AND building_pk=$2",
+        user.team_id, building_pk)}
+
+    out = []
+    for r in rows:
+        cond = r["conditions_json"]
+        if isinstance(cond, str):
+            cond = json.loads(cond)
+        filters = (cond or {}).get("filters") or {}
+        regions = (cond or {}).get("regions") or []
+        if not filters and not regions:
+            continue                      # 조건이 없으면 매칭 대상이 아니다(전부 걸리는 건 매칭이 아니다)
+
+        f = dict(filters)
+        f["building_pk"] = building_pk
+        if not f.get("bjd_code") and regions:
+            f["bjd_code"] = regions[0].get("bjd_code")
+        try:
+            body = S.SearchIn(filters=S.Filters(**f))
+        except Exception:
+            continue                      # 조건이 깨졌으면 조용히 건너뛴다(한 명 때문에 화면이 죽으면 안 된다)
+        base, args, outer = S._build_base(body, user)
+        hit = await pool().fetchval(
+            base + f"SELECT count(*) FROM classified WHERE TRUE {outer}", *args)
+        if hit:
+            out.append({"id": r["id"], "name": r["name"], "grade": r["grade"], "phone": r["phone"],
+                        "proposal_status": sent.get(r["id"])})
+    # 이미 제안한 사람은 뒤로 — 앞에 오는 건 "아직 안 돌린 사람"이어야 한다
+    out.sort(key=lambda x: (x["proposal_status"] is not None, x["name"]))
+    return out
+
+
 # ── 접촉 이력 ───────────────────────────────────────────
 class ContactIn(BaseModel):
     target_type: str      # buyer | listing

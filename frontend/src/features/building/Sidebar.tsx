@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, type CSSProperties } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { listingsApi, extrasApi, overlaysApi, buildingsApi } from "../../shared/api/endpoints";
+import { listingsApi, extrasApi, overlaysApi, buildingsApi, buyersApi, proposalsApi } from "../../shared/api/endpoints";
+import { Loading } from "../../shared/ui/Spinner";
 import { KV, wonToEok, vPos, formatPhone } from "./KV";
 import { api } from "../../shared/api/client";
 import { useEnums } from "../../shared/hooks/useEnums";
@@ -11,14 +12,15 @@ import { Icon } from "../../shared/ui/Icon";
 
 export function Sidebar({ pk }: { pk: string }) {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"biz" | "wiki" | "hist" | "memo">("biz");
+  const [tab, setTab] = useState<"biz" | "buyers" | "wiki" | "hist" | "memo">("biz");
 
   const listing = useQuery({ queryKey: ["listing", pk], queryFn: () => listingsApi.get(pk) });
   const wiki = useQuery({ queryKey: ["wiki", pk], queryFn: () => extrasApi.wikiList(pk), enabled: tab === "wiki" });
   const memos = useQuery({ queryKey: ["memos", pk], queryFn: () => extrasApi.memoList(pk), enabled: tab === "memo" });
   const dist = useQuery({ queryKey: ["dist", pk], queryFn: () => overlaysApi.distribution(pk), enabled: tab === "hist" });
 
-  const TABS = [["biz", "업무"], ["wiki", "위키"], ["hist", "힌트"], ["memo", "메모"]] as const;
+  // 매물을 받으면 중개인이 제일 먼저 하는 생각이 "누구한테 돌리지"다 — 그 자리를 업무 옆에 둔다(S04).
+  const TABS = [["biz", "업무"], ["buyers", "매수자"], ["wiki", "위키"], ["hist", "힌트"], ["memo", "메모"]] as const;
   const tabIdx = TABS.findIndex(([t]) => t === tab);
 
   return (
@@ -31,10 +33,40 @@ export function Sidebar({ pk }: { pk: string }) {
       </div>
       <div style={{ padding: 14, minHeight: 300, maxHeight: "calc(100vh - 180px)", overflow: "auto" }}>
         {tab === "biz" && <BizTab pk={pk} listing={listing.data} refresh={() => qc.invalidateQueries({ queryKey: ["listing", pk] })} />}
+        {tab === "buyers" && <MatchTab pk={pk} />}
         {tab === "wiki" && <WikiTab pk={pk} items={wiki.data ?? []} refresh={() => qc.invalidateQueries({ queryKey: ["wiki", pk] })} />}
         {tab === "hist" && <HistTab pk={pk} dist={dist.data ?? {}} refresh={() => { qc.invalidateQueries({ queryKey: ["dist", pk] }); qc.invalidateQueries({ queryKey: ["building", pk] }); }} />}
         {tab === "memo" && <MemoTab pk={pk} memos={memos.data ?? []} refresh={() => qc.invalidateQueries({ queryKey: ["memos", pk] })} />}
       </div>
+    </div>
+  );
+}
+
+/* ── 맞는 매수자(S04) — 조건이 이 매물에 걸리는 팀 매수자. 담으면 제안(후보)이 된다. ── */
+function MatchTab({ pk }: { pk: string }) {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["matching-buyers", pk], queryFn: () => buyersApi.matching(pk) });
+  const add = async (id: number) => {
+    await proposalsApi.upsert({ buyer_id: id, building_pk: pk });
+    qc.invalidateQueries({ queryKey: ["matching-buyers", pk] });
+  };
+  if (q.isLoading) return <Loading label="찾는 중" minHeight="120px" />;
+  const list = q.data ?? [];
+  if (!list.length) {
+    return <p style={{ color: "var(--muted)", fontSize: 12.5, lineHeight: 1.6, margin: 0 }}>
+      조건이 맞는 매수자가 없습니다.<br />영업 탭에서 매수자와 조건을 등록하면 여기에 뜹니다.</p>;
+  }
+  return (
+    <div className="mb-list">
+      {list.map((b) => (
+        <div className="mb-row" key={b.id}>
+          <div className="n"><b>{b.name}</b>{b.grade ? <span className="g">{b.grade}</span> : null}
+            {b.phone ? <div className="p">{b.phone}</div> : null}</div>
+          {b.proposal_status
+            ? <span className="st">{b.proposal_status}</span>
+            : <button className="btn" onClick={() => add(b.id)}>후보로</button>}
+        </div>
+      ))}
     </div>
   );
 }

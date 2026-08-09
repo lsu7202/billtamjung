@@ -377,8 +377,15 @@ export interface Contact {
   occurred_on: string; note: string | null;
 }
 
+export interface MatchingBuyer {
+  id: number; name: string; grade: string | null; phone: string | null;
+  proposal_status: string | null;   // 이미 제안했으면 그 상태
+}
+
 export const buyersApi = {
   list: () => api<Buyer[]>("/buyers"),
+  /** 이 매물이 조건에 걸리는 매수자 — 매물을 받으면 첫 질문이 "누구한테 돌리지"다. */
+  matching: (pk: string) => api<MatchingBuyer[]>(`/buildings/${pk}/matching-buyers`),
   create: (b: Partial<Buyer> & { name: string; conditions?: Record<string, unknown> }) =>
     api<{ id: number }>("/buyers", { method: "POST", body: JSON.stringify(b) }),
   update: (id: number, patch: Record<string, unknown>) =>

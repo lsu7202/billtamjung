@@ -162,6 +162,9 @@ class Filters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     bjd_code: str | None = None       # 법정동(prefix: 구=5자리·동=10자리)
+    # 한 매물로 좁히기 — 매수자 조건에 이 매물이 걸리는지 볼 때 쓴다(S04 「맞는 매수자」).
+    # 매칭용 쿼리를 따로 만들면 검색과 언젠가 어긋나므로, 같은 엔진을 한 행으로 좁혀 쓴다.
+    building_pk: str | None = None
     # 다중선택(= ANY)
     use_zones: list[str] | None = None       # 용도지역
     jimoks: list[str] | None = None          # 지목
@@ -336,6 +339,8 @@ def _filter_sql(f: Filters, args: list) -> tuple[str, str]:
         if vals: add(lst, f"{col} = ANY(${{i}})", vals)
 
     # ── 마스터(b.) — classified WHERE ──
+    if f.building_pk:
+        add(m, "b.building_pk = ${i}", f.building_pk)
     if f.bjd_code:
         add(m, "b.bjd_code LIKE ${i} || '%'", f.bjd_code)
     anyof(m, "b.use_zone", f.use_zones)
