@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   buyersApi, proposalsApi, PROPOSAL_STATUSES, REJECT_REASONS,
   type Buyer, type Proposal, type ProposalStatus,
 } from "../../shared/api/endpoints";
 import { FilterModal, activeCount, type Values, type RegionPick } from "../search/FilterModal";
+import type { AttrFilters } from "../../shared/api/endpoints";
 import { Loading } from "../../shared/ui/Spinner";
 import { Icon } from "../../shared/ui/Icon";
 import { Segmented } from "../../shared/ui/Segmented";
 import { openDetail } from "../../shared/map/geo";
+import { searchApi } from "../../shared/api/endpoints";
 import { won } from "../../shared/format";
 import "./sales.css";
 
@@ -16,7 +18,10 @@ import "./sales.css";
  *  중심축은 '제안'이다. 엑셀의 매수자 시트가 실제로는 제안 이력 장부였다.
  *  매수자 조건은 검색 필터와 **같은 스키마**라 조건 편집에 상세검색 모달을 그대로 쓴다. */
 
-type Cond = { values?: Values; regions?: RegionPick[]; polygon?: object | null };
+/** 매수자 조건 = 검색 필터와 같은 모양.
+ *  values/regions는 모달 재편집용 원본, filters는 검색 엔진에 그대로 넘기는 산출물.
+ *  둘 다 저장해야 "조건 편집"과 "매칭"이 같은 것을 보고 돈다. */
+type Cond = { values?: Values; regions?: RegionPick[]; polygon?: object | null; filters?: AttrFilters };
 
 const py = (m2?: number | null) => (m2 ? `${Math.round(m2 / 3.305785)}평` : "—");
 
@@ -150,6 +155,7 @@ function RejectModal({ p, onClose, onDone }: { p: Proposal; onClose: () => void;
 /* ── 매수자 ── */
 function Buyers({ rows, loading, onDone }: { rows?: Buyer[]; loading: boolean; onDone: () => void }) {
   const [cond, setCond] = useState<Buyer | null>(null);
+  const [open, setOpen] = useState<Buyer | null>(null);   // 맞는 매물 펼침
   if (loading) return <Loading label="불러오는 중" minHeight="40vh" />;
   const list = rows ?? [];
   if (!list.length) {
@@ -160,14 +166,16 @@ function Buyers({ rows, loading, onDone }: { rows?: Buyer[]; loading: boolean; o
       <div className="panel">
         <table className="wf">
           <thead><tr>
-            <th>이름</th><th>등급</th><th>연락처</th><th>유입</th><th>조건</th><th className="num">진행</th><th>메모</th>
+            <th>이름</th><th>등급</th><th>연락처</th><th>유입</th><th>조건</th><th>맞는 매물</th><th className="num">진행</th><th>메모</th>
           </tr></thead>
           <tbody>
             {list.map((b) => {
               const c = (b.conditions_json ?? {}) as Cond;
               const n = activeCount(c.values ?? {}, c.regions ?? []);
+              const ready = !!(c.filters && Object.keys(c.filters).length) || (c.regions ?? []).length > 0;
               return (
-                <tr key={b.id}>
+                <Fragment key={b.id}>
+                <tr>
                   <td><b>{b.name}</b>{b.is_corp ? <span className="tag">법인</span> : null}</td>
                   <td>{b.grade ?? "—"}</td>
                   <td>{b.phone ?? "—"}</td>
@@ -178,9 +186,21 @@ function Buyers({ rows, loading, onDone }: { rows?: Buyer[]; loading: boolean; o
                       {n ? `조건 ${n}개` : "조건 설정"}
                     </button>
                   </td>
+                  <td>
+                    {ready
+                      ? <button className="lnk" onClick={() => setOpen(open?.id === b.id ? null : b)}>
+                          {open?.id === b.id ? "접기" : "찾기"}</button>
+                      : <span style={{ color: "var(--muted)" }}>조건 먼저</span>}
+                  </td>
                   <td className="num">{b.active_proposals}</td>
                   <td className="memo">{b.memo ?? ""}</td>
                 </tr>
+                {open?.id === b.id && (
+                  <tr><td colSpan={8} style={{ padding: 0, background: "var(--surface-2)" }}>
+                    <Matches buyer={b} onDone={onDone} />
+                  </td></tr>
+                )}
+                </Fragment>
               );
             })}
           </tbody>
@@ -194,7 +214,9 @@ function Buyers({ rows, loading, onDone }: { rows?: Buyer[]; loading: boolean; o
           initialPolygon={((cond.conditions_json as Cond).polygon) ?? null}
           onClose={() => setCond(null)}
           onApply={async (r) => {
-            await buyersApi.update(cond.id, { conditions: { values: r.values, regions: r.regions, polygon: r.polygon ?? null } });
+            await buyersApi.update(cond.id, {
+              conditions: { values: r.values, regions: r.regions, polygon: r.polygon ?? null, filters: r.filters },
+            });
             setCond(null); onDone();
           }}
         />
@@ -241,3 +263,63 @@ function NewBuyer({ onDone }: { onDone: () => void }) {
     </>
   );
 }
+
+/* 조건에 맞는 매물 — **검색 엔진을 그대로 부른다.**
+   매칭용 쿼리를 따로 만들면 "검색 결과"와 "매칭 결과"가 언젠가 어긋난다.
+   여기서 담으면 제안(후보)이 되고 보드 첫 열에 뜬다 — 조건 → 매물 → 제안이 한 줄로 이어진다. */
+function Matches({ buyer, onDone }: { buyer: Buyer; onDone: () => void }) {
+  const c = (buyer.conditions_json ?? {}) as Cond;
+  const bjd = c.regions?.[0]?.bjd_code;
+  const q = useQuery({
+    queryKey: ["buyer-match", buyer.id, c.filters, bjd, c.polygon],
+    queryFn: () => searchApi.list({
+      bjd_code: c.polygon ? undefined : bjd,
+      polygon: (c.polygon as object) ?? undefined,
+      filters: c.filters ?? {},
+      page_mine: 1, page_normal: 1,
+    }) as Promise<{ mine: { items: MatchHit[]; total: number }; normal: { items: MatchHit[]; total: number } }>,
+  });
+  const already = useQuery({
+    queryKey: ["proposals", buyer.id],
+    queryFn: () => proposalsApi.list({ buyer_id: buyer.id }),
+  });
+  const sent = new Set((already.data ?? []).map((p) => p.building_pk));
+
+  if (q.isLoading) return <div className="mt-wrap"><Loading label="맞는 매물 찾는 중" minHeight="90px" /></div>;
+  const items = [...(q.data?.mine.items ?? []), ...(q.data?.normal.items ?? [])];
+  const total = (q.data?.mine.total ?? 0) + (q.data?.normal.total ?? 0);
+  if (!items.length) {
+    return <div className="mt-wrap mt-none">조건에 맞는 매물이 없습니다 — 조건을 넓혀 보세요</div>;
+  }
+  const add = async (pk: string) => {
+    await proposalsApi.upsert({ buyer_id: buyer.id, building_pk: pk });   // 후보로 담는다(아직 안 보냄)
+    onDone();
+  };
+  return (
+    <div className="mt-wrap">
+      <div className="mt-head">조건에 맞는 매물 <b>{total.toLocaleString()}</b>건 <small>· 상위 {items.length}건</small></div>
+      <table className="wf mt-tbl">
+        <thead><tr><th>주소</th><th className="num">매매가</th><th className="num">수익률</th><th className="num">대지</th><th /></tr></thead>
+        <tbody>
+          {items.slice(0, 12).map((h) => (
+            <tr key={h.building_pk}>
+              <td><span className="lnk" onClick={() => openDetail(h.building_pk)}>
+                {h.addr.replace("서울특별시 ", "").replace("번지", "")}</span></td>
+              <td className="num">{h.price ? won(h.price) : "—"}</td>
+              <td className="num">{h.roi != null ? `${h.roi}%` : "—"}</td>
+              <td className="num">{py(h.land_area)}</td>
+              <td className="num">
+                {sent.has(h.building_pk)
+                  ? <span style={{ color: "var(--muted)", fontSize: 11.5 }}>담김</span>
+                  : <button className="btn" style={{ padding: "2px 8px", fontSize: 11.5 }}
+                      onClick={() => add(h.building_pk)}>후보로</button>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+type MatchHit = { building_pk: string; addr: string; price: number | null; roi: number | null; land_area: number | null };

@@ -45,3 +45,10 @@
   padding: 7px 4px; font-size: 12px; cursor: pointer; }
 .rj-grid button.on { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700; }
 .rj-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+
+/* 맞는 매물 — 매수자 행 아래 펼침 */
+.mt-wrap { padding: 8px 12px 12px; }
+.mt-head { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.mt-head b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.mt-none { font-size: 12.5px; color: var(--muted); padding: 14px 12px; }
+.mt-tbl { background: var(--surface); border-radius: 8px; }
