@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   buyersApi, proposalsApi, contactsApi, PROPOSAL_STATUSES, REJECT_REASONS,
   type Buyer, type BuyerCondition, type Proposal, type ProposalStatus, type AttrFilters,
@@ -10,6 +10,7 @@ import { Loading } from "../../shared/ui/Spinner";
 import { Icon } from "../../shared/ui/Icon";
 import { Segmented } from "../../shared/ui/Segmented";
 import { Chips } from "../building/EnumField";
+import { formatPhone, parseAmount } from "../building/KV";
 import { useEnums } from "../../shared/hooks/useEnums";
 import { openDetail } from "../../shared/map/geo";
 import { won } from "../../shared/format";
@@ -29,7 +30,14 @@ const py = (m2?: number | null) => (m2 ? `${Math.round(m2 / 3.305785)}평` : "�
 
 export function SalesPage() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"board" | "buyers">("board");
+  const [tab, setTab] = useState<"board" | "buyers">(
+    new URLSearchParams(window.location.search).get("buyer") ? "buyers" : "board");
+  // 보드 카드에서 사람 이름을 누르면 그 매수자로 간다 — 지금은 눌러도 아무 일이 없었다
+  // 매물 상세에서 /sales?buyer=12 로 넘어오면 그 사람을 펼쳐서 연다
+  const [sp] = useSearchParams();
+  const fromUrl = sp.get("buyer") ? Number(sp.get("buyer")) : null;
+  const [focusBuyer, setFocusBuyer] = useState<number | null>(fromUrl);
+  const goBuyer = (id: number) => { setFocusBuyer(id); setTab("buyers"); };
   const buyers = useQuery({ queryKey: ["buyers"], queryFn: buyersApi.list });
   const proposals = useQuery({ queryKey: ["proposals"], queryFn: () => proposalsApi.list() });
   const refresh = () => {
@@ -47,14 +55,16 @@ export function SalesPage() {
       </div>
 
       {tab === "board"
-        ? <Board rows={proposals.data} loading={proposals.isLoading} onDone={refresh} />
-        : <Buyers rows={buyers.data} loading={buyers.isLoading} onDone={refresh} />}
+        ? <Board rows={proposals.data} loading={proposals.isLoading} onDone={refresh} onBuyer={goBuyer} />
+        : <Buyers rows={buyers.data} loading={buyers.isLoading} onDone={refresh} focus={focusBuyer} />}
     </div>
   );
 }
 
 /* ── 제안 보드 — 열 = 상태. 첫 열(후보)이 곧 오늘 할 일이다. ── */
-function Board({ rows, loading, onDone }: { rows?: Proposal[]; loading: boolean; onDone: () => void }) {
+function Board({ rows, loading, onDone, onBuyer }: {
+  rows?: Proposal[]; loading: boolean; onDone: () => void; onBuyer: (id: number) => void;
+}) {
   const [reject, setReject] = useState<Proposal | null>(null);
   if (loading) return <Loading label="불러오는 중" minHeight="40vh" />;
   const list = rows ?? [];
@@ -90,7 +100,8 @@ function Board({ rows, loading, onDone }: { rows?: Proposal[]; loading: boolean;
                       <span>대지 {py(p.land_area)} · 연 {py(p.total_area)}</span>
                     </div>
                     <div className="b">
-                      <span className="who">{p.buyer_name}{p.buyer_grade ? ` · ${p.buyer_grade}` : ""}</span>
+                      <span className="who lnk" onClick={() => onBuyer(p.buyer_id)}
+                        title="이 매수자 보기">{p.buyer_name}{p.buyer_grade ? ` · ${p.buyer_grade}` : ""}</span>
                       {p.propose_count > 1 && <span className="rep">재제안 {p.propose_count}</span>}
                     </div>
                     {p.status === "거절" && p.reject_reason && (
@@ -125,7 +136,8 @@ function RejectModal({ p, onClose, onDone }: { p: Proposal; onClose: () => void;
     if (!reason) return;
     await proposalsApi.update(p.id, {
       status: "거절", reject_reason: reason,
-      reject_price: reason === "price" && price ? Math.round(parseFloat(price) * 1e8) : null,
+      // 금액은 앱 전체가 같은 파서를 쓴다 — "115"·"1억5천" 다 받는다(KV money와 동일)
+      reject_price: reason === "price" && price.trim() ? parseAmount(price) : null,
       note: note || null,
     });
     onDone();
@@ -141,7 +153,8 @@ function RejectModal({ p, onClose, onDone }: { p: Proposal; onClose: () => void;
         </div>
         {reason === "price" && (
           <label className="rj-row">얼마면 하겠다
-            <input className="input" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ""))}
+            <input className="input" value={price}
+              onChange={(e) => setPrice(e.target.value.replace(/[^\d.,조억만천원]/g, ""))}
               style={{ width: 80, textAlign: "right" }} /><span>억</span></label>
         )}
         <textarea className="input" rows={2} placeholder="메모" value={note} onChange={(e) => setNote(e.target.value)} />
@@ -155,8 +168,10 @@ function RejectModal({ p, onClose, onDone }: { p: Proposal; onClose: () => void;
 }
 
 /* ── 매수자 ── */
-function Buyers({ rows, loading, onDone }: { rows?: Buyer[]; loading: boolean; onDone: () => void }) {
-  const [open, setOpen] = useState<number | null>(null);
+function Buyers({ rows, loading, onDone, focus }: {
+  rows?: Buyer[]; loading: boolean; onDone: () => void; focus?: number | null;
+}) {
+  const [open, setOpen] = useState<number | null>(focus ?? null);
   const { options } = useEnums();
   if (loading) return <Loading label="불러오는 중" minHeight="40vh" />;
   const list = rows ?? [];
@@ -185,7 +200,7 @@ function Buyers({ rows, loading, onDone }: { rows?: Buyer[]; loading: boolean; o
                 <td>{b.phone
                   ? <span title={b.phone_masked ? "담당자 본인 또는 대표만 볼 수 있습니다" : undefined}
                       style={b.phone_masked ? { color: "var(--muted)" } : undefined}>
-                      {b.phone}{b.phone_masked ? <Icon name="lock" size={11} style={{ verticalAlign: "-1px", marginLeft: 3 }} /> : null}
+                      {b.phone_masked ? b.phone : formatPhone(b.phone)}{b.phone_masked ? <Icon name="lock" size={11} style={{ verticalAlign: "-1px", marginLeft: 3 }} /> : null}
                     </span>
                   : "—"}</td>
                 <td>
@@ -271,8 +286,9 @@ function NewBuyer({ onDone }: { onDone: () => void }) {
             <div className="nb-grid">
               <label>이름<input className="input" autoFocus value={f.name}
                 onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
-              <label>연락처<input className="input" value={f.phone}
-                onChange={(e) => setF({ ...f, phone: e.target.value })} /></label>
+              {/* 전화번호 자동 하이픈 — 매물 업무탭과 같은 규칙(formatPhone). 화면마다 다르면 안 된다 */}
+              <label>연락처<input className="input" value={f.phone} inputMode="tel" placeholder="010-0000-0000"
+                onChange={(e) => setF({ ...f, phone: formatPhone(e.target.value) })} /></label>
               <label>등급<span><Chips opts={options("buyer_grade")} cur={f.grade}
                 onSelect={(v) => setF({ ...f, grade: v })} /></span></label>
               <label>유입경로<span><Chips opts={options("buyer_source")} cur={f.source}

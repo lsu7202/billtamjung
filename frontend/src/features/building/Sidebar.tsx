@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listingsApi, extrasApi, overlaysApi, buildingsApi, buyersApi, proposalsApi, REJECT_REASONS, type MatchingBuyer } from "../../shared/api/endpoints";
 import { Loading } from "../../shared/ui/Spinner";
 import { KV, wonToEok, vPos, formatPhone } from "./KV";
+import { useNavigate } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import { useEnums } from "../../shared/hooks/useEnums";
 import { Chips } from "./EnumField";
@@ -48,6 +49,7 @@ export function Sidebar({ pk }: { pk: string }) {
    "조건엔 없지만 이건 보여줄 만하다"가 현장에서 자주 일어난다. */
 function MatchTab({ pk }: { pk: string }) {
   const qc = useQueryClient();
+  const nav = useNavigate();
   const [showOut, setShowOut] = useState(false);
   const q = useQuery({ queryKey: ["matching-buyers", pk], queryFn: () => buyersApi.matching(pk) });
   const add = async (id: number) => {
@@ -65,7 +67,9 @@ function MatchTab({ pk }: { pk: string }) {
   const card = (b: MatchingBuyer) => (
     <div className={`mb-card ${b.matched ? "" : "out"}`} key={b.id}>
       <div className="h">
-        <b>{b.name}</b>{b.grade ? <span className="g">{b.grade}</span> : null}
+        {/* 이름을 누르면 영업 탭의 그 매수자로 간다 — 지금은 눌러도 갈 곳이 없었다 */}
+        <b className="lnk" onClick={() => nav(`/sales?buyer=${b.id}`)} title="영업에서 보기">{b.name}</b>
+        {b.grade ? <span className="g">{b.grade}</span> : null}
         <span className="sp" />
         {b.proposal_status
           ? <span className="st">{b.proposal_status}</span>

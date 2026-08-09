@@ -201,7 +201,9 @@ async def list_proposals(buyer_id: int | None = None, building_pk: str | None = 
                   COALESCE(so.v::numeric, se.sale_est) AS price,
                   (so.v IS NULL) AS price_is_est
            FROM app.proposals p
-           JOIN app.buyers y ON y.id = p.buyer_id
+           -- 소프트 삭제된 매수자의 제안은 보드에서 뺀다. 사람은 목록에서 사라졌는데
+           -- 그 사람 카드만 보드에 남으면 눌러도 갈 곳이 없다(2026-08-09 QA).
+           JOIN app.buyers y ON y.id = p.buyer_id AND y.deleted_at IS NULL
            LEFT JOIN master.buildings b ON b.building_pk = p.building_pk
            LEFT JOIN master.building_sale_est se ON se.building_pk = p.building_pk
            LEFT JOIN LATERAL (SELECT value AS v FROM app.overlays o

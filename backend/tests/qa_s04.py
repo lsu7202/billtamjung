@@ -91,10 +91,15 @@ async def main():
         badt=await c.post("/contacts", headers=H, json={"target_type":"xxx","target_id":"1"})
         chk("target_type 검증", badt.status_code==422)
 
-        # 9) 소프트 삭제 시 조건도 정리
+        # 9) 소프트 삭제 — 목록·조건·보드에서 함께 사라진다
+        await c.post("/proposals", headers=H, json={"buyer_id":z,"building_pk":PK,"status":"제안"})
         await c.delete(f"/buyers/{z}", headers=H)
         left=(await c.get("/buyers", headers=H)).json()
         chk("삭제 후 목록에서 빠짐", all(x["name"]!="빈조건" for x in left))
+        # 사람은 사라졌는데 그 사람 카드만 보드에 남으면 눌러도 갈 곳이 없다
+        board=(await c.get("/proposals", headers=H)).json()
+        chk("삭제 후 보드에 유령 카드 없음", all(x["buyer_id"]!=z for x in board),
+            str([x["buyer_name"] for x in board]))
 
         for i in (a,b): await c.delete(f"/buyers/{i}", headers=H)
 
