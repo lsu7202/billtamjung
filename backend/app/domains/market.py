@@ -45,7 +45,7 @@ def _flag_outliers(items: list[dict], key: str) -> None:
 async def nearby(body: NearbyIn, _: CurrentUser = Depends(current_user)):
     # 임대 comps: 반경 내 전 팀 floor_rents (병합·다수결 없음, 원본 그대로)
     rent_rows = await pool().fetch(
-        f"""SELECT fr.floor, fr.unit_no, fr.contract_area, fr.exclusive_area,
+        f"""SELECT fr.floor, fr.unit_no, fr.contract_area,
                   fr.deposit, fr.rent, fr.maintenance, b.addr, b.building_pk,
                   ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat
            FROM app.floor_rents fr
@@ -65,7 +65,7 @@ async def nearby(body: NearbyIn, _: CurrentUser = Depends(current_user)):
               SELECT building_pk, addr, geom FROM master.buildings b
               WHERE ($4::text IS NULL OR building_pk <> $4) AND {_SPATIAL.format(geom='b.geom')})
             SELECT fo.floor, ''::text AS unit_no,
-                   sum(fo.exclusive_area)::float AS contract_area, sum(fo.exclusive_area)::float AS exclusive_area,
+                   sum(fo.floor_area)::float AS contract_area,
                    sum(fre.deposit_est) AS deposit, sum(fre.rent_est) AS rent, 0 AS maintenance,
                    n.addr, n.building_pk, ST_X(n.geom) AS lng, ST_Y(n.geom) AS lat
             FROM near n

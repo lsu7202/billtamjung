@@ -23,7 +23,7 @@ async def main():
         f"SELECT b.building_pk pk, b.land_use lu, b.total_area::float ta, {SANG_SQL} sang "
         f"FROM master.buildings b WHERE {BLDG_FILTER}")
     fo = await c.fetch(
-        f"SELECT fo.building_pk pk, fo.seq, fo.floor, fo.use, fo.exclusive_area::float a "
+        f"SELECT fo.building_pk pk, fo.seq, fo.floor, fo.use, fo.floor_area::float a "
         f"FROM master.floor_outline fo JOIN master.buildings b USING(building_pk) WHERE {BLDG_FILTER}")
     FL = defaultdict(list)
     for r in fo:

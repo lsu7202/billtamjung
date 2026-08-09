@@ -24,8 +24,8 @@ class RentIn(BaseModel):
     floor: str
     unit_no: str
     use: str | None = None
-    exclusive_area: float | None = None    # ㎡ 실측 전용면적(유저 입력) — 대장 층별면적은 바닥면적이라 계약으로 프리필
     contract_area: float | None = None     # ㎡ 저장(§5.3) — 프론트가 평↔㎡ 변환해 항상 ㎡로 전송
+                                           # 면적은 이것 하나뿐(0035) — 전용면적은 우리 데이터에 없다
     deposit: int = 0          # 원 정수
     rent: int = 0
     maintenance: int = 0
@@ -35,7 +35,7 @@ class RentIn(BaseModel):
 @router.get("")
 async def list_rents(building_pk: str, user: CurrentUser = Depends(current_user)):
     rows = await pool().fetch(
-        """SELECT id, floor, unit_no, use, exclusive_area, contract_area,
+        """SELECT id, floor, unit_no, use, contract_area,
                   deposit, rent, maintenance, is_vacant
            FROM app.floor_rents
            WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL
@@ -118,16 +118,16 @@ async def upsert_rent(building_pk: str, body: RentIn, user: CurrentUser = Depend
     body.floor = _norm_floor(body.floor)[0] or body.floor
     await pool().execute(
         """INSERT INTO app.floor_rents
-             (building_pk,team_id,floor,unit_no,use,exclusive_area,contract_area,
+             (building_pk,team_id,floor,unit_no,use,contract_area,
               deposit,rent,maintenance,is_vacant)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
            ON CONFLICT (building_pk,team_id,floor,unit_no)
-           DO UPDATE SET use=EXCLUDED.use, exclusive_area=EXCLUDED.exclusive_area,
+           DO UPDATE SET use=EXCLUDED.use,
              contract_area=EXCLUDED.contract_area, deposit=EXCLUDED.deposit,
              rent=EXCLUDED.rent, maintenance=EXCLUDED.maintenance,
              is_vacant=EXCLUDED.is_vacant, deleted_at=NULL, updated_at=now()""",
         building_pk, user.team_id, body.floor, body.unit_no, body.use,
-        body.exclusive_area, body.contract_area,
+        body.contract_area,
         body.deposit, body.rent, body.maintenance, body.is_vacant,
     )
     return {"ok": True}

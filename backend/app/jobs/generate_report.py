@@ -272,10 +272,10 @@ async def _nearby_rent_apply(building_pk: str, subject: dict, team_id: int) -> d
               WHERE fr.deleted_at IS NULL AND fr.is_vacant IS NOT TRUE AND fr.building_pk <> $4
                 AND fr.rent > 0 AND fr.contract_area > 0 AND {_COMP_SPATIAL}
               UNION ALL
-              SELECT fo.floor, sum(fo.exclusive_area)::float, sum(fre.rent_est)::float, sum(COALESCE(fre.deposit_est,0))::float
+              SELECT fo.floor, sum(fo.floor_area)::float, sum(fre.rent_est)::float, sum(COALESCE(fre.deposit_est,0))::float
               FROM master.buildings b JOIN master.floor_rent_est fre ON fre.building_pk = b.building_pk
                    JOIN master.floor_outline fo ON fo.building_pk = fre.building_pk AND fo.seq = fre.seq
-              WHERE b.building_pk <> $4 AND fre.rent_est > 0 AND fo.exclusive_area > 0 AND {_COMP_SPATIAL}
+              WHERE b.building_pk <> $4 AND fre.rent_est > 0 AND fo.floor_area > 0 AND {_COMP_SPATIAL}
                 AND NOT EXISTS (SELECT 1 FROM app.floor_rents fr2
                                 WHERE fr2.building_pk = b.building_pk AND fr2.floor = fo.floor AND fr2.deleted_at IS NULL)
               GROUP BY b.building_pk, fo.floor
@@ -301,7 +301,7 @@ async def _nearby_rent_apply(building_pk: str, subject: dict, team_id: int) -> d
 
     # 본매물 층별 = 마스터 대장(floor_outline+floor_rent_est) 기준, 팀 오버레이(app.floor_rents) 있으면 그 층 대체.
     mrows = await pool().fetch(
-        """SELECT fo.floor, sum(fo.exclusive_area)::float AS area,
+        """SELECT fo.floor, sum(fo.floor_area)::float AS area,
                   sum(fre.rent_est)::float AS rent, sum(COALESCE(fre.deposit_est,0))::float AS deposit
            FROM master.floor_outline fo JOIN master.floor_rent_est fre USING (building_pk, seq)
            WHERE fo.building_pk=$1 AND fre.rent_est>0 GROUP BY fo.floor""", building_pk)
@@ -541,23 +541,23 @@ async def _briefing_snapshot(building_pk: str, b: dict, team_id: int) -> dict:
     hidden = {r["floor"] for r in await pool().fetch(
         "SELECT floor FROM app.floor_hidden WHERE building_pk=$1 AND team_id=$2", building_pk, team_id)}
     team_rows = await pool().fetch(
-        """SELECT floor, unit_no, use, exclusive_area, contract_area, deposit, rent, maintenance, is_vacant
+        """SELECT floor, unit_no, use, contract_area, deposit, rent, maintenance, is_vacant
            FROM app.floor_rents WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL""",
         building_pk, team_id)
     team_floors = {r["floor"] for r in team_rows}
     est_rows = await pool().fetch(
-        """SELECT fo.floor, fo.use, fo.exclusive_area, fre.rent_est, fre.deposit_est
+        """SELECT fo.floor, fo.use, fo.floor_area, fre.rent_est, fre.deposit_est
            FROM master.floor_outline fo LEFT JOIN master.floor_rent_est fre USING (building_pk, seq)
            WHERE fo.building_pk=$1 ORDER BY fo.seq""", building_pk)
     floors = [
         {"floor": r["floor"], "unit_no": r["unit_no"], "use": r["use"],
-         "exclusive_area": _fnum(r["exclusive_area"]), "contract_area": _fnum(r["contract_area"]),
+         "contract_area": _fnum(r["contract_area"]),
          "deposit": r["deposit"], "rent": r["rent"], "maintenance": r["maintenance"],
          "is_vacant": r["is_vacant"], "est": False}
         for r in team_rows if r["floor"] not in hidden
     ] + [
         {"floor": r["floor"], "unit_no": None, "use": r["use"],
-         "exclusive_area": _fnum(r["exclusive_area"]), "contract_area": None,
+         "contract_area": _fnum(r["floor_area"]),
          "deposit": r["deposit_est"], "rent": r["rent_est"], "maintenance": None,
          "is_vacant": None, "est": True}
         for r in est_rows if r["floor"] not in hidden and r["floor"] not in team_floors

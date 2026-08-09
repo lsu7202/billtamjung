@@ -42,8 +42,9 @@ type Snap = {
   roads: { rn: string; road_bt: number; geojson: { type: string; coordinates: any } }[];
   subject: Record<string, unknown>;
   office: Record<string, unknown>;
-  floors: { floor: string; unit_no: string | null; use: string | null; exclusive_area: number | null;
-            contract_area: number | null; deposit: number | null; rent: number | null;
+  floors: { floor: string; unit_no: string | null; use: string | null;
+            contract_area: number | null; exclusive_area?: number | null;   // 0035 이전 스냅샷 호환
+            deposit: number | null; rent: number | null;
             maintenance: number | null; is_vacant: boolean | null; est: boolean }[];
   photos: Photo[];
 };
@@ -328,6 +329,7 @@ export function BriefingPage() {
             <tr key={i}>
               <td>{f.floor}{f.unit_no ? ` ${f.unit_no}` : ""}
                 {f.is_vacant === true && <span className="bf-vac">공실</span>}</td>
+              {/* 0035 이전에 만든 자료는 면적이 exclusive_area에 굳어 있다 — 스냅샷은 다시 못 만든다 */}
               <td className="n">{py(f.contract_area ?? f.exclusive_area)}</td>
               <td className="n">{man(f.deposit)}</td>
               <td className="n">{man(f.rent)}</td>

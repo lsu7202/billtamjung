@@ -484,12 +484,11 @@ function RentCell({ edit, render, ph, num, width = 66, onSave }: {
 }
 
 /* 층별임대 행 — 셀 클릭=인라인 자동저장 · 호버 ×=삭제 · 빈(draft) 행에 입력=추가. 모듈 스코프(리마운트 방지). */
-type RentForm = { floor: string; unit_no: string; use: string; excl: string; area: string; deposit: string; rent: string; maintenance: string; is_vacant: boolean | null };
+type RentForm = { floor: string; unit_no: string; use: string; area: string; deposit: string; rent: string; maintenance: string; is_vacant: boolean | null };
 const _a = (v: number | null | undefined, unit: "py" | "m2") =>
   v != null ? String(+(unit === "py" ? v / P : v).toFixed(1)) : "";
 const toForm = (r: FloorRent, unit: "py" | "m2"): RentForm => ({
   floor: r.floor, unit_no: r.unit_no, use: r.use ?? "",
-  excl: _a(r.exclusive_area, unit),
   area: _a(r.contract_area, unit),
   deposit: r.deposit ? String(Math.round(r.deposit / 1e4)) : "",
   rent: r.rent ? String(Math.round(r.rent / 1e4)) : "",
@@ -505,7 +504,6 @@ function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden, isPrefil
   const [hover, setHover] = useState(false);
   const man = (s: string) => eok(Math.round((parseFloat(s) || 0) * 1e4));   // 만원문자열 → 표시(0=빈칸)
   const dispArea = f.area ? `${f.area}${unit === "py" ? "평" : "㎡"}` : "";
-  const dispExcl = f.excl ? `${f.excl}${unit === "py" ? "평" : "㎡"}` : "";
 
   async function commit(nf: RentForm) {
     setF(nf);
@@ -513,8 +511,7 @@ function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden, isPrefil
     if (!isDraft && r.id != null && (nf.floor !== r.floor || nf.unit_no !== r.unit_no)) await rentsApi.del(pk, r.id);
     await rentsApi.upsert(pk, {
       floor: nf.floor.trim(), unit_no: nf.unit_no.trim(), use: nf.use || null,
-      // 전용·계약 둘 다 입력 가능. 대장 프리필은 전용에 들어간다(대장이 주는 값이 전용면적).
-      exclusive_area: nf.excl ? (unit === "py" ? parseFloat(nf.excl) * P : parseFloat(nf.excl)) : null,
+      // 면적은 계약면적 하나뿐(0035) — 대장이 주는 층별면적은 바닥면적이라 여기로 들어간다.
       contract_area: nf.area ? (unit === "py" ? parseFloat(nf.area) * P : parseFloat(nf.area)) : null,
       deposit: Math.round((parseFloat(nf.deposit) || 0) * 1e4),
       rent: Math.round((parseFloat(nf.rent) || 0) * 1e4),
@@ -536,7 +533,7 @@ function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden, isPrefil
 
   // 빈 입력(draft) 행은 셀이 전부 비어 보여서 × 하나만 떠 있는 정체불명 행이었다.
   // 무엇을 넣는 자리인지 흐린 글씨로 알려주고, 아무것도 안 쳤으면 지우기 버튼도 숨긴다.
-  const draftEmpty = Boolean(isDraft) && !(f.floor || f.unit_no || f.use || f.excl || f.area || f.deposit || f.rent || f.maintenance);
+  const draftEmpty = Boolean(isDraft) && !(f.floor || f.unit_no || f.use || f.area || f.deposit || f.rent || f.maintenance);
   const ghost = (val: string, ph: string, node?: React.ReactNode) =>
     isDraft && !val ? <span style={{ color: "var(--muted)", fontWeight: 400 }}>{ph}</span> : (node ?? val);
 
@@ -546,7 +543,6 @@ function RentRow({ pk, r, unit, eok, refresh, isDraft, onSaved, hidden, isPrefil
       <td><RentCell edit={f.floor} render={ghost(f.floor, "1F")} ph="1F" width={46} onSave={set("floor")} /></td>
       <td><RentCell edit={f.unit_no} render={ghost(f.unit_no, "101")} ph="101" width={46} onSave={set("unit_no")} /></td>
       <td><RentCell edit={f.use} render={ghost(f.use, "용도")} ph="용도" width={72} onSave={set("use")} /></td>
-      <td className="num"><RentCell edit={f.excl} render={ghost(f.excl, "전용", dispExcl)} ph={unit === "py" ? "평" : "㎡"} num onSave={set("excl")} /></td>
       <td className="num"><RentCell edit={f.area} render={ghost(f.area, "계약", dispArea)} ph={unit === "py" ? "평" : "㎡"} num onSave={set("area")} /></td>
       <td className="num"><RentCell edit={f.deposit} render={ghost(f.deposit, "보증금", man(f.deposit))} ph="만원" num onSave={set("deposit")} /></td>
       <td className="num"><RentCell edit={f.rent} render={ghost(f.rent, "임대료", man(f.rent))} ph="만원" num onSave={set("rent")} /></td>
@@ -612,7 +608,7 @@ function RentTable({ pk, items, total, hiddenFloors, unit, refresh, eok }: {
     await Promise.all(rows.map((o, i) =>
       i === skipIdx ? null : rentsApi.upsert(pk, {
         floor: o.floor ?? floor, unit_no: String(i + 1),
-        use: o.use ?? undefined, exclusive_area: o.exclusive_area ?? undefined,
+        use: o.use ?? undefined, contract_area: o.floor_area ?? undefined,
         deposit: o.deposit_est ?? 0, rent: o.rent_est ?? 0, maintenance: 0, is_vacant: null,
       } as FloorRent)).filter(Boolean));
   }
@@ -668,12 +664,10 @@ function RentTable({ pk, items, total, hiddenFloors, unit, refresh, eok }: {
   type DRow = { r: FloorRent; isPrefill?: boolean; key: string };
   const allRows: DRow[] = [
     ...items.map((r) => ({ r, key: (r.id ?? `${r.floor}-${r.unit_no}`).toString() })),
-    // 대장 층별개요가 주는 면적은 그 층의 **바닥면적**이다 — 전용면적이 아니다(2026-08-09 실측).
-    // 근거: 층별개요 합 = 연면적. 옥탑 제외 시 55.9만동 중 95.2%가 소수점까지 일치하고,
-    // 연면적보다 작은 건 1.8%뿐. 전용면적이라면 공용을 뺀 값이라 항상 연면적보다 작아야 한다.
-    // 지금은 그 값을 exclusive_area(전용) 칸에 넣고 있어 라벨이 사실과 다르다 — 미해결.
+    // 대장 층별개요가 주는 면적은 그 층의 바닥면적이라 계약면적 칸으로 들어간다(0035).
+    // 전용면적은 우리 데이터에 없어서 개념째 뺐다 — 못 채우는 칸은 오해만 만든다.
     ...prefill.map((o, i) => ({ isPrefill: true, key: `pf-${o.floor}-${i}`,
-      r: { floor: o.floor ?? "", unit_no: "", use: o.use ?? undefined, exclusive_area: o.exclusive_area ?? undefined,
+      r: { floor: o.floor ?? "", unit_no: "", use: o.use ?? undefined, contract_area: o.floor_area ?? undefined,
            deposit: o.deposit_est ?? 0, rent: o.rent_est ?? 0, maintenance: 0, is_vacant: null } as FloorRent })),
   ];
   const groups = new Map<string, DRow[]>();
@@ -697,7 +691,7 @@ function RentTable({ pk, items, total, hiddenFloors, unit, refresh, eok }: {
         )}
       </div>
       <table className="wf" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-        <thead><tr><th>층</th><th>호실</th><th>용도</th><th className="num">전용({unit === "py" ? "평" : "㎡"})</th><th className="num">계약({unit === "py" ? "평" : "㎡"})</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">관리비</th><th>상태</th></tr></thead>
+        <thead><tr><th>층</th><th>호실</th><th>용도</th><th className="num">계약({unit === "py" ? "평" : "㎡"})</th><th className="num">보증금</th><th className="num">임대료</th><th className="num">관리비</th><th>상태</th></tr></thead>
         <tbody>
           {/* 층별 그룹: 1호실=행 그대로, 다호실=접이식 헤더(층·호실수·합계). 프리필 면적은 계약 컬럼(바닥면적). */}
           {shownGroups.map(([floor, rows]) => {

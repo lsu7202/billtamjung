@@ -5,7 +5,7 @@ export interface Suggestion { kind: "building" | "region" | "station"; building_
 export interface Balance { total: number; monthly: number; earned: number; purchased: number }
 export interface FloorRent {
   id?: number; floor: string; unit_no: string; use?: string | null;
-  exclusive_area?: number | null; contract_area?: number | null;
+  contract_area?: number | null;   // 면적은 이것 하나(0035) — 전용면적은 우리 데이터에 없다
   deposit: number; rent: number; maintenance: number; is_vacant: boolean | null;   // null=미지정·false=임대중·true=공실
 }
 export interface Report {
@@ -231,7 +231,7 @@ export const rentsApi = {
   hideFloor: (pk: string, floor: string, hidden: boolean) =>
     api(`/buildings/${pk}/floor-rents/hidden`, { method: "POST", body: JSON.stringify({ floor, hidden }) }),
   outline: (pk: string) =>
-    api<{ floor: string | null; use: string | null; exclusive_area: number | null; rent_est: number | null; deposit_est: number | null }[]>(`/buildings/${pk}/floor-outline`),
+    api<{ floor: string | null; use: string | null; floor_area: number | null; rent_est: number | null; deposit_est: number | null }[]>(`/buildings/${pk}/floor-outline`),
 };
 
 export interface SeriesPt { x: string; y: number; ov: boolean; master: boolean }

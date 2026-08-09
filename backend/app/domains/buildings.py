@@ -86,13 +86,13 @@ async def floor_outline(building_pk: str, _: CurrentUser = Depends(current_user)
     """층별개요(대장) 프리필 — 층·용도·층별면적(바닥, 합=연면적) + 임대료/보증금 추정(공공 상권시세). 층별임대정보 시드용(S02 §3.5).
     rent_est/deposit_est = 마스터 추정값(유저가 입력하면 오버레이가 덮음)."""
     rows = await pool().fetch(
-        """SELECT fo.floor, fo.use, fo.exclusive_area, fre.rent_est, fre.deposit_est
+        """SELECT fo.floor, fo.use, fo.floor_area, fre.rent_est, fre.deposit_est
            FROM master.floor_outline fo
            LEFT JOIN master.floor_rent_est fre USING (building_pk, seq)
            WHERE fo.building_pk=$1 ORDER BY fo.seq""",
         building_pk)
     return [{"floor": r["floor"], "use": r["use"],
-             "exclusive_area": float(r["exclusive_area"]) if r["exclusive_area"] is not None else None,
+             "floor_area": float(r["floor_area"]) if r["floor_area"] is not None else None,
              "rent_est": r["rent_est"], "deposit_est": r["deposit_est"]}
             for r in rows]
 

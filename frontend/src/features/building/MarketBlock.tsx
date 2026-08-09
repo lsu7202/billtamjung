@@ -8,7 +8,7 @@ import { Icon } from "../../shared/ui/Icon";
 /** 주변시세(S03 인라인) — 반경·재조회 · 임대 comps를 본매물 층별로 그룹(접고펴기) · 매각 comps(매물별 최근·요약). */
 
 interface RentComp {
-  floor: string; unit_no: string; contract_area: number | null; exclusive_area: number | null;
+  floor: string; unit_no: string; contract_area: number | null;
   deposit: number; rent: number; maintenance: number; addr: string; building_pk: string;
   lng: number; lat: number; per_deposit?: number; per_rent?: number; is_outlier: boolean; is_estimate?: boolean;
 }

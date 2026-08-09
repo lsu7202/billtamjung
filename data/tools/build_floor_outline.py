@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """층별개요(mart_djy_04) → 층별 프리필 CSV.
-컬럼: PK idx0 · 층 idx21 · 용도 idx26 · 전용면적 idx28(㎡). 건물당 여러 층 행.
-출력: floor_outline.csv (building_pk, seq, floor, floor_raw, use, exclusive_area) → master.floor_outline.
+컬럼: PK idx0 · 층 idx21 · 용도 idx26 · 면적 idx28(㎡). 건물당 여러 층 행.
+대장이 주는 이 면적은 그 층의 **바닥면적**이다 — 전용면적이 아니다(층별 합 = 연면적, 0035 참조).
+출력: floor_outline.csv (building_pk, seq, floor, floor_raw, use, floor_area) → master.floor_outline.
 
 층 표기는 원본이 제각각이라(같은 3층이 '3층'·'3'·'지상3층'·'삼층') floor_label로 통일한다.
 문자열로 층을 맞추는 곳이 전부 어긋났었다 — 원본은 floor_raw에 보존.
@@ -16,7 +17,7 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else "data/tools/_floor_outline.csv"
 
 def main():
     w = csv.writer(open(OUT, "w", newline=""))
-    w.writerow(["building_pk", "seq", "floor", "floor_raw", "use", "exclusive_area"])
+    w.writerow(["building_pk", "seq", "floor", "floor_raw", "use", "floor_area"])
     seq: dict[str, int] = {}
     n = 0
     with open(IN, "rb") as f:
