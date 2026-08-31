@@ -104,17 +104,17 @@ def main():
     landset=set(larea)
     print("승강기공단 로드…"); kel=load_kelisa()
     print(f"  정규화 주소 {len(kel):,}건 · 총 {sum(kel.values()):,}대")
-    print("도로명 다중도 프리패스…")   # 같은 도로명 건물 수(복수면 대수 배분 불가 → 있음만)
+    print("도로명 다중도 프리패스…")  # 엘리베이터 배분에 쓴다
     elmulti=collections.Counter()
     with open("data/raw/seoul/mart_djy_03_seoul.txt",'rb') as f:
         for line in f:
             p=line.rstrip(b'\r\n').split(b'|')
-            if len(p)>6:
+            if len(p)>12:
                 k=norm_road(p[6].decode('utf-8',errors='replace'))
                 if k: elmulti[k]+=1
     print("표제부 조립…")
     out=open("data/tools/_building_master.jsonl","w")
-    N=0; src=collections.Counter(); clean_cnt=collections.Counter()
+    N=0; src=collections.Counter(); clean_cnt=collections.Counter(); bcr_src_cnt=collections.Counter()
     has_pnu=has_land=has_area=has_far=0
     with open("data/raw/seoul/mart_djy_03_seoul.txt",'rb') as f:
         for line in f:
@@ -141,13 +141,18 @@ def main():
                 fix=round(용적산정/pyo_dae*100,2) if pyo_dae>0 and 용적산정>0 else 0
                 if 0<fix<=2000: far=fix; clean=('재계산' if clean!='무효' else clean)
                 else: far,clean=None,'무효'
+            # 건폐율은 **대장이 준 것만** 싣는다. 건축면적÷대지면적으로 채울 수 있어도
+            # 채우지 않는다 — 이 값이 계약서·중개대상물 확인설명서·브리핑으로 그대로
+            # 넘어가고, 거기서 대장과 어긋나면 우리 잘못이 된다(0144).
+            # 계산분은 검색 전용 master.building_calc 로 간다(scripts/build_building_calc.py).
+            bcr_src = '대장' if bcr else None
             # 사용승인일 유효성
             sd=p[60].strip()
             if not (len(sd)==8 and sd.isdigit() and '19000101'<=sd<='20260713'): sd=None
             rec={
                 'PK':p[0], '대장구분':p[2], '주소':p[5], '도로명주소':p[6],
                 'PNU':pnu,
-                '대지면적':round(area,2),'건폐율':bcr,'용적률':far,
+                '대지면적':round(area,2),'건폐율':bcr,'용적률':far,'건폐율출처':bcr_src,
                 '건축면적':round(건축면적,2) if 건축면적>0 else None,
                 '대지건폐용적_출처':s,'건폐용적_클린':clean,
                 '연면적':fnum(p[28]), '주용도코드':p[34],'주용도':p[35],'기타용도':p[36],
@@ -161,7 +166,7 @@ def main():
                 '대수선건수': (ds.get(pnu) or {}).get('대수선건수', 0) if pnu else 0,
             }
             out.write(json.dumps(rec,ensure_ascii=False)+"\n")
-            src[s]+=1; clean_cnt[clean]+=1
+            src[s]+=1; clean_cnt[clean]+=1; bcr_src_cnt[bcr_src or '없음']+=1
             if pnu: has_pnu+=1
             if pnu in landset: has_land+=1
             if area>0: has_area+=1
@@ -172,5 +177,6 @@ def main():
     print(f"  대지면적 확보 {has_area:,} ({has_area/N*100:.1f}%) · 용적률 확보 {has_far:,} ({has_far/N*100:.1f}%)")
     print(f"  대지/건폐/용적 출처: {dict(src)}")
     print(f"  건폐용적 클린징: {dict(clean_cnt)}")
+    print(f"  건폐율 출처: {dict(bcr_src_cnt)}")
 
 if __name__=='__main__': main()
