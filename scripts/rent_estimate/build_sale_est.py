@@ -86,20 +86,27 @@ async def main():
               sh.price::float pr, sh.land_area::float la, sh.total_area::float ta,
               CASE WHEN b.gongsi_latest>0 AND sh.land_area>0 THEN b.gongsi_latest::float*sh.land_area END gt,
               sh.contract_ym, b.approval_ymd ay, b.remodel_ymd ry,
-              b.land_use lu, substr(b.main_use,1,2) mu2
+              b.land_use lu, substr(b.main_use,1,2) mu2,
+              b.road_frontage rf, pp.day_avg::float dp, pp.night_avg::float np
             FROM master.sales_history sh JOIN master.buildings b USING(building_pk)
+            LEFT JOIN master.building_pop pp ON pp.building_pk = b.building_pk
             WHERE b.bjd_code LIKE '11%'
               AND sh.contract_ym >= to_char(now()-interval '5 years','YYYYMM')
               AND sh.price>0 AND sh.total_area>0
             ORDER BY sh.building_pk, sh.contract_ym DESC""")
     grid: dict[tuple[int, int], list] = {}
     for r in comps:
+        # 좌표 없는 건물이 comp 로 섞여 든다 — 지적도에 PNU 가 없어 geom NULL 로 살려 둔 동들이다
+        # (backfill_missing_buildings, 24,440동). 거리를 못 재니 사례로 쓸 수 없다.
+        if r['lng'] is None or r['lat'] is None:
+            continue
         x, y = _mx(float(r['lng'])), _my(float(r['lat']))
         grid.setdefault((int(x // CELL), int(y // CELL)), []).append(
             (r['pk'], float(r['lng']), float(r['lat']), float(r['pr']),
              (float(r['gt']) if r['gt'] is not None else None),
              (float(r['la']) if r['la'] is not None else None),
-             float(r['ta']), r['contract_ym'], r['ay'], r['ry'], r['lu'], r['mu2']))
+             float(r['ta']), r['contract_ym'], r['ay'], r['ry'], r['lu'], r['mu2'],
+             r['rf'], r['dp'], r['np']))
     print(f"comp 풀 {len(comps)}건 · 그리드셀 {len(grid)}")
 
     # 계산 대상 = 상업/업무 성격(land_use SECT ∪ main_use 상업코드) — 산정법이 유효한 범위.
@@ -108,8 +115,10 @@ async def main():
         f"""SELECT b.building_pk pk, ST_X(b.geom) lng, ST_Y(b.geom) lat,
               b.gongsi_latest::float g, b.land_area::float la, b.total_area::float ta,
               e.annual_rent::float ann, COALESCE(ic.cap, {float(seoul_cap)})::float cap,
-              b.approval_ymd ay, b.remodel_ymd ry, b.land_use lu, b.main_use mu
+              b.approval_ymd ay, b.remodel_ymd ry, b.land_use lu, b.main_use mu,
+              b.road_frontage rf, pp.day_avg::float dp, pp.night_avg::float np
             FROM master.buildings b
+            LEFT JOIN master.building_pop pp ON pp.building_pk = b.building_pk
             LEFT JOIN master.building_rent_est e ON e.building_pk=b.building_pk
             LEFT JOIN master.income_cap ic ON ic.gu=substr(b.bjd_code,1,5)
             WHERE b.bjd_code LIKE '11%' AND {COMM_SQL}
@@ -122,13 +131,16 @@ async def main():
           updated timestamptz DEFAULT now())""")
     ins = []
     for s in subs:
+        if s['lng'] is None or s['lat'] is None:
+            continue                                  # 좌표 없는 동은 반경 comp 를 못 모은다
         slng, slat = float(s['lng']), float(s['lat'])
         allowed_lu, allowed_mu, _adj = report_calc.comp_type_filter(s['lu'], s['mu'])   # 라이브와 동일 성격 필터
         cx, cy = int(_mx(slng) // CELL), int(_my(slat) // CELL)
         cd = []
         for dx in (-1, 0, 1):
             for dy in (-1, 0, 1):
-                for (pk, clng, clat, pr, gt, la, ta, ym, ay, ry, lu, mu2) in grid.get((cx + dx, cy + dy), []):
+                for (pk, clng, clat, pr, gt, la, ta, ym, ay, ry, lu, mu2,
+                     rf, dp, np_) in grid.get((cx + dx, cy + dy), []):
                     if pk == s['pk']:                      # 본매물 제외 — 라이브(building_pk 기준)와 동일
                         continue
                     if allowed_lu is not None and not (lu in allowed_lu or (mu2 or "") in allowed_mu):
@@ -138,12 +150,14 @@ async def main():
                         continue
                     cd.append({"price": pr, "total_area": ta, "land_area": la,
                                "gongsi_total": gt, "dist_m": d, "contract_ym": ym,
-                               "approval_ymd": ay, "remodel_ymd": ry})
+                               "approval_ymd": ay, "remodel_ymd": ry,
+                               "road_frontage": rf, "day_pop": dp, "night_pop": np_})
         if len(cd) < 3:
             continue
         cd = _iqr_keep(cd)   # 이상치 제외 — 라이브와 동일(검색·상세 값 통일)
         subj = {"total_area": s['ta'], "land_area": s['la'], "gongsi_latest": s['g'],
-                "approval_ymd": s['ay'], "remodel_ymd": s['ry']}
+                "approval_ymd": s['ay'], "remodel_ymd": s['ry'],
+                "road_frontage": s['rf'], "day_pop": s['dp'], "night_pop": s['np']}
         ap = report_calc.appraise(0, subj, cd, params, time_adjust)   # ← 라이브와 동일 함수
         fair = ap.get("fair_price")
         if not fair:

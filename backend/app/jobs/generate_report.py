@@ -71,6 +71,19 @@ async def _assemble(building_pk: str, team_id: int) -> dict:
             b.setdefault(k, pj.get(k)) if not b.get(k) else None
             if not b.get(k):
                 b[k] = pj.get(k)
+    # 주야비(낮÷밤 생활인구) — F-17 v3.2 의 E2 축. building_view 가 안 싣는 값이라 여기서 붙인다.
+    pop = await pool().fetchrow(
+        "SELECT day_avg::float d, night_avg::float n FROM master.building_pop WHERE building_pk=$1",
+        building_pk)
+    if pop:
+        b["day_pop"], b["night_pop"] = pop["d"], pop["n"]
+
+    # 분석용 용적률 — 활용 유형·미래가치는 **분석값**이라 검색 전용 계산값을 얹는다(0144).
+    # 화면·서류로 나가는 b["far"] 는 대장 그대로 둔다. 둘을 섞지 않는다.
+    b["far_any"] = b.get("far")
+    if b.get("far") is None:
+        b["far_any"] = await pool().fetchval(
+            "SELECT far_calc FROM master.building_calc WHERE building_pk=$1", building_pk)
     if b.get("approval_ymd"):
         try:
             y = dt.date.fromisoformat(str(b["approval_ymd"])[:10])
@@ -202,11 +215,13 @@ async def _fetch_comps(building_pk: str, subject: dict, params: dict,
                   b.gongsi_latest, b.addr, b.land_use,
                   b.road_frontage, b.use_zone, b.shape, b.slope, b.station_dist,
                   b.approval_ymd, b.remodel_ymd, b.elevator,
+                  pp.day_avg::float AS day_pop, pp.night_avg::float AS night_pop,
                   ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat,
                   round(ST_Distance(b.geom::geography,
                         ST_SetSRID(ST_MakePoint($1,$2),4326)::geography)) AS dist_m
            FROM master.sales_history sh
            JOIN master.buildings b ON b.building_pk = sh.building_pk
+           LEFT JOIN master.building_pop pp ON pp.building_pk = b.building_pk
            WHERE sh.contract_ym >= to_char(now() - make_interval(years => $8::int), 'YYYYMM')
              AND sh.building_pk <> $4 AND sh.price > 0 AND sh.total_area > 0
              AND ($9::bigint IS NULL OR sh.price >= $9)
@@ -239,6 +254,12 @@ async def _fetch_comps(building_pk: str, subject: dict, params: dict,
                       "contract_ym": cb["contract_ym"], "price": cb["price"],
                       "total_area": float(cb["total_area"]), "land_area": c_la, "gongsi_total": c_gt,
                       "approval_ymd": cb["approval_ymd"], "remodel_ymd": cb["remodel_ymd"],
+                      # F-17 v3.2 의 두 축(도로접면·주야비). **여기 안 실으면 라이브만 조용히
+                      # 보정 없이 계산한다** — 산식은 값이 없으면 안 걸리게 돼 있어서 오류가 안 난다.
+                      # 실제로 그렇게 빠뜨려 배치 2,575억 vs 라이브 2,110억(18%)이 났다(2026-08-30).
+                      # road_frontage 는 cb 에서 읽는다 — 오버레이로 고친 값이 반영된 뒤다.
+                      "road_frontage": cb["road_frontage"],
+                      "day_pop": cb["day_pop"], "night_pop": cb["night_pop"],
                       "score": cvs["score"],
                       "per_area": per_area, "dist_m": cb["dist_m"], "land_use": cb["land_use"],
                       "type_factor": _ADJ_FACTOR if cb["land_use"] in adj else 1.0,
@@ -268,11 +289,13 @@ async def _load_comps(building_pk: str, subject: dict, params: dict,
 
 
 def _floor_key(fl: str) -> int:
-    """층 정렬(지하=음수). '지하1층'→-1, '1층'→1."""
-    import re
-    m = re.search(r"(\d+)", fl or "")
-    n = int(m.group(1)) if m else 0
-    return -n if ("지하" in (fl or "") or (fl or "").upper().startswith("B")) else n
+    """층 정렬(지하=음수). '지하1층'→-1, '지1층'→-1, '1층'→1.
+
+    파싱은 core/floor_label 하나만 쓴다(2026-08-29). 여기 있던 판정은 「지하」 두 글자만
+    지하로 봐서, 대장의 「지1층」·「지1」·「지층」(37만건)을 지상으로 뒤집어 읽었다.
+    이 함수는 정렬·숨김 매칭에만 쓰이지만, 층이 뒤집히면 보고서에서 지하가 맨 위에 선다."""
+    from ..core.floor_label import signed
+    return signed(fl) or 0
 
 
 async def _nearby_rent_apply(building_pk: str, subject: dict, team_id: int) -> dict | None:
@@ -288,7 +311,7 @@ async def _nearby_rent_apply(building_pk: str, subject: dict, team_id: int) -> d
     if clng is None and geom:
         clng, clat = geom["lng"], geom["lat"]
 
-    # 주변 평균 수익률(중앙값) = 반경 내 건물들의 (연임대추정 ÷ 적정가) — 06 비교·07 의견용.
+    # 주변 평균 수익률(중앙값) = 반경 내 건물들의 (연임대추정 ÷ 추정가) — 06 비교·07 의견용.
     nearby_roi = await pool().fetchval(
         f"""SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY e.annual_rent::float / se.sale_est * 100)
             FROM master.building_rent_est e
@@ -362,7 +385,9 @@ async def _nearby_rent_apply(building_pk: str, subject: dict, team_id: int) -> d
         else:
             mr, md, cnt = scur, round(s["deposit"]), 0   # 그 층 주변사례 없음 → 현재 폴백
         applied_rent += mr; applied_deposit += md
-        floors.append({"floor": fl, "cur": scur, "mkt": mr, "diff": mr - scur, "count": cnt})
+        floors.append({"floor": fl, "cur": scur, "mkt": mr, "diff": mr - scur, "count": cnt,
+                       # 보증금도 층별로 이미 셈해 놨다 — 화면이 임대료와 나란히 쓴다(2026-08-25)
+                       "cur_dep": round(s["deposit"]), "mkt_dep": md})
     return {"floors": floors, "applied_rent": applied_rent, "applied_deposit": applied_deposit,
             "cur_rent": cur_rent, "cur_deposit": cur_deposit,
             "nearby_roi": round(float(nearby_roi), 2) if nearby_roi else None}
@@ -416,7 +441,7 @@ async def _use_type(building_pk: str, b: dict) -> dict | None:
               if mk and mk["n"] else {})
     la = _fnum(b.get("land_area"))
     result = use_type.classify({
-        "far": _fnum(b.get("far")), "legal_far": _parse_far(lf), "land_use": b.get("land_use"),
+        "far": _fnum(b.get("far_any")), "legal_far": _parse_far(lf), "land_use": b.get("land_use"),
         "floors_above": b.get("floors_above"), "land_area_py": (la / 3.305785) if la else None,
         "age_years": b.get("age_years"), "remodel_years": b.get("remodel_years"),
         "shape": b.get("shape"), "road_frontage": b.get("road_frontage"),
@@ -425,7 +450,7 @@ async def _use_type(building_pk: str, b: dict) -> dict | None:
         "use_zone": b.get("use_zone"), "market": market,
     })
     result["zones"] = await _market_zones(building_pk)   # 상권 존 폴리곤(지도용)
-    result["_far"], result["_legal_far"] = _fnum(b.get("far")), _parse_far(lf)   # 미래가치 계산용
+    result["_far"], result["_legal_far"] = _fnum(b.get("far_any")), _parse_far(lf)   # 미래가치 계산용
     result["_land_rate5"] = await _land_rate5(b)         # 지가 상승 추세(미래가치 3축)
     rz = await pool().fetchrow(                          # 정비구역·재정비촉진 지정 여부(F-21 개발여지)
         "SELECT kind, name FROM master.building_redevel WHERE building_pk=$1 LIMIT 1", building_pk)
@@ -463,6 +488,28 @@ def _attach_future(ut: dict | None, rent_summary: dict | None) -> None:
         redevel=ut.pop("_redevel", None))
 
 
+async def _save_master_fair(building_pk: str, fair: float, b: dict) -> None:
+    """무오버레이 리포트 값을 master.building_sale_est 에 되쓴다 — 검색·목록도 같은 값을 본다.
+
+    배치는 원천이 바뀌어야 도는데(용도지역·요율 갱신) 리포트는 그 사이에도 최신 산식으로 낸다.
+    그래서 같은 건물이 검색에선 1,070억, 상세에선 896억으로 갈렸다(2026-08-28 삼성동 78).
+    실패해도 리포트 생성은 계속한다 — 부수 효과가 본 일을 막으면 안 된다.
+    """
+    ta = _fnum(b.get("total_area"))
+    per_py = round(fair / (ta / report_calc.M2_PER_PYEONG)) if ta else None
+    try:
+        await pool().execute(
+            """INSERT INTO master.building_sale_est
+                 (building_pk, sale_est, per_py, n_comps, method, updated)
+               VALUES ($1, $2, $3, NULL, 'f17v3-live', now())
+               ON CONFLICT (building_pk) DO UPDATE
+                 SET sale_est = EXCLUDED.sale_est, per_py = EXCLUDED.per_py,
+                     method = EXCLUDED.method, updated = EXCLUDED.updated""",
+            building_pk, round(fair), per_py)
+    except Exception as e:                                    # noqa: BLE001
+        print(f"[report] master fair 되쓰기 실패 {building_pk}: {e}")
+
+
 def synthesize(subject: dict, subject_score: float, comps: list[dict],
                params: dict, time_adjust: dict, rent_apply: dict | None = None,
                apply_market: bool = False) -> dict:
@@ -481,9 +528,9 @@ def synthesize(subject: dict, subject_score: float, comps: list[dict],
     # 임대 = 팀입력(월) 있으면 그것, 없으면 마스터 추정 연임대. 백테스트상 β=0.2가 최적.
     beta = params.get("blend.income", 0.2)
     cap = _fnum(subject.get("gu_cap"))
-    # ★ 적정가 블렌드 임대료 = 팀 실입력(total_rent) → 마스터 추정 — 배치(build_sale_est)와 동일 기준.
+    # ★ 추정가 블렌드 임대료 = 팀 실입력(total_rent) → 마스터 추정 — 배치(build_sale_est)와 동일 기준.
     #   주변임대 토글(rent_apply)은 수익률·임대표에만 반영. 여기에 섞으면 무오버레이인데도
-    #   검색 핀(배치)과 리포트 적정가가 계통적으로 어긋남(2026-08-06 역삼 619-16, −2.8% 사례).
+    #   검색 핀(배치)과 리포트 추정가가 계통적으로 어긋남(2026-08-06 역삼 619-16, −2.8% 사례).
     cur_rent = _fnum(subject.get("total_rent"))
     ann_rent = (cur_rent * 12) if cur_rent else _fnum(subject.get("est_annual_rent"))
     blended = report_calc.blend_income(ap.get("fair_price"), ann_rent, cap, beta)
@@ -493,9 +540,9 @@ def synthesize(subject: dict, subject_score: float, comps: list[dict],
         ap = {**ap, "fair_price": blended,
               "avg_per_pyeong": round(blended / subj_py) if subj_py else ap.get("avg_per_pyeong"),
               "avg_per_land": round(blended / subj_lpy) if subj_lpy else ap.get("avg_per_land")}
-    # 3층 가격(2026-07-29): 매도희망가(건물주) · 매매가(중개인, 기본=적정가) · 빌탐정 적정가(시스템=fair_price)
+    # 3층 가격(2026-07-29): 매도희망가(건물주) · 매매가(중개인, 기본=추정가) · 빌탐정 추정가(시스템=fair_price)
     ask = _fnum(subject.get("ask_price"))                            # 매도희망가 = 건물주 원하는 값(오버레이)
-    broker = _fnum(subject.get("sale_price")) or ap.get("fair_price")  # 매매가 = 중개인 판단(오버레이), 없으면 적정가
+    broker = _fnum(subject.get("sale_price")) or ap.get("fair_price")  # 매매가 = 중개인 판단(오버레이), 없으면 추정가
     roi = report_calc.expected_roi(rent, broker or ap["fair_price"])   # 수익률은 실제 매수기준가(매매가)로
     gap = round(ask - broker) if (ask and broker) else None          # 협의금액 = 매도희망가 − 매매가
     if ap.get("breakdown"):   # 수익환원 블렌드 정보 보강(리빌용)
@@ -565,7 +612,7 @@ def _json_safe(v):
 
 
 async def _briefing_snapshot(building_pk: str, b: dict, team_id: int) -> dict:
-    """브리핑 = 그 건물에 대한 사실만. 적정가·매력도·미래가치 같은 우리 판단은 넣지 않는다
+    """브리핑 = 그 건물에 대한 사실만. 추정가·매력도·미래가치 같은 우리 판단은 넣지 않는다
     (그건 빌탐정 리포트의 몫). 대장값 + 팀이 입력한 임대내역 + 올린 서류·사진 + 사무소 정보."""
     office = await pool().fetchrow(
         """SELECT name, office_name, agent_name, agent_title, phone, fax, email, office_addr,
@@ -602,7 +649,7 @@ async def _briefing_snapshot(building_pk: str, b: dict, team_id: int) -> dict:
     photos = [{**dict(r), "sort_order": int(r["sort_order"])} for r in await pool().fetch(
         """SELECT id, kind::text, caption, sort_order, transform FROM app.photos
            WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL
-           ORDER BY kind, sort_order, id""", building_pk, team_id)]
+           ORDER BY photos.kind, sort_order, id""", building_pk, team_id)]
 
     # 법정 용적률·건폐율 — 입체 지적도가 '남은 여유'를 그리려면 필요. 필지 규제에서 뽑는다.
     # 건폐율도 같이 싣는다: 기존 건축물이 법정을 넘는 경우가 흔하고(종로2가 71-6은 97.98% vs 법정 60%),
@@ -621,12 +668,13 @@ async def _briefing_snapshot(building_pk: str, b: dict, team_id: int) -> dict:
         b = {**b, **{f"road_{k}": b.get(f"road_{k}") or _fnum(rw[k]) for k in ("front_m", "side_m", "rear_m")},
              "road_front_rn": rw["front_rn"]}
 
-    # 매매가는 팀 수기값 우선, 없으면 배치 적정가(_assemble이 안 싣는 값이라 여기서 채운다)
+    # 매매가는 팀 수기값 우선, 없으면 배치 추정가(_assemble이 안 싣는 값이라 여기서 채운다)
     if b.get("sale_est") is None:
         b = {**b, "sale_est": await pool().fetchval(
             "SELECT sale_est FROM master.building_sale_est WHERE building_pk=$1", building_pk)}
 
-    keep = ("addr", "road_addr", "land_area", "total_area", "build_area", "far_area", "bcr", "far",
+    # bcr_src — 건폐율이 대장값인지 계산인지 추정인지. 추정을 사실로 내밀지 않으려면 화면이 알아야 한다(0040).
+    keep = ("addr", "road_addr", "land_area", "total_area", "build_area", "far_area", "bcr", "bcr_src", "far",
             "floors_above", "floors_below", "height", "parking", "elevator", "approval_ymd", "remodel_ymd",
             "use_zone", "main_use_name", "etc_use", "structure", "jimok", "land_use", "road_frontage",
             "road_front_m", "road_side_m", "road_rear_m", "road_front_rn",
@@ -689,6 +737,11 @@ async def run_generate(report_id: int, team_id: int) -> dict:
             rent_apply = await _nearby_rent_apply(rep["building_pk"], b, team_id)   # 비교표·주변수익률 데이터(항상)
             syn = synthesize(b, vs["score"], comps, params, time_adjust, rent_apply,
                              apply_market=opt.get("include_market", False))   # 기본 OFF = 배치 수익률과 동일
+            # ★ 오버레이가 하나라도 걸렸으면 안 쓴다 — 마스터는 팀 공용이라 한 팀의 가정이
+            #   전 팀의 기본값이 되면 안 된다(추정→정본 금지).
+            if (syn.get("fair_price") and not exclude and not overrides
+                    and not opt.get("include_market") and not _fnum(b.get("total_rent"))):
+                await _save_master_fair(rep["building_pk"], syn["fair_price"], b)
 
         # 웹 보고서(/reports/:id) 렌더용 synthesis 스냅샷 — 생성 시점 값 고정(analysis만).
         # PPT도 이 스냅샷에서 굽는다(웹 덱과 같은 입력 → 두 산출물의 값이 어긋날 수 없음).

@@ -1,10 +1,12 @@
 """F-17 적정매매가 v3 · F-18 예상수익률 (R STEP2/4). specs formulas.md.
 
 v3(2026-08-05) = v2 + 연식 개별요인 보정(B) + 연식·규모 유사성 가중(C) + α하한(D).
+v3.2(2026-08-30) = v3 + 도로접면 등급(E1) + 주야비(E2). 둘 다 대칭 보정.
+  8구 홀드아웃(타깃 2025~ · 798건) 검증 MdAPE 18.11% → 16.99%.
 백테스트(LOO·과거comp만): 강남 MdAPE 26.7→22.7% · 마포 19.1→16.4%. 계수는 params로 오버라이드 가능.
 
 v2 = 공시배율법·대지평단가법 블렌드 + 대형(고용적) 연면적법 α가중. 거리가중 기하평균·IQR.
-  적정가 = (1−α)·[0.5·공시배율×본매물공시총액 + 0.5·대지단가×본매물대지] + α·연면적단가×본매물연면적
+  추정가 = (1−α)·[0.5·공시배율×본매물공시총액 + 0.5·대지단가×본매물대지] + α·연면적단가×본매물연면적
   α = min(0.6, max(0,(유효용적률−400)/600)),  유효용적률 = 연면적/대지×100
   comp별 거리가중 w=1/(dist_m+50), 기하평균, 방법별 IQR 이상치 제외, 시점보정.
 강남 백테스트 MdAPE ~14%(연면적+F16 구산 22.7% 대비). 규모 미스매치 편향 해소.
@@ -86,6 +88,29 @@ def _value_factor(age: float | None, d1: float, d2: float, d3: float, floor: flo
     return max(floor, f)
 
 
+def _road_grade(rf) -> float | None:
+    """도로접면 등급(감정평가 개별요인 사다리): 광대6·중로5·소로4·세로가3·세로불2·맹지1, 각지 +0.5.
+    모르면 None — 없는 값을 평균으로 지어내면 그 comp만 조용히 유리해진다."""
+    if not rf:
+        return None
+    g = None
+    for pre, v in (("광대", 6), ("중로", 5), ("소로", 4), ("맹지", 1)):
+        if str(rf).startswith(pre):
+            g = v
+            break
+    if g is None and str(rf).startswith("세로"):
+        g = 2 if "불" in str(rf) else 3
+    if g is None:
+        return None
+    return g + (0.5 if "각" in str(rf) else 0.0)
+
+
+def _daynight(d: dict) -> float | None:
+    """주야비(낮÷밤 생활인구). 한쪽이라도 없으면 None."""
+    dv, nv = _num(d.get("day_pop")), _num(d.get("night_pop"))
+    return (dv / nv) if (dv and nv and nv > 0) else None
+
+
 def _quarter(contract_ym) -> str | None:
     ym = str(contract_ym or "")
     if len(ym) < 6:
@@ -137,6 +162,11 @@ def appraise(subject_score: float, subject: dict, comps: list[dict],
     sim_age = params_num.get("sim.age_scale", 25.0); sim_size = params_num.get("sim.size_scale", 0.5)
     use_sim = params_num.get("sim.enabled", 1.0) >= 0.5
     rec_scale = params_num.get("recency.scale", 12.0)       # 최신성 가중(개월) — 0이면 미적용
+    # E(2026-08-30): 잔차에 남아 있던 두 축. 8구 홀드아웃 검증 18.11% → 16.99%(-1.12p).
+    #   도로접면 단독 -0.79p · 주야비 단독 -0.47p · 둘 다 -1.12p. ±15% 적중 42.2% → 44.4%.
+    # 둘 다 **대칭 보정**이다 — comp 가격을 본매물 조건으로 환산할 뿐, 절대 점수를 얹지 않는다.
+    road_pct = params_num.get("road.pct", 0.06)             # 도로접면 등급 1칸당 %
+    pop_pct = params_num.get("pop.pct", 0.2)                # 주야비 비율의 지수
     _now_ym = _THIS_YEAR * 12 + __import__("datetime").date.today().month
     subj_age = _age_from(subject.get("approval_ymd"), subject.get("remodel_ymd"), r_off)
 
@@ -162,6 +192,14 @@ def appraise(subject_score: float, subject: dict, comps: list[dict],
         # ★ 양측 연식이 모두 있을 때만 — 편측 미상 시 걸면 최대 +54% 왜곡(감사에서 적발·수정 2026-08-05)
         if (d1 or d2 or d3) and subj_age is not None and c_age is not None:
             padj *= _value_factor(subj_age, d1, d2, d3, afloor) / _value_factor(c_age, d1, d2, d3, afloor)
+        if road_pct:   # E1 도로접면 — 광대로변과 세로변은 같은 동네라도 값이 다르다
+            gs, gc = _road_grade(subject.get("road_frontage")), _road_grade(c.get("road_frontage"))
+            if gs is not None and gc is not None:
+                padj *= (1.0 + road_pct) ** (gs - gc)
+        if pop_pct:    # E2 주야비 — 낮에 사람이 몰리는 자리가 비싸다(상권의 힘)
+            rs, rc = _daynight(subject), _daynight(c)
+            if rs and rc:
+                padj *= max(0.5, min(2.5, rs / rc)) ** pop_pct
         w = 1.0 / ((c.get("dist_m") or 0) + 50)   # 거리가중
         if rec_scale:                              # 최신성: 최근 거래일수록 가중(백테스트 −2.7pt)
             try:
@@ -220,7 +258,7 @@ def appraise(subject_score: float, subject: dict, comps: list[dict],
     # 핵심요약의 '평단가'는 대지 기준으로 말한다 — 상업용 토지는 현장 어법이 대지다(F-09c).
     # 사례 비교(04)는 연면적 기준 그대로다. 같은 물건끼리 견주려면 그쪽이 맞다.
     avg_per_land = round(fair / (subj_la / M2_PER_PYEONG)) if subj_la else None
-    # 산출 분해(리포트 '적정가 근거 리빌'용) — 각 방법값 + 블렌드 비중
+    # 산출 분해(리포트 '추정가 근거 리빌'용) — 각 방법값 + 블렌드 비중
     breakdown = {
         "gong": round(m_gong) if m_gong else None,   # 공시배율법
         "land": round(m_land) if m_land else None,   # 대지평단가법
@@ -228,14 +266,14 @@ def appraise(subject_score: float, subject: dict, comps: list[dict],
         "wg": round(wg, 2),                          # 공시:대지 비중(공시측)
         "base": round(base),                         # 공시·대지 블렌드
         "alpha": round(alpha, 3),                    # 연면적법 반영 비중(유효용적률↑일수록)
-        "comp_fair": fair,                           # 수익환원 블렌드 전 comp 적정가
+        "comp_fair": fair,                           # 수익환원 블렌드 전 comp 추정가
     }
     return {"fair_price": fair, "avg_per_pyeong": avg_per, "avg_per_land": avg_per_land,
             "comps_used": used, "breakdown": breakdown}
 
 
 def blend_income(fair_price: int | None, ann_rent: float | None, cap: float | None, beta: float) -> int | None:
-    """수익환원 블렌드: (1−β)·comp적정가 + β·(연NOI÷cap). 재료 부족하면 원값 그대로. synthesize·배치 공용."""
+    """수익환원 블렌드: (1−β)·comp추정가 + β·(연NOI÷cap). 재료 부족하면 원값 그대로. synthesize·배치 공용."""
     if not (fair_price and ann_rent and cap and beta):
         return fair_price
     return round((1 - beta) * fair_price + beta * (ann_rent / cap))
@@ -250,7 +288,7 @@ def expected_roi(applied_total_rent: float | None, fair_price: int | None) -> fl
 
 if __name__ == "__main__":  # ponytail: self-check
     NOCOST = {"cost.lambda": 0.0, "alpha.floor": 0.0}   # 핵심 산식 항등성 검증용(v3 축 off)
-    # 본매물 = comp와 동일 제원·동일 연식 → 보정 무영향, comp 실거래 20억 → 적정가 20억.
+    # 본매물 = comp와 동일 제원·동일 연식 → 보정 무영향, comp 실거래 20억 → 추정가 20억.
     subj = {"total_area": 330.5785, "land_area": 100.0, "gongsi_latest": 1e7, "approval_ymd": "2010-01-01"}
     comp = {"price": 2e9, "total_area": 330.5785, "land_area": 100.0, "gongsi_total": 1e9,
             "contract_ym": "202506", "dist_m": 0, "building_pk": "x", "addr": "a", "approval_ymd": "2010-01-01"}
