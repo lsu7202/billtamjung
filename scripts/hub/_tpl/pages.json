@@ -1,0 +1,332 @@
+[
+ {
+  "grp": "인허가",
+  "name": "기본개요",
+  "slug": "acpmslg",
+  "rCode": "REP06B0D6D373334088A7BA1800C22DF9B3"
+ },
+ {
+  "grp": "인허가",
+  "name": "동별개요",
+  "slug": "acpmslg-dgcb",
+  "rCode": "REPBC82ED17C5154C8EB3CE248A20357F57"
+ },
+ {
+  "grp": "인허가",
+  "name": "층별개요",
+  "slug": "acpmslg-flrcb",
+  "rCode": "REP58709650209E405098E920342E0E4C50"
+ },
+ {
+  "grp": "인허가",
+  "name": "호별개요",
+  "slug": "acpmslg-hocb",
+  "rCode": "REP8C210942666847DDBA7D272BC2392739"
+ },
+ {
+  "grp": "인허가",
+  "name": "대수선",
+  "slug": "acpmslg-mrr",
+  "rCode": "REP6383664DADBE454EA0B38E1F24EE5077"
+ },
+ {
+  "grp": "인허가",
+  "name": "공작물",
+  "slug": "acpmslg-atcn",
+  "rCode": "REP0B81C440CD21467D8B0129BD68F03F99"
+ },
+ {
+  "grp": "인허가",
+  "name": "철거멸실",
+  "slug": "acpmslg-demol",
+  "rCode": "REPDAFAA5B5636744BD96447A661BE89AA1"
+ },
+ {
+  "grp": "인허가",
+  "name": "가설건축물",
+  "slug": "acpmslg-tpbd",
+  "rCode": "REP71346D5B0B8A411E922F1DD9BF1C8793"
+ },
+ {
+  "grp": "인허가",
+  "name": "오수정화",
+  "slug": "acpmslg-swprfc",
+  "rCode": "REP9003B4B7AF494891A53D05F1B0313188"
+ },
+ {
+  "grp": "인허가",
+  "name": "주차장",
+  "slug": "acpmslg-pklt",
+  "rCode": "REPB2C5D8CF967742C5B31612E16BB8E749"
+ },
+ {
+  "grp": "인허가",
+  "name": "부설주차장",
+  "slug": "acpmslg-attch-pklt",
+  "rCode": "REPA43EB284468844558AFC939E3D75DAC8"
+ },
+ {
+  "grp": "인허가",
+  "name": "전유공용",
+  "slug": "acpmslg-epcm",
+  "rCode": "REPDD912AD45FBD472689F8403B10200971"
+ },
+ {
+  "grp": "인허가",
+  "name": "호별전유공용",
+  "slug": "acpmslg-hocb-epcm",
+  "rCode": "REP5C9DDD4A3C324A71974A602C36DD75D3"
+ },
+ {
+  "grp": "인허가",
+  "name": "지역지구구역",
+  "slug": "acpmslg-jijigu",
+  "rCode": "REPD0A1E105FDC945128B75A476CA14AD2B"
+ },
+ {
+  "grp": "인허가",
+  "name": "도로대장",
+  "slug": "acpmslg-road",
+  "rCode": "REP5EE0767E178543A397B3849961930256"
+ },
+ {
+  "grp": "인허가",
+  "name": "대지위치",
+  "slug": "acpmslg-plot",
+  "rCode": "REP2D4B7700CEC14DCDB47FCE75E9E110B7"
+ },
+ {
+  "grp": "인허가",
+  "name": "주택유형",
+  "slug": "acpmslg-Hs",
+  "rCode": "REP6089215D3003491191C8F07BC6A72767"
+ },
+ {
+  "grp": "주택인허가",
+  "name": "기본개요",
+  "slug": "hspmslg",
+  "rCode": "REP225BF21205FD417A96DE9BBA4A16E2B0"
+ },
+ {
+  "grp": "주택인허가",
+  "name": "동별개요",
+  "slug": "hspmslg-dgcb",
+  "rCode": "REPB1CBBD88AC734AAABE39E209E5321B87"
+ },
+ {
+  "grp": "주택인허가",
+  "name": "층별개요",
+  "slug": "hspmslg-flrcb",
+  "rCode": "REP48D64BA2FECD48AF81C872E63EE63841"
+ },
+ {
+  "grp": "주택인허가",
+  "name": "호별개요",
+  "slug": "hspmslg-hocb",
+  "rCode": "REPEDA3E2D584A14926915C18A68B801749"
+ },
+ {
+  "grp": "주택인허가",
+  "name": "부대시설",
+  "slug": "hspmslg-sbrs",
+  "rCode": "REP4C0418AB8B0C45A1B4E3D47869B1A664"
+ },
+ {
+  "grp": "주택인허가",
+  "name": "오수정화",
+  "slug": "hspmslg-swprfc",
+  "rCode": "REPF0998765ED294048945CE7A5EE7B9716"
+ },
+ {
+  "grp": "주택인허가",
+  "name": "주차장",
+  "slug": "hspmslg-snlt",
+  "rCode": "REPDDA066323ECE4094984FC0C0C45A3CDC"
+ },
+ {
+  "grp": "주택인허가",
+  "name": "부설주차장",
+  "slug": "hspmslg-attch-pklt",
+  "rCode": "REP7E5223BBA7774EF79FA67B616A4DA42D"
+ },
+ {
+  "grp": "주택인허가",
+  "name": "전유공용",
+  "slug": "hspmslg-epcm",
+  "rCode": "REPB768B0B470EC4061956143FEEC32EB47"
+ },
+ {
+  "grp": "주택인허가",
+  "name": "행위호전유공용",
+  "slug": "hspmslg-ho-epcm",
+  "rCode": "REPD9FBE230CC8B43EE84DCD3965C777A47"
+ },
+ {
+  "grp": "주택인허가",
+  "name": "행위개요",
+  "slug": "hspmslg-act",
+  "rCode": "REPC06DE94AB98C4DF798AD0C098C99F89E"
+ },
+ {
+  "grp": "주택인허가",
+  "name": "관리공동형별",
+  "slug": "hspmslg-tpcb",
+  "rCode": "REP52B2D88768164BAD958DC3C931BB0BA1"
+ },
+ {
+  "grp": "주택인허가",
+  "name": "관리공동부대복리",
+  "slug": "hspmslg-sbrwlfc",
+  "rCode": "REPBA2C652698A042AFAF236467B6FCAF61"
+ },
+ {
+  "grp": "주택인허가",
+  "name": "지역지구구역",
+  "slug": "hspmslg-jijigu",
+  "rCode": "REPEB7418D6803F4B7DB2016F4ACB2183A0"
+ },
+ {
+  "grp": "주택인허가",
+  "name": "복리분양",
+  "slug": "hspmslg-wlofc",
+  "rCode": "REP0D138041D8A44B25BEEB5298EF0D6CC6"
+ },
+ {
+  "grp": "주택인허가",
+  "name": "대지위치",
+  "slug": "hspmslg-plot",
+  "rCode": "REP544D2EF89EC240B4AC5E05D9D0FF398B"
+ },
+ {
+  "grp": "대장",
+  "name": "기본개요",
+  "slug": "bdrg",
+  "rCode": "REPAAACE8E7FDCA49ACBA72EF3740B5AB71"
+ },
+ {
+  "grp": "대장",
+  "name": "총괄표제부",
+  "slug": "bdrg-totldr",
+  "rCode": "REPD9571BF60C4147B08931E8DD6371954C"
+ },
+ {
+  "grp": "대장",
+  "name": "표제부",
+  "slug": "bdrg-ttlldr",
+  "rCode": "REP2809322EF6804659ACB1CCCEDE83FACF"
+ },
+ {
+  "grp": "대장",
+  "name": "층별개요",
+  "slug": "bdrg-flr",
+  "rCode": "REPCC87DF97E1E948869528E0FB4B29EA7A"
+ },
+ {
+  "grp": "대장",
+  "name": "부속지번",
+  "slug": "bdrg-anx",
+  "rCode": "REP12350088C69346028F6F9D63B2DCA7B5"
+ },
+ {
+  "grp": "대장",
+  "name": "전유공용",
+  "slug": "bdrg-epcm",
+  "rCode": "REPD927009434E94F70BD7CCCEE24C6356E"
+ },
+ {
+  "grp": "대장",
+  "name": "오수정화",
+  "slug": "bdrg-swpfc",
+  "rCode": "REP0664AF6EE9154E8084C0A9659AFF1CD4"
+ },
+ {
+  "grp": "대장",
+  "name": "공동주택가격",
+  "slug": "bdrg-aptcpx",
+  "rCode": "REP6B3B39895F3E4F6194315036D551BE6C"
+ },
+ {
+  "grp": "대장",
+  "name": "전유부",
+  "slug": "bdrg-expos",
+  "rCode": "REPD2D14648F2664168B0408758EA552895"
+ },
+ {
+  "grp": "대장",
+  "name": "지역지구구역",
+  "slug": "bdrg-jijigu",
+  "rCode": "REP7FD258CF6E1845AD85FC38392013A7BA"
+ },
+ {
+  "grp": "폐쇄말소",
+  "name": "기본개요",
+  "slug": "cler",
+  "rCode": "REP24424917316E4E57A71E13AE5F62DD50"
+ },
+ {
+  "grp": "폐쇄말소",
+  "name": "총괄표제부",
+  "slug": "cler-totldr",
+  "rCode": "REP26390A5E52524A5180906CBEA231EAF8"
+ },
+ {
+  "grp": "폐쇄말소",
+  "name": "표제부",
+  "slug": "cler-ttldr",
+  "rCode": "REP93408F554A8F4B1CB3A8B6A11971D4FC"
+ },
+ {
+  "grp": "폐쇄말소",
+  "name": "층별개요",
+  "slug": "cler-flr",
+  "rCode": "REPD380C551509F44B5A87C34C205E46E86"
+ },
+ {
+  "grp": "폐쇄말소",
+  "name": "부속지번",
+  "slug": "cler-anx",
+  "rCode": "REPA2646F7D6F8141B8B35103932A920956"
+ },
+ {
+  "grp": "폐쇄말소",
+  "name": "전유공용",
+  "slug": "cler-area",
+  "rCode": "REP902D2A81963F4E00A47AE462EAE1B2C2"
+ },
+ {
+  "grp": "폐쇄말소",
+  "name": "오수정화",
+  "slug": "cler-swprfc",
+  "rCode": "REP72630D146C824C7D8CB5AB601E7BE908"
+ },
+ {
+  "grp": "폐쇄말소",
+  "name": "전유부",
+  "slug": "cler-expos",
+  "rCode": "REP8E61366F99E045E9A481B6431CAC09BF"
+ },
+ {
+  "grp": "폐쇄말소",
+  "name": "공동주택가격",
+  "slug": "cler-aptcpx",
+  "rCode": "REP68836CE3615843EC9D3F305FF0B4F3AD"
+ },
+ {
+  "grp": "폐쇄말소",
+  "name": "지역지구구역",
+  "slug": "cler-jijigu",
+  "rCode": "REPCC2268442DB5420CA71564271F79B63F"
+ },
+ {
+  "grp": "에너지",
+  "name": "전기",
+  "slug": "nbem-elcty",
+  "rCode": "REPDDA9EAB2246F46B5BB9B673BF39CD518"
+ },
+ {
+  "grp": "에너지",
+  "name": "가스",
+  "slug": "nbem-gas",
+  "rCode": "REP2FF8D0A3619949F3A6AE66E13AD306D6"
+ }
+]

@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<iStudioExport ReportCode="REPDDA9EAB2246F46B5BB9B673BF39CD518">
+		<Controls>
+				<Control Type="0" Name="GRID" ConnectionCode="DBF15C463C94AB4FF583D817B4DD50766C" DSCode="DS81C077421B734A71860FAD00F155C8E2" UseCache="false" TextExportColSeparator="\t" TextExportRowSeparator="\n">
+						<Columns>
+								<Column Name="PLOT_PSTN" Caption="대지위치" Type="String" Width="250" />
+								<Column Name="SGG_CD" Caption="시군구코드" Type="String" Width="130" />
+								<Column Name="STDG_CD" Caption="법정동코드" Type="String" Width="130" />
+								<Column Name="PLOT_SE_CD" Caption="대지구분코드" Type="String" Width="130" />
+								<Column Name="MNO" Caption="번" Type="String" Width="130" />
+								<Column Name="SNO" Caption="지" Type="String" Width="130" />
+								<Column Name="USE_YM" Caption="사용년월" Type="String" Width="130" />
+								<Column Name="ROAD_NM_PLOT_PSTN" Caption="도로명대지위치" Type="String" Width="300" />
+								<Column Name="SN" Caption="새주소일련번호" Type="String" Width="130" />
+								<Column Name="NA_ROAD_CD" Caption="새주소도로코드" Type="String" Width="130" />
+								<Column Name="NA_GRND_UDGD_CD" Caption="새주소지상지하코드" Type="String" Width="130" />
+								<Column Name="NA_MNO" Caption="새주소본번" Type="String" Width="130" />
+								<Column Name="NA_SNO" Caption="새주소부번" Type="String" Width="130" />
+								<Column Name="USGQTY" Caption="사용량(KWh)" Type="String" Width="130" />
+						</Columns>
+						<ParamGroups>
+								<ParamGroup Code="DS81C077421B734A71860FAD00F155C8E2">
+										<Params>
+												<Param Name=":VS_SIGUNGU" ParamType="String">
+														<Value>11680</Value>
+												</Param>
+												<Param Name=":VS_BJDONG" ParamType="String">
+														<Value>10300</Value>
+												</Param>
+												<Param Name=":VS_PLAT_GB" ParamType="String">
+														<Value />
+												</Param>
+												<Param Name=":VS_MNO" ParamType="String" />
+												<Param Name=":VS_SNO" ParamType="String" />
+												<Param Name=":VS_YEAR" ParamType="String">
+														<Value>2026</Value>
+												</Param>
+												<Param Name=":VS_MONTH_P" ParamType="String" />
+												<Param Name=":VS_USGQTY_F" ParamType="String" />
+												<Param Name=":VS_USGQTY_T" ParamType="String" />
+												<Param Name="VS_SIDO" ParamType="String">
+														<Value>11000</Value>
+												</Param>
+												<Param Name="VS_CRT_DATE" ParamType="String" />
+												<Param Name="VS_CRT_DATE2" ParamType="String" />
+												<Param Name="VS_COL_PLOT_PSTN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SGG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_STDG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PLOT_SE_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MNO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SNO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_USE_YM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_USGQTY" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_NA_SNO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_NA_MNO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_NA_GRND_UDGD_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_NA_ROAD_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_ROAD_NM_PLOT_PSTN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_MONTH" ParamType="String">
+														<Value>00</Value>
+												</Param>
+												<Param Name="VS_JSON_COLUMN" ParamType="String" />
+												<Param Name="VS_JSON_CNT" ParamType="String" />
+												<Param Name="VS_JSON_CNT_ALL" ParamType="String">
+														<Value>14</Value>
+												</Param>
+												<Param Name="VS_JSON_COLUMN_ALL" ParamType="String">
+														<Value>PLOT_PSTN||SGG_CD||STDG_CD||PLOT_SE_CD||MNO||SNO||USE_YM||ROAD_NM_PLOT_PSTN||SN||NA_ROAD_CD||NA_GRND_UDGD_CD||NA_MNO||NA_SNO||USGQTY</Value>
+												</Param>
+												<Param Name="VS_MONTH_LIMIT" ParamType="String">
+														<Value>08</Value>
+												</Param>
+												<Param Name="VS_YEAR_SYS" ParamType="String">
+														<Value>2026</Value>
+												</Param>
+												<Param Name="VS_MONTH_SYS" ParamType="String">
+														<Value>202608</Value>
+												</Param>
+												<Param Name="VS_USER_CODE" ParamType="String">
+														<Value>default_user</Value>
+												</Param>
+												<Param Name="VS_REPORT_GBN" ParamType="String">
+														<Value>05</Value>
+												</Param>
+												<Param Name="VS_REPORT_CODE" ParamType="String">
+														<Value>0501</Value>
+												</Param>
+												<Param Name="VS_USER_NAME" ParamType="String">
+														<Value>대표사용자</Value>
+												</Param>
+												<Param Name="VS_DOWNLOAD_GBN" ParamType="String">
+														<Value>CSV</Value>
+												</Param>
+												<Param Name="VS_RADIO_GBN" ParamType="String">
+														<Value>1</Value>
+												</Param>
+										</Params>
+										<SQL Encrypted="true" DSType="2"><![CDATA[]]></SQL>
+								</ParamGroup>
+						</ParamGroups>
+						<Filters />
+						<Orders />
+				</Control>
+		</Controls>
+</iStudioExport>

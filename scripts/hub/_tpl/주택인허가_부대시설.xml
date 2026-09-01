@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<iStudioExport ReportCode="REP4C0418AB8B0C45A1B4E3D47869B1A664">
+		<Controls>
+				<Control Type="0" Name="GRID" ConnectionCode="DBF15C463C94AB4FF583D817B4DD50766C" DSCode="DS81C077421B734A71860FAD00F155C8E2" UseCache="false" TextExportColSeparator="\t" TextExportRowSeparator="\n">
+						<Columns>
+								<Column Name="PLOT_PSTN" Caption="대지위치" Type="String" Width="250" />
+								<Column Name="SGG_CD" Caption="시군구코드" Type="String" Width="130" />
+								<Column Name="STDG_CD" Caption="법정동코드" Type="String" Width="130" />
+								<Column Name="PLOT_SE_CD" Caption="대지구분코드" Type="String" Width="130" />
+								<Column Name="MNO" Caption="번" Type="String" Width="130" />
+								<Column Name="SNO" Caption="지" Type="String" Width="130" />
+								<Column Name="HSPMSLG_SN" Caption="관리주택대장PK" Type="String" Width="180" />
+								<Column Name="BLDG_NM" Caption="건물명" Type="String" Width="250" />
+								<Column Name="SPAREA_NM" Caption="특수지명" Type="String" Width="250" />
+								<Column Name="BLCK" Caption="블록" Type="String" Width="130" />
+								<Column Name="LOT" Caption="로트" Type="String" Width="130" />
+								<Column Name="SBRS_KIND_CD" Caption="부대시설종류코드" Type="String" Width="130" />
+								<Column Name="SBRS_KIND_CD_NM" Caption="부대시설종류코드명" Type="String" Width="130" />
+								<Column Name="ETC_FCLT_KIND_CN" Caption="기타시설종류" Type="String" Width="130" />
+								<Column Name="INSTL_STTUS" Caption="설치현황" Type="String" Width="130" />
+								<Column Name="INHSMP_STTUS" Caption="단지내현황" Type="String" Width="130" />
+								<Column Name="OTHSMP_STTUS" Caption="단지외현황" Type="String" Width="130" />
+								<Column Name="CHGBF_INSTL_STTUS" Caption="변경전설치현황" Type="String" Width="130" />
+								<Column Name="CHGBF_INHSMP_STTUS" Caption="변경전단지내현황" Type="String" Width="130" />
+								<Column Name="CHGBF_OTHSMP_STTUS" Caption="변경전단지외현황" Type="String" Width="130" />
+								<Column Name="BF_SBRS_KIND_CD" Caption="전부대종류코드" Type="String" Width="130" />
+								<Column Name="BF_SBRS_KIND_CD_NM" Caption="전부대종류코드명" Type="String" Width="130" />
+								<Column Name="BF_ETC_FCLT_KIND_CN" Caption="전기타시설종류" Type="String" Width="130" />
+								<Column Name="FRST_CRT_DT" Caption="생성일시" Type="String" Width="150" />
+						</Columns>
+						<ParamGroups>
+								<ParamGroup Code="DS81C077421B734A71860FAD00F155C8E2">
+										<Params>
+												<Param Name=":VS_SIGUNGU" ParamType="String">
+														<Value>11680</Value>
+												</Param>
+												<Param Name=":VS_BJDONG" ParamType="String">
+														<Value>10300</Value>
+												</Param>
+												<Param Name=":VS_PLAT_GB" ParamType="String">
+														<Value />
+												</Param>
+												<Param Name=":VS_MNO" ParamType="String" />
+												<Param Name=":VS_SNO" ParamType="String" />
+												<Param Name=":VS_SBRS_KIND_CD" ParamType="String" />
+												<Param Name="VS_SIDO" ParamType="String">
+														<Value>11000</Value>
+												</Param>
+												<Param Name="VS_CRT_DATE" ParamType="String">
+														<Value>2026 년 07 월 </Value>
+												</Param>
+												<Param Name="VS_CRT_DATE2" ParamType="String">
+														<Value>기준</Value>
+												</Param>
+												<Param Name="VS_COL_PLOT_PSTN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SGG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_STDG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PLOT_SE_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MNO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SNO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_HSPMSLG_SN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_BF_SBRS_KIND_CD_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_BLDG_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SPAREA_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_BLCK" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_LOT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SBRS_KIND_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SBRS_KIND_CD_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_ETC_FCLT_KIND_CN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_INSTL_STTUS" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_INHSMP_STTUS" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_OTHSMP_STTUS" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_CHGBF_INSTL_STTUS" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_CHGBF_INHSMP_STTUS" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_CHGBF_OTHSMP_STTUS" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_BF_SBRS_KIND_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_BF_ETC_FCLT_KIND_CN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_FRST_CRT_DT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_JSON_COLUMN" ParamType="String" />
+												<Param Name="VS_JSON_CNT" ParamType="String" />
+												<Param Name="VS_JSON_CNT_ALL" ParamType="String">
+														<Value>24</Value>
+												</Param>
+												<Param Name="VS_JSON_COLUMN_ALL" ParamType="String">
+														<Value>PLOT_PSTN||SGG_CD||STDG_CD||PLOT_SE_CD||MNO||SNO||HSPMSLG_SN||BLDG_NM||SPAREA_NM||BLCK||LOT||SBRS_KIND_CD||SBRS_KIND_CD_NM||ETC_FCLT_KIND_CN||INSTL_STTUS||INHSMP_STTUS||OTHSMP_STTUS||CHGBF_INSTL_STTUS||CHGBF_INHSMP_STTUS||CHGBF_OTHSMP_STTUS||BF_SBRS_KIND_CD||BF_SBRS_KIND_CD_NM||BF_ETC_FCLT_KIND_CN||FRST_CRT_DT</Value>
+												</Param>
+												<Param Name="VS_USER_CODE" ParamType="String">
+														<Value>default_user</Value>
+												</Param>
+												<Param Name="VS_USER_NAME" ParamType="String">
+														<Value>대표사용자</Value>
+												</Param>
+												<Param Name="VS_REPORT_GBN" ParamType="String">
+														<Value>02</Value>
+												</Param>
+												<Param Name="VS_REPORT_CODE" ParamType="String">
+														<Value>0205</Value>
+												</Param>
+												<Param Name="VS_DOWNLOAD_GBN" ParamType="String">
+														<Value>CSV</Value>
+												</Param>
+												<Param Name="VS_RADIO_GBN" ParamType="String">
+														<Value>1</Value>
+												</Param>
+										</Params>
+										<SQL Encrypted="true" DSType="2"><![CDATA[]]></SQL>
+								</ParamGroup>
+						</ParamGroups>
+						<Filters />
+						<Orders />
+				</Control>
+		</Controls>
+</iStudioExport>

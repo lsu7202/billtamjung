@@ -35,9 +35,29 @@ backups/
 firebase-debug.log
 data/_raw_backup_*.tar.zst
 data/*.db.bak
+# 빌드 산출물 — 빌더를 돌리면 다시 나온다. 원본(data/raw)에서 재생성되므로 커밋하지 않는다.
+# gitignore 는 줄 끝 주석을 모른다(#도 경로의 일부다) — 설명은 반드시 윗줄에 둔다.
+# build_floor_outline.py · 253MB
 data/tools/_floor_outline.csv
-data/tools/_road_width.csv          # 도로구간 shp에서 재생성(build_road_width.py) · 22MB
+# build_road_width.py(도로구간 shp) · 22MB
+data/tools/_road_width.csv
+# build_expos.py · 1.9GB
+data/tools/_expos.jsonl
+# build_complex.py · 15MB
+data/tools/_complex.jsonl
+# build_building_master.py
+data/tools/_building_master.jsonl
+# build_daesuseon.py · 10MB
+data/tools/_daesuseon_seoul.json
+# build_annex.py
+data/tools/_annex_*.json
+# build_integrated.py
+data/tools/_integrated.jsonl
+# build_land_master.py
+data/tools/_land_master.jsonl
+# 빌드 결과서(data/tools/_reports/)는 **남긴다** — 무엇을 어떻게 다뤘는지가 기록이다
 
 # 매뉴얼 영상 중간산출물 — 원본에서 재생성 가능(복제본이라 이중 보관 방지)
 ad/remotion/public/shots/          # = manual/img/*.png 복사본
 ad/remotion/public/vo/raw/         # 정규화 전 원본(gen_manual_vo.py로 재생성)
+scripts/.pipeline.env

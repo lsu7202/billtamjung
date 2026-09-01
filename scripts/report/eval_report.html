@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>빌탐정 평가보고서</title>
+<style>
+  @page { size:A4; margin:22mm 20mm 20mm 20mm; }
+  :root{
+    --navy:#3B4A78; --orange:#E8730C; --ink:#1a1a1a; --sub:#555;
+    --line:#8a94b0; --thead:#3B4A78; --label:#DCE6F1; --band:#F5F7FB;
+    --red:#C0392B; --green:#1E7B4D;
+  }
+  *{ box-sizing:border-box; }
+  html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  body{ font-family:"Apple SD Gothic Neo","AppleGothic",sans-serif; color:var(--ink);
+        font-size:10.2pt; line-height:1.78; margin:0; }
+  p{ margin:0 0 8pt; text-align:justify; }
+  .tnum{ font-variant-numeric:tabular-nums; }
+
+  /* 표지 */
+  .cv-title{ font-size:26pt; font-weight:800; color:var(--navy); letter-spacing:-.01em; }
+  .cv-title small{ font-size:16pt; font-weight:600; }
+  .cv-cat{ font-size:11.5pt; font-weight:700; color:var(--navy); margin:6mm 0 4mm; }
+  .rule2{ border-top:1px solid #444; border-bottom:1px solid #444; height:3px; margin:3mm 0 8mm; }
+  h2.orange{ color:var(--orange); font-size:14pt; font-weight:800; margin:0 0 5mm; }
+  .toc{ list-style:none; padding:0; margin:0 0 10mm; }
+  .toc li{ margin-bottom:4.5mm; font-size:11pt; }
+
+  /* 섹션 */
+  h1.sec{ font-size:19pt; font-weight:800; margin:0; letter-spacing:-.01em; }
+  .sec-rule{ border-top:1px solid #444; border-bottom:1px solid #444; height:3px; margin:4mm 0 7mm; }
+  h3{ font-size:11.6pt; font-weight:800; margin:8mm 0 3.5mm; }
+  h4{ font-size:10.8pt; font-weight:800; margin:7mm 0 3mm; }
+  .capt{ color:var(--navy); font-weight:800; font-size:10.4pt; margin:5mm 0 2mm; }
+
+  /* ▲ 불릿 */
+  .tri{ margin:0 0 4.5mm; padding-left:7mm; text-indent:-7mm; text-align:justify; }
+  .tri::before{ content:"▲"; color:var(--ink); font-size:8.4pt; margin-right:2.6mm; }
+
+  /* 표 */
+  table{ width:100%; border-collapse:collapse; font-size:9.6pt; margin:2mm 0 5mm;
+         page-break-inside:avoid; }
+  th,td{ border:.7px solid var(--line); padding:2.2mm 2.6mm; vertical-align:middle;
+         font-variant-numeric:tabular-nums; }
+  thead th{ background:var(--thead); color:#fff; font-weight:700; text-align:center; }
+  td{ text-align:center; }
+  td.lab{ background:var(--label); font-weight:700; text-align:center; }
+  td.l{ text-align:left; font-variant-numeric:normal; }
+  tbody tr.hl td{ background:var(--band); font-weight:700; }
+  .red{ color:var(--red); } .green{ color:var(--green); }
+
+  /* 차트 */
+  .chart{ margin:4mm 0 5mm; page-break-inside:avoid; text-align:center; }
+  .chart .t{ color:var(--navy); font-weight:800; font-size:10.4pt; margin-bottom:2.5mm; }
+  .chart .n{ font-size:8.4pt; color:var(--sub); margin-top:1.5mm; }
+
+  /* 박스 */
+  .box{ border:1px solid #333; padding:5mm 6mm; font-size:9.8pt; margin:4mm 0; }
+  .box p{ margin-bottom:6pt; }
+  .box p:last-child{ margin-bottom:0; }
+  u{ text-underline-offset:2px; }
+
+  .pb{ page-break-before:always; }
+  .avoid{ page-break-inside:avoid; }
+</style>
+</head>
+<body>
+
+<!-- ══════════ 표지 ══════════ -->
+<div class="cv-title">빌탐정_ <small>부동산 가치추정 시스템</small></div>
+<div class="cv-cat">상업용 부동산 | 자동가치산정(AVM) | 적정가 · 임대시세 | 서울특별시</div>
+<div class="rule2"></div>
+
+<h2 class="orange">Contents</h2>
+<ol class="toc">
+  <li>1. 평가 개요</li>
+  <li>2. 임대시세 추정 평가</li>
+  <li>3. 적정가 추정 평가</li>
+  <li>4. 산식 분석</li>
+  <li>5. 종합 평가 및 개선 과제</li>
+</ol>
+<div class="rule2"></div>
+
+<h2 class="orange">System Outlook</h2>
+<p>1. 대상은 서울 상업용 부동산의 매매 적정가와 층별 임대시세를 자동 산출하는 두 개의 추정
+   시스템으로, 감정평가가 아닌 사전 참고치 제공을 목적으로 한다</p>
+<p>2. 적정가는 인근 실거래 사례를 가중 평균하는 거래사례비교법 계열이며,
+   임대시세는 공시지가를 주축으로 층·연식·역거리를 보정하는 회귀 계열로 확인된다</p>
+<p>3. 본 평가는 시스템이 산출한 값을 외부 시장 자료와 대조하여 오차를 측정하고,
+   오차의 발생 지점을 산식 구조에서 확인하는 것을 목적으로 한다</p>
+
+<!-- ══════════ 1 ══════════ -->
+<div class="pb">
+<h1 class="sec">1. 평가 개요</h1>
+<div class="sec-rule"></div>
+
+<h3>1) 평가 대상</h3>
+<p>평가 대상은 상업용 부동산 정보 서비스가 제공하는 두 개의 가치추정 기능이다.
+하나는 매매 <b>적정가</b>를 단일 금액으로 제시하고, 다른 하나는 건물의 <b>층별 임대시세</b>를
+월 임대료로 제시한다. 두 기능 모두 이용자가 주소를 입력하면 즉시 결과를 반환하는 자동 산출 방식이다.</p>
+
+<table>
+  <thead><tr><th style="width:26%">구분</th><th>적정가 추정</th><th>임대시세 추정</th></tr></thead>
+  <tbody>
+    <tr><td class="lab">산출 단위</td><td>건물 1동 / 매매 총액</td><td>층 1개 / 월 임대료</td></tr>
+    <tr><td class="lab">방법 계열</td><td>거래사례비교법</td><td>공시지가 기반 회귀</td></tr>
+    <tr><td class="lab">주요 입력</td><td>인근 실거래·대지면적·연면적<br>용적률·연식·도로접면</td><td>공시지가·층·연식<br>역거리·상권</td></tr>
+    <tr><td class="lab">용도</td><td>매도희망가 타당성 검토</td><td>임대 수익 추정 · 수익률 산정</td></tr>
+  </tbody>
+</table>
+
+<h3>2) 평가 방법</h3>
+<p>추정 시스템의 성능은 <b>외부 잣대와의 거리</b>로만 판단할 수 있다.
+두 기능의 성격이 다르므로 잣대도 달리 적용하였다.</p>
+
+<table>
+  <thead><tr><th style="width:22%">구분</th><th>잣대</th><th>표본</th><th>측정 지표</th></tr></thead>
+  <tbody>
+    <tr><td class="lab">적정가</td><td class="l">2025년 이후 상업용 매매 실거래</td><td class="tnum">798건</td><td class="l">오차 중앙값 · ±15% 적중률</td></tr>
+    <tr><td class="lab">임대시세</td><td class="l">시장 공개 임대 호가</td><td class="tnum">61,271개 층</td><td class="l">오차 중앙값 · 비율(추정÷호가)</td></tr>
+  </tbody>
+</table>
+
+<p class="tri">적정가는 표본을 <b>튜닝용 905건과 검증용 798건으로 분리</b>하였다. 파라미터 조정에
+사용한 표본으로 성능을 재면 실제보다 좋게 나오므로, 조정에 쓰지 않은 표본으로만 최종 판정하였다.</p>
+<p class="tri">유사사례 탐색은 반경 500m·대상 시점 이전 5년으로 제한하고 대상 건물 자신을 제외하여,
+결과 시점 이후의 정보가 예측에 유입되지 않도록 통제하였다.</p>
+<p class="tri">임대시세는 <b>층 단위</b>로 측정하였다. 건물 단위로 합산하면 층 구성이 다른 건물끼리
+오차가 상쇄되어 실제 정확도가 가려지기 때문이다.</p>
+
+<h3>3) 임대 잣대의 성격</h3>
+<p>임대 평가에 사용한 잣대는 <b>실계약이 아니라 시장에 공개된 호가</b>다.
+호가는 협상 이전 가격이므로 실계약보다 높게 형성되는 것이 일반적이다.
+따라서 측정된 오차에는 <u>시스템 자체의 오차와 호가–실계약 간극이 함께 섞여 있으며</u>,
+둘을 분리하려면 실계약 자료가 필요하다. 본 보고서는 이 한계를 전제로 해석한다.</p>
+
+<table>
+  <thead><tr><th style="width:34%">항목</th><th>값</th><th>비고</th></tr></thead>
+  <tbody>
+    <tr><td class="lab">임대 호가 표본</td><td class="tnum">67,020건</td><td class="l">건물 28,647동 · 법정동 435개</td></tr>
+    <tr><td class="lab">비교 가능 표본</td><td class="tnum">61,271개 층</td><td class="l">면적·층 정보가 모두 확인된 건</td></tr>
+    <tr><td class="lab">보증금/월세 배수</td><td class="tnum">13.0배</td><td class="l">중앙값 기준 실측</td></tr>
+    <tr><td class="lab">전용/계약 면적비</td><td class="tnum">0.933</td><td class="l">중앙값 기준 실측</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- ══════════ 2 ══════════ -->
+<div class="pb">
+<h1 class="sec">2. 임대시세 추정 평가</h1>
+<div class="sec-rule"></div>
+
+<h3>1) 전체 오차</h3>
+<p>비교 기준은 <b>㎡당 월 임대료</b>로 통일하였다. 호가는 월세를 계약면적으로 나누고,
+추정치는 산출 임대료를 임대가능면적으로 나눈다. 두 값 모두 「임대되는 면적 1㎡가 한 달에 창출하는 금액」이므로
+직접 비교가 성립한다.</p>
+
+<div class="capt">임대시세 추정 오차 (단위: %, 배)</div>
+<table>
+  <thead><tr><th style="width:32%">구분</th><th>표본</th><th>비율(중앙)</th><th>오차 중앙값</th><th>±20% 적중</th></tr></thead>
+  <tbody>
+    <tr class="hl"><td class="lab">현행 산식</td><td class="tnum">61,271</td><td class="tnum">0.86</td><td class="tnum">28.8</td><td class="tnum">35.5</td></tr>
+    <tr><td class="lab">면적보정 제외</td><td class="tnum">60,204</td><td class="tnum">1.09</td><td class="tnum">34.9</td><td class="tnum">30.1</td></tr>
+  </tbody>
+</table>
+
+<p class="tri">현행 산식의 오차 중앙값은 <b>28.8%</b>이며, 호가 대비 <b>0.86배</b> 수준으로 일관되게 낮게 산출된다.
+비율이 1.00에서 벗어난 것은 눈금(level)의 문제이고, 오차 28.8%는 흩어짐(dispersion)의 문제로 서로 다른 사안이다.</p>
+<p class="tri">면적보정을 제외하면 비율은 1.09로 호가에 근접하지만 오차는 34.9%로 <b>6.1%p 악화</b>된다.
+눈금을 맞추는 것과 정확도를 높이는 것이 상충하는 구조이며, 현행 산식은 정확도를 우선한 설정으로 보인다.</p>
+<p class="tri">±20% 안에 드는 비율이 35.5%에 그친다. 임대차 협상에서 통용되는 범위를 고려하면
+<b>개별 물건의 임대료를 대체할 수준은 아니며</b>, 다수 물건의 수익 규모를 가늠하는 용도에 적합하다.</p>
+
+<h3>2) 층별 오차</h3>
+<div class="capt">층 구간별 오차 분해</div>
+<table>
+  <thead><tr><th style="width:20%">층</th><th>표본</th><th>비중</th><th>비율(중앙)</th><th>오차 중앙값</th></tr></thead>
+  <tbody>
+    <tr><td class="lab">지하</td><td class="tnum">7,724</td><td class="tnum">12.6%</td><td class="tnum">0.91</td><td class="tnum red">32.2</td></tr>
+    <tr><td class="lab">1층</td><td class="tnum">22,028</td><td class="tnum">35.9%</td><td class="tnum red">0.83</td><td class="tnum">29.3</td></tr>
+    <tr><td class="lab">2층</td><td class="tnum">10,336</td><td class="tnum">16.9%</td><td class="tnum">0.86</td><td class="tnum green">25.8</td></tr>
+    <tr><td class="lab">3층</td><td class="tnum">6,799</td><td class="tnum">11.1%</td><td class="tnum">0.86</td><td class="tnum">27.9</td></tr>
+    <tr><td class="lab">4–5층</td><td class="tnum">7,577</td><td class="tnum">12.4%</td><td class="tnum">0.86</td><td class="tnum">30.0</td></tr>
+    <tr><td class="lab">6–10층</td><td class="tnum">4,790</td><td class="tnum">7.8%</td><td class="tnum">0.90</td><td class="tnum">29.2</td></tr>
+    <tr><td class="lab">11층 이상</td><td class="tnum">2,017</td><td class="tnum">3.3%</td><td class="tnum">0.91</td><td class="tnum green">25.8</td></tr>
+  </tbody>
+</table>
+
+<div class="chart">
+  <div class="t">층 구간별 오차 중앙값 (%)</div>
+  <svg width="460" height="150" viewBox="0 0 460 150">
+    <line x1="42" y1="120" x2="452" y2="120" stroke="#888" stroke-width="1"/>
+    <line x1="42" y1="120" x2="42" y2="14" stroke="#888" stroke-width="1"/>
+    <g font-size="8" fill="#777" text-anchor="end">
+      <text x="38" y="123">0</text><text x="38" y="88">15</text><text x="38" y="53">25</text><text x="38" y="18">35</text>
+    </g>
+    <g>
+      <rect x="58"  y="30"  width="42" height="90" fill="#C0392B"/>
+      <rect x="114" y="43"  width="42" height="77" fill="#3B4A78"/>
+      <rect x="170" y="56"  width="42" height="64" fill="#3B4A78"/>
+      <rect x="226" y="49"  width="42" height="71" fill="#3B4A78"/>
+      <rect x="282" y="39"  width="42" height="81" fill="#3B4A78"/>
+      <rect x="338" y="42"  width="42" height="78" fill="#3B4A78"/>
+      <rect x="394" y="56"  width="42" height="64" fill="#3B4A78"/>
+    </g>
+    <g font-size="8.5" fill="#fff" text-anchor="middle" font-weight="700">
+      <text x="79" y="44">32.2</text><text x="135" y="57">29.3</text><text x="191" y="70">25.8</text>
+      <text x="247" y="63">27.9</text><text x="303" y="53">30.0</text><text x="359" y="56">29.2</text>
+      <text x="415" y="70">25.8</text>
+    </g>
+    <g font-size="8.4" fill="#333" text-anchor="middle">
+      <text x="79" y="134">지하</text><text x="135" y="134">1층</text><text x="191" y="134">2층</text>
+      <text x="247" y="134">3층</text><text x="303" y="134">4–5층</text><text x="359" y="134">6–10층</text>
+      <text x="415" y="134">11층+</text>
+    </g>
+  </svg>
+  <div class="n">※ 붉은 막대는 오차가 가장 큰 구간</div>
+</div>
+
+<p class="tri"><b>지하층 오차가 32.2%로 가장 크다.</b> 지하는 창고와 음식점이 같은 층 표기를 공유하는 등
+용도에 따라 임대료가 극단적으로 갈리는 구간이나, 산식은 이를 구분하지 않는 것으로 보인다.</p>
+<p class="tri"><b>1층은 표본의 35.9%를 차지하면서 비율이 0.83으로 가장 낮다.</b>
+전체 오차에 미치는 영향이 가장 큰 구간이며, 구조적으로 과소 산출되고 있다.
+1층 임대료를 결정하는 코너 여부·전면 폭·보행 동선은 산식이 사용하는 변수에 포함되어 있지 않다.</p>
+<p class="tri">2층과 11층 이상이 25.8%로 가장 안정적이다. 이 구간은 개별 입지 요인보다
+건물 전체의 등급이 임대료를 결정하는 경향이 강해, 공시지가 기반 추정과 잘 맞는 것으로 해석된다.</p>
+
+<h3 class="pb">3) 유형별 · 상권 반영 여부</h3>
+<div class="capt">건물 유형별 오차</div>
+<table>
+  <thead><tr><th style="width:26%">유형</th><th>표본</th><th>비율(중앙)</th><th>오차 중앙값</th></tr></thead>
+  <tbody>
+    <tr><td class="lab">중대형상가</td><td class="tnum">30,695</td><td class="tnum">0.89</td><td class="tnum green">27.2</td></tr>
+    <tr><td class="lab">오피스</td><td class="tnum">20,424</td><td class="tnum">0.88</td><td class="tnum">28.9</td></tr>
+    <tr><td class="lab">소규모상가</td><td class="tnum">10,152</td><td class="tnum red">0.73</td><td class="tnum red">33.7</td></tr>
+  </tbody>
+</table>
+
+<div class="capt">상권 정보 반영 여부에 따른 오차</div>
+<table>
+  <thead><tr><th style="width:34%">구분</th><th>표본</th><th>비율(중앙)</th><th>오차 중앙값</th></tr></thead>
+  <tbody>
+    <tr><td class="lab">상권 매칭됨</td><td class="tnum">47,324</td><td class="tnum">0.86</td><td class="tnum">28.9</td></tr>
+    <tr><td class="lab">서울평균으로 대체</td><td class="tnum">13,947</td><td class="tnum">0.86</td><td class="tnum">28.4</td></tr>
+  </tbody>
+</table>
+
+<p class="tri"><b>소규모상가에서 비율 0.73이 관측된다.</b> 다른 유형(0.88~0.89)과 뚜렷이 구분되는 수준으로,
+표본 오차가 아니라 해당 유형에 대한 체계적 편향으로 판단된다. 실제 임대료의 약 4분의 3만 산출하고 있다.</p>
+<p class="tri"><b>상권 정보를 반영한 표본과 서울 평균으로 대체한 표본의 오차가 각각 28.9%와 28.4%로 사실상 동일하다.</b>
+상권 매칭이 정확도 개선에 기여하지 못하고 있음을 의미하며,
+해당 변수는 현재 형태로는 설명력이 없는 것으로 확인된다.</p>
+</div>
+
+<!-- ══════════ 3 ══════════ -->
+<div class="pb">
+<h1 class="sec">3. 적정가 추정 평가</h1>
+<div class="sec-rule"></div>
+
+<h3>1) 전체 오차</h3>
+<div class="capt">적정가 추정 오차 (단위: %)</div>
+<table>
+  <thead><tr><th style="width:30%">설정</th><th>튜닝 표본</th><th>검증 표본</th><th>±15% 적중</th></tr></thead>
+  <tbody>
+    <tr><td class="lab">보정 미적용</td><td class="tnum">18.15</td><td class="tnum">20.44</td><td class="tnum">37.5</td></tr>
+    <tr class="hl"><td class="lab">현행 산식</td><td class="tnum">15.86</td><td class="tnum">16.99</td><td class="tnum">44.4</td></tr>
+  </tbody>
+</table>
+
+<p class="tri">현행 산식의 검증 오차는 <b>16.99%</b>, ±15% 적중률은 <b>44.4%</b>다.
+보정 축을 모두 제거한 기준선(20.44%) 대비 <b>3.45%p 개선</b>된 수치로, 보정 설계가 실효를 거두고 있다.</p>
+<p class="tri">튜닝 표본(15.86%)과 검증 표본(16.99%)의 차이가 <b>1.13%p</b>에 그친다.
+파라미터를 특정 표본에 과도하게 맞춘 흔적, 즉 과적합의 징후는 뚜렷하지 않다.</p>
+<p class="tri">거래사례비교법 계열의 자동 산정 결과로서 오차 중앙값 17% 내외는
+<b>감정평가 이전 단계의 참고치</b>로 활용 가능한 수준으로 평가된다.</p>
+
+<h3>2) 파라미터 민감도</h3>
+<p>현행 설정이 최적인지 확인하기 위해 주요 파라미터를 개별·복합으로 변경하여 재측정하였다.
+음수는 개선, 양수는 악화를 의미한다.</p>
+
+<div class="capt">파라미터 변경에 따른 오차 변화 (단위: %, %p)</div>
+<table>
+  <thead><tr><th style="width:30%">변경 항목</th><th>튜닝</th><th>검증</th><th>검증 변화</th><th>±15% 적중</th></tr></thead>
+  <tbody>
+    <tr><td class="lab">연식 감가 완화</td><td class="tnum">15.85</td><td class="tnum">16.94</td><td class="tnum green">−0.05</td><td class="tnum">44.2</td></tr>
+    <tr><td class="lab">연면적법 하한 상향</td><td class="tnum">15.82</td><td class="tnum">17.21</td><td class="tnum red">+0.22</td><td class="tnum">43.6</td></tr>
+    <tr><td class="lab">유사성 척도 축소</td><td class="tnum">15.95</td><td class="tnum">17.08</td><td class="tnum red">+0.09</td><td class="tnum">43.7</td></tr>
+    <tr><td class="lab">연면적법 상한 하향</td><td class="tnum">15.75</td><td class="tnum">17.02</td><td class="tnum red">+0.03</td><td class="tnum">44.1</td></tr>
+    <tr><td class="lab">원가보정 제거</td><td class="tnum">15.91</td><td class="tnum">17.17</td><td class="tnum red">+0.18</td><td class="tnum">44.5</td></tr>
+    <tr><td class="lab">복합 변경 (3축)</td><td class="tnum">15.57</td><td class="tnum">17.30</td><td class="tnum red">+0.31</td><td class="tnum">43.2</td></tr>
+    <tr><td class="lab">복합 + 이상치 절단</td><td class="tnum">15.53</td><td class="tnum">18.44</td><td class="tnum red">+1.45</td><td class="tnum">42.2</td></tr>
+  </tbody>
+</table>
+
+<p class="tri"><b>튜닝 표본에서 개선되는 변경안이 검증 표본에서는 악화된다.</b>
+복합 변경은 튜닝에서 0.29%p 개선되나 검증에서 0.31%p 악화되고,
+이상치 절단을 추가하면 검증 오차가 1.45%p 악화된다. 전형적인 과적합 신호다.</p>
+<p class="tri">7개 변경안 중 검증 오차를 개선한 것은 연식 감가 완화 단 하나이며 그 폭도 0.05%p에 불과하다.
+<b>현행 파라미터는 이미 국소 최적에 도달한 것으로 판단</b>되며,
+추가 개선은 파라미터 조정이 아니라 설명 변수 확충으로 접근해야 한다.</p>
+
+<h3>3) 지역별 편차</h3>
+<div class="capt">자치구별 검증 오차 (단위: %)</div>
+<table>
+  <thead><tr><th>자치구</th><th>오차</th><th>자치구</th><th>오차</th><th>자치구</th><th>오차</th><th>자치구</th><th>오차</th></tr></thead>
+  <tbody>
+    <tr><td class="lab">송파</td><td class="tnum green">12.5</td><td class="lab">영등포</td><td class="tnum green">15.2</td>
+        <td class="lab">중구</td><td class="tnum">16.3</td><td class="lab">강동</td><td class="tnum">16.7</td></tr>
+    <tr><td class="lab">광진</td><td class="tnum">17.4</td><td class="lab">서대문</td><td class="tnum">18.7</td>
+        <td class="lab">동작</td><td class="tnum red">20.5</td><td class="lab">강서</td><td class="tnum red">22.4</td></tr>
+  </tbody>
+</table>
+
+<div class="chart">
+  <div class="t">자치구별 검증 오차 (%)</div>
+  <svg width="460" height="132" viewBox="0 0 460 132">
+    <line x1="46" y1="102" x2="452" y2="102" stroke="#888"/>
+    <line x1="46" y1="102" x2="46" y2="12" stroke="#888"/>
+    <g font-size="8" fill="#777" text-anchor="end">
+      <text x="42" y="105">0</text><text x="42" y="72">10</text><text x="42" y="42">20</text><text x="42" y="16">25</text>
+    </g>
+    <g>
+      <rect x="62"  y="57"  width="40" height="45" fill="#1E7B4D"/>
+      <rect x="112" y="47"  width="40" height="55" fill="#1E7B4D"/>
+      <rect x="162" y="43"  width="40" height="59" fill="#3B4A78"/>
+      <rect x="212" y="42"  width="40" height="60" fill="#3B4A78"/>
+      <rect x="262" y="39"  width="40" height="63" fill="#3B4A78"/>
+      <rect x="312" y="35"  width="40" height="67" fill="#3B4A78"/>
+      <rect x="362" y="28"  width="40" height="74" fill="#C0392B"/>
+      <rect x="412" y="21"  width="40" height="81" fill="#C0392B"/>
+    </g>
+    <g font-size="8.4" fill="#fff" text-anchor="middle" font-weight="700">
+      <text x="82" y="71">12.5</text><text x="132" y="61">15.2</text><text x="182" y="57">16.3</text><text x="232" y="56">16.7</text>
+      <text x="282" y="53">17.4</text><text x="332" y="49">18.7</text><text x="382" y="42">20.5</text><text x="432" y="35">22.4</text>
+    </g>
+    <g font-size="8.2" fill="#333" text-anchor="middle">
+      <text x="82" y="116">송파</text><text x="132" y="116">영등포</text><text x="182" y="116">중구</text><text x="232" y="116">강동</text>
+      <text x="282" y="116">광진</text><text x="332" y="116">서대문</text><text x="382" y="116">동작</text><text x="432" y="116">강서</text>
+    </g>
+  </svg>
+  <div class="n">※ 최고–최저 격차 9.9%p</div>
+</div>
+
+<p class="tri">최저(송파 12.5%)와 최고(강서 22.4%)의 격차가 <b>9.9%p</b>에 이른다.
+동일한 시스템이 지역에 따라 두 배 가까운 오차 차이를 보인다.</p>
+<p class="tri">거래가 빈번하고 물건이 균질한 지역에서 정확도가 높고,
+거래가 희소하거나 필지 형태가 불규칙한 지역에서 낮아진다.
+<b>사례 밀도에 성능이 종속되는 거래사례비교법의 구조적 특성</b>이 그대로 드러난다.</p>
+</div>
+
+<!-- ══════════ 4 ══════════ -->
+<div class="pb">
+<h1 class="sec">4. 산식 분석</h1>
+<div class="sec-rule"></div>
+
+<h3>1) 적정가 산식</h3>
+
+<h4>① 토지단가와 연면적단가의 혼합 — 타당한 설계</h4>
+<p>산식은 대지면적 기준 단가와 연면적 기준 단가를 산출한 뒤, 용적률에 따라 두 값을 혼합한다.
+혼합 비율은 용적률 400% 부근에서 시작해 1000% 부근까지 선형으로 이동하며 상·하한이 설정되어 있다.</p>
+<p class="tri">저용적 건물은 토지 가치가, 고용적 건물은 건물 규모가 가격을 지배한다는 시장 인식과 부합한다.
+어느 한쪽 방식으로 완전히 치우치지 않도록 상·하한을 둔 점도 합리적이다.</p>
+
+<h4>② 유사성 가중 — 감정평가 표준 방식 채택</h4>
+<p>유사사례의 가중치를 거리만으로 정하지 않고, 대상과의 <b>연식 차이·규모 차이</b>에 따라 추가로 감쇄한다.
+「물리적으로 가깝지만 성격이 다른 사례」가 결과를 왜곡하는 것을 억제하는 장치다.</p>
+<p class="tri">이 축을 축소하면 검증 오차가 0.09%p 악화되어, 실제로 기여하고 있음이 확인된다.</p>
+
+<h4>③ 시점 통제 — 검증 신뢰도 확보</h4>
+<p class="tri">유사사례를 대상 시점 이전으로만 제한하고 대상 건물 자신을 제외한다.
+이 통제가 없으면 백테스트 성적이 실제 운영 성능보다 과대평가된다.
+평가 과정에서 이 조건이 유지됨을 확인하였다.</p>
+
+<h4>④ 오차의 발생 지점</h4>
+<p class="tri"><b>사례 밀도 종속.</b> 지역별 격차 9.9%p의 주된 원인이다.
+반경 500m·5년 조건에서 상업용 거래가 소수인 지역은 몇 건의 사례가 결과를 지배한다.
+반경을 넓히면 이질적 사례가 유입되고, 좁히면 표본이 고갈되는 상충 구조에 있다.</p>
+<p class="tri"><b>건물 개별 요인 부재.</b> 동일 필지·동일 연식이라도 실제 거래가는 임차인 구성,
+명도 난이도, 리모델링 상태에 따라 갈린다. 산식에는 이러한 축이 확인되지 않는다.</p>
+<p class="tri"><b>파라미터 여지 소진.</b> 7개 변경안 중 6개가 검증 오차를 악화시켰다.
+현행 설정을 미세 조정하여 얻을 수 있는 개선은 사실상 남아 있지 않다.</p>
+
+<h3 class="pb">2) 임대시세 산식</h3>
+
+<h4>① 공시지가 주축 — 유효한 선택</h4>
+<p>임대료를 공시지가의 멱함수 형태로 설명하고, 층 구간별로 계수를 별도 추정하는 구조로 확인된다.
+여기에 연식·역거리·상권 요율을 곱셈 보정으로 적용한다.</p>
+<p class="tri">임대료가 입지 가치를 따라간다는 전제는 데이터로 지지된다.
+층 구간별로 계수를 분리한 점 또한 층별 임대료 차이가 선형이 아니라는 실제 구조를 반영한 설계다.</p>
+
+<h4>② 눈금 설정 — 보수적 산출</h4>
+<p class="tri">추정치가 호가 대비 0.86배로 일관되게 낮다.
+호가가 협상 이전 가격임을 고려하면 <b>보수적 산출은 실무상 안전한 방향</b>이다.
+다만 이용자에게 「호가가 아닌 실현 가능 수준을 제시한다」는 점이 명시되어야 오해가 없다.</p>
+
+<h4>③ 오차의 발생 지점</h4>
+<p class="tri"><b>1층 개별 편차를 담을 변수 부재.</b> 표본의 35.9%를 차지하는 1층에서 비율 0.83으로
+가장 큰 편향이 관측된다. 1층 임대료를 가르는 코너 여부·전면 폭·보행 동선이 산식에 없다.
+전체 오차 개선에 미치는 영향이 가장 큰 지점이다.</p>
+<p class="tri"><b>소규모상가 체계적 편향.</b> 비율 0.73으로 다른 유형과 0.15 이상 벌어진다.
+단일 계수 체계가 소규모 물건의 단가 수준을 구조적으로 낮게 산출하고 있다.</p>
+<p class="tri"><b>상권 변수 무효.</b> 상권 매칭 여부에 따른 오차 차이가 0.5%p 이내로,
+해당 변수가 임대료 차이를 설명하지 못하고 있다. 계산에는 반영되나 정확도에는 기여하지 않는 상태다.</p>
+<p class="tri"><b>지하층 용도 미구분.</b> 오차 32.2%로 가장 크다. 지하는 용도에 따른 임대료 편차가
+가장 큰 구간이나 산식은 이를 단일 계수로 처리한다.</p>
+
+<div class="box">
+  <p><b>※ 심층 분석 — 두 시스템의 오차 성격 차이</b></p>
+  <p>적정가의 오차(17.0%)와 임대시세의 오차(28.8%)는 단순 비교 대상이 아니다.
+  성격이 다르기 때문이다.</p>
+  <p><b>적정가</b>는 <u>잣대 자체가 확정적</u>이다. 실거래가는 실제 체결된 금액이므로 정답이 존재한다.
+  따라서 17.0%는 시스템의 순수한 오차로 해석할 수 있다.</p>
+  <p><b>임대시세</b>는 <u>잣대가 불확정적</u>이다. 호가는 협상 이전 가격이며, 같은 물건도
+  게시 시점과 중개인에 따라 달라진다. 28.8%에는 시스템 오차와 호가 자체의 분산이 함께 포함된다.</p>
+  <p>따라서 임대시세의 실제 성능은 28.8%보다 양호할 여지가 있으나,
+  <b>현 상태에서는 이를 확인할 방법이 없다.</b> 실계약 기반 재측정이 선행되어야
+  임대 시스템의 개선 여부를 판정할 수 있다.</p>
+</div>
+</div>
+
+<!-- ══════════ 5 ══════════ -->
+<div class="pb">
+<h1 class="sec">5. 종합 평가 및 개선 과제</h1>
+<div class="sec-rule"></div>
+
+<h3>1) 종합 평가</h3>
+<div class="capt">시스템별 평가 등급</div>
+<table>
+  <thead><tr><th style="width:20%">시스템</th><th>오차 중앙값</th><th>활용 가능 범위</th><th>판정</th></tr></thead>
+  <tbody>
+    <tr><td class="lab">적정가</td><td class="tnum">16.99%</td>
+        <td class="l">매도희망가 타당성 검토 · 매물 선별 · 포트폴리오 평가</td>
+        <td><b>실무 활용 가능</b></td></tr>
+    <tr><td class="lab">임대시세</td><td class="tnum">28.8%</td>
+        <td class="l">수익 규모 개략 추정 · 물건 간 상대 비교</td>
+        <td><b>참고 지표 한정</b></td></tr>
+  </tbody>
+</table>
+
+<p class="tri"><b>적정가는 실무에 활용 가능한 수준이다.</b> 다만 지역별 편차가 9.9%p에 달하므로,
+오차가 20%를 초과하는 지역에서 단일 금액을 제시하는 것은 위험하다.
+<u>지역별 신뢰도를 함께 표기하거나 구간으로 제시하는 방식</u>이 권장된다.</p>
+<p class="tri"><b>임대시세는 참고 지표로 한정하는 것이 타당하다.</b> 오차 28.8%는
+개별 임대차 협상의 기준으로 사용하기에 과대하다. 다만 물건 간 상대 비교나
+다수 물건의 수익 규모 추정에는 활용 가치가 있다.</p>
+
+<h3>2) 개선 과제</h3>
+<div class="capt">개선 우선순위</div>
+<table>
+  <thead><tr><th style="width:8%">순위</th><th style="width:16%">대상</th><th>과제</th><th style="width:14%">기대 효과</th><th style="width:12%">난이도</th></tr></thead>
+  <tbody>
+    <tr><td class="lab">1</td><td class="lab">임대</td>
+        <td class="l">1층에 도로 접면 등급·코너 여부 변수 도입.
+            표본 비중이 가장 크고 편향도 가장 크다. 해당 변수는 적정가 산식에서 이미 사용 중이므로 이식이 가능하다</td>
+        <td>오차 개선<br>기여도 최대</td><td>낮음</td></tr>
+    <tr><td class="lab">2</td><td class="lab">임대</td>
+        <td class="l">소규모상가 계열 보정 계수 도입 또는 규모 변수 편입.
+            비율 0.73의 체계적 편향 해소</td>
+        <td>특정 유형<br>정확도 개선</td><td>낮음</td></tr>
+    <tr><td class="lab">3</td><td class="lab">임대</td>
+        <td class="l">상권 변수 재설계 또는 제거. 현재 형태로는 설명력이 확인되지 않으므로,
+            경계 재정의 또는 대체 변수 검토 필요</td>
+        <td>연산 단순화<br>오차 유지</td><td>중간</td></tr>
+    <tr><td class="lab">4</td><td class="lab">임대</td>
+        <td class="l">지하층 용도 구분 반영. 층별 용도 정보를 변수로 편입</td>
+        <td>지하 오차<br>32.2% 완화</td><td>중간</td></tr>
+    <tr><td class="lab">5</td><td class="lab">적정가</td>
+        <td class="l">사례 밀도에 따른 가변 반경 적용 및 신뢰구간 표기.
+            사례가 부족한 지역에서는 단일 값 대신 구간 제시</td>
+        <td>지역 편차<br>9.9%p 완화</td><td>중간</td></tr>
+    <tr><td class="lab">6</td><td class="lab">적정가</td>
+        <td class="l">건물 개별 요인 변수 확충. 임차 안정성·공실 상태를 대리할 지표 검토</td>
+        <td>구조적<br>한계 완화</td><td>높음</td></tr>
+    <tr><td class="lab">7</td><td class="lab">공통</td>
+        <td class="l">임대 부문 실계약 기반 재측정. 현 오차에 포함된 호가–실계약 간극 분리</td>
+        <td>측정 신뢰도<br>확보</td><td>높음</td></tr>
+  </tbody>
+</table>
+
+<p class="tri">1·2순위는 <b>기존 산식 구조를 유지한 채 변수만 추가</b>하면 되므로 즉시 착수 가능하며,
+표본 비중과 편향 크기를 고려할 때 개선 효과가 가장 클 것으로 예상된다.</p>
+<p class="tri">적정가는 파라미터 조정 여지가 소진된 상태이므로,
+<b>추가 개선은 산식 변경이 아니라 결과 제시 방식(구간·신뢰도)의 개선에서 찾는 편이 현실적</b>이다.</p>
+
+<h3>3) 결론</h3>
+<p>두 시스템은 자동 가치산정 도구로서 상이한 성숙도를 보인다.
+적정가는 표준적인 거래사례비교법을 충실히 구현하고 시점 통제와 과적합 방지 장치를 갖추어
+실무 참고치로 활용 가능한 수준에 도달하였다.
+임대시세는 공시지가 주축이라는 방향 설정은 타당하나,
+1층·소규모상가·지하층에서 확인되는 구조적 편향과 무효 변수의 존재로 인해
+현 단계에서는 참고 지표를 넘어서기 어렵다.</p>
+<p>다만 임대 부문의 오차는 <b>호가를 잣대로 측정한 값</b>이라는 점에서
+시스템의 실제 성능보다 과대 산출되었을 가능성이 있으며,
+실계약 기반 재측정 없이는 개선 여부를 정확히 판정할 수 없다.</p>
+
+<div class="box">
+  <p><b>※ 평가 유의 사항</b></p>
+  <p>본 보고서는 대상 시스템이 산출한 결과값을 외부 시장 자료와 대조하여 오차를 측정하고,
+  산식 구조를 검토한 자료입니다. 시스템의 내부 개발 이력이나 운영 계획은 평가에 반영하지 않았습니다.</p>
+  <p>적정가 부문은 2025년 이후 상업용 매매 실거래 798건을 잣대로 사용하였으며,
+  튜닝 표본과 검증 표본을 분리하여 과적합 가능성을 통제하였습니다.</p>
+  <p>임대시세 부문은 시장에 공개된 임대 호가 61,271개 층을 잣대로 사용하였습니다.
+  <u>호가는 실계약이 아니며 협상 이전 가격이므로, 측정된 오차에는 시스템 오차와
+  호가–실계약 간극이 함께 포함되어 있습니다.</u> 이 부문의 수치는 절대적 성능이 아니라
+  상대적 경향으로 해석되어야 합니다.</p>
+  <p>본 자료는 시스템 성능에 대한 기술적 평가이며, 특정 부동산의 가치를 보증하거나
+  거래를 권유하지 않습니다. 자동 산정된 추정치는 감정평가액이 아니며,
+  실제 거래 및 담보 목적으로 사용할 수 없습니다.</p>
+</div>
+</div>
+
+</body>
+</html>

@@ -60,7 +60,8 @@ if step_ge load; then
   declare -a MAP=(
     "buildings:buildings.csv" "parcels:parcels.csv"
     "building_parcels:building_parcels.csv" "gongsi_series:gongsi_series.csv"
-    "sales_history:sales_history.csv"
+    "sales_history:sales_history.csv" "complex:complex.csv"
+    "unit:unit.csv"
   )
   for m in "${MAP[@]}"; do
     src="${m%%:*}"; csv="$EXPORT_DIR/${m##*:}"

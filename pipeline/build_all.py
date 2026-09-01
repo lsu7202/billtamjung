@@ -2,7 +2,8 @@
 
 의존순서(topological, 중간파일 생산자→소비자 분석 기반):
   spatial_join → land_master → legal → regulations → daesuseon → building_master
-  → annex → transit → sales → floor_outline → integrated → sqlite → export(seoul·parcels·series)
+  → annex → transit → sales → floor_outline → road_width → complex → expos
+  → integrated → sqlite → export(seoul·parcels·series·complex·unit)
 각 단계 실패 시 즉시 중단(입력 누락이면 여기서 드러남). --from 으로 중간 재개.
 
     data/.venv/bin/python pipeline/build_all.py [--from build_sales] [--export-dir DIR]
@@ -37,6 +38,10 @@ def stages(exp):
         ("sales",              [f"{T}/build_sales.py"]),
         ("floor_outline",      [f"{T}/build_floor_outline.py"]),
         ("road_width",         [f"{T}/build_road_width.py"]),   # 도로명주소 도로구간 → 폭원
+        ("complex",            [f"{T}/build_complex.py"]),   # 총괄표제부(단지) — 0145
+        # 전유부 = 호실. 층(floor_outline)보다 한 단계 아래 — 0146.
+        # 전유부(신원)와 전유공용면적(면적) 두 마트를 합쳐 호실당 1행을 만든다.
+        ("expos",              [f"{T}/build_expos.py"]),
         ("integrated",         [f"{T}/build_integrated.py"]),
         ("sqlite",             [f"{T}/build_sqlite.py"]),
         ("export_seoul",       [f"{P}/export_seoul.py", "--out", f"{exp}/buildings.csv"]),
@@ -44,6 +49,8 @@ def stages(exp):
                                 "--annex", f"{exp}/building_parcels.csv"]),
         ("export_series",      [f"{P}/export_series.py", f"{exp}/gongsi_series.csv",
                                 f"{exp}/sales_history.csv"]),
+        ("export_complex",     [f"{P}/export_complex.py", "--out", f"{exp}/complex.csv"]),
+        ("export_expos",       [f"{P}/export_expos.py", "--out", f"{exp}/unit.csv"]),
     ]
 
 

@@ -9,7 +9,7 @@ V-World는 로그인 세션이 필요 → scripts/vworld/cookie.txt (브라우�
 상태(2026-08-02):
   ✅ 자동화 완료: 실거래(RTMS)·V-World LSMD 9종(규제·용도·개발제한·지적)·V-World 토지특성/공시지가·승강기
                  · 임대동향(R-ONE)·교통(서울열린데이터)·건축HUB 대장/인허가
-  ✅ 로더: 상권(load_sanggwon.py)
+  ✅ 로더: 상권(load_sanggwon.py) · 생활인구(load_living_pop.py)
   ⏳ 남음: 지가변동률(R-ONE 통계 client-export·fragile / 지가는 gongsi_series에 이미 반영)
 """
 import os
@@ -23,9 +23,9 @@ VW_COOKIE = os.path.join(ROOT, "scripts", "vworld", "cookie.txt")
 
 # 주기 그룹 → (라벨, 실행함수키, 세부)
 GROUPS = {
-    "monthly":    ["실거래(RTMS)"],
+    "monthly":    ["실거래(RTMS)", "생활인구 250m(서울열린데이터)"],
     "quarterly":  ["건축HUB 대장·대수선(⏳cURL)", "승강기(data.go.kr)"],
-    "semiannual": ["V-World LSMD 9종(규제·용도·개발제한·지적)", "교통(⏳cURL)"],
+    "semiannual": ["V-World LSMD 9종(규제·용도·개발제한·지적)", "도로명주소 도로구간", "교통", "상권분석서비스"],
     "annual":     ["V-World 공시지가·토지특성(NA)"],
 }
 
@@ -35,7 +35,7 @@ def run(cmd, env=None):
     return subprocess.run(cmd, env={**os.environ, **(env or {})}).returncode
 
 
-def vworld(out, flag=None):     # flag: None(LSMD 9종) | "--na"(공시·토지) | "--misc"(지구단위계획 등)
+def vworld(out, flag=None):     # flag: None(LSMD 9종) | "--na"(공시·토지) | "--misc" | "--sido"(도로구간)
     has_creds = os.environ.get("VW_ID") or os.environ.get("VWORLD_ID")
     if not os.path.exists(VW_COOKIE) and not has_creds:
         print(f"  ⏭  V-World 건너뜀 — 쿠키·자격증명 없음. VW_ID/VW_PW(자동로그인) 또는 {VW_COOKIE} 필요.")
@@ -53,8 +53,21 @@ def rtms():
     run(["bash", "data/tools/download_rtms.sh"])
 
 
-def hub(out):        # 건축HUB 대장(djy)·인허가(kcy) — 레지스트리 대상 기본값
-    run([PY, "scripts/hub/download_hub.py", "--out", out])
+def hub(out):
+    """건축HUB **서울본** — 유형별 건축데이터(idx-*.do) 55장 × 25구.
+
+    2026-08-31 전국본(download_hub.py)에서 갈아탔다. 전국 마트 zip 은 12.6GB 를 받아
+    서울 5% 만 남기고 버렸고, 받지도 못한 마트가 50장이었다(전유부·지역지구구역·
+    폐쇄말소대장·도로대장…). 서울본은 시군구 단위로 끊어 받아 필요한 것만 가져온다.
+
+    **out 을 안 쓴다** — 서울본은 data/raw/hub_seoul/ 에 마트별로 쌓는다(이어받기 전제).
+    스테이징을 거치지 않는 이유는, 55장 × 25구를 통째로 다시 받는 일이 없기 때문이다.
+    """
+    run([PY, "scripts/hub/download_seoul.py"])
+
+
+def trade_area(out):  # 서울열린데이터 상권분석서비스(영역-상권) — 전통시장 판정용 1,650칸
+    run([PY, "scripts/seoul_open/download_trade_area.py", "--out", out])
 
 
 def transit(out):    # 서울열린데이터 역사마스터·버스정류소
@@ -69,6 +82,14 @@ def jiga(out):       # R-ONE 지역별 지가변동률(연) → build_land_adjus
     run([PY, "scripts/rone/download_jiga.py", "--out", out])
 
 
+def living_pop(days=7):
+    """받고 → 격자로 접고 → 건물에 붙인다. 셋이 한 벌이라 따로 돌 일이 없다.
+    받기만 하고 멈추면 master.living_pop 은 지난달 값 그대로라 화면이 조용히 낡는다."""
+    run([PY, "scripts/seoul_open/download_living_pop.py", "--days", str(days)])
+    run([PY, "scripts/seoul_open/load_living_pop.py"])
+    run([PY, "scripts/seoul_open/match_building_pop.py"])
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--group", default="all", choices=["all", "monthly", "quarterly", "semiannual", "annual"])
@@ -81,6 +102,9 @@ def main():
 
     if g in ("all", "monthly"):
         print("[월간] 실거래(RTMS)"); rtms()
+        # 생활인구는 매일 갱신이지만 우리는 한 주치 평균만 쓴다 — 월 1회로 충분하다.
+        # 유동인구(float_pop)를 도로접면+역거리 proxy 에서 실측으로 바꾼 재료다(0129).
+        print("[월간] 생활인구 250m(서울열린데이터)"); living_pop()
     if g in ("all", "quarterly"):
         print("[분기] 승강기(data.go.kr)"); datagokr(a.out, "15112638")
         print("[분기] 건축HUB 대장·인허가"); hub(a.out)
@@ -88,7 +112,9 @@ def main():
     if g in ("all", "semiannual"):
         print("[반기] V-World LSMD 9종"); vworld(a.out)
         print("[반기] V-World 지구단위계획(C_UQ161)"); vworld(a.out, "--misc")
+        print("[반기] V-World 도로명주소 도로구간(30055)"); vworld(a.out, "--sido")
         print("[반기] 교통(서울열린데이터)"); transit(a.out)
+        print("[반기] 서울시 상권분석서비스(영역-상권)"); trade_area(a.out)
     if g in ("all", "annual"):
         print("[연1] V-World 공시지가·토지특성(NA)"); vworld(a.out, "--na")
         print("[연1] 지가변동률(R-ONE)"); jiga(a.out)

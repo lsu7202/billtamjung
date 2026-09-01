@@ -73,9 +73,60 @@ SOURCES = {
                      FROM {tmp} WHERE building_pk <> '' AND price <> ''""",
         "checks": ["pk_rows"],
     },
+    "complex": {         # 총괄표제부 = 단지(0145). 동(buildings)과 단위가 다르다 — 섞지 않는다
+        "columns": ["complex_pk", "ledger_kind", "pnu", "addr", "addr_full", "road_addr", "name",
+                    "sgg_code", "bjd_code",
+                    "land_area", "build_area", "bcr", "total_area", "far_area", "far",
+                    "main_use", "main_use_name", "etc_use",
+                    "households", "families", "main_bldg_cnt", "annex_bldg_cnt", "parking",
+                    "permit_ymd", "start_ymd", "approval_ymd"],
+        "table": "building_complex",
+        "insert": """INSERT INTO {new}
+                       (complex_pk, ledger_kind, pnu, addr, addr_full, road_addr, name,
+                        sgg_code, bjd_code, land_area, build_area, bcr, total_area, far_area, far,
+                        main_use, main_use_name, etc_use, households, families,
+                        main_bldg_cnt, annex_bldg_cnt, parking, permit_ymd, start_ymd, approval_ymd)
+                     SELECT complex_pk, NULLIF(ledger_kind,''), NULLIF(pnu,''), addr,
+                            addr_full = '1', NULLIF(road_addr,''), NULLIF(name,''),
+                            NULLIF(sgg_code,''), NULLIF(bjd_code,''),
+                            NULLIF(land_area,'')::numeric, NULLIF(build_area,'')::numeric,
+                            NULLIF(bcr,'')::numeric, NULLIF(total_area,'')::numeric,
+                            NULLIF(far_area,'')::numeric, NULLIF(far,'')::numeric,
+                            NULLIF(main_use,''), NULLIF(main_use_name,''), NULLIF(etc_use,''),
+                            NULLIF(households,'')::int, NULLIF(families,'')::int,
+                            NULLIF(main_bldg_cnt,'')::int, NULLIF(annex_bldg_cnt,'')::int,
+                            NULLIF(parking,'')::int,
+                            pg_temp.safe_date(NULLIF(permit_ymd,'')),
+                            pg_temp.safe_date(NULLIF(start_ymd,'')),
+                            pg_temp.safe_date(NULLIF(approval_ymd,''))
+                     FROM {tmp} WHERE complex_pk <> '' AND addr <> ''""",
+        "checks": ["pk_rows"],
+    },
+    "unit": {            # 전유부 = 호실(0146). 층(floor_outline)보다 한 단계 아래 — 섞지 않는다
+        "columns": ["unit_pk", "pnu", "ledger_kind", "ledger_type", "addr", "road_addr",
+                    "bldg_name", "dong", "ho", "floor_kind", "floor", "floor_raw",
+                    "excl_area", "common_area", "main_use", "etc_use", "structure",
+                    "created_ymd"],
+        "table": "building_unit",
+        "insert": """INSERT INTO {new}
+                       (unit_pk, pnu, ledger_kind, ledger_type, addr, road_addr, bldg_name,
+                        dong, ho, floor_kind, floor, floor_raw,
+                        excl_area, common_area, main_use, etc_use, structure, created_ymd)
+                     SELECT unit_pk, NULLIF(pnu,''), NULLIF(ledger_kind,''),
+                            NULLIF(ledger_type,''), NULLIF(addr,''), NULLIF(road_addr,''),
+                            NULLIF(bldg_name,''), NULLIF(dong,''), NULLIF(ho,''),
+                            NULLIF(floor_kind,''), NULLIF(floor,'')::int, NULLIF(floor_raw,''),
+                            NULLIF(excl_area,'')::numeric, NULLIF(common_area,'')::numeric,
+                            NULLIF(main_use,''), NULLIF(etc_use,''), NULLIF(structure,''),
+                            pg_temp.safe_date(NULLIF(created_ymd,''))
+                     FROM {tmp} WHERE unit_pk <> ''""",
+        "checks": ["pk_rows"],
+    },
 }
 
 ROW_FLOOR_RATIO = 0.95   # 행수 하한(§2.5): staging ≥ live × 0.95
+GEOM_FLOOR = 0.90        # 좌표 보유 하한 — 지적도에 PNU 가 없어 geom NULL 로 살리는 건물이
+                         # 4.5% 있다. 「하나도 없으면 안 된다」가 아니라 「대부분 있어야 한다」.
 
 
 async def main() -> int:
@@ -146,9 +197,12 @@ async def main() -> int:
                jimok, parcel_area, land_use, use_zone, use_zone_mix,
                slope, shape, road_frontage, station_dist, subway_json, bus_json,
                gongsi_latest, last_sale_ym, last_sale_price,
-               build_area, far_area, elevator, parking, height)
+               build_area, far_area, elevator, parking, height, bcr_src, far_src)
             SELECT building_pk, addr, jibun_norm,
-                   ST_SetSRID(ST_MakePoint(lng::float, lat::float), 4326),
+                   -- 좌표가 빈 건물(지적도에 PNU 없음)은 geom NULL — 건물 자체는 살린다.
+                   -- PostGIS 공간조건은 NULL 을 거짓으로 보므로 지도 검색에서 알아서 빠진다.
+                   CASE WHEN lng <> '' AND lat <> ''
+                        THEN ST_SetSRID(ST_MakePoint(lng::float, lat::float), 4326) END,
                    NULLIF(road_addr,''), NULLIF(pnu,''), NULLIF(sgg_code,''), NULLIF(bjd_code,''),
                    NULLIF(land_area,'')::numeric, NULLIF(total_area,'')::numeric,
                    NULLIF(floors_above,'')::int, NULLIF(floors_below,'')::int,
@@ -164,7 +218,7 @@ async def main() -> int:
                    NULLIF(gongsi_latest,'')::bigint, NULLIF(last_sale_ym,''), NULLIF(last_sale_price,'')::bigint,
                    NULLIF(build_area,'')::numeric, NULLIF(far_area,'')::numeric,
                    NULLIF(NULLIF(elevator,''),'0')::int, NULLIF(NULLIF(parking,''),'0')::int,
-                   NULLIF(height,'')::numeric
+                   NULLIF(height,'')::numeric, NULLIF(bcr_src,''), NULLIF(far_src,'')
             FROM {tmp}""")
         await conn.execute(f"DROP TABLE {tmp}")
 
@@ -197,15 +251,24 @@ async def main() -> int:
             ]
             checks = {
                 "row_floor": rows_new >= rows_live * ROW_FLOOR_RATIO,
+                # PK 는 하나도 비면 안 된다. **좌표는 다르다** — 지적도에 PNU 가 없는 건물을
+                # geom NULL 로 일부러 살려 두는데(위 COPY 주석), 예전 게이트가 그걸 이유로
+                # 적재를 거부했다. 26,295동(4.5%)이 있어 실데이터로는 반드시 실패하는
+                # 구조였다(2026-08-31 발견 — 8/30 에 통과한 건 표가 0행이라 조건이 공허하게 참).
+                # 좌표는 「하나도 없으면 안 된다」가 아니라 「대부분 있어야 한다」로 본다.
                 "pk_not_null": await conn.fetchval(
-                    f"SELECT count(*)=0 FROM {new_tbl} WHERE building_pk IS NULL OR geom IS NULL"),
+                    f"SELECT count(*)=0 FROM {new_tbl} WHERE building_pk IS NULL"),
+                "geom_coverage": await conn.fetchval(
+                    f"""SELECT count(geom)::float / NULLIF(count(*),0) >= {GEOM_FLOOR}
+                        FROM {new_tbl}"""),
                 "geom_valid": await conn.fetchval(
-                    f"SELECT count(*)=0 FROM {new_tbl} WHERE NOT ST_IsValid(geom)"),
+                    f"SELECT count(*)=0 FROM {new_tbl} WHERE geom IS NOT NULL AND NOT ST_IsValid(geom)"),
                 "addr_not_null": await conn.fetchval(
                     f"SELECT count(*)=0 FROM {new_tbl} WHERE addr IS NULL OR addr=''"),
                 "seoul_bbox": await conn.fetchval(
                     f"""SELECT count(*)=0 FROM {new_tbl}
-                        WHERE NOT ST_Within(geom, ST_MakeEnvelope(126.7,37.4,127.2,37.7,4326))"""),
+                        WHERE geom IS NOT NULL
+                          AND NOT ST_Within(geom, ST_MakeEnvelope(126.7,37.4,127.2,37.7,4326))"""),
                 "no_empty_columns": not empty_cols,
             }
             if empty_cols:

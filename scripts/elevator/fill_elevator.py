@@ -1,4 +1,29 @@
-"""master.buildings.elevator 재계산 — 대장(표제부) 원본 + 한국승강기안전공단 보정(멱등).
+"""[이 스크립트는 안 돌린다] master.buildings.elevator 를 직접 고치던 보정.
+
+## 승강기 데이터 자체는 그대로 쓴다 — 오해 없기를
+
+한국승강기안전공단 설치현황은 **건축HUB 와 무관한 별도 출처**이고 계속 쓴다:
+
+    원본   data/raw/한국승강기안전공단_승강기 설치 현황_{2015년 이전,2016년 이후}.csv
+    수집   scripts/crawl_all.py — data.go.kr 15112638, 분기마다 자동
+    사용   data/tools/build_building_master.py 의 load_kelisa() · _elev()
+
+대장은 승강기 누락이 많아서 이 보정이 없으면 안 된다.
+실제로 585,731동 중 119,043동(20.3%)에 값이 붙는다.
+
+## 그럼 이 스크립트는 왜 안 돌리나 (2026-08-31)
+
+**같은 일을 build_building_master 가 한다.** 이 스크립트는 live DB 를 직접 UPDATE 했는데,
+그러면 다시 적재할 때 날아간다. 원래 주석에도 「파이프라인 편입: build_building_master 가
+넣어야 재적재에도 유지됨」이라고 적혀 있었고, 그대로 옮겼다.
+
+읽던 전국본(mart_djy_03_seoul.txt)도 서울본 CSV 로 갈아타면서 없어졌다.
+고쳐 쓸 이유가 없어 그대로 두되, 「왜 live 를 직접 고치던 스크립트가 있었나」에 대한
+답으로 남긴다.
+
+── 아래는 옛 주석 원문 ──────────────────────────────────────
+
+master.buildings.elevator 재계산 — 대장(표제부) 원본 + 한국승강기안전공단 보정(멱등).
 
 승강기공단 설치현황이 건축물대장보다 정확(대장은 승강기 누락 다수). 대장 원본을 기준으로,
 대장이 없음(NULL/0)인 건물만 승강기공단 데이터로 채운다. 대장 원본에서 재계산하므로 몇 번 돌려도 동일.
@@ -111,7 +136,9 @@ async def main():
         updates.append((pk, final))
 
     await c.executemany(
-        "UPDATE master.buildings SET elevator=$2 WHERE building_pk=$1", updates)
+        # 뷰가 아니라 실제 표에 쓴다 — master.buildings 는 pnu_bldg_cnt 를 조인하는 뷰라
+        # 자동 갱신이 안 된다(0137). 뷰는 이 표를 그대로 내보낸다.
+        "UPDATE master.buildings_v2 SET elevator=$2 WHERE building_pk=$1", updates)
     has = await c.fetchval("SELECT count(*) FROM master.buildings WHERE bjd_code LIKE '11%' AND elevator>0")
     print(f"재계산 완료 — 대장 원본 {from_dj:,}동 + 승강기공단 보정 {filled:,}동 = 엘리베이터 있음 {has:,}동")
     await c.close()
