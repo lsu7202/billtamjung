@@ -29,6 +29,10 @@ def stages(exp):
     return [
         ("spatial_join",       [f"{T}/spatial_join.py", "ALL"]),
         ("land_master",        [f"{T}/build_land_master.py"]),
+        # 토지이용계획 원장 → parcel_luris.csv.gz. **용도지역·법정건폐/용적·규제의 정본**이다.
+        # 2026-09-01 까지 이 변환 코드가 없어서, 원장을 새로 받아도 갈아 끼울 방법이 없었다.
+        # 적재 뒤 scripts/load_parcel_luris.py 가 이 파일을 읽어 parcels 에 되붙인다.
+        ("luris",              [f"{T}/build_luris.py"]),
         # legal · regulations 단계는 뺐다(2026-09-01). 용도지역·법정건폐/용적·규제는
         # 국토부 토지이용계획정보 원장(AL_D155)이 정본이고, scripts/load_parcel_luris.py 가
         # 적재 뒤에 붙인다. 공간조인으로 계산하던 옛 방식은 원장에 없는 필지 1,479개에

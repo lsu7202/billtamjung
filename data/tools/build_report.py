@@ -173,6 +173,7 @@ class Report:
     def finish(self, quiet=False):
         d_tot = sum(self.drops.values())
         s_tot = sum(self.skips.values())
+        m_tot = sum(self.merges.values())
         # 바꾼 것과 비운 것은 무게가 다르다. 「우리가 바꿈」은 원본과 다른 값을 내보낸 것이라
         # 제일 무겁고, 「비움」은 값을 못 채운 것이다. 한 덩어리로 재면 문구가 사실과 어긋난다
         # (2026-09-01: 조인이 안 붙어 빈 칸 9%를 「우리가 바꾼 값 9%」로 찍었다).
@@ -184,11 +185,16 @@ class Report:
         verdict, reasons = "정상", []
         if self.n_read == 0:
             verdict = "중단"; reasons.append("원본을 한 줄도 못 읽었다")
-        elif (self.n_out if self.n_out is not None else self.n_write) < r * STOP_YIELD:
+        elif (got := (self.n_out if self.n_out is not None else self.n_write)
+                     + m_tot) < r * STOP_YIELD:
+            # **장부에 남은 줄**을 센다: 낸 줄 + 합친 줄. 접기·중복 제거는 사라진 것이
+            # 아니라 어디로 갔는지 아는 것이다. 접은 줄을 분모에서 안 빼면 접는 빌더가
+            # 반드시 걸린다 — 토지이용계획 원장은 1,040만 줄을 90만 필지로 접는다.
+            # 여기 걸린다는 것은 「줄이 장부 없이 사라졌다」는 뜻이다(2026-09-01).
             verdict = "중단"
-            got = self.n_out if self.n_out is not None else self.n_write
-            reasons.append(f"낸 줄 {got:,} 이 대상 줄 {r:,} 의 {STOP_YIELD:.0%} 미만이다"
-                           + (f" (읽은 줄 {self.n_read:,} 중 대상 아님 {s_tot:,})" if s_tot else ""))
+            reasons.append(f"장부에 남은 줄 {got:,}(낸 줄 + 합침) 이 대상 줄 {r:,} 의 "
+                           f"{STOP_YIELD:.0%} 미만이다"
+                           + (f" · 읽은 줄 {self.n_read:,} 중 대상 아님 {s_tot:,}" if s_tot else ""))
         else:
             if d_tot > r * WARN_DROP:
                 verdict = "경고"; reasons.append(f"버린 줄 {d_tot/r:.2%}")
