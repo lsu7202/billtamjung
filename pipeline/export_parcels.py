@@ -28,6 +28,10 @@
 사용: python pipeline/export_parcels.py --parcels out1.csv --annex out2.csv
 """
 import argparse
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                                  "data", "tools"))
+from build_report import Report   # noqa: E402
 import csv
 import json
 import sys
@@ -112,18 +116,21 @@ def main() -> int:
 
     r = shapefile.Reader(SHP, encoding="cp949")
     idx = [f[0] for f in r.fields[1:]].index("PNU")
+    # 처리결과 문서 — 도형을 못 읽으면 조용히 건너뛰던 자리가 있었다.
+    doc = Report("export_parcels", src="연속지적도 + _land_master + _annex_ALL")
     n_out, t0 = 0, time.time()
     with open(args.parcels, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(PARCEL_COLS)
         for sr in r.iterShapeRecords():
+            doc.read()
             pnu = sr.record[idx]
             try:
                 g = shp_shape(sr.shape.__geo_interface__)
                 g4326 = shp_transform(lambda x, y, z=None: t.transform(x, y), g)
                 wkt = g4326.wkt
             except Exception:
-                continue
+                doc.drop("필지 도형을 못 읽음", pnu); continue
             la = land.get(pnu) or (None,) * 7
             bld = pnu_to_bldg.get(pnu) or (None, None)
             # 용도지역·법정건폐/용적·규제 여섯 칸은 **빈칸으로 둔다** — 위 머리말 참고.
@@ -137,8 +144,12 @@ def main() -> int:
                 "", "", "", "", "", "",
             ])
             n_out += 1
+            doc.write()
             if n_out % 100_000 == 0:
                 print(f"  {n_out:,} ({time.time()-t0:.0f}s)")
+    doc.also_read("_annex_ALL.json(건물)", len(annex))
+    doc.note(f"대표-부속 관계 {n_annex:,}행 → {args.annex}")
+    doc.finish()
     print(f"완료: parcels {n_out:,}행")
     return 0
 

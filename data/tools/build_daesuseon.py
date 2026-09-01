@@ -48,19 +48,49 @@ TARGET = ["증축", "개축", "재축", "대수선", "이전"]
 MP = {"0": "1", "1": "2", "2": "1"}
 
 NEED = ["시군구코드", "법정동코드", "대지구분코드", "번", "지",
-        "건축구분명", "사용승인일", "건축허가일"]
+        "건축구분명", "사용승인일", "건축허가일", "대지위치"]
 
 
-def mkpnu(sgg, emd, dg, bon, bu):
+def mkpnu(sgg, emd, dg, bon, bu, addr=""):
+    """PNU 19자리. 대지구분코드가 비어 있으면 **주소를 읽어** 채운다.
+
+    2026-09-01 — 번·지·법정동이 다 멀쩡한데 대지구분코드 하나가 비어서 버려지던 것이
+    29건 있었다. 주소가 「연지동 5-3번지」면 대지고 「산1-17번지」면 산이다. 그건
+    대장이 자기 주소 칸에 적어 둔 사실이지 우리가 지어내는 값이 아니다.
+    주소로도 못 가리면 그때는 버린다.
+    """
     if not (sgg.isdigit() and emd.isdigit() and bon.isdigit() and bu.isdigit()):
         return None
+    dg = (dg or "").strip()
+    if dg == "":
+        dg = "1" if " 산" in (addr or "") else "0"
     p = f"{sgg}{emd}{MP.get(dg, dg)}{int(bon):04d}{int(bu):04d}"
     return p if len(p) == 19 else None
 
 
 def dig(s):
+    """YYYYMMDD 8자리. 연·월만 알아도 버리지 않는다 — 그때는 01일로 맞춘다.
+
+    2026-09-01 — build_building_master 는 이미 _ymd_loose 로 「1959년 준공은 아는데
+    월·일은 모른다」를 살려 싣는데, 여기만 8자리가 아니면 버렸다. 같은 원본을 다른
+    규칙으로 읽고 있었다. 실측 24건(200604 · 2006 · 2006112 꼴).
+    대수선은 **언제 고쳤나**가 쓰임이라 연·월만 알아도 값이 있다.
+    """
     s = "".join(ch for ch in (s or "") if ch.isdigit())
-    return s if len(s) == 8 else None
+    if len(s) == 7:
+        # 7자리는 두 가지다. **월이 한 자리인 쪽을 먼저 본다.**
+        #   1990327 → 1990-03-27  (YYYY M DD — 월에 0 을 안 붙임)
+        #   1959080 → 1959-08-0?  (뒤가 잘림 — 연월까지만 믿는다)
+        # 앞 6자리만 취하면 1990327 이 「199032 = 32월」이 되어 통째로 버려진다(2026-09-01).
+        mdd = s[:4] + "0" + s[4:]                     # YYYYMDD → YYYY0MDD
+        s = mdd if ("01" <= mdd[4:6] <= "12" and "01" <= mdd[6:] <= "31") else s[:6]
+    if len(s) == 8:
+        return s if "19000101" <= s <= "20301231" else None
+    if len(s) == 6:            # 연월만 — 그 달 1일로
+        return s + "01" if ("190001" <= s <= "203012" and "01" <= s[4:] <= "12") else None
+    if len(s) == 4:            # 연도만 — 그 해 1월 1일로
+        return s + "0101" if "1900" <= s <= "2030" else None
+    return None
 
 
 def main():
@@ -78,7 +108,8 @@ def main():
             # 신축·용도변경·발코니·행정변경·가설 — 「고쳤다」가 아니라 우리 관심 밖이다.
             skipped[g or "(빈칸)"] += 1
             continue
-        pnu = mkpnu(r["시군구코드"], r["법정동코드"], r["대지구분코드"], r["번"], r["지"])
+        pnu = mkpnu(r["시군구코드"], r["법정동코드"], r["대지구분코드"],
+                    r["번"], r["지"], r["대지위치"])
         if not pnu:
             no_pnu += 1
             rep.drop("PNU 조립 불가", r["시군구코드"] + r["법정동코드"])

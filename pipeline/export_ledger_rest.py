@@ -10,6 +10,10 @@ import csv
 import json
 import os
 import sys
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                                  "data", "tools"))
+from build_report import Report   # noqa: E402
 
 SPEC = {
     "basic": {
@@ -66,11 +70,14 @@ def main():
             print(f"  ⏭ {name}: {sp['src']} 없음, 건너뜀")
             continue
         out = os.path.join(a.out_dir, sp["out"])
+        # 처리결과 문서 — 마트마다 따로 낸다(한 스크립트가 여럿을 낸다).
+        doc = Report(f"export_ledger_rest_{name}", src=f"{sp['src']} → {sp['out']}")
         n = 0
         with open(out, "w", newline="", encoding="utf-8") as fo:
             w = csv.writer(fo)
             w.writerow(sp["cols"])
             for line in open(sp["src"], encoding="utf-8"):
+                doc.read()
                 r = json.loads(line)
                 row = []
                 for c in sp["cols"]:
@@ -82,6 +89,8 @@ def main():
                     sys.exit(f"열 개수 불일치({name}): {len(row)} ≠ {len(sp['cols'])}")
                 w.writerow(row)
                 n += 1
+                doc.write()
+        doc.finish(quiet=True)
         print(f"  {name:10} {n:10,}행 → {out}")
 
 

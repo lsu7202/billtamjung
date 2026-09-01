@@ -11,6 +11,10 @@ import csv
 import json
 import os
 import sys
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                                  "data", "tools"))
+from build_report import Report   # noqa: E402
 
 COLUMNS = [
     "complex_pk", "ledger_kind", "pnu", "addr", "addr_full", "road_addr", "name",
@@ -48,11 +52,16 @@ def main():
     if not os.path.exists(a.src):
         sys.exit(f"✗ {a.src} 없음 — data/tools/build_complex.py 를 먼저 돌리세요")
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
+    doc = Report("export_complex", src="_complex.jsonl → complex.csv")
+    # 처리결과 문서 — export 단계도 줄이 샐 수 있다. loader 의 행수 검증은 **DB 의 옛 판**과
+    # 견주는 것이라, 빌더가 낸 줄과 CSV 로 나간 줄이 어긋나도 그 차이가 작으면 안 걸린다.
+    # 여기서 읽은 줄과 낸 줄을 맞춰 두면 그 틈이 없어진다(2026-09-01).
     n = 0
     with open(a.out, "w", newline="", encoding="utf-8") as fo:
         w = csv.writer(fo)
         w.writerow(COLUMNS)
         for line in open(a.src, encoding="utf-8"):
+            doc.read()
             r = json.loads(line)
             row = []
             for c in COLUMNS:
@@ -66,6 +75,8 @@ def main():
                 sys.exit(f"열 개수 불일치: {len(row)} ≠ {len(COLUMNS)}")
             w.writerow(row)
             n += 1
+            doc.write()
+    doc.finish()
     print(f"완료: {n:,}행 → {a.out}")
 
 

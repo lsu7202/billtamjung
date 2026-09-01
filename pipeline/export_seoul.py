@@ -17,6 +17,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "tools"))
 from schema_buildings import COLUMNS   # SSOT — loader와 동일 목록 공유
 from paths import LDREG                 # 월-스탬프 해소(SSOT)
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                                  "data", "tools"))
+from build_report import Report   # noqa: E402
 
 DB = "data/빌탐정.db"
 SHP = LDREG
@@ -85,16 +89,29 @@ def main() -> int:
     cols = [d[0] for d in cur.description]
     ci = {c: i for i, c in enumerate(cols)}
 
+    # 처리결과 문서 — 좌표 없는 건물을 **버리지 않고 살리는** 자리라 그 수가 남아야 한다.
+    doc = Report("export_seoul", src="빌탐정.db buildings + 연속지적도 centroid")
     n_out = n_nocoord = 0
     with open(args.out, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(COLUMNS)
         for row in cur:
+            doc.read()
             pnu = row[ci["pnu"]]
             xy = coords.get(pnu)
             if not xy:
+                # 지적도에 그 PNU 가 없는 건물 — 좌표만 비우고 **건물은 살린다**(2026-08-27).
+                #
+                # 예전엔 통째로 버렸다. 그래서 대장에 멀쩡히 있는 26,467동(4.5%)이 검색조차
+                # 안 됐다 — 스물다섯 자치구에 골고루다. 원천 연속지적도에 그 필지가 없어서인데
+                # (종로구 내수동 202-1 은 없고 202-2 도로만 있다), 지적도가 없다고 건물이
+                # 없는 것은 아니다. 대장·면적·용도·층수는 다 아는데 위치만 모르는 것이다.
+                #
+                # 이웃 필지 좌표로 근사하지 않는다 — 지도에 찍히면 정확한 자리로 읽힌다.
+                # 모르는 것은 비워 두고(geom NULL), 지도 쿼리에서 알아서 빠지게 한다.
                 n_nocoord += 1
-                continue                      # 좌표 없으면 제외(지도 필수)
+                doc.null("지적도에 PNU 가 없음 — 좌표만 비우고 건물은 살림", row[ci["pk"]], pnu)
+                xy = ("", "")
             pk = row[ci["pk"]]
             addr = row[ci["주소"]] or ""
             sale = last_sale.get(pk, ("", ""))
@@ -120,14 +137,19 @@ def main() -> int:
                 row[ci["엘리베이터"]] if row[ci["엘리베이터"]] is not None else "",
                 row[ci["주차"]] if row[ci["주차"]] is not None else "",
                 row[ci["높이"]] if row[ci["높이"]] is not None else "",
+                row[ci["건폐율출처"]] or "",
+                row[ci["용적률출처"]] or "",
             ]
             if len(rowvals) != len(COLUMNS):   # SSOT와 값 개수 불일치 = 컬럼 추가 시 writerow 누락
                 sys.exit(f"열 개수 불일치: writerow {len(rowvals)} ≠ COLUMNS {len(COLUMNS)}")
             w.writerow(rowvals)
             n_out += 1
+            doc.write()
             if n_out % 100_000 == 0:
                 print(f"  {n_out:,}행…")
-    print(f"완료: {n_out:,}행 출력 · 좌표없음 제외 {n_nocoord:,}")
+    doc.also_read("연속지적도 centroid(필지)", len(coords))
+    doc.finish()
+    print(f"완료: {n_out:,}행 출력 · 좌표없음(geom NULL로 살림) {n_nocoord:,}")
     return 0
 
 
