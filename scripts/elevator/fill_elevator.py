@@ -136,9 +136,11 @@ async def main():
         updates.append((pk, final))
 
     await c.executemany(
-        # 뷰가 아니라 실제 표에 쓴다 — master.buildings 는 pnu_bldg_cnt 를 조인하는 뷰라
-        # 자동 갱신이 안 된다(0137). 뷰는 이 표를 그대로 내보낸다.
-        "UPDATE master.buildings_v2 SET elevator=$2 WHERE building_pk=$1", updates)
+        # **뷰에 쓴다.** 0137 때는 master.buildings 가 pnu_bldg_cnt 를 조인해 자동 갱신이
+        # 안 됐는데, 0144 가 그 조인을 걷어내 지금은 한 표를 그대로 내보내는 단순 뷰다
+        # (is_updatable=YES). 세대 이름(_vN)을 박으면 적재 한 번에 깨진다 — 2026-09-01 에
+        # buildings 가 v4 로 가면서 실제로 여러 곳이 깨졌다.
+        "UPDATE master.buildings SET elevator=$2 WHERE building_pk=$1", updates)
     has = await c.fetchval("SELECT count(*) FROM master.buildings WHERE bjd_code LIKE '11%' AND elevator>0")
     print(f"재계산 완료 — 대장 원본 {from_dj:,}동 + 승강기공단 보정 {filled:,}동 = 엘리베이터 있음 {has:,}동")
     await c.close()

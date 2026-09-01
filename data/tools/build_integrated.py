@@ -6,7 +6,9 @@
 "이 PNU에 몇 동이 있는지"를 그 시점에 모른다. 필지 전수를 본 뒤에야 판정할 수 있고,
 여기가 전 건물을 두 번 훑을 수 있는 첫 자리다.
 """
-import collections, json
+import collections, json, os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from build_report import Report                # noqa: E402
 
 def load_by_pnu(path, keys):
     d={}
@@ -15,6 +17,9 @@ def load_by_pnu(path, keys):
     return d
 
 def main():
+    # 처리결과 문서 — 이 단계가 **buildings 의 실제 재료**를 만드는데 2026-09-01 까지
+    # 장부가 없었다. 여기서 줄이 새면 585,731동이 조용히 줄어드는데 알 방법이 없었다.
+    rep = Report("build_integrated", src="_building_master.jsonl + 토지·교통·매각")
     print("토지/교통 인덱스…")
     land=load_by_pnu("data/tools/_land_master.jsonl",
         ['지목','면적','토지이용상황','지세','지형형상','도로접면',
@@ -27,7 +32,14 @@ def main():
     N=0; hl=ht=hboth=0
     for line in open("data/tools/_building_master.jsonl"):
         b=json.loads(line); pnu=b['PNU']; N+=1
+        rep.read()
         L=land.get(pnu); Tr=transit.get(pnu)
+        # 조인이 안 붙으면 그 칸들이 통째로 빈다. 「왜 이 건물만 용도지역이 없나」에
+        # 답하려면 몇 동이 못 붙었는지가 장부에 있어야 한다.
+        if not L:
+            rep.null("토지 결합 실패 — 지목·용도지역·공시지가 비움", b['PK'], pnu)
+        if not Tr:
+            rep.null("교통 결합 실패 — 역거리·지하철·버스 비움", b['PK'], pnu)
         # 용적률은 **대장이 준 것만** 싣는다. 용적산정연면적÷대지면적으로 채울 수 있어도
         # 채우지 않는다 — 이 값이 계약서·확인설명서로 그대로 넘어가기 때문이다(0144).
         # 계산분은 검색 전용 master.building_calc 로 간다(scripts/build_building_calc.py).
@@ -64,10 +76,16 @@ def main():
             '매각이력_추정': aplus.get(b['PK']),
         }
         out.write(json.dumps(rec,ensure_ascii=False)+"\n")
+        rep.write()
         if L: hl+=1
         if Tr: ht+=1
         if L and Tr: hboth+=1
     out.close()
+    rep.also_read("_land_master.jsonl(필지)", len(land), folded_to=len(land))
+    rep.also_read("_transit_ALL.jsonl(필지)", len(transit), folded_to=len(transit))
+    rep.also_read("_sales_est.json(건물)", len(aplus), folded_to=len(aplus))
+    rep.note(f"토지 결합 {hl:,} · 교통 결합 {ht:,} · 둘다 {hboth:,}")
+    rep.finish()
     print(f"\n통합 매물 뷰 {N:,}동 → _integrated.jsonl")
     print(f"  토지 결합 {hl:,} ({hl/N*100:.1f}%) · 교통 결합 {ht:,} ({ht/N*100:.1f}%) · 둘다 {hboth:,} ({hboth/N*100:.1f}%)")
 

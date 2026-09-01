@@ -77,15 +77,23 @@ def fnum(s):
 
 
 def load_area(rep):
-    """PK → {전유면적, 공용면적, 용도, 구조}. 여러 줄을 호실 하나로 합친다."""
+    """PK → {전유면적, 공용면적, 용도, 구조}. 여러 줄을 호실 하나로 합친다.
+
+    **읽은 줄을 장부에 남긴다.** 이 마트는 전유부(1,982만 줄)보다도 큰데
+    2026-09-01 까지 처리결과 문서에 한 줄도 안 잡혀 있었다 — 읽은 줄도, 접은 것도,
+    PK 없어 버린 줄도. 문서만 보면 이 원본은 아예 안 읽은 것처럼 보였다.
+    """
     acc = collections.defaultdict(lambda: {"전유": 0.0, "공용": 0.0,
                                            "용도": None, "기타용도": None, "구조": None,
                                            "줄": 0})
     kinds = collections.Counter()
+    n_read = n_nopk = 0
     for r in hub_rows("대장", "전유공용", need=list(X.values())):
         g = lambda k: (r[X[k]] or '').strip()
+        n_read += 1
         pk = g('PK')
         if not pk:
+            n_nopk += 1
             continue
         a = acc[pk]
         a["줄"] += 1
@@ -104,6 +112,9 @@ def load_area(rep):
         else:
             rep.note_odd("전유공용 구분이 전유/공용이 아님", pk, kind)
     rep.note(f"전유공용 구분: {dict(kinds)}")
+    # 곁들인 원본이라 셈도 여기서 닫는다: 읽은줄 = 접은뒤 + 버림 + 합침
+    rep.also_read("대장/전유공용", n_read, folded_to=len(acc), dropped=n_nopk,
+                  merged=n_read - n_nopk - len(acc))
     return acc
 
 

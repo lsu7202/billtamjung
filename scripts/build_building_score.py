@@ -103,7 +103,7 @@ async def main() -> None:
         params = {r["param_key"]: float(r["value_num"]) for r in await c.fetch(
             "SELECT param_key, value_num FROM ref.formula_params WHERE value_num IS NOT NULL")}
 
-        total = await c.fetchval("SELECT count(*) FROM master.buildings_v2")
+        total = await c.fetchval("SELECT count(*) FROM master.buildings")
         print(f"대상 {total:,}동 · 청크 {CHUNK:,}", flush=True)
 
         done = 0
@@ -123,7 +123,7 @@ async def main() -> None:
                            CASE WHEN g5.price > 0
                                 THEN (b.gongsi_latest - g5.price) / g5.price::numeric * 100 END AS gongsi_up5,
                            rd.name AS redevel
-                    FROM master.buildings_v2 b
+                    FROM master.buildings b
                     LEFT JOIN master.building_calc bcx ON bcx.building_pk = b.building_pk
                     LEFT JOIN LATERAL (SELECT max(contract_ym) AS p_last_ym
                                          FROM master.sales_history sh

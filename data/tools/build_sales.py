@@ -7,6 +7,9 @@ A+  : 통건물(지번 마스킹/비공개) → 건물마스터에 대지±2%·�
 import csv, glob, sys, collections, statistics, json
 sys.path.insert(0,'data/tools')
 from dbf_inspect import read_dbf
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from build_report import Report   # noqa: E402
 
 def rtms_rows():
     """(category, hdr, r) — F=상업업무용, C=단독다가구(스키마 다름)."""
@@ -47,10 +50,16 @@ def main():
     n_all=n_whole=n_haeje=n_jibun=0
     cat_cnt=collections.Counter()
     cand=[]                               # A+ 매칭 후보(통건물)
+    # 처리결과 문서 — 해제거래·지분거래를 걸러 내는 단계라 몇 건이 왜 빠졌는지가 남아야 한다.
+    # 이 값은 매각 이력과 적정가 comp 로 이어진다.
+    doc = Report("build_sales", src="실거래가 CSV(상업업무용 F + 단독다가구 C, 매매)")
     for cat,hdr,r in rtms_rows():
         n_all+=1; cat_cnt[cat]+=1
+        doc.read()
         g=lambda k: r[hdr[k]] if k in hdr else ''
-        if g('해제사유발생일').strip() not in ('','-'): n_haeje+=1; continue   # 해제거래 제외
+        if g('해제사유발생일').strip() not in ('','-'):
+            # 해제된 거래는 **거래가 아니다.** 버린 것(실으려다 못 실음)이 아니라 대상 밖이다.
+            n_haeje+=1; doc.skip("해제된 거래"); continue
         sgg=g('시군구').strip(); code=name2code.get(sgg)
         amt=num(g('거래금액(만원)'));
         if amt: amt=int(amt*10000)
@@ -63,10 +72,15 @@ def main():
         rec={'금액':amt,'연면적':yeon,'대지':dae,'계약년월':ym,'건축년도':byr,
              '용도지역':g('용도지역').strip(),'주용도':g('건축물주용도').strip() or g('주택유형').strip(),
              '유형':typ,'카테고리':cat}
-        if code: A[code].append(rec)
+        if code:
+            A[code].append(rec)
+            doc.write()
+        else:
+            doc.drop("법정동명을 코드로 못 옮김", sgg)
         if whole:
             n_whole+=1
-            if cat=='F' and g('지분구분').strip()=='지분': n_jibun+=1; continue
+            if cat=='F' and g('지분구분').strip()=='지분':
+                n_jibun+=1; continue      # 통건물 후보에서만 빼는 것 — 동 집계 A 에는 이미 들어갔다
             if code and dae and yeon and byr.isdigit():
                 cand.append((code,dae,yeon,int(byr),amt,ym,rec))
 
@@ -90,6 +104,9 @@ def main():
         elif len(loose)>1: multi+=1
         else: none+=1
 
+    doc.note(f"통건물 {n_whole:,} · 그중 지분(A+ 후보 제외) {n_jibun:,}")
+    doc.note(f"A+ 매칭: 유일 {unique:,} · 여럿 {multi:,} · 없음 {none:,} · {dict(tier_cnt)}")
+    doc.finish()
     print(f"실거래 총 {n_all:,}건 (상업업무용 {cat_cnt['F']:,} + 단독다가구 {cat_cnt['C']:,} · 해제제외 {n_haeje:,})")
     print(f"  통건물 {n_whole:,} · 그중 지분 {n_jibun:,}")
     tot=unique+multi+none

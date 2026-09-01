@@ -4,7 +4,7 @@
 ★ 일회성: 최초 1회만 사용. 이후 공시지가 업데이트는 기존 V-World 파이프라인(export_series 등) 계속 사용.
 
 - 원본: data/raw/공시지가_YYYY년.csv (CP949). 키=토지코드(PNU 19자리), 값=공시지가(원/㎡), 연도=기준년도
-- 대상: master.gongsi_series_v3 (뷰 master.gongsi_series의 실테이블, PK(pnu,year), price=원/㎡ 동일 단위)
+- 대상: master.gongsi_series (뷰 master.gongsi_series의 실테이블, PK(pnu,year), price=원/㎡ 동일 단위)
 - 필터: 서울(시군구코드 11%) · 필지구분=토지 · 공시지가>0 · PNU 19자리 숫자
 - 적재: <2016만, ON CONFLICT(pnu,year) DO NOTHING (기존 2016+ 불변)
 
@@ -71,7 +71,7 @@ async def main():
 
     # 중복(pnu,year) 제거 후 적재 — 기존 2016+ 불변
     ins = await c.execute("""
-        INSERT INTO master.gongsi_series_v3(pnu, year, price)
+        INSERT INTO master.gongsi_series(pnu, year, price)
         SELECT DISTINCT ON (pnu, year) pnu, year, price
         FROM master._gongsi_stage WHERE year < 2016
         ORDER BY pnu, year, price DESC

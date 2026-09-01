@@ -1,6 +1,29 @@
 #!/usr/bin/env python3
 """서울 전체 필지 export — 폴리곤(연속지적도) + 속성(_land_master) + 용도지역(_spatial_ALL)
-+ 법정(_legal_ALL) + 규제(_regulations_11) + 대표-부속(_annex_ALL) → CSV 2개(parcels·building_parcels).
++ 대표-부속(_annex_ALL) → CSV 2개(parcels·building_parcels).
+
+## 용도지역·법정건폐/용적·규제는 여기서 안 낸다 (2026-09-01)
+
+옛날엔 공간조인(연속지적도 ∩ 용도지역 폴리곤)으로 **계산**해서 실었다. 지금은 국토부
+토지이용계획정보 원장(AL_D155)이 필지마다 직접 적어 주고, 그게 정본이다
+(scripts/load_parcel_luris.py 가 적재 뒤에 붙인다).
+
+계산분을 그대로 두면 **원장에 없는 필지에 우리가 지어낸 값이 남는다.** 실측으로 확인했다:
+
+    원장과 값이 같음   892,425 필지
+    원장과 값이 다름     3,005 필지  ← 전부 우리가 틀렸다
+    우리에게만 있음      1,479 필지  ← 전부 지어낸 값
+
+토지이음에서 직접 확인한 셋:
+    종로구 예지동 213-2  지목 하천 · 용도지역 없음   → 우리는 60%/800% 를 넣었다
+    종로구 교북동 5-61   지목 도로 · 종(種) 없음     → 우리는 60%/200%
+    종로구 창신동 170-1  필지 자체가 검색 안 됨      → 우리는 60%/491%
+
+예지동 213-2 는 원인까지 화면에 보인다. 확인도면 **범례**에 일반상업지역이 있다 —
+주변 폴리곤이 필지 위에 겹쳐 그려지는 것인데, 공간조인이 그걸 이 필지의 용도지역으로
+읽었다. 토지이음은 「지역지구등 지정여부」에 그걸 안 쓴다.
+
+그래서 칸은 남기되 **빈칸으로 내보낸다.** 채우는 것은 원장의 일이다.
 
 사용: python pipeline/export_parcels.py --parcels out1.csv --annex out2.csv
 """
@@ -16,8 +39,6 @@ from paths import LDREG
 SHP = LDREG
 LAND = "data/tools/_land_master.jsonl"
 SPATIAL = "data/tools/_spatial_ALL.json"
-LEGAL = "data/tools/_legal_ALL.json"
-REGUL = "data/tools/_regulations_11.json"
 ANNEX = "data/tools/_annex_ALL.json"
 DB = "data/빌탐정.db"
 
@@ -46,16 +67,14 @@ def main() -> int:
     print(f"  land_master {len(land):,}")
 
     spatial = json.load(open(SPATIAL))
-    def yongdo(pnu: str):
+    def yongdo(pnu: str):          # noqa: F811 — 2026-09-01 부터 안 쓴다(원장이 정본). 산식 근거로 남긴다
         z = (spatial.get(pnu) or {}).get("용도지역")
         if not z:
             return None
         return z[0]["명"] if len(z) == 1 else " + ".join(f"{x['명']} {round(x['비중']*100)}%" for x in z)
 
-    legal = json.load(open(LEGAL))
-    regul = json.load(open(REGUL))
     annex = json.load(open(ANNEX))
-    print(f"  spatial {len(spatial):,} · legal {len(legal):,} · regul {len(regul):,} · annex {len(annex):,}")
+    print(f"  spatial {len(spatial):,} · annex {len(annex):,}")
 
     # 대표 PNU → building_pk (빌탐정.db) + annex 부속 매핑
     import sqlite3
@@ -107,16 +126,15 @@ def main() -> int:
                 continue
             la = land.get(pnu) or (None,) * 7
             bld = pnu_to_bldg.get(pnu) or (None, None)
-            rg = regul.get(pnu) or {}
-            jeongbi = rg.get("정비구역") or rg.get("재정비촉진")
-            lg = legal.get(pnu) or {}
+            # 용도지역·법정건폐/용적·규제 여섯 칸은 **빈칸으로 둔다** — 위 머리말 참고.
+            # 원장(load_parcel_luris.py)이 채운다. 여기서 계산해 넣으면 원장이 모르는
+            # 필지에 지어낸 값이 남는다.
             w.writerow([
                 pnu, bld[0] or "", "true" if bld[1] == "대표" else "false", wkt,
                 la[1] or "", la[0] or "", la[2] or "", la[3] or "", la[4] or "", la[5] or "",
-                yongdo(pnu) or "", lg.get("법정건폐율") or "", lg.get("법정용적률") or "",
+                "", "", "",
                 la[6] or "",
-                rg.get("고도지구") or "", rg.get("지구단위계획") or "", jeongbi or "",
-                rg.get("경관지구") or "", rg.get("방화지구") or "", rg.get("문화재보존") or "",
+                "", "", "", "", "", "",
             ])
             n_out += 1
             if n_out % 100_000 == 0:

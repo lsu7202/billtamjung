@@ -40,6 +40,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from hub_csv import rows                                          # noqa: E402
+from build_report import Report                                   # noqa: E402
 
 OUT = "data/tools/_daesuseon_seoul.json"
 # 신축·용도변경·발코니·행정변경·가설은 뺀다 — 「고쳤다」가 아니다
@@ -63,16 +64,24 @@ def dig(s):
 
 
 def main():
+    # 처리결과 문서 — 인허가 기본개요 55만 줄을 읽는데 2026-09-01 까지 장부가 없었다.
+    # 신축·용도변경 등 안 쓰는 구분을 걸러 내는 단계라 「몇 줄이 왜 빠졌나」가 특히 중요하다.
+    rep = Report("build_daesuseon", src=("인허가", "기본개요"), used=NEED + ["건축구분명"])
     acc = collections.defaultdict(lambda: collections.defaultdict(lambda: {"최근": None, "건수": 0}))
     src = collections.Counter()
     n = no_date = no_pnu = 0
+    skipped = collections.Counter()
     for r in rows("인허가", "기본개요", need=NEED):
+        rep.read()
         g = r["건축구분명"].strip()
         if g not in TARGET:
+            # 신축·용도변경·발코니·행정변경·가설 — 「고쳤다」가 아니라 우리 관심 밖이다.
+            skipped[g or "(빈칸)"] += 1
             continue
         pnu = mkpnu(r["시군구코드"], r["법정동코드"], r["대지구분코드"], r["번"], r["지"])
         if not pnu:
             no_pnu += 1
+            rep.drop("PNU 조립 불가", r["시군구코드"] + r["법정동코드"])
             continue
         d = dig(r["사용승인일"])
         if d:
@@ -83,8 +92,10 @@ def main():
                 src["건축허가일"] += 1
         if not d:
             no_date += 1
+            rep.drop("사용승인일·건축허가일 둘 다 못 읽음", pnu)
             continue
         n += 1
+        rep.write()
         e = acc[pnu][g]
         e["건수"] += 1
         if not e["최근"] or d > e["최근"]:
@@ -98,6 +109,15 @@ def main():
         rec["_건수"] = sum(v["건수"] for v in by.values())
         out[pnu] = rec
     json.dump(out, open(OUT, "w"), ensure_ascii=False)
+
+    # 관심 밖 구분은 버린 것이 아니라 **애초에 대상이 아니다.** 그래도 몇 줄이
+    # 어느 구분으로 빠졌는지는 남긴다 — 나중에 대상을 넓힐 때 근거가 된다.
+    for k, v in skipped.most_common():
+        rep.skip(f"대상 구분 아님({k})", n=v)
+    rep.output(len(out))
+    rep.merge("같은 필지의 여러 건을 구분별 최근 한 값으로 접음", n=n - len(out))
+    rep.note(f"날짜 출처: {dict(src)}")
+    rep.finish()
 
     print(f"대수선류 {n:,}건 → 필지 {len(out):,}개 → {OUT}")
     print(f"  날짜 출처: {dict(src)}")

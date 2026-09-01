@@ -55,6 +55,23 @@ data/tools/_annex_*.json
 data/tools/_integrated.jsonl
 # build_land_master.py
 data/tools/_land_master.jsonl
+# 2026-08~09 신설 빌더 산출물 — 합쳐 5GB. 원본 압축본에서 다시 만든다.
+# gitignore 는 줄 끝 주석을 모른다(#도 경로의 일부다) — 설명은 반드시 윗줄에 둔다.
+# build_aptprice.py · 1.9GB
+data/tools/_aptprice.jsonl
+# build_basic.py · 2.2GB
+data/tools/_basic.jsonl
+# build_closed.py
+data/tools/_closed.jsonl
+# build_energy.py
+data/tools/_energy.jsonl
+# build_septic.py
+data/tools/_septic.jsonl
+# build_zone.py
+data/tools/_zone.jsonl
+# build_road_width.py
+data/tools/_road_width.csv
+
 # 빌드 결과서(data/tools/_reports/)는 **남긴다** — 무엇을 어떻게 다뤘는지가 기록이다
 
 # 매뉴얼 영상 중간산출물 — 원본에서 재생성 가능(복제본이라 이중 보관 방지)

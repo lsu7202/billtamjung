@@ -122,6 +122,123 @@ SOURCES = {
                      FROM {tmp} WHERE unit_pk <> ''""",
         "checks": ["pk_rows"],
     },
+    "energy": {          # 건물에너지 전기·가스(0147). 열쇠가 건물 PK 가 아니라 주소다
+        "columns": ["pnu", "addr_seq", "kind", "use_ym", "usage_kwh",
+                    "addr", "road_addr", "sgg_code", "bjd_code"],
+        "table": "building_energy",
+        "insert": """INSERT INTO {new}
+                       (pnu, addr_seq, kind, use_ym, usage_kwh,
+                        addr, road_addr, sgg_code, bjd_code)
+                     SELECT pnu, COALESCE(NULLIF(addr_seq,''),''), kind, use_ym,
+                            NULLIF(usage_kwh,'')::numeric,
+                            NULLIF(addr,''), NULLIF(road_addr,''),
+                            NULLIF(sgg_code,''), NULLIF(bjd_code,'')
+                     FROM {tmp} WHERE pnu <> '' AND kind <> '' AND use_ym <> ''""",
+        "checks": ["pk_rows"],
+    },
+    "zone": {            # 건물별 지역·지구·구역(0148). 토지이용계획(필지 기준)과 다른 출처
+        "columns": ["building_pk", "pnu", "addr", "road_addr", "sgg_code", "bjd_code",
+                    "use_zone", "use_district", "use_area",
+                    "zones", "districts", "areas", "created_ymd"],
+        "table": "building_zone",
+        "insert": """INSERT INTO {new}
+                       (building_pk, pnu, addr, road_addr, sgg_code, bjd_code,
+                        use_zone, use_district, use_area, zones, districts, areas, created_ymd)
+                     SELECT building_pk, NULLIF(pnu,''), NULLIF(addr,''), NULLIF(road_addr,''),
+                            NULLIF(sgg_code,''), NULLIF(bjd_code,''),
+                            NULLIF(use_zone,''), NULLIF(use_district,''), NULLIF(use_area,''),
+                            NULLIF(zones,'')::text[], NULLIF(districts,'')::text[],
+                            NULLIF(areas,'')::text[],
+                            pg_temp.safe_date(NULLIF(created_ymd,''))
+                     FROM {tmp} WHERE building_pk <> ''""",
+        "checks": ["pk_rows"],
+    },
+    "closed": {          # 폐쇄말소대장 = 사라진 건물(0149). buildings 와 PK 계열이 다르다
+        "columns": ["closed_pk", "pnu", "close_kind", "close_ymd", "ledger_kind", "ledger_type",
+                    "addr", "road_addr", "bldg_name", "dong", "sgg_code", "bjd_code",
+                    "land_area", "build_area", "bcr", "total_area", "far_area", "far",
+                    "structure", "main_use", "main_use_name", "etc_use",
+                    "floors_above", "floors_below", "height",
+                    "households", "families", "ho_cnt",
+                    "permit_ymd", "start_ymd", "approval_ymd", "created_ymd"],
+        "table": "building_closed",
+        "insert": """INSERT INTO {new}
+                       (closed_pk, pnu, close_kind, close_ymd, ledger_kind, ledger_type,
+                        addr, road_addr, bldg_name, dong, sgg_code, bjd_code,
+                        land_area, build_area, bcr, total_area, far_area, far,
+                        structure, main_use, main_use_name, etc_use,
+                        floors_above, floors_below, height, households, families, ho_cnt,
+                        permit_ymd, start_ymd, approval_ymd, created_ymd)
+                     SELECT closed_pk, NULLIF(pnu,''), NULLIF(close_kind,''),
+                            pg_temp.safe_date(NULLIF(close_ymd,'')),
+                            NULLIF(ledger_kind,''), NULLIF(ledger_type,''),
+                            NULLIF(addr,''), NULLIF(road_addr,''), NULLIF(bldg_name,''),
+                            NULLIF(dong,''), NULLIF(sgg_code,''), NULLIF(bjd_code,''),
+                            NULLIF(land_area,'')::numeric, NULLIF(build_area,'')::numeric,
+                            NULLIF(bcr,'')::numeric, NULLIF(total_area,'')::numeric,
+                            NULLIF(far_area,'')::numeric, NULLIF(far,'')::numeric,
+                            NULLIF(structure,''), NULLIF(main_use,''), NULLIF(main_use_name,''),
+                            NULLIF(etc_use,''),
+                            NULLIF(floors_above,'')::int, NULLIF(floors_below,'')::int,
+                            NULLIF(height,'')::numeric,
+                            NULLIF(households,'')::int, NULLIF(families,'')::int,
+                            NULLIF(ho_cnt,'')::int,
+                            pg_temp.safe_date(NULLIF(permit_ymd,'')),
+                            pg_temp.safe_date(NULLIF(start_ymd,'')),
+                            pg_temp.safe_date(NULLIF(approval_ymd,'')),
+                            pg_temp.safe_date(NULLIF(created_ymd,''))
+                     FROM {tmp} WHERE closed_pk <> ''""",
+        "checks": ["pk_rows"],
+    },
+    "basic": {           # 대장 기본개요(0150). parent_pk 로 대장 세 층을 잇는다
+        "columns": ["building_pk", "parent_pk", "pnu", "ledger_kind", "ledger_type",
+                    "addr", "road_addr", "bldg_name", "sgg_code", "bjd_code", "extra_parcels",
+                    "zone_code", "zone_name", "district_code", "district_name",
+                    "area_code", "area_name", "created_ymd"],
+        "table": "ledger_basic",
+        "insert": """INSERT INTO {new}
+                       (building_pk, parent_pk, pnu, ledger_kind, ledger_type,
+                        addr, road_addr, bldg_name, sgg_code, bjd_code, extra_parcels,
+                        zone_code, zone_name, district_code, district_name,
+                        area_code, area_name, created_ymd)
+                     SELECT building_pk, NULLIF(parent_pk,''), NULLIF(pnu,''),
+                            NULLIF(ledger_kind,''), NULLIF(ledger_type,''),
+                            NULLIF(addr,''), NULLIF(road_addr,''), NULLIF(bldg_name,''),
+                            NULLIF(sgg_code,''), NULLIF(bjd_code,''),
+                            NULLIF(extra_parcels,'')::int,
+                            NULLIF(zone_code,''), NULLIF(zone_name,''),
+                            NULLIF(district_code,''), NULLIF(district_name,''),
+                            NULLIF(area_code,''), NULLIF(area_name,''),
+                            pg_temp.safe_date(NULLIF(created_ymd,''))
+                     FROM {tmp} WHERE building_pk <> ''""",
+        "checks": ["pk_rows"],
+    },
+    "septic": {          # 오수정화(0150). 한 건물에 두 줄 이상 있을 수 있어 id 가 PK 다
+        "columns": ["building_pk", "pnu", "addr", "road_addr", "bldg_name",
+                    "sgg_code", "bjd_code", "form_code", "form", "form_name",
+                    "unit_kind", "cap_person", "cap_m3", "created_ymd"],
+        "table": "building_septic",
+        "insert": """INSERT INTO {new}
+                       (building_pk, pnu, addr, road_addr, bldg_name, sgg_code, bjd_code,
+                        form_code, form, form_name, unit_kind, cap_person, cap_m3, created_ymd)
+                     SELECT building_pk, NULLIF(pnu,''), NULLIF(addr,''), NULLIF(road_addr,''),
+                            NULLIF(bldg_name,''), NULLIF(sgg_code,''), NULLIF(bjd_code,''),
+                            NULLIF(form_code,''), NULLIF(form,''), NULLIF(form_name,''),
+                            NULLIF(unit_kind,''),
+                            NULLIF(cap_person,'')::numeric, NULLIF(cap_m3,'')::numeric,
+                            pg_temp.safe_date(NULLIF(created_ymd,''))
+                     FROM {tmp} WHERE building_pk <> ''""",
+        "checks": ["rows"],
+    },
+    "aptprice": {        # 공동주택 공시가격 2008~2026(0150). 2,971만 행 — 칸을 최소로 둔다
+        "columns": ["unit_pk", "year", "seq", "price"],
+        "table": "apt_price",
+        "insert": """INSERT INTO {new} (unit_pk, year, seq, price)
+                     SELECT unit_pk, year::smallint, COALESCE(NULLIF(seq,'')::smallint, 0),
+                            NULLIF(price,'')::bigint
+                     FROM {tmp} WHERE unit_pk <> '' AND year <> ''""",
+        "checks": ["rows"],
+    },
 }
 
 ROW_FLOOR_RATIO = 0.95   # 행수 하한(§2.5): staging ≥ live × 0.95
@@ -279,7 +396,10 @@ async def main() -> int:
             await conn.execute(
                 """UPDATE master.master_loads SET finished_at=now(), status='failed',
                      rows_in=$2, rows_out=$3, validation=$4, error=$5 WHERE run_id=$1""",
-                run_id, rows_new, rows_live, json.dumps(checks), f"validation failed: {failed}",
+                # rows_in=적재 전(live) · rows_out=이번에 넣은 것(new).
+                # 2026-09-01 까지 둘이 뒤바뀌어 있어 rows_out 이 전부 0 으로 찍혔다
+                # (새 표는 적재 전이 0이라 「몇 행 들어갔나」를 못 답했다).
+                run_id, rows_live, rows_new, json.dumps(checks), f"validation failed: {failed}",
             )
             print(f"❌ 검증 실패 {failed} — 스왑하지 않음(기존 v{cur_version} 유지)")
             return 1
@@ -295,7 +415,7 @@ async def main() -> int:
                 """UPDATE master.master_loads SET finished_at=now(), status='success',
                      rows_in=$2, rows_out=$3, validation=$4, from_version=$5, to_version=$6
                    WHERE run_id=$1""",
-                run_id, rows_new, rows_live, json.dumps(checks), cur_version, next_v,
+                run_id, rows_live, rows_new, json.dumps(checks), cur_version, next_v,
             )
         print(f"✅ 적재 성공: {table} v{cur_version}→v{next_v} ({rows_new}행) — 기존 보고서는 '데이터 변경됨' 전환")
 
@@ -315,8 +435,18 @@ async def main() -> int:
                 print(f"  ⚠️ {mv} 갱신 실패(무시): {e}")
 
         # 5) 직전-1 세대 정리(1세대 보존, §2.6)
+        #
+        # **여기서 엎어져도 적재는 성공이다.** 스왑도 version++ 도 장부도 이미 커밋됐고,
+        # 이건 옛 표를 치우는 뒷정리일 뿐이다. 그런데 예외가 아래 handler 까지 올라가면
+        # 장부가 통째로 'failed' 로 덮여, 585,731행이 멀쩡히 들어간 적재가 실패로 남는다
+        # (2026-09-01 실제로 그랬다 — 옛 세대에 딸린 MV 가 DROP 을 막았다).
+        # 못 지우면 다음 적재가 다시 시도한다. 자리만 좀 더 쓸 뿐이다.
         if cur_version >= 2:
-            await conn.execute(f"DROP TABLE IF EXISTS master.{table}_v{cur_version - 1}")
+            old = f"master.{table}_v{cur_version - 1}"
+            try:
+                await conn.execute(f"DROP TABLE IF EXISTS {old}")
+            except Exception as e:
+                print(f"  ⚠️ 옛 세대 {old} 정리 실패(적재는 성공): {e}")
         return 0
     except Exception as e:
         await conn.execute(

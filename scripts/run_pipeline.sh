@@ -61,7 +61,8 @@ if step_ge load; then
     "buildings:buildings.csv" "parcels:parcels.csv"
     "building_parcels:building_parcels.csv" "gongsi_series:gongsi_series.csv"
     "sales_history:sales_history.csv" "complex:complex.csv"
-    "unit:unit.csv"
+    "unit:unit.csv" "energy:energy.csv" "zone:zone.csv" "closed:closed.csv"
+    "basic:basic.csv" "septic:septic.csv" "aptprice:aptprice.csv"
   )
   for m in "${MAP[@]}"; do
     src="${m%%:*}"; csv="$EXPORT_DIR/${m##*:}"
@@ -186,6 +187,16 @@ if step_ge load; then
   # 「틀린 걸 알면서 그대로 두는」 모양이다 — 화면·보고서·계약서로 그대로 나간다.
   # 멈춰야 사람이 본다. 값을 되돌리는 건 파생 배치를 다시 돌리면 되고(원천은 안 건드린다),
   # 적재까지 끝난 상태이므로 --from 으로 그 단계만 다시 돌 수 있다.
+  # 빌더 처리결과 — 원본 줄이 어디로 갔는지. **읽은줄 = 낸줄 + 버림 + 합침** 이 안 맞으면
+  # 어딘가에서 줄이 조용히 사라진 것이다. 문서는 예전부터 쓰고 있었는데 파일로만 남아
+  # 아무도 안 봤다 — 전유공용 1,982만 줄이 한 줄도 안 잡힌 채 두 달을 갔다(2026-09-01).
+  echo "  → 빌더 처리결과(누락·버림·합침)"
+  if ! "$PY" scripts/build_report_summary.py; then
+    echo ""
+    echo "  ❌ 처리결과 셈이 안 맞습니다 — 어느 빌더에서 줄이 사라졌는지 위를 보세요."
+    exit 1
+  fi
+
   echo "  → qa_data (데이터 불변식)"
   if ! BT_DATABASE_URL="$DATABASE_URL" "$LOADER_PY" backend/tests/qa_data.py; then
     echo ""
@@ -194,6 +205,21 @@ if step_ge load; then
     echo "       scripts/rent_estimate/build_floor.py · build_bldg.py · build_income_cap.py"
     echo "       scripts/rent_estimate/build_sale_est.py · scripts/build_building_score.py"
     exit 1
+  fi
+
+  # ── 7) 원본 압축 보관 ──────────────────────────────────────────
+  # 건축HUB 서울본 원본 CSV 가 22GB 다. 다 쓰고 나면 디스크에 그대로 둘 이유가 없지만
+  # 지우면 안 된다 — 다시 받는 데 한 시간 반이고, 그 사이 HUB 가 다음 달 판으로 넘어가면
+  # **같은 스냅샷을 두 번 다시 못 만든다.** 압축해 두면 둘 다 된다(실측 22GB → 0.6GB).
+  #
+  # 안전장치는 스크립트 안에 있다: master_loads 의 성공 기록이 **원본 CSV 보다 나중**인
+  # 마트만 압축한다. 기록이 있는지만 보면 안 된다 — 실제로 표제부의 07-21 기록(전국본
+  # 시절)이 남아 있어서, 아직 안 실은 서울본 원본을 지울 뻔했다(2026-09-01).
+  #
+  # 되돌리기: python scripts/hub/archive_seoul.py --restore [--only 대장_표제부]
+  if [ -d data/raw/hub_seoul ]; then
+    echo "  → 원본 압축 보관(archive_seoul)"
+    DATABASE_URL="$DATABASE_URL" "$PY" scripts/hub/archive_seoul.py ||       echo "  ⚠️ 압축 실패(무시) — 적재·파생은 끝났습니다"
   fi
 fi
 

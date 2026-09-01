@@ -1,7 +1,7 @@
 """빌드 오케스트레이터 — raw(활성화 완료) → 중간산출 → 빌탐정.db → export CSV.
 
 의존순서(topological, 중간파일 생산자→소비자 분석 기반):
-  spatial_join → land_master → legal → regulations → daesuseon → building_master
+  spatial_join → land_master → daesuseon → building_master
   → annex → transit → sales → floor_outline → road_width → complex → expos
   → integrated → sqlite → export(seoul·parcels·series·complex·unit)
 각 단계 실패 시 즉시 중단(입력 누락이면 여기서 드러남). --from 으로 중간 재개.
@@ -25,12 +25,15 @@ P = "pipeline"
 
 # (라벨, argv) — export는 --export-dir 로 치환됨(빈 문자열 자리표시)
 def stages(exp):
-    # 구별 스크립트는 서울 전체 인자 필요(ALL 또는 시도코드 11) — export가 _spatial_ALL·_regulations_11·_legal_ALL·_annex_ALL·_transit_ALL 기대
+    # 구별 스크립트는 서울 전체 인자 필요(ALL) — export 가 _spatial_ALL·_annex_ALL·_transit_ALL 기대
     return [
         ("spatial_join",       [f"{T}/spatial_join.py", "ALL"]),
         ("land_master",        [f"{T}/build_land_master.py"]),
-        ("legal",              [f"{T}/build_legal.py", "ALL"]),
-        ("regulations",        [f"{T}/build_regulations.py", "11"]),
+        # legal · regulations 단계는 뺐다(2026-09-01). 용도지역·법정건폐/용적·규제는
+        # 국토부 토지이용계획정보 원장(AL_D155)이 정본이고, scripts/load_parcel_luris.py 가
+        # 적재 뒤에 붙인다. 공간조인으로 계산하던 옛 방식은 원장에 없는 필지 1,479개에
+        # 지어낸 값을 남기고 있었다(예: 지목이 하천·도로인 필지에 60%/800%).
+        # 스크립트는 지우지 않았다 — 산식 근거가 남아 있어야 원장을 검증할 수 있다.
         ("daesuseon",          [f"{T}/build_daesuseon.py"]),
         ("building_master",    [f"{T}/build_building_master.py"]),
         ("annex",              [f"{T}/build_annex.py", "ALL"]),
@@ -42,6 +45,12 @@ def stages(exp):
         # 전유부 = 호실. 층(floor_outline)보다 한 단계 아래 — 0146.
         # 전유부(신원)와 전유공용면적(면적) 두 마트를 합쳐 호실당 1행을 만든다.
         ("expos",              [f"{T}/build_expos.py"]),
+        ("energy",             [f"{T}/build_energy.py"]),   # 건물에너지 전기·가스 — 0147
+        ("zone",               [f"{T}/build_zone.py"]),     # 건물별 지역·지구·구역 — 0148
+        ("closed",             [f"{T}/build_closed.py"]),   # 폐쇄말소대장(사라진 건물) — 0149
+        ("basic",              [f"{T}/build_basic.py"]),    # 대장 기본개요(세 층을 잇는 뼈대) — 0150
+        ("septic",             [f"{T}/build_septic.py"]),   # 오수정화 — 0150
+        ("aptprice",           [f"{T}/build_aptprice.py"]), # 공동주택가격 2008~2026 — 0150·0151
         ("integrated",         [f"{T}/build_integrated.py"]),
         ("sqlite",             [f"{T}/build_sqlite.py"]),
         ("export_seoul",       [f"{P}/export_seoul.py", "--out", f"{exp}/buildings.csv"]),
@@ -51,6 +60,10 @@ def stages(exp):
                                 f"{exp}/sales_history.csv"]),
         ("export_complex",     [f"{P}/export_complex.py", "--out", f"{exp}/complex.csv"]),
         ("export_expos",       [f"{P}/export_expos.py", "--out", f"{exp}/unit.csv"]),
+        ("export_energy",      [f"{P}/export_energy.py", "--out", f"{exp}/energy.csv"]),
+        ("export_zone",        [f"{P}/export_zone.py", "--out", f"{exp}/zone.csv"]),
+        ("export_closed",      [f"{P}/export_closed.py", "--out", f"{exp}/closed.csv"]),
+        ("export_ledger_rest", [f"{P}/export_ledger_rest.py", "--out-dir", exp]),
     ]
 
 

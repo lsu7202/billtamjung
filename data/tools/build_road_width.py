@@ -16,6 +16,9 @@ import sys
 
 import shapefile
 from pyproj import Transformer
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from build_report import Report   # noqa: E402
 
 SRC = "data/raw/(도로명주소)도로구간_서울/TL_SPRD_MANAGE.Seoul"
 OUT = sys.argv[1] if len(sys.argv) > 1 else "data/tools/_road_width.csv"
@@ -38,24 +41,31 @@ def main() -> None:
     w = csv.writer(open(OUT, "w", newline=""))
     w.writerow(["rn_cd", "rn", "road_bt", "road_lt", "cls", "sig_cd", "wkt"])
 
+    # 처리결과 문서 — 폭원 없는 구간을 걸러 내는 단계라 몇 건이 왜 빠졌는지가 남아야 한다
+    doc = Report("build_road_width", src="도로명주소 도로구간 shp")
     n = skipped = 0
     for sh, rec in zip(r.iterShapes(), r.iterRecords()):
+        doc.read()
         bt = rec[idx["ROAD_BT"]]
         pts = list(sh.points)
         if not bt or bt <= 0 or len(pts) < 2:
             skipped += 1
+            doc.drop("폭원 없음 또는 점이 둘 미만", str(rec[idx["RN_CD"]]))
             continue
         # 여러 파트(멀티라인)는 첫 파트만 — 도로구간은 대부분 단일 라인
         parts = list(sh.parts) + [len(pts)]
         seg = pts[parts[0]:parts[1]]
         if len(seg) < 2:
             skipped += 1
+            doc.drop("첫 파트의 점이 둘 미만", str(rec[idx["RN_CD"]]))
             continue
         ll = [_T.transform(x, y) for x, y in seg]
         wkt = "LINESTRING(" + ", ".join(f"{x:.7f} {y:.7f}" for x, y in ll) + ")"
         w.writerow([rec[idx["RN_CD"]], rec[idx["RN"]], bt, rec[idx["ROAD_LT"]],
                     CLS.get(str(rec[idx["ROA_CLS_SE"]]), ""), rec[idx["SIG_CD"]], wkt])
         n += 1
+        doc.write()
+    doc.finish()
     print(f"도로구간 {n:,}건 → {OUT} (폭원 없음·비정상 {skipped:,}건 제외)")
 
 

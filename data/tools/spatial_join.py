@@ -4,7 +4,7 @@
 출력: PNU별 [용도지역명→면적비중], 개발제한 비중.
 사용: python spatial_join.py [시군구코드5|ALL]
 """
-import sys, json, time, glob, re
+import sys, os, json, time, glob, re
 import shapefile
 from shapely.geometry import shape
 from shapely import STRtree, area, intersection, make_valid
@@ -12,6 +12,9 @@ from shapely.ops import transform as shp_transform
 from pyproj import Transformer
 from uqa_codes import uqa_name
 from paths import LDREG, UD801, UQ111
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from build_report import Report   # noqa: E402
 
 # UD801은 EPSG:5186, 나머지(지적도·UQ111)는 5174 → UD801만 재투영
 _T = Transformer.from_crs(5186, 5174, always_xy=True)
@@ -52,15 +55,23 @@ def run(sgg):
     dev_g, _ = load_polys(UD801, ['MNUM'], sggf, reproject=True)  # 5186→5174
     print(f"필지 {len(parcels_g):,} · 용도지역 {len(zones_g):,} · 개발제한 {len(dev_g):,}  (로드 {time.time()-t0:.1f}s)")
 
-    MIN_SHARE=0.01  # 슬리버 임계(경계오차 조각 제거)
+    # 토지이음(정본)과 표본 2,857필지로 임계를 맞춰 고른 값(2026-08-28).
+    # 1%면 정본이 적는 작은 조각이 잘리고, 0.02%면 정본이 안 적는 조각까지 센다.
+    #   1%  98.77%   ·  0.2%  99.19%  ·  **0.1%  99.54%**  ·  0.05%  99.26%
+    MIN_SHARE=float(os.environ.get("MIN_SHARE", "0.001"))
     ztree=STRtree(zones_g)
     dtree=STRtree(dev_g) if dev_g else None
+    # 처리결과 문서 — 면적 0 인 필지를 조용히 건너뛰던 자리가 있었다.
+    # 여기서 빠지면 그 필지는 용도지역을 영영 못 받는다.
+    doc = Report(f"spatial_join_{sgg or 'ALL'}", src="연속지적도 ∩ 용도지역(UQ111) ∩ 개발제한(UD801)")
     out={}
     multi=covered=devcnt=0
     t1=time.time()
     for i,(pg,pa) in enumerate(zip(parcels_g, parcels_a)):
+        doc.read()
         pnu=pa['PNU']; parea=pg.area
-        if parea<=0: continue
+        if parea<=0:
+            doc.drop("필지 면적이 0 이하", pnu); continue
         rec={'용도지역':[], '개발제한비중':0.0}
         # 용도지역
         cand=ztree.query(pg, predicate='intersects')
@@ -70,6 +81,9 @@ def run(sgg):
             except Exception: continue
             if ia<=0: continue
             name,code=uqa_name(uqa_code(zones_a[zi]['MNUM']))
+            # UQ111 이 안 덮은 자리를 「미지정」으로 세면 필지가 반쪽으로 갈린다.
+            # 토지이음은 그 자리를 아예 안 적는다 — 우리도 안 적는다(2026-08-28).
+            if name=='미지정': continue
             key=(name,code)
             parts[key]=parts.get(key,0.0)+ia
         if parts:
@@ -92,10 +106,16 @@ def run(sgg):
             if da>0:
                 rec['개발제한비중']=round(da/parea,4); devcnt+=1
         out[pnu]=rec
+        doc.write()
         if (i+1)%50000==0:
             print(f"  {i+1:,} 처리 ({time.time()-t1:.0f}s)")
     dt=time.time()-t1
     N=len(parcels_g)
+    doc.also_read("용도지역 폴리곤", len(zones_g))
+    doc.also_read("개발제한 폴리곤", len(dev_g))
+    doc.output(len(out))
+    doc.note(f"용도지역 배정 {covered:,} · 걸침(2+) {multi:,} · 개발제한 접함 {devcnt:,}")
+    doc.finish()
     print(f"\n[{sgg}] 필지 {N:,}")
     print(f"  용도지역 배정 {covered:,} ({covered/N*100:.1f}%) · 걸침(2+) {multi:,} ({multi/max(covered,1)*100:.1f}%)")
     print(f"  개발제한 접함 {devcnt:,} ({devcnt/N*100:.1f}%)")

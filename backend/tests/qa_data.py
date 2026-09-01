@@ -177,7 +177,7 @@ async def main():
     # scripts/load_parcel_luris.py 가 적재 뒤 되붙이는데, 그게 빠지면 여기서 걸린다.
     r = await c.fetchrow("""
         SELECT count(*) n, count(use_zone) z, count(regulations) g
-          FROM master.parcels_v2""")
+          FROM master.parcels""")
     pz = 100.0 * r["z"] / max(r["n"], 1)
     chk(pz >= 95.0, f"용도지역 있는 필지 {r['z']:,}/{r['n']:,} ({pz:.1f}%)", "기준 95%")
     pg = 100.0 * r["g"] / max(r["n"], 1)

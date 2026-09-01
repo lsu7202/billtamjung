@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""건물 높이(master.buildings_v2.height) 백필 — 원천 CSV → UPDATE.
+"""건물 높이(master.buildings.height) 백필 — 원천 CSV → UPDATE.
 
 왜 필요한가:
   0034_building_height.sql은 컬럼만 추가하고 값은 안 채운다. 값은 buildings CSV에 실려
@@ -30,7 +30,7 @@ async def dump() -> None:
     c = await asyncpg.connect(DSN)
     try:
         rows = await c.fetch(
-            "SELECT building_pk, height FROM master.buildings_v2 WHERE height IS NOT NULL")
+            "SELECT building_pk, height FROM master.buildings WHERE height IS NOT NULL")
         out = sys.stdout
         for r in rows:
             out.write(f"{r['building_pk']},{r['height']}\n")
@@ -53,15 +53,15 @@ async def load() -> None:
 
     c = await asyncpg.connect(DSN)
     try:
-        before = await c.fetchval("SELECT count(height) FROM master.buildings_v2")
+        before = await c.fetchval("SELECT count(height) FROM master.buildings")
         async with c.transaction():
             await c.execute("CREATE TEMP TABLE _h(building_pk text PRIMARY KEY, height numeric) ON COMMIT DROP")
             await c.copy_records_to_table("_h", records=pairs)
             # 이미 값이 있는 행은 건드리지 않는다 — 백필이지 덮어쓰기가 아니다.
-            n = await c.execute("""UPDATE master.buildings_v2 b SET height = h.height
+            n = await c.execute("""UPDATE master.buildings b SET height = h.height
                                      FROM _h h
                                     WHERE b.building_pk = h.building_pk AND b.height IS NULL""")
-        after = await c.fetchval("SELECT count(height) FROM master.buildings_v2")
+        after = await c.fetchval("SELECT count(height) FROM master.buildings")
         print(f"입력 {len(pairs):,}행 · {n} · height 보유 {before:,} → {after:,}", file=sys.stderr)
     finally:
         await c.close()
