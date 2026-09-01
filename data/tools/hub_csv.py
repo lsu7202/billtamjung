@@ -26,6 +26,7 @@
 import collections
 import csv
 import os
+import subprocess
 import sys
 
 csv.field_size_limit(1 << 27)          # 대지위치·기타용도가 길다
@@ -40,6 +41,26 @@ SGG = ["11110", "11140", "11170", "11200", "11215", "11230", "11260", "11290",
        "11740"]
 
 
+def _restore(mart):
+    """압축본에서 마트를 푼다. 없으면 False.
+
+    원본을 펴 두면 55장이 21.2GB 라, 받을 때 마트마다 압축한다(download_seoul).
+    빌더는 그걸 몰라도 되게 여기서 알아서 편다. 다 쓰고 나면
+    scripts/hub/archive_seoul.py 가 다시 접는다.
+    """
+    tar = os.path.join(ROOT, "data", "raw", "_archive", "hub_seoul", f"{mart}.tar.zst")
+    if not os.path.exists(tar):
+        return False
+    os.makedirs(HUB, exist_ok=True)
+    print(f"  · {mart}: 압축본에서 푸는 중…", flush=True)
+    r = subprocess.run(
+        f'cd "{HUB}" && tar --use-compress-program="zstd -d" -xf "{tar}"',
+        shell=True, capture_output=True, text=True)
+    if r.returncode != 0:
+        sys.exit(f"✗ {mart}: 압축본을 못 풀었습니다 — {r.stderr.strip()[:120]}")
+    return os.path.isdir(os.path.join(HUB, mart))
+
+
 def paths(grp, name, allow_partial=False):
     """{계열}_{마트}/{시군구}.csv 25장. 합본(.csv)이 있으면 그것 하나."""
     merged = os.path.join(HUB, f"{grp}_{name}.csv")
@@ -47,7 +68,10 @@ def paths(grp, name, allow_partial=False):
         return [merged]
     d = os.path.join(HUB, f"{grp}_{name}")
     if not os.path.isdir(d):
-        sys.exit(f"✗ {d} 없음 — scripts/hub/download_seoul.py 를 먼저 돌리세요")
+        # 압축본이 있으면 알아서 푼다(2026-09-01). download_seoul 이 받자마자 압축하므로
+        # 평소엔 원본이 없는 것이 정상이다 — 여기서 막으면 빌더가 다 죽는다.
+        if not _restore(f"{grp}_{name}"):
+            sys.exit(f"✗ {d} 없음 — scripts/hub/download_seoul.py 를 먼저 돌리세요")
     have = [cd for cd in SGG if os.path.exists(os.path.join(d, f"{cd}.csv"))]
     if len(have) != len(SGG) and not allow_partial:
         miss = [cd for cd in SGG if cd not in have]

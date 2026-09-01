@@ -60,6 +60,8 @@ import http.cookiejar
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import time
 import urllib.error
@@ -288,6 +290,10 @@ def main():
     ap.add_argument("--sgg", help="시군구코드 하나만")
     ap.add_argument("--merge", action="store_true", help="받아 둔 25구를 계열별 한 파일로 합친다")
     ap.add_argument("--force", action="store_true", help="이미 받은 것도 다시 받는다")
+    # 받자마자 압축하는 것이 기본이다. 55장을 다 펴 두면 21.2GB 가 필요한데
+    # 마트마다 압축하면 피크가 한 마트(최대 6.9GB)로 준다.
+    ap.add_argument("--keep-raw", action="store_true",
+                    help="압축하지 않고 원본 그대로 둔다(디스크가 넉넉할 때)")
     ap.add_argument("--canary", action="store_true",
                     help="처음 받은 것을 다시 받아 판이 안 바뀌었는지 본다(받기 끝난 뒤 필수)")
     a = ap.parse_args()
@@ -374,12 +380,51 @@ def main():
         if empty:
             msg += f"  (자료 없는 구 {empty})"
         print(msg)
+
+        # ── 받자마자 압축한다 (2026-09-01) ────────────────────────
+        # 55장을 다 받아 놓고 나중에 압축하면 **한때 21.2GB** 가 필요하다. 실제로
+        # 2026-08-31 다운로드 중에 디스크가 두 번 찼고, 통주행 때도 세 번 손으로 치웠다.
+        # 마트 하나가 끝날 때마다 압축하면 **피크가 한 마트 크기**로 줄어든다(최대 6.9GB).
+        # 압축본은 archive_seoul.py --restore 로 언제든 되돌린다.
+        if not a.keep_raw:
+            mart = f"{p['grp']}_{p['name']}"
+            if not any(f[0] == p['grp'] and f[1] == p['name'] for f in fails):
+                shrink(mart)
+            else:
+                print(f"    ⏭ {mart}: 실패한 칸이 있어 압축하지 않습니다(다시 받아야 함)")
     print(f"\n걸린 시간 {(time.time()-t_all)/60:.1f}분")
     if fails:
         print(f"\n실패 {len(fails)}건 — 다시 돌리면 받은 것은 건너뜁니다:")
         for g, n, cd, why in fails[:20]:
             print(f"  {g}/{n} {SGG.get(cd, cd)}: {why}")
         sys.exit(1)
+
+
+def shrink(mart):
+    """받아 둔 마트 하나를 압축본으로 옮긴다. 실패하면 원본을 그대로 둔다.
+
+    피크를 줄이는 것이 목적이라 **압축이 끝난 뒤에만** 원본을 지운다. 중간에 죽으면
+    원본이 남고, 다시 돌리면 이미 받은 칸은 건너뛴다.
+    """
+    src = os.path.join(OUT, mart)
+    if not os.path.isdir(src):
+        return
+    arc_dir = os.path.join(ROOT, "data", "raw", "_archive", "hub_seoul")
+    os.makedirs(arc_dir, exist_ok=True)
+    tar = os.path.join(arc_dir, f"{mart}.tar.zst")
+    before = sum(os.path.getsize(os.path.join(src, f)) for f in os.listdir(src))
+    if os.path.exists(tar):
+        os.remove(tar)                 # 새로 받은 판이 정본이다
+    r = subprocess.run(
+        f'cd "{OUT}" && tar --use-compress-program="zstd -10 -T0" -cf "{tar}" "{mart}"',
+        shell=True, capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f"    ⚠ {mart}: 압축 실패 — 원본을 그대로 둡니다 ({r.stderr.strip()[:80]})")
+        return
+    shutil.rmtree(src)
+    after = os.path.getsize(tar)
+    print(f"    ↳ 압축 {before/2**30:.2f}GB → {after/2**30:.2f}GB "
+          f"({after/max(before,1)*100:.1f}%) · 여유 {free_gb():.1f}GB")
 
 
 def canary():
