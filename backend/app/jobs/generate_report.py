@@ -394,11 +394,22 @@ async def _nearby_rent_apply(building_pk: str, subject: dict, team_id: int) -> d
 
 
 def _parse_far(txt) -> float | None:
-    """legal_far 텍스트('800%', '1,000% (도심 800%)') → float(%). 앞의 숫자."""
+    """legal_far 텍스트 → float(%). 못 읽거나 값이 둘이면 None.
+
+    '800%' → 800 · '1,000% (도심 800%)' → 1000 (앞의 숫자).
+
+    **값이 둘이면 비운다.** 걸친 필지 중 작은 쪽이 330㎡(상업 660㎡)를 넘으면 법이
+    가중평균을 금해서 '50%, 250%' 처럼 병기된다(서울 6,529필지). 앞 숫자만 집으면
+    작은 쪽을 법정치인 양 쓰게 되고, 그러면 그 건물이 한도를 크게 넘은 것처럼 나온다.
+    천 단위 쉼표('1,000%')와는 「% 뒤의 쉼표」로 구분한다.
+    """
+    import re
     if not txt:
         return None
-    import re
-    m = re.search(r"[\d,]+", str(txt))
+    s = str(txt)
+    if re.search(r"%\s*,\s*\d", s):      # '50%, 250%' — 병기. 하나를 고르지 않는다.
+        return None
+    m = re.search(r"[\d,.]+", s)
     return float(m.group().replace(",", "")) if m else None
 
 
