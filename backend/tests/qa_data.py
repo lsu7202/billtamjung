@@ -176,12 +176,17 @@ async def main():
     # parcels 세대 스왑은 이 네 칸을 안 들고 온다(원장에서 따로 오는 값이라 CSV 에 없다).
     # scripts/load_parcel_luris.py 가 적재 뒤 되붙이는데, 그게 빠지면 여기서 걸린다.
     r = await c.fetchrow("""
-        SELECT count(*) n, count(use_zone) z, count(regulations) g
+        SELECT count(*) n, count(use_zone) z, count(regulations) g, count(legal_bcr) b
           FROM master.parcels""")
     pz = 100.0 * r["z"] / max(r["n"], 1)
     chk(pz >= 95.0, f"용도지역 있는 필지 {r['z']:,}/{r['n']:,} ({pz:.1f}%)", "기준 95%")
     pg = 100.0 * r["g"] / max(r["n"], 1)
     chk(pg >= 95.0, f"규제 있는 필지 {r['g']:,}/{r['n']:,} ({pg:.1f}%)", "기준 95%")
+    # 법정 건폐/용적도 같은 칸이다 — 적재가 지우고 load_parcel_luris 가 되붙인다.
+    # 2026-09-02 이전엔 걸침 필지가 통째로 비어 95.2% 였고, 지금은 99.6% 다.
+    # 이 값은 확인설명서로 그대로 나가므로 조용히 비면 안 된다.
+    pb = 100.0 * r["b"] / max(r["n"], 1)
+    chk(pb >= 95.0, f"법정 건폐/용적 있는 필지 {r['b']:,}/{r['n']:,} ({pb:.1f}%)", "기준 95%")
 
     print("\n[파생 배치] 원천이 바뀌면 같이 돌아야 하는 계산값 — 비어 있지 않은가")
     # 파생 배치는 파이프라인 밖에 있어서 「돌린 적 없음」이 조용히 0행으로 남았다(2026-08-30).
