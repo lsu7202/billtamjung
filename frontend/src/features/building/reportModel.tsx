@@ -46,6 +46,23 @@ export const AXIS_ICON: Record<string, string> = {
 };
 
 /** 가치 항목별 '사실 기반' 의견 — 실제 필드값 + 점수대 평가. */
+/** 용도지역 이름 — 걸치면 **다 적는다**(비중 큰 순).
+ *
+ * `buildings.use_zone` 은 비중이 가장 큰 하나뿐이다. 그것만 적으면 삼성동 78 이
+ * 「제3종일반주거지역」으로만 나오는데, 같은 보고서에 법정용적률 508% 가 적혀 있다
+ * — 제3종은 250%다. 앞뒤가 안 맞아 보인다(2026-09-02). 건물 상세는 이미 다 적는다.
+ *
+ * 읽는 곳이 둘이라 여기 한 번만 둔다. 각자 읽으면 또 갈린다.
+ */
+export function zoneLabel(b: Record<string, any>): string | null {
+  const raw = b?.use_zone_mix;
+  const mix: { 명: string }[] = Array.isArray(raw)
+    ? raw
+    : (typeof raw === "string" ? JSON.parse(raw || "[]") : []);
+  if (mix.length) return mix.map((z) => z.명).join(", ");
+  return (b?.use_zone as string) || null;
+}
+
 export function opinion(k: string, s: number, b: Record<string, any>): string {
   const A = s >= 90 ? "매우 우수합니다" : s >= 80 ? "우수합니다" : s >= 70 ? "양호합니다" : s >= 60 ? "무난합니다" : "다소 아쉽습니다";
   const yr = b.approval_ymd ? Number(String(b.approval_ymd).slice(0, 4)) : null;
@@ -56,7 +73,7 @@ export function opinion(k: string, s: number, b: Record<string, any>): string {
     case "station_dist":
       return b.station_dist != null ? `가장 가까운 역까지 약 ${Math.round(b.station_dist)}m로, 대중교통 접근성이 ${A}` : `역 접근성이 ${A}`;
     case "use_zone":
-      return b.use_zone ? `${b.use_zone}에 속해 상업·업무 활용 잠재력이 ${A}` : `용도지역상 활용 잠재력이 ${A}`;
+      return zoneLabel(b) ? `${zoneLabel(b)}에 속해 상업·업무 활용 잠재력이 ${A}` : `용도지역상 활용 잠재력이 ${A}`;
     case "shape":
       return b.shape ? `대지 형상이 ${b.shape}이라 토지 이용 효율이 ${A}` : `대지 형상상 이용 효율이 ${A}`;
     case "approval_date":
@@ -147,7 +164,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   const officeApt = (ut?.office_fit ?? 0) >= 65;
   const fut = ut?.future ?? null;
 
-  const useZone = (b.use_zone as string) || "—";
+  const useZone = zoneLabel(b) ?? "—";
   const mainUse = (b.main_use_name as string) || (b.main_use as string) || (b.etc_use as string) || "—";
   const grade = sub?.grade ?? "—";
   const score = sub?.score ?? 0;
