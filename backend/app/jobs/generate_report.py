@@ -488,36 +488,34 @@ def _attach_future(ut: dict | None, rent_summary: dict | None) -> None:
         redevel=ut.pop("_redevel", None))
 
 
-async def _save_master_fair(building_pk: str, fair: float, b: dict) -> None:
-    """무오버레이 리포트 값을 master.building_sale_est 에 되쓴다 — 검색·목록도 같은 값을 본다.
-
-    배치는 원천이 바뀌어야 도는데(용도지역·요율 갱신) 리포트는 그 사이에도 최신 산식으로 낸다.
-    그래서 같은 건물이 검색에선 1,070억, 상세에선 896억으로 갈렸다(2026-08-28 삼성동 78).
-    실패해도 리포트 생성은 계속한다 — 부수 효과가 본 일을 막으면 안 된다.
-    """
-    ta = _fnum(b.get("total_area"))
-    per_py = round(fair / (ta / report_calc.M2_PER_PYEONG)) if ta else None
-    try:
-        await pool().execute(
-            """INSERT INTO master.building_sale_est
-                 (building_pk, sale_est, per_py, n_comps, method, updated)
-               VALUES ($1, $2, $3, NULL, 'f17v3-live', now())
-               ON CONFLICT (building_pk) DO UPDATE
-                 SET sale_est = EXCLUDED.sale_est, per_py = EXCLUDED.per_py,
-                     method = EXCLUDED.method, updated = EXCLUDED.updated""",
-            building_pk, round(fair), per_py)
-    except Exception as e:                                    # noqa: BLE001
-        print(f"[report] master fair 되쓰기 실패 {building_pk}: {e}")
+# 리포트→마스터 되쓰기는 2026-09-02 에 제거했다.
+# 적정가는 master.building_sale_est 가 정본이고 리포트는 읽기만 한다.
+# 되쓰기가 있던 이유는 배치와 리포트가 각자 계산해 값이 갈렸기 때문인데,
+# 파생 배치가 표를 통째로 다시 만들면서 되쓴 값을 지워 배치가 돌 때마다 재발했다.
+# 이제 값을 만드는 곳이 하나뿐이라 어긋날 자리가 없다.
 
 
 def synthesize(subject: dict, subject_score: float, comps: list[dict],
                params: dict, time_adjust: dict, rent_apply: dict | None = None,
-               apply_market: bool = False) -> dict:
+               apply_market: bool = False, fair_override: float | None = None) -> dict:
     """F-17 적정매매가 + F-18 예상수익률 + 협의금액. preview·생성 공용.
     rent_apply=주변임대 '데이터'(비교표·주변수익률 표시용, 항상 전달 가능).
     apply_market=True(토글 ON)일 때만 그 값이 수익률·적용임대료를 움직임 —
     기본(False)은 팀 실입력→마스터 추정 폴백으로 배치(search.classified roi)와 동일."""
     ap = report_calc.appraise(subject_score, subject, comps, params, time_adjust)
+    # ★ 적정가는 **하나**다 — master.building_sale_est 가 정본(2026-09-02).
+    #
+    # 예전엔 배치와 리포트가 각자 계산해 화면마다 값이 갈렸다(2026-08-28 삼성동 78 검색
+    # 1,070억 대 상세 896억, 2026-09-02 1,023억 대 1,025억). 되쓰기로 맞추려 했지만
+    # 파생 배치가 표를 통째로 다시 만들면서 되쓴 값을 지워, 배치가 돌 때마다 재발했다.
+    #
+    # 반경을 바꾸면 값이 흔들린다(실측 500동: 중앙 4%, 상위 10%는 14%, 최대 67%).
+    # 그러니 보는 사람마다 다른 값이 나오면 그건 「그 건물의 값」이 아니다.
+    # 반경·오버레이는 주변 시세 비교와 문서에만 쓰고, 적정가는 배치가 만든 하나를 읽는다.
+    #
+    # comp 는 계속 모은다 — 설명(근거·공시배율·비교표)에 필요하기 때문이다.
+    if fair_override:
+        ap = {**ap, "fair_price": float(fair_override)}
     _cur = _fnum(subject.get("total_rent"))
     _est_mo = (_fnum(subject.get("est_annual_rent")) or 0) / 12 or None   # 마스터 추정(월) — 배치 폴백과 동일
     if apply_market and rent_apply:
@@ -735,13 +733,16 @@ async def run_generate(report_id: int, team_id: int) -> dict:
             exclude = set(opt["exclude"]) if opt.get("exclude") else None
             comps = await _load_comps(rep["building_pk"], b, params, exclude, overrides)
             rent_apply = await _nearby_rent_apply(rep["building_pk"], b, team_id)   # 비교표·주변수익률 데이터(항상)
+            # 적정가는 마스터가 정본이다. 오버레이(comp 제외·필드 수정)가 걸린 경우에만
+            # 그 팀의 가정을 반영해 다시 계산한다 — 그때는 마스터를 건드리지 않는다.
+            fair_master = None
+            if not exclude and not overrides:
+                fair_master = await pool().fetchval(
+                    "SELECT sale_est FROM master.building_sale_est WHERE building_pk=$1",
+                    rep["building_pk"])
             syn = synthesize(b, vs["score"], comps, params, time_adjust, rent_apply,
-                             apply_market=opt.get("include_market", False))   # 기본 OFF = 배치 수익률과 동일
-            # ★ 오버레이가 하나라도 걸렸으면 안 쓴다 — 마스터는 팀 공용이라 한 팀의 가정이
-            #   전 팀의 기본값이 되면 안 된다(추정→정본 금지).
-            if (syn.get("fair_price") and not exclude and not overrides
-                    and not opt.get("include_market") and not _fnum(b.get("total_rent"))):
-                await _save_master_fair(rep["building_pk"], syn["fair_price"], b)
+                             apply_market=opt.get("include_market", False),
+                             fair_override=float(fair_master) if fair_master else None)
 
         # 웹 보고서(/reports/:id) 렌더용 synthesis 스냅샷 — 생성 시점 값 고정(analysis만).
         # PPT도 이 스냅샷에서 굽는다(웹 덱과 같은 입력 → 두 산출물의 값이 어긋날 수 없음).

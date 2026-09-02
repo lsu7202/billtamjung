@@ -39,6 +39,17 @@ def _preview_dict(vs: dict, syn: dict) -> dict:
             "comps_used": syn.get("comps_used")}           # STEP2 유사사례 표(가중 반영분)
 
 
+async def _master_fair(building_pk: str) -> float | None:
+    """적정가 정본 — master.building_sale_est(2026-09-02).
+
+    배치가 만든 값 하나를 검색·상세·리포트·미리보기가 똑같이 본다. 오버레이(comp 제외·
+    필드 수정)가 걸린 요청만 그 팀의 가정으로 다시 계산하고, 그때도 마스터는 안 건드린다.
+    """
+    v = await pool().fetchval(
+        "SELECT sale_est FROM master.building_sale_est WHERE building_pk=$1", building_pk)
+    return float(v) if v else None
+
+
 @router.get("/comps/{building_pk}")
 async def comps(building_pk: str, user: CurrentUser = Depends(current_user)):
     """S02b 초기 로드: 본매물 요약 + comp 목록(편집 필드 포함) + 지도 핀 + 초기 미리보기."""
@@ -46,7 +57,8 @@ async def comps(building_pk: str, user: CurrentUser = Depends(current_user)):
     comps = await g._fetch_comps(building_pk, b, params)
     rent_apply = await g._nearby_rent_apply(building_pk, b, user.team_id)   # 주변 임대 comp 적용(리포트 임대료 비교·applied_rent)
     syn = g.synthesize(b, vs["score"], g.baseline_comps(comps), params, ta, rent_apply,
-                       apply_market=False)  # 초기=배치 동일(적정가·수익률 모두) — 주변임대는 토글 ON 시 preview로
+                       apply_market=False,           # 초기=배치 동일(추정가·수익률 모두)
+                       fair_override=await _master_fair(building_pk))
     ut = await g._use_type(building_pk, b)   # F-20 투자 유형
     g._attach_future(ut, syn.get("rent_summary"))   # F-21 미래가치(개발여지+임대상향)
     poly, radius, center = g._market_spatial(b)
@@ -83,11 +95,20 @@ class PreviewIn(BaseModel):
 
 @router.post("/preview")
 async def preview(body: PreviewIn, user: CurrentUser = Depends(current_user)):
-    """S02b 실시간 재산출(크레딧 미차감). comp 편집·제외 반영 → 적정매매가/수익률."""
+    """S02b 실시간 재산출(크레딧 미차감). comp 편집·제외 반영 → 적정매매가/수익률.
+
+    exclude 가 비면 **None 으로 내린다**(2026-08-28). _load_comps 는 None 일 때만
+    baseline(이상치 제외)을 쓰고, 빈 집합이면 이상치까지 전부 넣는다. 생성은 None 으로
+    가는데 미리보기만 빈 집합으로 가면 「미리보기에서 본 값」과 「나온 값」이 달라진다.
+    검토 창에서 주변사례 고르기를 걷어내면서 드러난 어긋남이다."""
     b, vs, params, ta = await _subject_ctx(body.building_pk, user.team_id)
-    comps = await g._load_comps(body.building_pk, b, params, set(body.exclude), body.overrides)
+    comps = await g._load_comps(body.building_pk, b, params,
+                                set(body.exclude) if body.exclude else None, body.overrides)
     rent_apply = await g._nearby_rent_apply(body.building_pk, b, user.team_id)
-    syn = g.synthesize(b, vs["score"], comps, params, ta, rent_apply, apply_market=body.include_market)
+    # 오버레이가 없으면 마스터 값 그대로 — 미리보기와 실제 생성이 어긋나지 않는다.
+    _fair = None if (body.exclude or body.overrides) else await _master_fair(body.building_pk)
+    syn = g.synthesize(b, vs["score"], comps, params, ta, rent_apply,
+                       apply_market=body.include_market, fair_override=_fair)
     return {"preview": _preview_dict(vs, syn),
             "rent_floors": syn.get("rent_floors"),
             "comp_scores": {c["building_pk"]: c["score"] for c in comps}}
