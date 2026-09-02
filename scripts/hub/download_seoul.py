@@ -271,7 +271,7 @@ def export_by_bjd(r_code, inputxml, sgg_cd):
     codes = bjd_codes(sgg_cd)
     if not codes:
         return None, "법정동 목록 없음(대장/표제부를 먼저 받으세요)"
-    parts, got, fail = [], 0, 0
+    parts, got, bad = [], 0, []
     for i, bd in enumerate(codes):
         xml = re.sub(r'(<Param Name=":VS_BJDONG" ParamType="String">\s*)<Value[^>]*/>|'
                      r'(<Param Name=":VS_BJDONG" ParamType="String">\s*)<Value>[^<]*</Value>',
@@ -283,13 +283,18 @@ def export_by_bjd(r_code, inputxml, sgg_cd):
         except Exception as e:
             body, err = None, str(e)[:60]
         if err or not body or len(body) < MIN_BYTES:
-            fail += 1
+            # 어느 동이 왜 실패했는지 남긴다. 예전엔 개수만 세고 사유를 버려서
+            # 노원구 상계동이 통째로 빠진 걸 알고도 원인을 못 짚었다(2026-09-02).
+            why = err or f"{len(body) if body else 0}바이트"
+            bad.append(f"{bd}({why})")
             continue
         got += 1
         parts.append(body if not parts else body.split(b"\n", 1)[1] if b"\n" in body else b"")
     if not parts:
         return None, f"법정동 {len(codes)}개 전부 실패"
-    return b"".join(parts), (None if fail == 0 else f"법정동 {fail}/{len(codes)}개 실패")
+    if bad:
+        return b"".join(parts), f"법정동 {len(bad)}/{len(codes)}개 실패 — " + " · ".join(bad)
+    return b"".join(parts), None
 
 
 def pages():
@@ -371,12 +376,17 @@ def main():
                     body, err2 = export_by_bjd(p["rCode"], xml, cd)
                 except Exception as e:
                     body, err2 = None, f"{type(e).__name__}: {str(e)[:60]}"
-                if body and len(body) >= MIN_BYTES:
+                if body and len(body) >= MIN_BYTES and not err2:
                     open(f, "wb").write(body)
                     tot += len(body)
-                    print(f"  · {p['grp']}/{p['name']} {SGG[cd]}: 법정동 분할로 받음"
-                          f"{' (' + err2 + ')' if err2 else ''}")
+                    print(f"  · {p['grp']}/{p['name']} {SGG[cd]}: 법정동 분할로 받음")
                     continue
+                if body and len(body) >= MIN_BYTES and err2:
+                    # **빠진 동이 있으면 성공이 아니다.** 예전엔 그대로 {구}.csv 로 쓰고
+                    # 실패 집계에도 안 넣어서, 압축까지 되고 다음 실행 때 건너뛰었다.
+                    # 노원구가 상계동(그 구에서 건물이 가장 많은 동) 없이 영구히 남을 뻔했다.
+                    # 받은 만큼은 .partial 로 남긴다 — 빌더는 *.csv 만 읽으므로 안 섞인다.
+                    open(f + ".partial", "wb").write(body)   # 받은 만큼은 남긴다(빌더는 안 읽는다)
                 err = err2 or err
             if err or body is None or len(body) < MIN_BYTES:
                 why = err or f"{len(body or b'')}바이트 — 너무 작다"
