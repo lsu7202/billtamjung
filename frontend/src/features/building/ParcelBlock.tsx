@@ -3,10 +3,12 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../shared/api/client";
 import { overlaysApi } from "../../shared/api/endpoints";
-import { KV, NumCell, vPos } from "./KV";
-import { EnumField, ChipsMulti } from "./EnumField";
-import { TrendChart } from "./TrendChart";
+import { NumCell, vPos } from "./KV";
+import { TextRow, EnumRow } from "./InfoRow";
+import "./bldgtab.css";
+import { TrendChart, type TrendBand, type TrendFoot } from "./TrendChart";
 import { InfoDot } from "../../shared/ui/InfoDot";
+import { Segmented } from "../../shared/ui/Segmented";
 import { wonShort, manPerM2 } from "../../shared/format";
 
 /* 플랫 정밀 지표 스타일 — 라벨(작게·muted·tracking) / 값(크게·mono) / 단위(작게·muted) */
@@ -14,28 +16,17 @@ const GL: React.CSSProperties = { fontSize: 11, color: "var(--muted)", letterSpa
 const GV: React.CSSProperties = { fontSize: 23, fontWeight: 800, lineHeight: 1 };
 const GU: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--muted)", marginLeft: 2 };
 
-/* 용도지역 전체(걸침 다중선택). code=label=풀네임(use_zone_mix 명과 일치). */
-const ZONE_OPTS = ["제1종전용주거지역", "제2종전용주거지역", "제1종일반주거지역", "제2종일반주거지역", "제3종일반주거지역",
-  "준주거지역", "중심상업지역", "일반상업지역", "근린상업지역", "유통상업지역", "전용공업지역", "일반공업지역", "준공업지역",
-  "보전녹지지역", "생산녹지지역", "자연녹지지역", "보전관리지역", "생산관리지역", "계획관리지역", "농림지역", "자연환경보전지역", "미지정",
-].map((z) => ({ code: z, label: z }));
 type ZoneMix = { 명: string; 비중: number; 코드?: string }[];
 
 /* 공시지가 추이 차트(라인만). 상승률 배지는 카드 우측 지표 영역에서 렌더. series=[[연도,원/㎡]]. */
-function GongsiTrend({ series }: { series: [number, number][] }) {
+function GongsiTrend({ series, bands, foot }: {
+  series: [number, number][]; bands?: TrendBand[]; foot?: TrendFoot[];
+}) {
   if (!series || series.length < 2) return null;
-  const pts = series.map(([y, v]) => ({ x: String(y), y: v, sub: `${manPerM2(v)}/㎡` }));
-  return <TrendChart points={pts} color="var(--c-gongsi)" fmt={(v) => manPerM2(v)} height={150} maxW={560} />;
+  const pts = series.map(([y, v]) => ({ x: String(y), y: v }));
+  return <TrendChart points={pts} color="var(--c-gongsi)" fmt={(v) => manPerM2(v)} height={196} maxW={620}
+    bands={bands} foot={foot} rate />;
 }
-/* 공시지가 상승률(10년·5년·전체) — 우측 지표 영역용 */
-function gongsiRates(series: [number, number][]) {
-  if (!series || series.length < 2) return null;
-  const yrs = series.length, first = series[0][1], last = series[yrs - 1][1];
-  const rate = first ? ((last - first) / first) * 100 : 0;
-  const back = (n: number) => { const s = series[Math.max(0, yrs - 1 - n)]; return s && first ? ((last - s[1]) / s[1]) * 100 : null; };
-  return { r5: yrs > 5 ? back(5) : null, r10: yrs > 10 ? back(10) : null, rate };
-}
-const ratePct = (v: number | null) => v == null ? "" : `${v >= 0 ? "+" : ""}${v.toFixed(0)}%`;
 /* 공시지가 표 — 연도별 단가(최신 위). 그래프/표 토글용. */
 function GongsiTable({ series }: { series: [number, number][] }) {
   if (!series || series.length < 2) return null;
@@ -56,22 +47,43 @@ interface Parcel {
   use_zone?: string; legal_bcr?: string; legal_far?: string; gongsi_latest?: number | string | null; total_gongsi?: number | string | null;
   gongsi_series: [number, number][];
   regs: Record<string, string>;
+  /** 국토부 토지이용계획정보 원본(0136) — [이름, 저촉여부, 코드]. 필지당 중앙 8종 */
+  reg_all?: [string, string, string][];
   road_front_m?: string | number | null;   // 실측 도로폭(오버레이 자유값)
   road_side_m?: string | number | null;
   road_rear_m?: string | number | null;
 }
-interface ParcelsResp { parcels: Parcel[]; reg_summary: Record<string, string>; count: number }
+interface ParcelsResp { parcels: Parcel[]; reg_summary: Record<string, string>; count: number;
+  /** 실측 도로폭 — 건물 단위 배치값(master.building_road). 필지 오버레이가 없으면 이걸 쓴다. */
+  road?: { front_m?: number | null; side_m?: number | null; rear_m?: number | null; front_rn?: string | null };
+}
 
-const REG_ALL = ["지구단위계획", "정비구역", "고도지구", "경관지구", "방화지구", "문화재보존"];   // 목업 순서(개발제한=마스터 컬럼 없음, 제외)
-const REG_FIELD: Record<string, string> = {   // 규제 라벨 → 필지 오버레이 필드(백엔드 REG_LABELS 역매핑)
+// 나대지 상세도 같은 칩을 쓴다 — 규제는 땅에 걸리는 것이라 건물 유무와 무관하다(2026-08-27)
+export const REG_ALL = ["지구단위계획", "정비구역", "고도지구", "경관지구", "방화지구", "문화재보존"];   // 목업 순서(개발제한=마스터 컬럼 없음, 제외)
+export const REG_FIELD: Record<string, string> = {   // 규제 라벨 → 필지 오버레이 필드(백엔드 REG_LABELS 역매핑)
   "고도지구": "reg_godo", "지구단위계획": "reg_district", "정비구역": "reg_jeongbi",
   "경관지구": "reg_gyeong", "방화지구": "reg_banghwa", "문화재보존": "reg_munhwa",
 };
 const num = (x: unknown): number | null => (x == null || x === "" ? null : Number(x));
-const pct = (x: unknown): string | null => (x == null || x === "" ? null : String(x).replace("%", ""));   // 법정건폐/용적: 마스터 "50%" → 숫자부만(중복 % 방지)
+// 법정 건폐/용적은 "50%" 하나로 오거나, 걸친 필지면 "50%, 60%" 처럼 둘이 온다
+// (작은 쪽이 330㎡·상업 660㎡ 를 넘으면 법이 가중평균을 금해 각각 적는다 — 서울 6,529필지).
+// 예전엔 replace("%","") 로 **첫 % 만** 지우고 뒤에 %를 다시 붙여 "50, 60%%" 가 됐다.
+const legalText = (x: unknown): string | null => (x == null || x === "" ? null : String(x));
+// 계산에 쓸 숫자. 값이 둘이면 null — 하나를 고르면 작은 쪽을 법정치인 양 쓰게 된다.
+const legalNum = (x: unknown): number | null => {
+  if (x == null || x === "") return null;
+  const s = String(x);
+  if (/%\s*,\s*\d/.test(s)) return null;
+  const m = s.match(/[\d.]+/);
+  return m ? Number(m[0]) : null;
+};
 
 const PY = 3.305785;
-export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZoneMix?: unknown; unit?: "py" | "m2" }) {
+export function ParcelBlock({ pk, useZoneMix, unit = "m2", bcr, far }: {
+  pk: string; useZoneMix?: unknown; unit?: "py" | "m2";
+  /** 현재 건폐율·용적률(건물 값) — 법정에서 빼서 「잔여」를 낸다(2026-08-28) */
+  bcr?: number | null; far?: number | null;
+}) {
   const [sel, setSel] = useState(0);
   const qc = useQueryClient();
   const q = useQuery<ParcelsResp>({
@@ -79,6 +91,7 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZo
     queryFn: () => api<ParcelsResp>(`/buildings/${pk}/parcels`),
   });
   const parcels = q.data?.parcels ?? [];
+  const road = q.data?.road;          // 건물 단위 실측 도로폭(배치) — 오버레이 없을 때의 기본값
   const p = parcels[sel];
   const pnu = p?.pnu ?? "";
 
@@ -86,12 +99,7 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZo
     mutationFn: ({ field, value }: { field: string; value: string }) => overlaysApi.put(pnu, field, value, "parcel"),
     onSettled: () => qc.invalidateQueries({ queryKey: ["parcels", pk] }),
   });
-  const revert = useMutation({
-    mutationFn: (field: string) => overlaysApi.revert(pnu, field, "parcel"),
-    onSettled: () => qc.invalidateQueries({ queryKey: ["parcels", pk] }),
-  });
   const onSave = (field: string, value: string) => save.mutate({ field, value });
-  const onRevert = (field: string) => revert.mutate(field);
 
   const area = num(p?.area);
 
@@ -104,138 +112,237 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2" }: { pk: string; useZo
   const parcelTag = parcels.length > 1 ? <small style={{ color: "var(--muted)", fontWeight: 400 }}>필지 {p.pnu.slice(-8)}</small> : null;
   return (
     <>
-    {/* 토지정보 | 규제·특례 (2단) */}
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: 14, alignItems: "start" }}>
-    <div className="panel">
-      <div className="sec-head">토지정보
-        {parcels.length > 1 && <small style={{ color: "var(--muted)", fontWeight: 400 }}>다필지 {parcels.length}개 · 필지별 값</small>}
+    {/* 선 격자를 걷고 건물 탭과 같은 줄로(2026-08-26).
+        토지정보·규제를 2단으로 나란히 두던 것도 풀렸다 — 열이 좁아 「주상기타」 같은 값이
+        카드 밖으로 잘렸다. 각각 풀폭에 두 칸으로 편다(건물정보와 같은 모습). */}
+    <div className="bg-card">
+      <div className="bg-ttl">토지정보
+        {/* 다필지 고르기 — 네모 버튼 나열을 칩으로. 고르는 값이니 다른 칸과 같은 어법이다 */}
+        {parcels.length > 1 && (
+          <span className="chips-in" style={{ marginLeft: 12 }}>
+            {parcels.map((pc, i) => (
+              <button key={pc.pnu} className={i === sel ? "on" : ""} onClick={() => setSel(i)}>
+                {pc.pnu.slice(-8)}{pc.role === "대표" && <span style={{ opacity: .65, marginLeft: 4 }}>대표</span>}
+              </button>
+            ))}
+          </span>
+        )}
       </div>
 
-      {/* 필지 탭(다필지) */}
-      {parcels.length > 1 && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "0 14px 10px" }}>
-          {parcels.map((pc, i) => (
-            <button key={pc.pnu} className={`btn ${i === sel ? "primary" : ""}`} style={{ fontSize: 12, padding: "4px 10px" }}
-              onClick={() => setSel(i)}>
-              {pc.pnu.slice(-8)}{pc.role === "대표" && <span style={{ opacity: .7, marginLeft: 4 }}>대표</span>}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* 토지정보(선택 필지) — 목업 순서: 토지면적·지목·용도지역·이용상황·지형/형상·도로접면·지세·법정건폐/용적 */}
-      <div className="kv-grid">
-        <KV label="토지면적" field="area" value={area != null ? (unit === "py" ? `${(area / PY).toFixed(1)}평` : `${area.toLocaleString()}㎡`) : ""}
-          editable current={area != null ? (unit === "py" ? +(area / PY).toFixed(1) : area) : ""}
-          parse={(v) => String(unit === "py" ? parseFloat(v) * PY : parseFloat(v))} validate={vPos} onSave={onSave} onRevert={onRevert} />
-        <EnumField label="지목" enumKey="jimok" value={p.jimok} onSave={(v) => onSave("jimok", v)} onRevert={() => onRevert("jimok")} />
-        {/* 용도지역 = 걸침(다지역) 가능 → 다중선택. 오버라이드 없으면 건물 use_zone_mix(비중) 표시 */}
+      <div className="bg-cols">
+        {/* 토지정보는 국토부 토지특성·토지이용계획정보에서 온 정본이라 읽기만 한다(2026-08-28).
+            면적만 예외 — 합필·분필이 대장에 늦게 반영돼 현장과 어긋나는 일이 있다. */}
+        <TextRow label="토지면적" value={area != null ? (unit === "py" ? `${(area / PY).toFixed(1)}평` : `${area.toLocaleString()}㎡`) : ""}
+          cur={area != null ? (unit === "py" ? +(area / PY).toFixed(1) : area) : ""}
+          parse={(v) => String(unit === "py" ? parseFloat(v) * PY : parseFloat(v))} validate={vPos}
+          onSave={(v) => onSave("area", v)} />
+        <EnumRow lock label="지목" enumKey="jimok" value={p.jimok} onSave={() => {}} />
+        {/* 용도지역 — 국토부 토지이용계획정보와 100% 일치한다(0136). 고칠 값이 아니라 읽는 값이라
+            다중선택 드롭다운을 걷었다. 걸침이면 비중 큰 순으로 나란히 세운다. */}
         {(() => {
           const mix: ZoneMix = Array.isArray(useZoneMix) ? useZoneMix : (typeof useZoneMix === "string" ? JSON.parse(useZoneMix || "[]") : []);
-          const overridden = typeof p.use_zone === "string" && p.use_zone.includes(",");
-          const selected = overridden ? p.use_zone!.split(",") : (mix.length ? mix.map((m) => m.명) : p.use_zone ? [p.use_zone] : []);
-          // 비중(%)은 데이터엔 유지하되 화면 미표시(편집 시 사라지는 혼란 방지) — 명칭만 병기
-          const summary = overridden ? selected.join(" · ") : (mix.length ? mix.map((m) => m.명).join(" · ") : (p.use_zone ?? ""));
+          const zones = mix.length ? mix.map((m) => m.명) : (p.use_zone ? [p.use_zone] : []);
+          if (zones.length === 0) return null;
           return (
-            <div className="kv" style={{ alignItems: "center" }}><span className="k">용도지역</span>
-              <ChipsMulti opts={ZONE_OPTS} selected={selected} summary={summary}
-                onChange={(v) => onSave("use_zone", v.join(","))} onRevert={() => onRevert("use_zone")} />
+            <div className="orow lock"><span className="who g">용도지역</span>
+              <span className="cap">{zones.length > 1 ? "걸침" : ""}</span>
+              <span className="ev zones">{zones.map((z) => <b key={z}>{z}</b>)}</span>
+              <span className="okpad" />
             </div>
           );
         })()}
-        <KV label="토지이용상황" field="land_use" value={p.land_use ?? ""} editable current={p.land_use ?? ""} onSave={onSave} onRevert={onRevert} />
-        <EnumField label="지형/형상" enumKey="shape" value={p.shape} onSave={(v) => onSave("shape", v)} onRevert={() => onRevert("shape")} />
-        <EnumField label="도로접면" enumKey="road_frontage" value={p.road_frontage} onSave={(v) => onSave("road_frontage", v)} onRevert={() => onRevert("road_frontage")} />
+        <TextRow lock label="토지이용상황" value={p.land_use ?? ""} />
+        {/* 지형·지세는 늘 붙어 다니는 값이라 한 줄로 합쳤다 */}
+        <EnumRow lock label="지형/형상" enumKey="shape" value={p.shape} onSave={() => {}} />
+        <EnumRow lock label="지세" enumKey="slope" value={p.slope} onSave={() => {}} />
+        <EnumRow lock label="도로접면" enumKey="road_frontage" value={p.road_frontage} onSave={() => {}} />
         {/* 실측 도로폭 — 대장 '도로접면'은 광대/중로/소로 같은 분류 코드라 실제 폭(m)이 없다.
-            연속지적도로 자동 계산도 해봤으나 도로 필지가 잘게 쪼개져 있어 대로변에서 크게 빗나갔다
-            (노량진동 54-8: 실제 25m → 추정 9.3m). 현장을 아는 값이 가장 정확하므로 직접 받는다.
-            도로폭 마스터 데이터가 확보되면 이 자리에 기본값으로 채워지고 수기값이 그대로 우선한다. */}
-        <div className="kv"><span className="k">실측 도로폭</span>
-          <span className="v num" style={{ display: "flex", gap: 4, alignItems: "center", justifyContent: "flex-end" }}>
-            <span className="rw">전면</span><NumCell v={p.road_front_m ?? ""} suffix="m" onSave={(x) => onSave("road_front_m", x)} />
-            <span className="rw">측면</span><NumCell v={p.road_side_m ?? ""} suffix="m" onSave={(x) => onSave("road_side_m", x)} />
-            <span className="rw">후면</span><NumCell v={p.road_rear_m ?? ""} suffix="m" onSave={(x) => onSave("road_rear_m", x)} />
-          </span>
+            기본값 = 도로명주소 도로구간 배치(master.building_road, 전 서울 91.3%).
+            셋 다 비면 「—」 하나로 선다 — 빈 칸 셋이 자리를 먹지 않게(2026-08-26). */}
+        <div className="orow"><span className="who g">실측 도로폭</span>
+          <span className="cap">{(p.road_front_m ?? road?.front_m) || (p.road_side_m ?? road?.side_m) || (p.road_rear_m ?? road?.rear_m) ? "전 · 측 · 후" : ""}</span>
+          {(p.road_front_m ?? road?.front_m) || (p.road_side_m ?? road?.side_m) || (p.road_rear_m ?? road?.rear_m) ? (
+            <span className="ev" style={{ display: "inline-flex", gap: 5, alignItems: "baseline" }}>
+              <NumCell v={p.road_front_m ?? road?.front_m ?? ""} suffix="m" onSave={(x) => onSave("road_front_m", x)} /> ·
+              <NumCell v={p.road_side_m ?? road?.side_m ?? ""} suffix="m" onSave={(x) => onSave("road_side_m", x)} /> ·
+              <NumCell v={p.road_rear_m ?? road?.rear_m ?? ""} suffix="m" onSave={(x) => onSave("road_rear_m", x)} />
+            </span>
+          ) : (
+            <span className="ev off" style={{ cursor: "pointer" }}
+              onClick={() => onSave("road_front_m", "")}>—</span>
+          )}
+          <span className="okpad" />
         </div>
-        <EnumField label="지세" enumKey="slope" value={p.slope} onSave={(v) => onSave("slope", v)} onRevert={() => onRevert("slope")} />
-        {/* 법정 건폐/용적 = 🔀 조례파생, override 가능(한 줄 두 값 인라인 편집) */}
-        <div className="kv"><span className="k">법정 건폐/용적</span>
-          <span className="v num" style={{ display: "flex", gap: 5, alignItems: "center", justifyContent: "flex-end" }}>
-            <NumCell v={pct(p.legal_bcr)} suffix="%" onSave={(x) => onSave("legal_bcr", x)} /> / <NumCell v={pct(p.legal_far)} suffix="%" onSave={(x) => onSave("legal_far", x)} />
+        {/* 법정 건폐/용적 — 용도지역에서 조례로 파생한다. 그 용도지역이 정본과 100% 맞으므로
+            이 값도 정본이다(2026-08-28 대조). 걸침이면 국토계획법대로 가중평균한다. */}
+        <div className="orow lock"><span className="who g">법정 건폐 · 용적</span><span className="cap" />
+          <span className="ev" style={{ display: "inline-flex", gap: 5, alignItems: "baseline" }}>
+            <b>{legalText(p.legal_bcr) ?? "—"}</b> ·
+            <b>{legalText(p.legal_far) ?? "—"}</b>
           </span>
+          <span className="okpad" />
         </div>
+        {/* 잔여 건폐 · 용적 — 법정에서 현재를 뺀 값. 개발 여지를 재는 자다(2026-08-28).
+            서울 상업 건물의 절반이 50%p 넘게 남아 있다(중앙 51%p).
+            ★ 현재 값이 없으면(대장 공란) 아예 안 그린다 — 0으로 보고 「전부 남았다」고 하면 안 된다. */}
+        {(() => {
+          const lb = legalNum(p.legal_bcr), lf = legalNum(p.legal_far);
+          const rb = lb != null && bcr != null ? lb - bcr : null;
+          const rf = lf != null && far != null ? lf - far : null;
+          if (rb == null && rf == null) return null;
+          const add = rf != null && rf > 0 && area ? (rf / 100) * area / PY : null;
+          const tone = (v: number | null) => (v == null ? "var(--muted)" : v > 0 ? "var(--blue)" : "var(--muted)");
+          return (
+            <div className="orow lock"><span className="who g">잔여 건폐 · 용적</span>
+              <span className="cap">{add != null ? `증축 ${Math.round(add).toLocaleString()}평` : ""}</span>
+              <span className="ev" style={{ display: "inline-flex", gap: 5, alignItems: "baseline" }}>
+                <b style={{ color: tone(rb) }}>{rb != null ? `${rb > 0 ? "+" : ""}${rb.toFixed(0)}%p` : "—"}</b>
+                <span style={{ color: "var(--faint)" }}>·</span>
+                <b style={{ color: tone(rf) }}>{rf != null ? `${rf > 0 ? "+" : ""}${rf.toFixed(0)}%p` : "—"}</b>
+              </span>
+              <span className="okpad" />
+            </div>
+          );
+        })()}
       </div>
     </div>
 
-    <div className="panel">
-      {/* 규제 2레벨: 건물 요약(OR 집계) + 필지 상세 */}
-      <div className="sec-head">규제·특례 {parcelTag}</div>
-      <div style={{ padding: "12px 14px 8px", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 700, marginRight: 2 }}>건물 요약</span>
-        {applied.length === 0
-          ? <span style={{ color: "var(--green)", fontSize: 12, fontWeight: 700 }}>규제 사항 없음 — 전 필지 해당 없음</span>
-          : <>
-            {applied.map((k) => <span key={k} className="tag stale" title={summary[k]}>{k}</span>)}
-            <span style={{ color: "var(--muted)", fontSize: 12 }}>· 그 외 해당 없음</span>
-          </>}
-      </div>
-      <div className="kv-grid" style={{ paddingTop: 0 }}>
-        {REG_ALL.map((r) => (
-          <KV key={r} label={r} field={REG_FIELD[r]} value={p.regs[r] ?? ""} editable
-            current={p.regs[r] ?? ""} onSave={onSave} onRevert={onRevert} />
-        ))}
-      </div>
-    </div>
+    <div className="bg-card" id="bt-reg" style={{ marginTop: 14 }}>
+      <div className="bg-ttl">규제 · 특례 {parcelTag}</div>
+      <RegCard regAll={p.reg_all ?? []}
+        other={applied.filter((k) => !p.regs[k])} summary={summary} />
     </div>
     </>
   );
 }
 
 /* 공시지가 카드(건물 대표필지 시계열) — 실거래와 좌우 페어용 독립 컴포넌트. 그래프/표 토글 + 지표 스택. */
-export function GongsiCard({ series, totalGongsi, landArea }: { series: [number, number][]; totalGongsi: number | null; landArea: number | null }) {
+/** 규제 · 특례 — 여섯을 **상태 칩 한 줄**로 두고, 값이 있는 것만 아래 줄로 세운다(2026-08-26).
+ *
+ *  「직접 적기」 같은 조작 줄을 따로 두지 않는다 — **꺼진 칩을 누르는 것이 곧 직접 적기**다.
+ *  누르면 그 줄이 서고 커서가 그 칸에 간다. 비운 채 벗어나면 칩이 도로 꺼져서
+ *  실수로 켠 것이 남지 않는다.
+ *
+ *  칩 색은 선택 칩과 같은 연파랑이다. 규제는 경고가 아니라 이 건물의 주인공 값이라
+ *  빨강(기한·경고)이 아니라 파랑이 맞다 — 지구단위계획은 개발 호재이기도 하다.
+ */
+export function RegCard({ regAll, other, summary }: {
+  /** [이름, 저촉여부, 코드] — 국토부 토지이용계획정보 원본(0136) */
+  regAll: [string, string, string][];
+  other: string[]; summary: Record<string, string>;
+}) {
+  if (regAll.length === 0) return <div className="pg-other">걸린 규제 없음</div>;
+  // 토지이음·부동산플래닛과 같은 두 묶음 — 코드 UQ* 가 국토계획법이고 나머지가 기타법령이다.
+  const law = regAll.filter(([, , c]) => String(c).startsWith("UQ"));
+  const etc = regAll.filter(([, , c]) => !String(c).startsWith("UQ"));
+  const group = (rows: [string, string, string][], title: string) => rows.length > 0 && (
+    <div className="rg-grp">
+      <div className="rg-ttl">{title}</div>
+      <div className="rg-list">
+        {rows.map(([n, j], i) => (
+          <span key={`${n}${j}${i}`} className={`rg ${j === "포함" ? "inc" : j === "저촉" ? "tou" : "adj"}`}>
+            {n}<i>({j})</i></span>
+        ))}
+      </div>
+    </div>
+  );
+  return (
+    <>
+      <div className="rg-wrap">
+        {group(law, "국토의 계획 및 이용에 관한 법률")}
+        {group(etc, "기타법령")}
+      </div>
+      {/* 다필지 — 이 필지엔 없지만 다른 필지에 걸린 규제. 건물 전체로는 해당한다 */}
+      {other.length > 0 && (
+        <div className="pg-other">다른 필지 {other.map((k) => <b key={k} title={summary[k]}>{k}</b>)}</div>
+      )}
+    </>
+  );
+}
+
+/** 공시배율 — 매매가·추정가·실거래가가 각각 공시총액의 몇 배인가.
+ *  분모가 하나라 셋이 같은 자에 서고, 막대 길이가 그대로 배율이다. */
+function GongsiMult({ total, sale, est, real }: {
+  total: number; sale?: number | null; est?: number | null; real?: number | null;
+}) {
+  const rows: [string, number | null | undefined, string][] = [
+    ["매매가", sale, "me"], ["빌탐정 추정가", est, "est"], ["실거래가", real, ""],
+  ];
+  const got = rows.filter(([, v]) => v != null && v > 0);
+  if (got.length === 0) return null;
+  const max = Math.max(...got.map(([, v]) => v! / total), 1);
+  return (
+    <div className="gm-mult">
+      <div className="gm-h">공시총액 대비</div>
+      {got.map(([label, v, kind]) => {
+        const x = v! / total;
+        return (
+          <div className="gm-r" key={label}>
+            <span className="k">{label}</span>
+            <span className="t"><i className={kind} style={{ width: `${Math.max(3, (x / max) * 100)}%` }} /></span>
+            <span className={`v ${kind}`}>{x.toFixed(1)}배</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function GongsiCard({ series, totalGongsi, landArea, sale, est, real }: {
+  series: [number, number][]; totalGongsi: number | null; landArea: number | null;
+  /** 공시배율 — 값이 공시총액의 몇 배인가. 셋 다 같은 분모라 나란히 견줄 수 있다(2026-08-28).
+   *  현장에서 「공시가의 몇 배에 팔린다」는 가장 빠른 가늠자다. */
+  sale?: number | null; est?: number | null; real?: number | null;
+}) {
   const [mode, setMode] = useState<"c" | "t">("c");
   if (!series || series.length < 2) return null;
   const gongsiLatest = series[series.length - 1][1];
   const total = totalGongsi ?? (gongsiLatest && landArea ? gongsiLatest * landArea : null);
+  // 구간 상승률 — 그래프 안 음영과 축 아래 한 줄로 간다(2026-08-26).
+  // 오른쪽 지표로 세 숫자를 늘어놓으면 그래프와 숫자가 서로를 안 가리킨다.
+  const y0 = series[0][0], yN = series[series.length - 1][0];
+  const at = (y: number) => series.find(([yy]) => yy === y)?.[1] ?? null;
+  const pct = (from: number | null) => (from ? ((gongsiLatest - from) / from) * 100 : null);
+  const p10 = yN - y0 >= 10 ? pct(at(yN - 10)) : null;
+  const p5 = yN - y0 >= 5 ? pct(at(yN - 5)) : null;
+  const fmtPct = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(0)}%`;
+  const bands = [
+    ...(p10 != null ? [{ from: String(yN - 10), op: 0.05 }] : []),
+    ...(p5 != null ? [{ from: String(yN - 5), op: 0.07 }] : []),
+  ];
+  const foot = [
+    ...(p10 != null ? [{ label: `10년 ${fmtPct(p10)}`, color: "#8FAAD3" }] : []),
+    ...(p5 != null ? [{ label: `5년 ${fmtPct(p5)}`, color: "var(--c-gongsi)" }] : []),
+  ];
   return (
     <div className="panel">
       <div className="sec-head">
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
           <span style={{ width: 14, height: 0, borderTop: "3px solid var(--c-gongsi)", display: "inline-block" }} />공시지가
         </span>
-        <span style={{ marginLeft: "auto", display: "flex" }}>
-          <button className={`btn ${mode === "c" ? "primary" : ""}`} style={{ padding: "4px 10px", fontSize: 12, borderRadius: "6px 0 0 6px" }} onClick={() => setMode("c")}>그래프</button>
-          <button className={`btn ${mode === "t" ? "primary" : ""}`} style={{ padding: "4px 10px", fontSize: 12, borderRadius: "0 6px 6px 0", borderLeft: 0 }} onClick={() => setMode("t")}>표</button>
-        </span>
+        {/* 두 갈래 전환 = 슬라이딩 토글(규칙). 네모 버튼 둘을 나열하지 않는다 */}
+        <Segmented size="sm" style={{ marginLeft: "auto" }} value={mode} onChange={setMode}
+          options={[{ value: "c", label: "그래프" }, { value: "t", label: "표" }]} />
       </div>
-      <div style={{ display: "flex", gap: 20, alignItems: mode === "t" ? "flex-start" : "center", flexWrap: "wrap", padding: "6px 14px 12px" }}>
-        <div style={{ flex: "1 1 260px", minWidth: 0, maxWidth: 560 }}>
-          {mode === "c" ? <GongsiTrend series={series} /> : <GongsiTable series={series} />}
+      <div style={{ display: "flex", gap: 24, alignItems: mode === "t" ? "flex-start" : "center", flexWrap: "wrap", padding: "6px 18px 16px" }}>
+        <div style={{ flex: "1 1 360px", minWidth: 0, maxWidth: 620 }}>
+          {mode === "c"
+            ? <GongsiTrend series={series} bands={bands} foot={foot} />
+            : <GongsiTable series={series} />}
         </div>
-        <div style={{ flex: "1 1 164px", minWidth: 150, alignSelf: "stretch", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          <div style={{ paddingBottom: 12 }}>
-            <div style={GL}>㎡당 공시지가</div>
-            <div className="num" style={{ ...GV, color: "var(--c-gongsi)" }}>{manPerM2(gongsiLatest)}<span style={GU}>/㎡</span></div>
+        <div style={{ flex: "0 1 200px", minWidth: 180 }}>
+          <div style={GL}>㎡당 공시지가</div>
+          <div className="num" style={{ ...GV, color: "var(--c-gongsi)" }}>{manPerM2(gongsiLatest)}<span style={GU}>/㎡</span></div>
+          <div style={{ marginTop: 9, fontSize: 12.5, fontWeight: 600, color: "var(--muted)" }}>
+            <span style={{ display: "inline-flex", alignItems: "center" }}>총액<InfoDot text="㎡당 공시지가 × 대지면적" /></span>{" "}
+            <b className="num" style={{ color: "var(--ink-2)", fontWeight: 800 }}>{wonShort(total) || "—"}</b>
+            {landArea ? <>{" · "}대지 {(landArea / PY).toFixed(1)}평</> : null}
           </div>
-          <div style={{ borderTop: "1px solid var(--line)", padding: "12px 0" }}>
-            <div style={{ ...GL, display: "inline-flex", alignItems: "center" }}>공시지가 총액<InfoDot text="㎡당 공시지가 × 대지면적" /></div>
-            <div className="num" style={{ ...GV, color: "var(--ink)" }}>{wonShort(total) || "—"}</div>
-          </div>
-          {(() => {
-            const gr = gongsiRates(series);
-            if (!gr) return null;
-            const item = (lbl: string, v: number | null) => v == null ? null : (
-              <span style={{ fontSize: 12.5 }}><span style={{ color: "var(--muted)" }}>{lbl}</span> <b className="num" style={{ color: v >= 0 ? "var(--up)" : "var(--down)" }}>{ratePct(v)}</b></span>
-            );
-            return (
-              <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12 }}>
-                <div style={{ ...GL, marginBottom: 5 }}>공시지가 상승률</div>
-                <div style={{ display: "flex", gap: 13, flexWrap: "wrap" }}>{item("5년", gr.r5)}{item("10년", gr.r10)}{item("전체", gr.rate)}</div>
-              </div>
-            );
-          })()}
+          {/* 공시배율 — 총액을 분모로 셋을 나란히. 막대 길이가 곧 배율이라 「몇 배」를 읽지 않아도 안다. */}
+          {total ? <GongsiMult total={total} sale={sale} est={est} real={real} /> : null}
         </div>
       </div>
     </div>
   );
 }
+
