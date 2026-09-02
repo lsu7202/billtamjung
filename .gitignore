@@ -28,7 +28,7 @@ frontend/tsconfig.tsbuildinfo
 data/*.db
 scripts/vworld/cookie.txt
 scripts/deploy/.env.deploy
-backups/
+backups/*
 .playwright-mcp/
 .firebase/
 *.hwpx.bak
@@ -79,3 +79,4 @@ ad/remotion/public/shots/          # = manual/img/*.png 복사본
 ad/remotion/public/vo/raw/         # 정규화 전 원본(gen_manual_vo.py로 재생성)
 scripts/.pipeline.env
 qa/screen/.qa_screen.env
+!backups/README.md
