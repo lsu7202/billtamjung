@@ -297,6 +297,15 @@ def export_by_bjd(r_code, inputxml, sgg_cd):
     return b"".join(parts), None
 
 
+# 기본 실행에서 안 받는 마트 — (계열, 마트). --page 로 이름을 대면 여전히 받는다.
+#
+# 대장/공동주택가격: 아파트 호별 공시가격 2008~2026. **읽는 화면·API 가 하나도 없고**
+# 파이프라인 빌드에서도 뺐다(2026-09-02). 그런데 55장 중 이것 하나가 크롤 시간의 절반을
+# 넘게 먹는다 — 25구에 172.7분 · 6.9GB. 노원구 상계동은 서버가 표를 만들다 502 로
+# 끊겨 아예 못 받는다. 아파트를 다루게 되면 이 줄을 지운다.
+SKIP_BY_DEFAULT = {("대장", "공동주택가격")}
+
+
 def pages():
     if not os.path.exists(PAGES_JSON):
         sys.exit(f"✗ {PAGES_JSON} 없음 — 템플릿을 먼저 떠야 합니다(주석 참고)")
@@ -326,6 +335,13 @@ def main():
         ps = [p for p in ps if p["grp"] == a.only]
     if a.page:
         ps = [p for p in ps if p["name"] == a.page]
+    else:
+        # 이름을 콕 집었을 때만 예외로 받는다 — 계열(--only)만으로는 안 받는다.
+        skipped = [p for p in ps if (p["grp"], p["name"]) in SKIP_BY_DEFAULT]
+        ps = [p for p in ps if (p["grp"], p["name"]) not in SKIP_BY_DEFAULT]
+        for p in skipped:
+            print(f"  ⏭ {p['grp']}/{p['name']}: 기본에서 뺐습니다"
+                  f" (--page {p['name']} 로 받을 수 있습니다)")
     if not ps:
         sys.exit("✗ 해당하는 마트가 없습니다")
     sggs = [a.sgg] if a.sgg else list(SGG)
