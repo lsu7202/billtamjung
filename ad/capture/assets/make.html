@@ -1,0 +1,218 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>예시 첨부물</title>
+<style>
+  /* 브리핑 자료에 넣을 예시 첨부물 4종.
+     서류 2종은 실제 공문서로 오인되지 않도록 「예시」를 크게 박는다. */
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #555; font-family: "Pretendard", -apple-system, "Apple SD Gothic Neo", sans-serif; }
+  .shot { width: 1200px; height: 900px; position: relative; overflow: hidden; margin: 0 0 40px; }
+
+  /* ── 건물 외부 ── */
+  .ext { background: linear-gradient(#BFD4E8 0%, #DCE7F1 46%, #E8EDF0 100%); }
+  .sun { position: absolute; right: 190px; top: 90px; width: 120px; height: 120px; border-radius: 50%;
+         background: radial-gradient(circle, #FFF6DF 0%, #FFE9B8 55%, rgba(255,233,184,0) 72%); }
+  .far { position: absolute; bottom: 190px; background: #A9B8C6; }
+  .bldg { position: absolute; left: 300px; bottom: 150px; width: 600px; height: 620px;
+          background: linear-gradient(100deg, #C9C2B6 0%, #DCD6CB 38%, #C2BBAF 100%);
+          box-shadow: 0 30px 60px rgba(30,35,45,.28); }
+  .bldg .cap { position: absolute; left: -14px; right: -14px; top: -22px; height: 26px; background: #B4AC9E; border-radius: 3px; }
+  .win { position: absolute; background: linear-gradient(160deg, #6E8CA8 0%, #94AFC6 48%, #5D7B96 100%);
+         box-shadow: inset 0 0 0 3px #B7B0A3; }
+  .base { position: absolute; left: 300px; bottom: 150px; width: 600px; height: 140px;
+          background: linear-gradient(#3E4A57, #2E3843); }
+  .sign { position: absolute; left: 340px; bottom: 236px; padding: 8px 20px; background: #262320; color: #E7C876;
+          font-weight: 800; font-size: 26px; letter-spacing: .04em; border-radius: 4px; }
+  .door { position: absolute; left: 520px; bottom: 150px; width: 160px; height: 110px;
+          background: linear-gradient(#8FA9C0, #6C87A0); border: 4px solid #262320; }
+  .road { position: absolute; left: 0; right: 0; bottom: 0; height: 150px; background: #6E6E70; }
+  .road::after { content: ""; position: absolute; left: 0; right: 0; top: 62px; height: 6px;
+                 background: repeating-linear-gradient(90deg, #E8E4DA 0 60px, transparent 60px 120px); }
+  .walk { position: absolute; left: 0; right: 0; bottom: 150px; height: 26px; background: #9A9891; }
+
+  /* ── 건물 내부 ── */
+  .int { background: #EFEBE4; }
+  .floor { position: absolute; left: 0; right: 0; bottom: 0; height: 300px;
+           background: linear-gradient(#C9BFAF, #B6AB9A); }
+  .wallL { position: absolute; left: 0; top: 0; bottom: 300px; width: 300px; background: #E4DFD6; }
+  .wallR { position: absolute; right: 0; top: 0; bottom: 300px; width: 300px; background: #E4DFD6; }
+  .back { position: absolute; left: 300px; right: 300px; top: 0; bottom: 300px; background: #F3F0EA; }
+  .glass { position: absolute; left: 340px; right: 340px; top: 120px; bottom: 340px;
+           background: linear-gradient(170deg, #CFE0EC 0%, #E8F1F6 60%, #D6E4EE 100%);
+           border: 14px solid #DAD4C9; box-shadow: inset 0 0 40px rgba(120,140,160,.35); }
+  .mull { position: absolute; top: 0; bottom: 0; width: 10px; background: #DAD4C9; }
+  .ceil { position: absolute; left: 0; right: 0; top: 0; height: 110px; background: #F7F5F1;
+          border-bottom: 2px solid #E3DED4; }
+  .light { position: absolute; top: 44px; width: 200px; height: 14px; border-radius: 8px; background: #FFFBEE;
+           box-shadow: 0 0 34px 12px rgba(255,247,222,.85); }
+  .col { position: absolute; bottom: 300px; width: 54px; height: 470px; background: linear-gradient(90deg, #DAD4C9, #EDE8DF 40%, #CFC8BB); }
+
+
+  /* ── 내부 4장 공통 뼈대 — 층마다 성격이 다르게 그린다 ── */
+  .rm { position: absolute; inset: 0; }
+  .rm .ceiling { position: absolute; left: 0; right: 0; top: 0; height: 120px; }
+  .rm .flr { position: absolute; left: 0; right: 0; bottom: 0; }
+  .rm .wl, .rm .wr { position: absolute; top: 0; }
+  .rm .bandlight { position: absolute; height: 12px; border-radius: 7px; background: #FFFCF0;
+                   box-shadow: 0 0 30px 10px rgba(255,250,228,.8); }
+  .rm .label { position: absolute; left: 40px; bottom: 34px; background: rgba(38,35,32,.82); color: #E7C876;
+               font-weight: 800; font-size: 26px; padding: 8px 18px; border-radius: 6px; letter-spacing: .02em; }
+  .tile { position: absolute; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); }
+  .stair { position: absolute; background: linear-gradient(#D8D2C7, #BDB5A8); box-shadow: 0 3px 0 rgba(0,0,0,.12); }
+  .duct { position: absolute; background: linear-gradient(#9AA3AB, #7C858D); border-radius: 6px; }
+  .pipe { position: absolute; background: #8E7B62; border-radius: 4px; }
+
+  /* ── 서류 공통 ── */
+  .doc { background: #FFFFFF; padding: 56px 60px; color: #1A1A1A; }
+  .doc h1 { font-size: 40px; letter-spacing: .22em; text-align: center; font-weight: 800; margin-bottom: 8px; }
+  .doc .sub { text-align: center; font-size: 15px; color: #666; margin-bottom: 30px; letter-spacing: .06em; }
+  table { width: 100%; border-collapse: collapse; font-size: 17px; }
+  th, td { border: 1px solid #333; padding: 11px 14px; }
+  th { background: #EFEFEF; font-weight: 700; width: 170px; text-align: center; }
+  .doc .note { margin-top: 22px; font-size: 14px; color: #444; line-height: 1.7; }
+  .stamp { position: absolute; right: 84px; bottom: 96px; width: 150px; height: 150px; border: 5px solid #C0392B;
+           border-radius: 50%; color: #C0392B; display: grid; place-items: center; text-align: center;
+           font-weight: 800; font-size: 19px; line-height: 1.3; transform: rotate(-9deg); opacity: .82; }
+  /* 실제 공문서로 오인되지 않게 — 지우면 안 된다 */
+  .wm { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+  .wm span { font-size: 210px; font-weight: 900; color: rgba(200, 40, 40, .13);
+             transform: rotate(-24deg); letter-spacing: .3em; }
+  .badge { position: absolute; left: 44px; top: 40px; background: #C0392B; color: #fff; font-weight: 800;
+           font-size: 17px; padding: 7px 18px; border-radius: 999px; letter-spacing: .08em; }
+</style>
+
+<!-- 1. 건물 외부 -->
+<div class="shot ext" id="ext">
+  <div class="sun"></div>
+  <div class="far" style="left:60px;  width:190px; height:330px;"></div>
+  <div class="far" style="left:940px; width:230px; height:400px;"></div>
+  <div class="bldg"><div class="cap"></div></div>
+  <div class="base"></div>
+  <div class="door"></div>
+  <div class="sign">초동 53-5</div>
+  <div class="walk"></div>
+  <div class="road"></div>
+</div>
+
+<!-- 2. 건물 내부 -->
+<div class="shot int" id="int">
+  <div class="wallL"></div><div class="wallR"></div><div class="back"></div>
+  <div class="ceil"></div>
+  <div class="light" style="left:300px;"></div>
+  <div class="light" style="left:700px;"></div>
+  <div class="glass">
+    <div class="mull" style="left:31%"></div><div class="mull" style="left:64%"></div>
+  </div>
+  <div class="col" style="left:262px;"></div>
+  <div class="col" style="right:262px;"></div>
+  <div class="floor"></div>
+</div>
+
+
+<!-- 2-2. 2층 사무실 -->
+<div class="shot" id="int2" style="background:#EDEAE3">
+  <div class="rm">
+    <div class="ceiling" style="background:#F7F5F1; border-bottom:2px solid #E3DED4"></div>
+    <div class="wl" style="left:0; width:250px; bottom:270px; background:#E6E1D8"></div>
+    <div class="wr" style="right:0; width:250px; bottom:270px; background:#E6E1D8"></div>
+    <div style="position:absolute; left:250px; right:250px; top:120px; bottom:270px; background:#F2EFE9"></div>
+    <div style="position:absolute; left:290px; right:290px; top:170px; bottom:330px;
+                background:linear-gradient(175deg,#D3E3EF,#EAF2F7 60%,#DCE8F0); border:12px solid #CFC8BB"></div>
+    <div class="mull" style="left:47%; top:170px; bottom:330px; background:#CFC8BB"></div>
+    <div class="bandlight" style="left:280px; right:280px; top:56px"></div>
+    <div class="flr" style="height:270px; background:linear-gradient(#8E8578,#6F675C)"></div>
+    <div class="tile" style="left:250px; right:250px; bottom:120px; height:150px"></div>
+    <div class="label">2층 · 사무실</div>
+  </div>
+</div>
+
+<!-- 2-3. 계단실 -->
+<div class="shot" id="int3" style="background:#E9E5DD">
+  <div class="rm">
+    <div class="ceiling" style="background:#F4F1EB"></div>
+    <div style="position:absolute; inset:120px 0 0 0; background:#E4DFD6"></div>
+    <div style="position:absolute; left:120px; top:150px; width:250px; bottom:260px;
+                background:linear-gradient(170deg,#CFE0EC,#EAF2F7); border:12px solid #D6CFC3"></div>
+    <div class="stair" style="left:640px; bottom:260px; width:420px; height:46px"></div>
+    <div class="stair" style="left:690px; bottom:306px; width:370px; height:46px"></div>
+    <div class="stair" style="left:740px; bottom:352px; width:320px; height:46px"></div>
+    <div class="stair" style="left:790px; bottom:398px; width:270px; height:46px"></div>
+    <div class="stair" style="left:840px; bottom:444px; width:220px; height:46px"></div>
+    <div style="position:absolute; left:648px; bottom:392px; width:430px; height:13px; background:#B7AE9F;
+                transform:rotate(-27.5deg); transform-origin:left center; border-radius:6px"></div>
+    <div style="position:absolute; left:660px; bottom:306px; width:11px; height:92px; background:#C3BBAC"></div>
+    <div style="position:absolute; left:860px; bottom:410px; width:11px; height:92px; background:#C3BBAC"></div>
+    <div style="position:absolute; left:1050px; bottom:512px; width:11px; height:92px; background:#C3BBAC"></div>
+    <div class="bandlight" style="left:420px; width:360px; top:52px"></div>
+    <div class="flr" style="height:260px; background:linear-gradient(#BEB5A7,#A79E90)"></div>
+    <div class="label">공용부 · 계단실</div>
+  </div>
+</div>
+
+<!-- 2-4. 지하 1층 -->
+<div class="shot" id="int4" style="background:#3B3B3D">
+  <div class="rm">
+    <div class="ceiling" style="height:150px; background:#4A4A4C"></div>
+    <div class="duct" style="left:0; right:0; top:44px; height:52px"></div>
+    <div class="pipe" style="left:0; right:0; top:112px; height:14px"></div>
+    <div style="position:absolute; left:0; right:0; top:150px; bottom:250px; background:linear-gradient(#57565A,#6A686C)"></div>
+    <div style="position:absolute; left:170px; top:230px; width:120px; bottom:250px; background:#4E4D51"></div>
+    <div style="position:absolute; right:170px; top:230px; width:120px; bottom:250px; background:#4E4D51"></div>
+    <div class="bandlight" style="left:330px; right:330px; top:80px; background:#FFF3D0; box-shadow:0 0 40px 14px rgba(255,240,200,.55)"></div>
+    <div class="flr" style="height:250px; background:linear-gradient(#6E6C6E,#5A585A)"></div>
+    <div class="label">지하 1층 · 창고</div>
+  </div>
+</div>
+
+<!-- 3. 토지이용계획확인원 -->
+<div class="shot doc" id="land">
+  <div class="badge">예시 · 실제 서류 아님</div>
+  <h1>토지이용계획확인원</h1>
+  <div class="sub">본 이미지는 빌탐정 사용 안내를 위해 만든 예시입니다</div>
+  <table>
+    <tr><th>소재지</th><td colspan="3">서울특별시 중구 초동 53-5</td></tr>
+    <tr><th>지목</th><td>대</td><th>면적</th><td>218.2 ㎡</td></tr>
+    <tr><th>개별공시지가</th><td colspan="3">14,220,000 원/㎡ (2026.01.01 기준)</td></tr>
+    <tr><th>용도지역</th><td colspan="3">일반상업지역</td></tr>
+    <tr><th>용도지구·구역</th><td colspan="3">지구단위계획구역 · 정비구역(재개발)</td></tr>
+    <tr><th>다른 법령에<br>따른 지역·지구</th><td colspan="3">가축사육제한구역, 상대보호구역, 과밀억제권역</td></tr>
+    <tr><th>확인도면</th><td colspan="3" style="height:150px; color:#888; text-align:center; vertical-align:middle">— 도면 생략 —</td></tr>
+  </table>
+  <div class="note">「토지이용규제 기본법」 제10조에 따라 위와 같이 확인합니다.</div>
+  <div class="stamp">예 시<br>SAMPLE</div>
+  <div class="wm"><span>예시</span></div>
+</div>
+
+<!-- 4. 건축물대장 -->
+<div class="shot doc" id="ledger">
+  <div class="badge">예시 · 실제 서류 아님</div>
+  <h1>건축물대장</h1>
+  <div class="sub">일반건축물 · 갑지 — 빌탐정 사용 안내를 위해 만든 예시입니다</div>
+  <table>
+    <tr><th>대지위치</th><td colspan="3">서울특별시 중구 초동 53-5</td></tr>
+    <tr><th>명칭</th><td>—</td><th>주용도</th><td>제2종근린생활시설</td></tr>
+    <tr><th>대지면적</th><td>218.2 ㎡</td><th>연면적</th><td>714.0 ㎡</td></tr>
+    <tr><th>건축면적</th><td>128.9 ㎡</td><th>건폐율</th><td>59.1 %</td></tr>
+    <tr><th>용적률산정<br>연면적</th><td>601.5 ㎡</td><th>용적률</th><td>275.7 %</td></tr>
+    <tr><th>규모</th><td>지하 1층 / 지상 5층</td><th>구조</th><td>철근콘크리트구조</td></tr>
+    <tr><th>사용승인일</th><td>1996-05-21</td><th>승강기</th><td>1대</td></tr>
+    <tr><th>주차대수</th><td colspan="3">자주식 2대</td></tr>
+  </table>
+  <div class="note">이 건축물대장은 예시이며, 실제 발급 서류와 다릅니다.</div>
+  <div class="stamp">예 시<br>SAMPLE</div>
+  <div class="wm"><span>예시</span></div>
+</div>
+
+<script>
+  // 창 규칙적으로 채우기 — 손으로 적으면 지저분해진다
+  const b = document.querySelector(".bldg");
+  for (let r = 0; r < 6; r++) for (let c = 0; c < 4; c++) {
+    const w = document.createElement("div");
+    w.className = "win";
+    w.style.left = 40 + c * 140 + "px";
+    w.style.top = 60 + r * 92 + "px";
+    w.style.width = "104px"; w.style.height = "62px";
+    if ((r * 4 + c) % 7 === 3) w.style.background = "linear-gradient(160deg,#8AA6BE,#B9CEDF)";
+    b.appendChild(w);
+  }
+</script>

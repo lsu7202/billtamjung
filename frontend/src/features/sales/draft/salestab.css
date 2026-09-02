@@ -1,0 +1,254 @@
+/* 매물·매수자 탭 — 확정 결(2026-08-24). 회색 바탕 위 흰 카드, 줄 문법.
+ * 화면은 읽는 곳 — 값을 만지는 문은 전부 통합 모달이다. */
+.lt-split{display:grid; grid-template-columns:320px minmax(0,1fr); gap:14px; align-items:start;
+  background:#F2F4F6; padding:14px; border-radius:22px}
+.lt-list{background:#FFFFFF; border-radius:18px; padding:12px; display:flex; flex-direction:column; gap:2px;
+  box-shadow:0 1px 4px rgba(0,19,43,.05)}
+.lt-lanes{display:flex; gap:5px; align-items:center; margin-bottom:8px; flex-wrap:wrap}
+.lt-lanes .sp{flex:1}
+/* ＋버튼은 두 목록이 완전히 같은 한 벌 — 크기·색·아이콘 전부 */
+.lt-add, .lt-lanes .by-add{width:30px; height:30px; border:0; border-radius:10px; background:#EBF4FF;
+  color:#3182F6; display:inline-grid; place-items:center; cursor:pointer; transition:all .13s; box-shadow:none;
+  padding:0}
+.lt-add:hover, .lt-lanes .by-add:hover{background:#3182F6; color:#fff}
+.lt-q{border:0; background:#F2F4F6; border-radius:999px; padding:9px 15px; font:inherit; font-size:13px;
+  outline:none; color:#191F28; margin-bottom:8px; transition:box-shadow .13s}
+.lt-q::placeholder{color:#B0B8C1}
+.lt-q:focus{box-shadow:0 0 0 2px #3182F6}
+.lt-row{display:flex; align-items:center; gap:8px; border:0; background:none; font:inherit; text-align:left;
+  padding:10px 12px; border-radius:12px; cursor:pointer; transition:background .12s; width:100%}
+.lt-row:hover{background:#F7F8FA}
+.lt-row.on{background:#EBF4FF}
+.lt-row.on .who{color:#3182F6}
+.lt-row .who{font-size:14px; font-weight:700; color:#191F28; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.lt-row .cap{flex:1; min-width:0; font-size:11.5px; font-weight:500; color:#8B95A1;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.lt-row .ev{font-size:12px; font-weight:700; color:#6B7684; flex:0 0 auto}
+.lt-row .ev.bad{color:#F04452}
+.lt-none{padding:16px 12px; font-size:12.5px; color:#8B95A1; line-height:1.6}
+.lt-right{min-width:0}
+
+/* 판 */
+.lt-pane{display:flex; flex-direction:column; gap:12px; min-width:0}
+.lt-sent .lt-addr{border:0; background:none; font:inherit; font-size:12px; font-weight:800; color:#8B95A1;
+  cursor:pointer; padding:0; display:block; margin-bottom:6px; letter-spacing:.02em}
+.lt-sent .lt-addr:hover{color:#3182F6}
+.lt-sent .sent{font-size:21px; font-weight:800; letter-spacing:-.03em; line-height:1.5; cursor:pointer;
+  border-radius:10px}
+.lt-sent .sent b{color:#3182F6}
+.lt-sent .sent.dim{color:#8B95A1}
+.lt-sent .sent:hover{background:#F7F8FA}
+.lt-chips{display:flex; gap:7px; margin-top:12px; flex-wrap:wrap; align-items:center}
+.lt-chips .um-chip.hold, .um-chip.hold{background:#FDEBEA; color:#F04452}
+.lt-chips .um-chip.hold i{color:#F04452; opacity:.7}
+.lt-top{display:grid; grid-template-columns:minmax(0,1fr) 264px; gap:12px; align-items:stretch}
+.lt-owner{display:flex; flex-direction:column; align-items:flex-start; gap:7px; cursor:pointer;
+  transition:box-shadow .14s}
+.lt-owner:hover{box-shadow:0 3px 12px rgba(0,19,43,.09)}
+.lt-owner .k{font-size:11.5px; font-weight:800; color:#8B95A1}
+.lt-owner .nm{font-size:15px; font-weight:800; color:#191F28}
+.lt-owner .nm.off{color:#B0B8C1; font-weight:600}
+.lt-owner .tag{font-size:10.5px; font-weight:800; background:#F2F4F6; border-radius:7px; padding:2px 8px; color:#6B7684}
+.lt-owner .ph{font-size:13.5px; font-weight:700; color:#3182F6; text-decoration:none}
+.lt-owner .ph.dim{color:#B0B8C1}
+.lt-owner .lt-others{margin-top:auto; padding-top:8px; display:flex; flex-direction:column; gap:4px;
+  align-items:flex-start; font-size:12px}
+.lt-pairs .lt-foot{display:flex; padding:4px 8px 2px}
+
+@media (max-width:960px){ .lt-split{grid-template-columns:1fr} .lt-top{grid-template-columns:1fr} }
+
+
+/* ══ 일정 달력 카드(2026-08-24 확정) ══ 고리 붙은 네모 · 이름·날짜·시간만 */
+.scals{display:flex; gap:11px; flex-wrap:wrap; align-items:flex-start; margin-top:16px; padding-top:6px}
+.scal{position:relative; width:104px; border:0; font:inherit; cursor:pointer; background:none;
+  padding:0; text-align:left; transition:transform .15s}
+.scal:hover{transform:translateY(-2px)}
+.scal .rings{position:absolute; top:-6px; left:0; right:0; display:flex; justify-content:center; gap:34px; z-index:0}
+.scal .rings i{width:5px; height:12px; border-radius:3px; background:#2A6FD6; display:block}
+.scal .body{position:relative; z-index:1; border-radius:14px; overflow:hidden;
+  box-shadow:0 1px 5px rgba(0,19,43,.12); background:#fff; display:block}
+.scal .hd{display:block; background:#3182F6; color:#fff; font-size:11px; font-weight:800;
+  padding:5px 12px; letter-spacing:.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.scal .bd{display:flex; flex-direction:column; gap:1px; padding:9px 12px 11px}
+.scal .d{font-size:19px; font-weight:800; color:#191F28; letter-spacing:-.03em; line-height:1.2}
+.scal .hm{font-size:11.5px; font-weight:700; color:#6B7684}
+
+.scal.pale .rings i{background:#B8D4FA}
+.scal.pale .hd{background:#EBF4FF; color:#3182F6}
+.scal.done .rings i{background:#C8CDD3}
+.scal.done .hd{background:#F2F4F6; color:#8B95A1}
+.scal.done .d{color:#B0B8C1}
+.scal.done .body{box-shadow:0 1px 4px rgba(0,19,43,.06)}
+.scal.soon .rings i{background:#D42F26}
+.scal.soon .hd{background:#F04452}
+.scal.soon .d{color:#F04452}
+
+.scal.add .rings i{background:#D5DAE0}
+.scal.add .body{box-shadow:none; border:1.5px dashed #D5DAE0; background:none}
+.scal.add .hd{background:none; color:#B0B8C1; border-bottom:1.5px dashed #D5DAE0}
+.scal.add .bd{align-items:center; padding:11px 12px 12px; color:#B0B8C1}
+.scal.add:hover .body, .scal.add:hover .hd{border-color:#3182F6}
+.scal.add:hover .rings i{background:#3182F6}
+.scal.add:hover .bd, .scal.add:hover .hd{color:#3182F6}
+
+/* ══ 일정 모달 재피부(2026-08-24) ══ 확정 결로 — 회색 바탕·흰 면·파랑 하나.
+ * 골격(gm-*)은 그대로 두고 옷만 갈아입힌다. 부품이 한 벌이라 캘린더·대화창에서도 같이 바뀐다. */
+.gm{background:#F2F4F6 !important; border-radius:24px !important; color:#191F28;
+  box-shadow:0 24px 64px rgba(0,19,43,.22), 0 2px 8px rgba(0,19,43,.08) !important;
+  border:0 !important; letter-spacing:-.01em}
+.gm .gm-title, .gm .gm-title-fix{font-size:21px !important; font-weight:800 !important;
+  letter-spacing:-.03em; color:#191F28; background:none !important; border:0 !important;
+  padding:20px 24px 6px !important}
+.gm .gm-title::placeholder{color:#B0B8C1}
+.gm .gm-row{background:#FFFFFF; border:0 !important; border-radius:16px; margin:0 16px 8px;
+  padding:12px 16px !important; box-shadow:0 1px 4px rgba(0,19,43,.05); align-items:center}
+.gm .gm-row + .gm-row{margin-top:0}
+.gm .gm-i{color:#8B95A1}
+.gm .gm-lab2, .gm .gm-txt{font-size:11.5px; font-weight:800; color:#8B95A1}
+.gm .gm-seg{background:#F2F4F6; border-radius:12px; padding:3px; display:inline-flex; gap:2px; border:0}
+.gm .gm-seg button{border:0 !important; background:none !important; font:inherit; font-size:12.5px;
+  font-weight:700; color:#6B7684 !important; padding:5px 13px !important; border-radius:10px !important;
+  cursor:pointer; transition:all .14s}
+.gm .gm-seg button.on{background:#EBF4FF !important; color:#3182F6 !important; font-weight:800}
+.gm .gm-in{border:0 !important; background:#F2F4F6 !important; border-radius:11px !important;
+  padding:7px 13px !important; font:inherit; font-size:13.5px; font-weight:700; color:#191F28;
+  outline:none; transition:box-shadow .13s}
+.gm .gm-in:focus{box-shadow:0 0 0 2px #3182F6}
+.gm .gm-date{font-size:15px; font-weight:800; color:#191F28}
+.gm .gm-add{border:0 !important; background:none !important; font:inherit; font-size:13px;
+  font-weight:700; color:#8B95A1 !important; padding:6px 11px !important; border-radius:11px !important;
+  cursor:pointer; transition:all .13s}
+.gm .gm-add:hover{background:#EBF4FF !important; color:#3182F6 !important}
+.gm .gm-clear{border:0; background:none; font-size:12px; font-weight:700; color:#B0B8C1; cursor:pointer;
+  padding:5px 9px; border-radius:9px}
+.gm .gm-clear:hover{background:#FDEBEA; color:#F04452}
+.gm .gm-p{background:#EBF4FF !important; color:#3182F6 !important; border:0 !important;
+  border-radius:11px !important; font-size:12.5px; font-weight:700; padding:5px 10px 5px 12px !important;
+  display:inline-flex; align-items:center; gap:5px}
+.gm .gm-p button{border:0; background:none; color:#3182F6; opacity:.55; cursor:pointer; font-size:12px}
+.gm .gm-p button:hover{opacity:1}
+.gm .gm-cand{border:0 !important; background:#F2F4F6 !important; color:#6B7684 !important;
+  border-radius:11px !important; font-size:12.5px; font-weight:700; padding:5px 12px !important; cursor:pointer}
+.gm .gm-cand:hover{background:#EBF4FF !important; color:#3182F6 !important}
+.gm .gm-hits{background:#FFFFFF; border:0; border-radius:14px; box-shadow:0 12px 32px rgba(0,19,43,.16); padding:6px}
+.gm .gm-hits button{border:0; background:none; cursor:pointer; padding:4px 6px; border-radius:10px; display:block; width:100%}
+.gm .gm-hits button:hover{background:#F7F8FA}
+.gm .gm-foot{padding:8px 20px 20px !important; border:0 !important; gap:8px; display:flex; align-items:center}
+.gm .gm-ghost{border:0 !important; background:none !important; font:inherit; font-size:13.5px;
+  font-weight:700; color:#8B95A1 !important; padding:9px 15px !important; border-radius:12px !important;
+  cursor:pointer; transition:all .13s}
+.gm .gm-ghost:hover{background:#E8EBEE !important; color:#4E5968 !important}
+.gm .gm-save{border:0 !important; background:#3182F6 !important; color:#fff !important; font:inherit;
+  font-size:14px; font-weight:800; padding:10px 20px !important; border-radius:13px !important;
+  cursor:pointer; transition:filter .13s}
+.gm .gm-save:hover{filter:brightness(.95)}
+/* 담당자 — 고른 사람은 연파랑. 검정 알약은 색 하나 규칙 밖이다 */
+.gm .gm-me{border:0 !important; font-size:12.5px; border-radius:999px; padding:4px 11px}
+.gm .gm-me.on{background:#EBF4FF !important; color:#3182F6 !important; font-weight:800}
+.gm .gm-me:not(.on){color:#8B95A1}
+.gm .gm-me:not(.on):hover{background:#F2F4F6 !important; color:#4E5968}
+.gm .gm-sep{color:#8B95A1; font-size:11.5px; font-weight:800; border:0}
+.gm .gm-sep span{background:none}
+
+/* ── 캘린더 새 일정 ── 날짜 줄 오른쪽의 ＋ 하나. 달력 칸을 두 번 눌러도 열린다 */
+.cd-plus{border:0; background:none; padding:5px; border-radius:10px; color:#B0B8C1; cursor:pointer;
+  display:flex; align-items:center; transition:all .13s}
+.cd-plus:hover{background:#EBF4FF; color:#3182F6}
+
+/* ══ 캘린더 탭 재피부(2026-08-25) ══ 확정 결로 — 회색 바탕·흰 판·파랑 하나.
+ * 골격(cal-*)은 그대로 두고 옷만 갈아입힌다. 매도 보라는 폐지됐다. */
+.cal{gap:16px}
+.cal-head h2{font-size:19px; font-weight:800; letter-spacing:-.03em; color:#191F28; min-width:124px}
+.cal-nav{border:0 !important; background:#FFFFFF !important; width:32px; height:32px;
+  border-radius:999px; color:#8B95A1 !important; box-shadow:0 1px 4px rgba(0,19,43,.06)}
+.cal-nav:hover{color:#3182F6 !important; background:#EBF4FF !important}
+.cal-today{font-size:12.5px; font-weight:700; color:#3182F6}
+
+/* 판 — 흰 카드 하나. 격자선은 실선이 아니라 눈에 겨우 보이는 정도 */
+.cal-grid{background:#EEF1F4 !important; border:0 !important; border-radius:20px;
+  box-shadow:0 1px 4px rgba(0,19,43,.05); gap:1px; overflow:hidden}
+.cal-wd{background:#FFFFFF !important; color:#8B95A1 !important; font-size:11px; font-weight:800;
+  padding:10px 12px; letter-spacing:.03em}
+.cal-wd.we{color:#B0B8C1 !important}
+.cal-cell{background:#FFFFFF !important; min-height:96px; padding:8px 8px 9px; gap:4px}
+.cal-cell.out{background:#FAFBFC !important}
+.cal-n{font-size:12px; font-weight:700; color:#4E5968}
+.cal-n.we{color:#B0B8C1}
+.cal-cell.today .cal-n{background:#3182F6 !important; color:#fff !important; min-width:20px;
+  height:20px; line-height:20px; font-weight:800}
+.cal-cell.pick{box-shadow:inset 0 0 0 2px #3182F6 !important}
+.cal-cell.drop{background:#EBF4FF !important; box-shadow:inset 0 0 0 2px #3182F6 !important}
+
+/* 일정 표식 — 색은 종류가 정한다. 매수·매도로 나누지 않는다(보라 폐지) */
+.cal-ev{border-radius:9px; font-size:11.5px; padding:3px 8px; border-left:0 !important;
+  background:#F2F4F6 !important; color:#4E5968 !important; font-weight:700}
+.cal-ev .hm{color:#8B95A1; font-size:11px; font-weight:700}
+.cal-ev b{font-weight:800; color:#333D4B}
+.cal-ev .by{color:#B0B8C1; font-size:10px}
+.cal-ev.buy, .cal-ev.sell{background:#F2F4F6 !important}
+.cal-ev.c-계약{background:#3182F6 !important}
+.cal-ev.c-계약 b, .cal-ev.c-계약 .hm, .cal-ev.c-계약 .by{color:#fff !important; opacity:.95}
+.cal-ev.c-중도금, .cal-ev.c-잔금, .cal-ev.c-브리핑, .cal-ev.c-임장{background:#EBF4FF !important}
+.cal-ev.c-중도금 b, .cal-ev.c-잔금 b, .cal-ev.c-브리핑 b, .cal-ev.c-임장 b{color:#3182F6 !important}
+.cal-ev.c-중도금 .hm, .cal-ev.c-잔금 .hm, .cal-ev.c-브리핑 .hm, .cal-ev.c-임장 .hm{color:#3182F6 !important; opacity:.7}
+.cal-ev.st-완료{opacity:.45}
+.cal-ev:hover{filter:none; box-shadow:0 1px 5px rgba(0,19,43,.12)}
+
+/* 고른 날 — 흰 카드 */
+.cal-day{background:#FFFFFF; border-radius:20px; padding:16px 18px 18px;
+  box-shadow:0 1px 4px rgba(0,19,43,.05); border:0}
+.cal-day .sec-head{font-size:15px; font-weight:800; letter-spacing:-.025em; color:#191F28}
+.cd-now{border-top-color:#F04452 !important}
+.cd-now span{color:#F04452 !important}
+/* 옛 종류색(초록·보라)을 덮는다 — 색은 파랑 하나 + 기한 빨강 */
+.cal-ev.c-계약, .cal-ev.c-중도금, .cal-ev.c-잔금{box-shadow:none !important; font-size:11.5px}
+.cd-item.c-계약 .cd-title, .cd-item.c-중도금 .cd-title, .cd-item.c-잔금 .cd-title{color:#3182F6 !important}
+.cd-p.buyer{background:#EBF4FF !important; color:#3182F6 !important; border-radius:8px; font-weight:700}
+.cd-p.owner{background:#F2F4F6 !important; color:#4E5968 !important; border-radius:8px; font-weight:700}
+.cd-p.guest{background:#F2F4F6 !important; color:#8B95A1 !important; border-radius:8px}
+.gm-seg button.on.c-계약, .gm-seg button.on.c-중도금, .gm-seg button.on.c-잔금,
+.gm-seg button.on.c-가계약, .gm-seg button.on.c-브리핑, .gm-seg button.on.c-일반{
+  background:#EBF4FF !important; color:#3182F6 !important}
+/* 가계약도 캘린더에서 연파랑 — 계약만 찬 파랑이다 */
+.cal-ev.c-가계약{background:#EBF4FF !important}
+.cal-ev.c-가계약 b{color:#3182F6 !important}
+.cal-ev.c-가계약 .hm{color:#3182F6 !important; opacity:.7}
+.cd-item.c-가계약 .cd-title{color:#3182F6 !important}
+/* 매물 고르기 목록 — 검색 전에도 최근 순으로 뜬다 */
+.gm-hits.wide{max-height:250px; overflow-y:auto; min-width:230px}
+
+/* 고른 날 패널 — 일정마다 흰 카드로 떼어 놓는다(2026-08-25).
+   줄 사이 실선 하나로는 어디까지가 한 약속인지 안 보였다. 줄이 셋씩 겹쳐 있어서다. */
+.cal-day{background:none !important; box-shadow:none !important; padding:0 !important;
+  gap:10px; border-radius:0}
+.cal-day .sec-head{padding:2px 2px 0; display:flex; align-items:center; gap:8px}
+.cd-item{background:#FFFFFF; border-radius:16px; padding:14px 16px 15px !important;
+  border-bottom:0 !important; box-shadow:0 1px 4px rgba(0,19,43,.05); gap:7px;
+  cursor:pointer; transition:box-shadow .13s}
+.cd-item:hover{box-shadow:0 2px 10px rgba(0,19,43,.1)}
+.cd-item:last-child{padding-bottom:15px !important}
+.cd-item.off{opacity:1}
+.cd-item.off .cd-title{color:#B0B8C1 !important; text-decoration:line-through}
+.cd-item.off .cd-hm{color:#B0B8C1}
+.cd-title{font-size:14.5px; font-weight:800; letter-spacing:-.02em; color:#191F28}
+.cd-hm{background:#F2F4F6 !important; color:#4E5968 !important; border-radius:8px;
+  padding:3px 8px !important; font-size:12px; font-weight:800; cursor:default}
+.cd-hm.none{background:none !important; color:#C8CDD3 !important; padding-left:0 !important}
+.cd-hm:hover{background:#F2F4F6 !important; color:#4E5968 !important}
+.cd-st{color:#8B95A1 !important; background:#F2F4F6; border-radius:7px; padding:2px 7px}
+.cd-place{color:#8B95A1; cursor:default}
+.cd-place:hover{color:#8B95A1}
+.cd-place.none{color:#C8CDD3}
+.cd-addr{color:#8B95A1 !important; font-weight:600}
+.cd-addr:hover{color:#3182F6 !important}
+.cd-by, .cd-by.me{background:none !important; color:#B0B8C1 !important; font-size:11.5px;
+  font-weight:700; padding:0 !important}
+.cd-src{background:#F7F8FA; border-radius:12px; padding:9px 12px; margin:2px 0 0;
+  font-size:12px; color:#6B7684; border:0}
+.cd-ic{gap:4px}
+.cd-ic button{opacity:0; border-radius:9px; padding:5px; color:#8B95A1}
+.cd-item:hover .cd-ic button{opacity:.7}
+.cd-ic button:hover{opacity:1 !important; background:#EBF4FF !important; color:#3182F6}
+.cd-ic button.on{opacity:1 !important; color:#3182F6}
+.cd-ic button.del:hover{background:#FDEBEA !important; color:#F04452}
+.cd-none{padding:14px 4px; color:#8B95A1}

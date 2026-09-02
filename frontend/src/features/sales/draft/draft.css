@@ -1,0 +1,142 @@
+/* 통합 매물 모달 — 초안 · 토스 결(2026-08-23 확정).
+ * 회색 바탕 #F2F4F6 위 흰 카드 · 잉크 #191F28 · 유채색은 파랑 #3182F6 하나(＋기한 빨강).
+ * 선 없음, 카드와 여백이 구획. 버튼은 아이콘·칩만. */
+.um{width:min(1100px,96vw); max-height:92vh; display:flex; flex-direction:column;
+  background:#F2F4F6; color:#191F28; border-radius:24px; overflow:hidden;
+  letter-spacing:-.01em;
+  box-shadow:0 24px 64px rgba(0,19,43,.22), 0 2px 8px rgba(0,19,43,.08)}
+.um .sp{flex:1}
+.um .num{font-variant-numeric:tabular-nums}
+
+.um-head{display:flex; align-items:center; gap:11px; padding:18px 24px 12px}
+.um-head b{font-size:18px; font-weight:800; letter-spacing:-.03em; color:#191F28}
+.um-st{font-size:12px; font-weight:700; padding:5px 13px; border-radius:11px; background:#FFFFFF; color:#4E5968;
+  box-shadow:0 1px 3px rgba(0,19,43,.05)}
+.um-draft{font-size:10.5px; font-weight:800; color:#8B95A1; border:1px dashed #D0D6DC;
+  border-radius:7px; padding:2px 8px; letter-spacing:.04em}
+.um-x{border:0; background:none; color:#8B95A1; font-size:15px; font-weight:700; cursor:pointer;
+  width:32px; height:32px; border-radius:11px; transition:all .13s}
+.um-x:hover{background:#E8EBEE; color:#333D4B}
+
+.um-body{display:grid; grid-template-columns:1fr 272px; min-height:520px; flex:1; overflow:hidden}
+.um-main{padding:0 20px 20px 24px; overflow-y:auto}
+
+/* 탭 — 칩 줄(선택 = 연파랑) */
+.um-tabs{display:flex; gap:6px; padding:6px 0 14px; position:sticky; top:0; background:#F2F4F6; z-index:2}
+.um-tabs button{border:0; background:none; font:inherit; font-size:13.5px; font-weight:700; color:#6B7684;
+  padding:7px 15px; border-radius:12px; cursor:pointer; transition:all .14s}
+.um-tabs button:hover{background:#E8EBEE; color:#333D4B}
+.um-tabs button.on{background:#EBF4FF; color:#3182F6; font-weight:800}
+.um-tabs button:last-child{margin-left:auto}
+.um-tabs button.hold{color:#F04452; opacity:.75; display:inline-flex; align-items:center; gap:5px}
+.um-tabs button.hold:hover{background:#FDEBEA; color:#F04452; opacity:1}
+.um-tabs button.hold.on{background:#FDEBEA; color:#F04452; opacity:1}
+.um-tabs .hdot{width:6px; height:6px; border-radius:999px; background:#F04452; display:inline-block}
+
+.um-pane{display:flex; flex-direction:column; gap:14px; animation:um-in .2s ease}
+
+/* 흰 카드 */
+.tc{background:#FFFFFF; border-radius:18px; padding:20px 24px; box-shadow:0 1px 4px rgba(0,19,43,.05)}
+
+.um-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap; min-height:40px}
+.um-row .k{flex:0 0 62px; font-size:11.5px; font-weight:800; color:#8B95A1}
+.um-row .dim, .um-pane .dim{color:#8B95A1; font-size:12.5px; font-weight:600}
+.um-half{display:grid; grid-template-columns:1fr 1fr; gap:0 18px}
+.um-half .um-row .k{flex:0 0 auto; min-width:62px}
+.um-big{font-size:16.5px; font-weight:800; letter-spacing:-.02em; color:#191F28}
+
+/* 부품 */
+.um-scheds{display:flex; gap:7px; margin-top:10px; flex-wrap:wrap; align-items:center}
+.um-scheds .um-chip.on{background:#EBF4FF; color:#3182F6}
+.um-ghost{border:0; background:none; font:inherit; font-size:13px; font-weight:700; color:#8B95A1; cursor:pointer;
+  padding:7px 10px; border-radius:11px; transition:all .13s}
+.um-ghost:hover{background:#E8EBEE; color:#4E5968}
+.um-ghost.bad{color:#B0B8C1}
+.um-ghost.bad:hover{background:#FDEBEA; color:#F04452}
+.um-vp{display:inline-flex; align-items:baseline; gap:6px; border:0; background:#F2F4F6;
+  font:inherit; font-size:12px; font-weight:700; color:#8B95A1; padding:6px 13px; border-radius:11px;
+  cursor:pointer; transition:background .13s}
+.um-vp:hover{background:#E8EBEE}
+.um-vp b{font-size:14px; color:#191F28; font-variant-numeric:tabular-nums}
+.um-vp.ok{background:#EBF4FF}
+.um-vp.ok b{color:#3182F6}
+.um-vp.still{cursor:default}
+.um-vp.still:hover{background:#F2F4F6}
+
+/* 아이콘 버튼 — 문서는 특별한 문이라 윤곽을 입는다(2026-08-23) */
+.um-doc{border:1.5px solid #3182F6; background:#EBF4FF; color:#3182F6; width:36px; height:36px;
+  border-radius:12px; cursor:pointer; display:inline-grid; place-items:center; transition:all .14s}
+.um-doc:hover{background:#3182F6; color:#fff}
+.um-doc.cal{border-color:#D0D6DC; background:#F2F4F6; color:#333D4B}
+.um-doc.cal:hover{border-color:#3182F6; background:#3182F6; color:#fff}
+
+/* ── 계약 탭 ── */
+.um-sent{font-size:22px; font-weight:800; letter-spacing:-.035em; line-height:1.55; color:#191F28}
+.um-sent > b{color:#3182F6}
+.um-sp{border:0; background:none; font:inherit; color:#3182F6; cursor:pointer; border-radius:9px; padding:0 3px;
+  transition:background .13s}
+.um-sp:hover{background:#EBF4FF}
+.um-sin{border:0; background:#EBF4FF; border-radius:9px; font:inherit; color:#3182F6; width:110px;
+  padding:0 6px; outline:none}
+.um-sub{display:flex; gap:7px; margin-top:13px; flex-wrap:wrap; align-items:center}
+
+.um-offer{padding:10px 14px}
+.bexp{display:flex; flex-direction:column; gap:6px}
+.bexp .brow{display:flex; gap:10px; align-items:center; min-height:32px; flex-wrap:wrap}
+.bexp .bk{flex:0 0 48px; font-size:11px; font-weight:800; color:#8B95A1}
+.ohist{padding:2px 14px 14px 112px; overflow-x:auto; animation:um-in .18s ease}
+.ohist table{border-collapse:collapse}
+.ohist th{font-size:11px; font-weight:700; color:#B0B8C1; text-align:left; padding:2px 22px 2px 0; white-space:nowrap}
+.ohist td{font-size:13.5px; font-weight:700; color:#6B7684; padding:1px 22px 1px 0; white-space:nowrap}
+.ohist td.nowv{color:#191F28; font-weight:800}
+.ohist td{position:relative}
+.ohist td .htrash{position:absolute; inset:0; margin:auto; width:22px; height:22px; border:0; border-radius:999px;
+  background:#FDEBEA; color:#F04452; display:grid; place-items:center; cursor:pointer; opacity:0; transition:opacity .12s}
+.ohist td.del:hover .hv{opacity:.2}
+.ohist td.del:hover .htrash{opacity:1}
+.ohist td .htrash:hover{background:#F04452; color:#fff}
+.um-foot2{display:flex; align-items:center; gap:10px; padding:0 6px}
+.um-seg{display:inline-flex; background:#E8EBEE; border-radius:13px; padding:3px}
+.um-seg button{border:0; background:none; font:inherit; font-size:13px; font-weight:700; padding:6px 15px;
+  color:#6B7684; border-radius:11px; cursor:pointer; transition:all .15s}
+.um-seg button.on{background:#FFFFFF; color:#191F28; box-shadow:0 1px 4px rgba(0,19,43,.12)}
+.um-seg.off{opacity:.45}
+.um-seg.off button{cursor:default}
+
+.um-memo{display:flex; flex-direction:column; overflow:hidden; padding-right:16px}
+.um-memo .mt{font-size:11.5px; font-weight:800; color:#8B95A1; letter-spacing:.06em; padding:14px 4px 8px}
+.um-memo ul{list-style:none; margin:0; padding:0; flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:7px}
+.um-memo li{background:#FFFFFF; border-radius:14px; padding:10px 13px; box-shadow:0 1px 3px rgba(0,19,43,.04)}
+.um-memo li.dim{background:none; box-shadow:none; font-size:12.5px; color:#8B95A1}
+.um-memo .d{font-size:10.5px; font-weight:800; color:#8B95A1; font-variant-numeric:tabular-nums}
+.um-memo .t{font-size:13px; line-height:1.55; margin-top:2px; color:#191F28}
+.um-memo .w{font-size:10.5px; color:#B0B8C1; margin-top:2px}
+.um-memo .in{margin:10px 0 16px; border:0; background:#FFFFFF; border-radius:999px; padding:10px 16px;
+  font:inherit; font-size:13px; outline:none; color:#191F28; box-shadow:0 1px 3px rgba(0,19,43,.05);
+  transition:box-shadow .13s}
+.um-memo .in::placeholder{color:#B0B8C1}
+.um-memo .in:focus{box-shadow:0 0 0 2px #3182F6}
+
+@media (prefers-reduced-motion: reduce){ .um *, .um{animation:none !important; transition:none !important} }
+@media (max-width:860px){ .um-body{grid-template-columns:1fr} .um-memo{display:none}
+  .ohist{padding-left:12px} .eexp{padding-left:14px} }
+
+/* 투자 가정(0133) — 조건 목록과 시뮬 가정을 가르는 작은 머리. 표가 둘인 걸 눈이 알아야 한다 */
+.um-k2{font-size:11px; font-weight:800; letter-spacing:.05em; color:#8B95A1; margin:16px 6px 7px}
+/* 값 뒤에 붙는 이름표 — 무슨 숫자인지 값 옆에서 말한다(줄 왼쪽 라벨을 다섯 줄 반복하지 않으려고) */
+.um-dim{font-style:normal; font-size:11px; font-weight:700; color:#B0B8C1; margin-left:6px}
+
+/* 문서 버튼 — 아이콘만 두니 옆 칩에 묻혔다. 이름을 붙여 세운다(2026-08-28) */
+.um-doc.wide{width:auto; padding:0 15px; gap:7px; display:inline-flex; align-items:center;
+  font-size:13px; font-weight:800; letter-spacing:-.015em; white-space:nowrap}
+
+/* 매수자 답(2026-08-28) — 낱말은 파생값, 적기는 화살표(OfferModal).
+   답 대기만 회색, 답이 서면 잉크 — 색을 늘리지 않고 눈으로 가른다 */
+.um-answer{display:inline-flex; align-items:center; gap:6px}
+.um-answer i{font-style:normal; font-size:12px; font-weight:700; color:#333D4B}
+.um-answer i.wait{color:#B0B8C1; font-weight:600}
+.um-reply{width:24px; height:24px; border:0; border-radius:7px; background:none; color:#B0B8C1;
+  cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0;
+  opacity:0; transition:opacity .12s}
+.orow:hover .um-reply{opacity:1}
+.um-reply:hover{background:#EBF4FF; color:#3182F6}

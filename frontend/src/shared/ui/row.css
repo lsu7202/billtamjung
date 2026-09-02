@@ -1,0 +1,73 @@
+/* 줄 문법 — 라벨 왼쪽 · 현재 값 오른쪽 · 없으면 「—」 · 누르면 그 자리에서 열림.
+   통합 매물 모달에서 자란 어법인데 건물 상세도 같은 말을 해야 해서 공용으로 올렸다(2026-08-25).
+   여기 있는 이름은 두 화면이 같이 쓴다 — 한쪽만 고치지 말 것.
+   (draft.css 가 이 파일을 @import 한다. 이름 접두 정리는 따로 한다) */
+
+/* 줄 어법이 쓰는 움직임 — 여기 두어야 이 파일만 실려도 돈다 */
+@keyframes um-in{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none}}
+@keyframes pop{0%{transform:scale(.6)} 60%{transform:scale(1.2)} 100%{transform:scale(1)}}
+
+.oitem + .oitem{margin-top:1px}
+.orow{display:flex; align-items:center; gap:12px; min-height:54px; border-radius:13px; padding:0 14px;
+  transition:background .12s}
+.orow.has{cursor:pointer}
+.orow:hover{background:#F7F8FA}
+.orow .who{font-size:15px; font-weight:700; min-width:96px; color:#191F28}
+.orow .who.g{color:#6B7684}
+.orow .cap{font-size:12.5px; color:#8B95A1; font-weight:500; flex:1; min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.orow .um-vp{background:none; padding:5px 9px}
+.orow .um-vp b{font-size:15.5px; font-weight:800}
+.orow .um-vp:hover{background:#F2F4F6}
+.um-adopt{border:0; background:#F2F4F6; color:#B0B8C1; width:28px; height:28px;
+  border-radius:999px; cursor:pointer; font-size:12px; font-weight:900; display:inline-grid; place-items:center;
+  opacity:0; flex:0 0 auto; transition:all .15s}
+.orow:hover .um-adopt{opacity:1}
+.um-adopt:hover{background:#D0E2FF; color:#3182F6}
+.um-adopt.on{opacity:1; background:#3182F6; color:#fff; animation:pop .3s cubic-bezier(.2,1.7,.4,1)}
+.okpad{width:28px; flex:0 0 auto}
+.eitem{border-radius:13px; transition:background .12s}
+.eitem.open{background:#F7F8FA}
+.eitem .orow:hover{background:transparent}
+.eitem:not(.open) .orow:hover{background:#F7F8FA}
+/* 값은 줄바꿈하지 않는다 — 좁은 칸에서 「주상기타」가 한 글자씩 세로로 쪼개졌다(2026-08-26).
+   대신 곁말(.cap)이 줄어든다. 곁말은 이미 말줄임을 갖고 있다. */
+.orow .ev{font-size:15px; font-weight:800; color:#191F28; white-space:nowrap; flex:0 0 auto; text-align:right}
+.orow .ev.off{color:#B0B8C1; font-weight:600}
+.orow .ev.bad{color:#F04452}
+.eexp{padding:2px 16px 15px 110px; animation:um-in .18s ease}
+.eexp .chips-in{justify-content:flex-start}
+
+.um-in{border:0; background:#F2F4F6; border-radius:11px; padding:7px 13px; font:inherit;
+  font-size:13.5px; font-weight:700; width:130px; outline:none; color:#191F28; transition:box-shadow .13s}
+.um-in:focus{box-shadow:0 0 0 2px #3182F6 inset}
+.um-chip{display:inline-flex; align-items:baseline; gap:7px; border:0; background:#F2F4F6; color:#333D4B; font:inherit;
+  font-size:13.5px; font-weight:700; padding:7px 14px; border-radius:12px; cursor:pointer;
+  transition:background .13s, transform .1s}
+.um-chip:hover{background:#E8EBEE}
+.um-chip:active{transform:scale(.96)}
+.um-chip.on{background:#EBF4FF; color:#3182F6; font-weight:800}
+.um-chip.still{cursor:default}
+.um-chip.still:hover{background:#F2F4F6}
+.um-chip i{font-style:normal; color:#8B95A1; font-weight:600}
+.um-chip .ci{border:0; background:none; font:inherit; width:64px; outline:none; color:#191F28}
+.um-chip .cx{border:0; background:none; color:#B0B8C1; font-size:9px; font-weight:900; cursor:pointer;
+  padding:0 0 0 4px; opacity:0; transition:opacity .12s}
+.um-chip.clr:hover .cx{opacity:1}
+.um-chip .cx:hover{color:#F04452}
+
+/* 선택 칩 — 모달 안에서만 다시 칠하던 것을 전역으로 올렸다(2026-08-25).
+   tokens.css 의 흰 알약 위에 덮어쓴다. 앱 전체가 같은 칩을 쓴다 */
+.chips-in{display:inline-flex; flex-wrap:wrap; align-items:center; gap:5px; justify-content:flex-start}
+.chips-in button{border:0; background:#F2F4F6; color:#6B7684; font-weight:700; font-size:12.5px;
+  padding:5px 13px; border-radius:11px; line-height:1.5; transition:all .13s}
+.chips-in button:hover{background:#E8EBEE; color:#333D4B}
+.chips-in button.on{background:#EBF4FF; border:0; color:#3182F6; font-weight:800}
+.chips-in button.on.none{background:#F2F4F6; color:#8B95A1; font-weight:600}
+.chips-in .rv{border:0; background:none; color:#B0B8C1}
+.chips-in .rv:hover{color:#333D4B}
+.orow .act{display:flex; gap:4px; opacity:0; transition:opacity .13s}
+.orow:hover .act{opacity:1}
+.orow .act .mini{width:26px; height:26px; border-radius:999px; border:0; background:#F2F4F6; color:#8B95A1;
+  font-size:10px; font-weight:900; cursor:pointer; display:inline-grid; place-items:center; transition:all .13s}
+.orow .act .mini:hover{background:#3182F6; color:#fff}

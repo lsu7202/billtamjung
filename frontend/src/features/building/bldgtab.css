@@ -1,0 +1,273 @@
+
+/* 건물 탭 — 줄 문법(shared/ui/row.css) 위에 이 화면만의 것.
+   선을 지우고 여백이 칸을 나눈다. 값 없으면 「—」, 누르면 그 자리에서 열린다(2026-08-25). */
+
+.bg-card{background:#fff; border-radius:20px; box-shadow:0 1px 4px rgba(0,19,43,.05); overflow:hidden}
+.bg-ttl{font-size:14.5px; font-weight:800; letter-spacing:-.02em; padding:18px 20px 6px;
+  display:flex; align-items:center; gap:9px}
+.bg-ttl .rst{margin-left:auto; border:0; background:none; font:inherit; font-size:12px; font-weight:700;
+  color:#B0B8C1; cursor:pointer; padding:5px 10px; border-radius:9px}
+.bg-ttl .rst:hover{background:#F2F4F6; color:#333D4B}
+
+/* 건물정보 — 두 칸. 좁으면 한 칸 */
+.bg-cols{display:grid; grid-template-columns:1fr 1fr; gap:0 10px; padding:6px 6px 14px}
+@media (max-width:1100px){ .bg-cols{grid-template-columns:1fr} }
+
+/* 값 줄 — .orow 를 그대로 쓰되 이 화면은 값이 오른쪽 끝에 붙는다 */
+.bg-cols .orow{cursor:pointer}
+/* 정본이라 잠근 줄 — 손가락 커서를 주지 않는다. 누를 수 있어 보이면 눌러 보게 된다(2026-08-28) */
+.bg-cols .orow.lock, .bg-cols .orow.lock .ev{cursor:default}
+.orow .ev.ed{color:#3182F6}
+.orow .dot{width:5px; height:5px; border-radius:50%; background:#3182F6; flex:0 0 auto}
+
+/* 층별 — 금액 세 칸 고정폭. 층끼리 자릿수가 맞아야 견줄 수 있다 */
+.fm{display:flex; align-items:baseline; flex:0 0 auto}
+.fm > *{width:104px; text-align:right; font-size:15px; font-weight:800; font-variant-numeric:tabular-nums;
+  color:#191F28}
+.fm .off{color:#C8CDD3; font-weight:600}
+.fmh{display:flex; align-items:baseline; flex:0 0 auto}
+.fmh span{width:104px; text-align:right; font-size:10.5px; font-weight:800; letter-spacing:.05em; color:#B0B8C1}
+.fl-head{display:flex; align-items:center; gap:12px; padding:2px 20px 6px}
+.fm .cell{cursor:pointer; border-radius:9px; padding:2px 4px; width:104px}
+.fm .cell:hover{background:#F2F4F6}
+.fm input{border:0; background:#F2F4F6; border-radius:9px; padding:4px 8px; font:inherit; font-size:14px;
+  font-weight:800; width:96px; outline:none; text-align:right; color:#191F28;
+  box-shadow:0 0 0 2px #3182F6 inset; font-variant-numeric:tabular-nums}
+
+/* 용도는 층의 성격이라 진하게. 호실·평수·상태가 그 뒤 곁말 */
+.orow .cap b{color:#191F28; font-weight:800; font-size:13.5px}
+.orow .cap .gap{margin:0 5px; color:#D0D6DC}
+
+/* 다호실 층 */
+.fold{display:inline-flex; width:16px; color:#B0B8C1; font-size:10px; flex:0 0 auto}
+.orow.unit{padding-left:56px}
+.orow.unit .who{min-width:54px; font-size:13.5px; color:#6B7684}
+.addu{border:0; background:none; font:inherit; font-size:12.5px; font-weight:700; color:#B0B8C1;
+  cursor:pointer; padding:9px 14px 9px 70px; border-radius:13px; width:100%; text-align:left}
+.addu:hover{background:#F2F4F6; color:#3182F6}
+
+/* 새 층 줄 — 판에 올렸을 때만. 상시 버튼을 두면 눈에 걸린다 */
+.newrow{opacity:0; transition:opacity .13s}
+.bg-card:hover .newrow{opacity:.5}
+.newrow:hover{opacity:1 !important; background:#F7F8FA}
+.newrow .who{color:#B0B8C1}
+.newrow .cap{color:#C8CDD3}
+
+.fl-sum{display:flex; align-items:center; gap:12px; margin:0 20px; padding:15px 0 6px;
+  border-top:1px solid #F2F4F6; font-size:12.5px; font-weight:700; color:#8B95A1}
+.orow .act .mini.bad:hover{background:#F04452}
+.bg-more{border:0; background:none; font:inherit; font-size:12.5px; font-weight:700; color:#8B95A1;
+  cursor:pointer; padding:9px 14px; border-radius:11px; margin:0 6px 10px}
+.bg-more:hover{background:#F2F4F6; color:#333D4B}
+
+/* 규제 — 여섯을 상태 칩 한 줄로. 켜진 것이 해당하는 규제고, 꺼진 칩을 누르는 것이
+   곧 「직접 적기」다. 조작 줄을 따로 두지 않는다(2026-08-26) */
+.pg-regs{display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:8px 20px 4px}
+.pg-other{padding:2px 20px 14px; font-size:12.5px; font-weight:600; color:#B0B8C1}
+.pg-other b{color:#6B7684; font-weight:800; margin-left:7px}
+
+/* 실거래 — 그래프 왼쪽 · 요약 오른쪽(공시지가와 같은 배치) */
+.gwrap{display:flex; gap:24px; align-items:center; flex-wrap:wrap; padding:6px 18px 10px}
+.gc{flex:1 1 360px; min-width:300px; max-width:620px}
+.gside{flex:0 1 200px; min-width:180px}
+.gside .grow{padding:11px 0; border-top:1px solid #F2F4F6}
+.gside .grow:first-child{border-top:0; padding-top:2px}
+.gside .k{font-size:11px; color:#8B95A1; font-weight:700; letter-spacing:.03em}
+.gside .v{font-size:23px; font-weight:800; letter-spacing:-.03em; line-height:1.1;
+  font-variant-numeric:tabular-nums; margin-top:3px; color:#191F28}
+.gside .v i{font-style:normal; font-size:.55em; font-weight:700; color:#8B95A1; margin-left:2px}
+.gside .sm{font-size:12.5px; font-weight:700; color:#8B95A1; margin-top:4px; font-variant-numeric:tabular-nums}
+
+/* 실거래 목록 — 표를 버리고 줄로. 이 건물 거래가 맨 위에 연파랑 */
+.tr-row .who{min-width:150px; font-size:14.5px; font-weight:800}
+.tr-row.me{background:#EBF4FF}
+.tr-row.me .who{color:#3182F6}
+.tr-row.dim{opacity:.5}
+.fm .u{font-size:13px; font-weight:700; color:#6B7684}
+
+/* 펼침 안 작은 라벨 — 모달의 .bexp .bk 와 같은 값(그 파일은 .um 안에 있어 여기선 못 쓴다) */
+.eexp .bk{flex:0 0 46px; font-size:11px; font-weight:800; color:#8B95A1}
+.eexp .mini{width:26px; height:26px; border-radius:999px; border:0; background:#F2F4F6; color:#8B95A1;
+  font-size:11px; font-weight:800; cursor:pointer}
+.eexp .mini:hover{background:#3182F6; color:#fff}
+
+/* 사이드바 메모 — 한 줄 기록의 pill 입력줄(2026-08-26).
+   업무 모달 메모창(.um-memo .in)과 같은 모양이라 두 화면이 같은 장부로 읽힌다. */
+.memo-in{width:100%; margin-top:4px; border:0; background:#fff; border-radius:999px;
+  padding:10px 16px; font:inherit; font-size:13px; outline:none; color:#191F28;
+  box-shadow:0 1px 3px rgba(0,19,43,.05); transition:box-shadow .13s}
+.memo-in::placeholder{color:#B0B8C1}
+.memo-in:focus{box-shadow:0 0 0 2px #3182F6}
+
+/* 사이드바 알약 탭 — 통합 모달 .um-tabs 와 같은 결(2026-08-27).
+   예전엔 본문과 같은 밑줄 탭(bt-tabs)이었다. 밑줄 탭은 화면을 가르는 큰 전환의 얼굴이라,
+   좁은 사이드바에 두면 선(밑줄+경계선)이 늘어나 결이 어긋났다. */
+.sb-tabs{display:flex; gap:6px; padding:12px 12px 2px}
+.sb-tabs button{border:0; background:none; font:inherit; font-size:13.5px; font-weight:700;
+  color:#6B7684; padding:8px 15px; border-radius:12px; cursor:pointer; transition:all .13s}
+.sb-tabs button:hover{background:#F2F4F6; color:#333D4B}
+.sb-tabs button.on{background:#EBF4FF; color:#3182F6; font-weight:800}
+
+/* 사이드바 — 세 묶음 줄 문법(2026-08-26).
+   선을 두른 박스와 kv 줄이 섞여 있던 것을 하나로 갈았다. 통합 매물 모달의 .orow 어법을
+   좁은 폭에 맞춘 것: 라벨 왼쪽, 값 오른쪽, 선 없음, 묶음 사이는 여백이 가른다. */
+.sb{display:grid; gap:18px; font-size:13px}
+.sb-hd{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.sb-hd .who{font-size:12px; font-weight:700; color:#8B95A1}
+.sb-hd .lnk{margin-left:auto; font-size:12px}
+.sb-g{display:grid; gap:1px}
+.sb-lb{font-size:10px; font-weight:800; color:#B0B8C1; letter-spacing:.05em; margin:0 2px 4px}
+.sb-r{display:flex; align-items:center; gap:10px; min-height:38px; padding:0 10px;
+  border-radius:10px; border:0; background:none; font:inherit; font-size:13px; text-align:left;
+  width:100%}
+.sb-r .l{font-weight:700; color:#6B7684; white-space:nowrap}
+.sb-r .l.ink{color:#191F28; font-weight:800; font-size:14px}
+.sb-r .l .tag{font-style:normal; margin-left:6px}
+.sb-r .r{margin-left:auto; font-weight:800; color:#191F28; white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.sb-r .r.dim{font-weight:700; color:#8B95A1; white-space:normal; text-align:right}
+.sb-r.act{cursor:pointer; background:#F7F8FA}
+.sb-r.act:hover{background:#F2F4F6}
+.sb-r:hover{background:#F7F8FA}
+.sb-note{font-size:12px; color:#8B95A1; font-weight:600; padding:2px 10px 6px; line-height:1.5}
+/* 고치는 문 — 맨 아래 검정 버튼 하나. 줄들 사이에 끼우면 값처럼 읽힌다 */
+.sb-go{border:0; background:#191F28; color:#fff; border-radius:12px; padding:11px;
+  font:inherit; font-size:12.5px; font-weight:800; cursor:pointer; width:100%;
+  transition:background .13s}
+.sb-go:hover{background:#333D4B}
+/* KV 도 같은 줄로 — 금액 셋이 위아래 줄과 어긋나면 묶음으로 안 읽힌다 */
+.sb-g .kv{min-height:38px; padding:0 10px; border-radius:10px; border:0}
+.sb-g .kv:hover{background:#F7F8FA}
+
+/* 머리줄·하단 바 — 본문 카드(흰 종이)와 **질감**을 가른다(2026-08-27): 반투명 유리.
+   스크롤하면 밑의 카드가 비쳐 흐르니, 색만 다를 때와 달리 「떠 있는 층」으로 읽힌다. */
+.bt-page > .panel:first-child{background:rgba(244,247,250,.82); border-bottom:1px solid #E3E8ED;
+  backdrop-filter:blur(12px) saturate(1.4); -webkit-backdrop-filter:blur(12px) saturate(1.4)}
+.bt-foot{background:rgba(244,247,250,.82) !important; border-top:1px solid #E3E8ED;
+  backdrop-filter:blur(12px) saturate(1.4); -webkit-backdrop-filter:blur(12px) saturate(1.4)}
+/* 유리 위 알약은 흰색이 서야 유리가 보인다 */
+.bt-hd .hd-pills .pill, .bt-foot .fp{background:#fff; box-shadow:0 1px 2px rgba(0,19,43,.05)}
+.bt-hd .hd-pills .pill.hero{background:#EBF4FF}
+.bt-foot .fp.dark{background:#191F28; box-shadow:none}
+.bt-foot .fp:hover{background:#F2F4F6}
+.bt-foot .fp.dark:hover{background:#333D4B}
+
+/* 판 여백 — 업무 탭(.page.sales)과 같은 18px. 머리줄은 sticky 라 폭을 그대로 쓴다(2026-08-26) */
+.bt-page{display:grid; gap:14px; padding:0 18px 36px}
+.bt-page > .panel:first-child{margin:0 -18px}
+.bt-cols{display:grid; grid-template-columns:minmax(0,1fr) 400px; gap:14px; align-items:start}
+/* 우측 — 지도와 거래 사이드바가 한 기둥. 같이 따라 붙는다 */
+.bt-side{position:sticky; top:12px; display:grid; gap:14px}
+.bt-side > .panel{position:static}
+.bt-foot{margin:0 -18px}
+@media (max-width:1180px){ .bt-cols{grid-template-columns:1fr} .bt-side{position:static} }
+
+/* 머리줄 알약(2026-08-27) — 세로 hairline 을 걷고 통합 모달의 알약 문법으로.
+   연파랑 = 우리가 만든 값(추정), 회색 = 정해진 값. 색이 갈래를 말한다. */
+/* 머리줄 — 윗행(주소+알약)·아랫행(메타 잔글씨) 둘 다 한 줄 고정 */
+.bt-hd-m{display:flex; gap:14px; margin-top:4px; height:16px; overflow:hidden;
+  font-size:11.5px; color:#8B95A1; white-space:nowrap}
+.bt-hd-m b{color:#4E5968}
+.hd-pills{display:flex; gap:6px; flex-wrap:nowrap; overflow-x:auto; margin-left:auto;
+  flex:0 1 auto; scrollbar-width:none}
+.hd-pills::-webkit-scrollbar{display:none}
+.hd-pills .pill{flex:0 0 auto}
+.hd-pills .pill{background:#F2F4F6; border-radius:11px; padding:6px 12px; display:flex;
+  align-items:baseline; gap:7px; min-width:0}
+.hd-pills .pill i{font-style:normal; font-size:10.5px; font-weight:700; color:#8B95A1; white-space:nowrap}
+.hd-pills .pill b{font-size:14.5px; font-weight:800; letter-spacing:-.02em; white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.hd-pills .pill.hero{background:#EBF4FF}
+.hd-pills .pill.hero i{color:#6BA3F0}
+.hd-pills .pill.hero b{color:#3182F6; font-size:16px}
+.hd-pills .pill.hero em{font-style:normal; font-size:9.5px; font-weight:800; color:#fff;
+  background:#3182F6; border-radius:5px; padding:1px 5px; align-self:center}
+.hd-pills .pill.hero .d{font-size:11px; font-weight:700; color:#8BB6F5; white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.hd-pills .pill.off b{color:#C4CBD3}
+
+/* 값 묶음(2026-08-27) — 추정 짝 · 실측 짝. 같은 출신끼리 한 바탕 위에 서서,
+   두 숫자가 다를 때 「빌탐정은 이렇게 보는데 실제는 이렇다」가 한눈에 읽힌다.
+   묶음 안쪽 알약은 바탕을 벗는다 — 알약 속 알약이면 테두리가 두 겹으로 보인다. */
+.hd-grp{display:flex; align-items:center; gap:2px; flex:0 0 auto; border-radius:12px; padding:0 4px}
+.hd-grp .pill{background:none; padding:6px 8px}
+.hd-grp.est{background:#EBF4FF}
+.hd-grp.est .pill i{color:#6BA3F0}
+.hd-grp.est .pill b{color:#3182F6; font-size:16px}
+.hd-grp.est .pill.off b{color:#A9C9F5}
+/* 「추정」은 묶음에 하나 — 묶음 전체가 추정이라 값마다 붙일 이유가 없다 */
+.hd-grp .hd-badge{font-style:normal; font-size:9.5px; font-weight:800; color:#fff;
+  background:#3182F6; border-radius:5px; padding:1px 5px; margin-right:4px; flex:0 0 auto}
+.hd-grp.real{background:#F2F4F6}
+
+/* 하단 바 알약 — 주인공(분석) 하나만 검정, 나머지는 회색·유령 */
+.bt-foot .fp{border:0; font:inherit; font-size:13px; font-weight:800; cursor:pointer;
+  border-radius:11px; padding:7px 14px; background:#F2F4F6; color:#4E5968; transition:all .13s}
+.bt-foot .fp:hover{background:#E8EBEE}
+.bt-foot .fp.dark{background:#191F28; color:#fff}
+.bt-foot .fp.dark:hover{background:#333D4B}
+.bt-foot .fp:disabled{opacity:.5; cursor:default}
+
+/* 메모 탭 — 업무 모달 메모창(MemoLog)을 좁은 칸에 앉히는 받침.
+   모달에선 회색 모달 바탕 위에 흰 카드가 서는데, 사이드바 판은 흰색이라 바탕을 깔아 준다. */
+.sb-memo{background:#F7F8FA; border-radius:14px; padding:0 12px; display:flex;
+  flex-direction:column; max-height:380px; min-height:200px}
+.sb-memo .um-memo{padding-right:0; flex:1; overflow:hidden}
+
+/* 총계가 층별에서 파생됐음을 값 옆에서 말한다(0134) — 못 고치는 이유가 그 자리에 있어야 한다 */
+.sb-r .sb-src{font-style:normal; font-size:10.5px; font-weight:700; color:#B0B8C1; margin-left:7px}
+
+/* 규제 — 토지이음과 같은 표기(2026-08-28). 근거 법률로 두 묶음, 이름 뒤에 저촉여부를 괄호로.
+   흔하다고 빼지 않는다: 토지거래계약에관한허가구역은 서울 전역(99.8%)이지만 그대로 선다.
+   정본이라 손댈 수 없다 — 버튼이 아니라 span 이라 hover 도 커서도 없다. */
+.rg-wrap{padding:4px 20px 12px; display:flex; flex-direction:column; gap:12px}
+.rg-ttl{font-size:11px; font-weight:800; color:#8B95A1; letter-spacing:-.01em; margin-bottom:6px}
+.rg-list{display:flex; flex-wrap:wrap; gap:5px}
+.rg{font-size:12.5px; font-weight:700; padding:5px 12px; border-radius:11px; line-height:1.5;
+  background:#F2F4F6; color:#6B7684; display:inline-block; white-space:nowrap}
+.rg i{font-style:normal; font-weight:700; opacity:.62; margin-left:3px; font-size:11.5px}
+.rg.inc{background:#EBF4FF; color:#3182F6; font-weight:800}   /* 포함 — 이 땅에 걸린다 */
+.rg.tou{background:#F2F4F6; color:#4E5968}                     /* 저촉 — 일부가 걸린다 */
+.rg.adj{background:#F7F8FA; color:#B0B8C1; font-weight:600}    /* 접함 — 경계에 닿는다 */
+
+/* 용도지역 — 정본이라 읽기만 한다. 걸침이면 여럿이 나란히 선다.
+   드롭다운(ChipsMulti)을 걷으면서 그 자리의 폭·정렬을 다시 잡았다(2026-08-28). */
+.orow .ev.zones{display:inline-flex; flex-wrap:wrap; gap:5px; justify-content:flex-end}
+.orow .ev.zones b{background:#EBF4FF; color:#3182F6; font-weight:800; font-size:12.5px;
+  padding:4px 11px; border-radius:10px; line-height:1.45; white-space:nowrap}
+
+/* 실거래 비교 — 가로막대 셋(2026-08-28). 상세 실거래 탭과 검색 사이드카드가 같이 쓴다.
+   셋을 견주니 가로가 안정적이다 — 라벨을 접지 않아도 되고 값이 세로로 줄맞춤된다. */
+.tc-card .tc-unit{font-size:11px; font-weight:700; color:#8B95A1; margin-left:auto}
+.tc-plot{display:flex; flex-direction:column; gap:11px; padding:12px 20px 16px}
+.tc-b{display:flex; align-items:center; gap:11px}
+.tc-b .k{font-size:12.5px; font-weight:700; color:#8B95A1; width:104px; flex:0 0 auto}
+.tc-b .k.est{color:#3182F6}
+.tc-b .t{flex:1; height:9px; border-radius:5px; background:#F2F4F6; position:relative; min-width:36px}
+.tc-b .t i{position:absolute; left:0; top:0; bottom:0; border-radius:5px; background:#D7DCE2}
+.tc-b .t i.me{background:#191F28} .tc-b .t i.est{background:#3182F6}
+.tc-b .v{display:flex; gap:10px; align-items:baseline; justify-content:flex-end;
+  width:130px; flex:0 0 auto; font-variant-numeric:tabular-nums}
+.tc-b .v b{font-size:14px; font-weight:800; letter-spacing:-.03em; width:54px; text-align:right}
+.tc-b .v u{text-decoration:none; font-size:12.5px; font-weight:700; color:#8B95A1;
+  width:66px; text-align:right}
+.tc-b .v.est b{color:#3182F6}
+.tc-b .v.none{color:#B0B8C1; font-size:12.5px; font-weight:700}
+/* 좁은 자리(검색 사이드카드) — 라벨을 줄이고 값 칸을 좁힌다 */
+.sel-card .tc-b .k{width:82px; font-size:12px}
+.sel-card .tc-b .v{width:112px}
+.sel-card .tc-b .v b{width:46px; font-size:13px}
+.sel-card .tc-b .v u{width:58px; font-size:11.5px}
+
+/* 공시배율 — 공시총액이 분모 하나라 셋이 같은 자에 선다(2026-08-28) */
+.gm-mult{margin-top:14px; padding-top:12px; border-top:1px solid #E5E8EB;
+  display:flex; flex-direction:column; gap:7px}
+.gm-h{font-size:11px; font-weight:800; color:#8B95A1; margin-bottom:1px}
+.gm-r{display:flex; align-items:center; gap:8px}
+.gm-r .k{font-size:11.5px; font-weight:700; color:#8B95A1; width:76px; flex:0 0 auto}
+.gm-r .t{flex:1; height:7px; border-radius:4px; background:#F2F4F6; position:relative; min-width:24px}
+.gm-r .t i{position:absolute; left:0; top:0; bottom:0; border-radius:4px; background:#D7DCE2}
+.gm-r .t i.me{background:#191F28} .gm-r .t i.est{background:#3182F6}
+.gm-r .v{font-size:12.5px; font-weight:800; width:40px; text-align:right;
+  font-variant-numeric:tabular-nums; flex:0 0 auto}
+.gm-r .v.est{color:#3182F6}

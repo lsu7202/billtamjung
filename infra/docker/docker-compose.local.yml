@@ -1,0 +1,24 @@
+# 덤프를 복원해 쓰는 로컬 스택 — 마이그레이션 자동적용(initdb) 없이 빈 DB로 띄운다.
+#
+# db/migrations 에는 master.* (마이그레이션이 아니라 **파이프라인이 적재하는** 표)를 건드리는
+# 파일이 여럿이라, 빈 DB에 통째로 돌리면 initdb 가 중간에 죽고 DB 컨테이너째 내려간다.
+# 로컬은 backups/billtamjung.dump 를 넣고 그 뒤 db/apply.sh 로 못 들어간 것만 적용한다 —
+# 프로덕션과 같은 순서다.
+#
+#   docker compose -f infra/docker/docker-compose.yml -f infra/docker/docker-compose.local.yml up -d
+services:
+  db:
+    volumes: !reset []
+    # 기본 64MB 로는 병렬 쿼리가 공유 메모리를 못 늘려 검색이 DiskFullError 로 죽는다.
+    # 서울 전역(58만동)을 훑는 쿼리라 워커마다 해시·정렬 공간이 필요하다(2026-08-28).
+    shm_size: 1gb
+
+  # 로컬은 소스를 물려 둔다 — 안 그러면 코드를 고칠 때마다 이미지를 다시 굽게 되고,
+  # 「고쳤는데 안 바뀐다」로 한참 헤맨다(2026-08-19).
+  api:
+    volumes:
+      - ../../backend/app:/srv/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--app-dir", "/srv"]
+  worker:
+    volumes:
+      - ../../backend/app:/srv/app

@@ -80,3 +80,16 @@ ad/remotion/public/vo/raw/         # 정규화 전 원본(gen_manual_vo.py로 �
 scripts/.pipeline.env
 qa/screen/.qa_screen.env
 !backups/README.md
+
+# 광고·가이드 매체 — 영상·음성·프레임 PNG 는 git 에 안 둔다(2026-09-02). 소스(remotion/src·*.py)만 추적.
+ad/원본/
+ad/완성/
+ad/capture/out/
+ad/remotion/public/
+ad/*.mp4
+ad/*.mp3
+# gitignore 는 줄 안 주석이 안 된다 — 주석은 윗줄에(2026-09-02 그렇게 썼다가 안 먹음)
+# ad/capture/assets/*.png : 예시-첨부물/ 과 같은 7장. 정본은 예시-첨부물/
+ad/capture/assets/*.png
+# data/eum_check*.csv : 토지이음 대조 결과. qa/external 로 다시 만든다
+data/eum_check*.csv
