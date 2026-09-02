@@ -38,10 +38,16 @@ async def _suggest_refs() -> tuple[list, list]:
         return _suggest_cache[ver]
     regions = [dict(r) for r in await pool().fetch(
         "SELECT gu, dong, bjd_code, lng, lat, cnt FROM master.region_index")]
+    # **좌표 없는 동은 버린다.** region_index 는 avg(st_x(geom)) 인데, 그 동의 건물이
+    # 전부 좌표가 없으면 NULL 이 된다(2026-09-02 실측: 종로구 교남동 3동 전부 · 주소가
+    # 깨진 「강남구 194번지」 1동). 그 한 행 때문에 float + None 으로 죽어서
+    # **주소 자동완성 전체가 500** 이었고, 화면은 「일치하는 결과가 없습니다」로 조용히
+    # 넘어갔다. 좌표가 없으면 지도를 못 옮기니 후보로 내놔도 쓸모가 없다.
+    regions = [r for r in regions if r["lng"] is not None and r["lat"] is not None]
     gus: dict[str, dict] = {}          # 구 단위(동 평균의 평균)
     for r in regions:
         g = gus.setdefault(r["gu"], {"gu": r["gu"], "lng": 0.0, "lat": 0.0, "cnt": 0, "n": 0})
-        g["lng"] += r["lng"]; g["lat"] += r["lat"]; g["cnt"] += r["cnt"]; g["n"] += 1
+        g["lng"] += r["lng"]; g["lat"] += r["lat"]; g["cnt"] += (r["cnt"] or 0); g["n"] += 1
     gu_list = [{"gu": g["gu"], "lng": g["lng"]/g["n"], "lat": g["lat"]/g["n"], "cnt": g["cnt"]} for g in gus.values()]
     stations = [dict(r) for r in await pool().fetch(
         """SELECT name, string_agg(route, '·' ORDER BY route) AS routes,
