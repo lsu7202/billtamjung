@@ -18,19 +18,16 @@ export function LandScene({ pk, b, id, fetchScene }: {
   /** 조회 함수를 밖에서 준다 — 나대지는 pnu 로 찾고, 도로도 필지 폴리곤에서 잰다(2026-08-27) */
   fetchScene?: (id: string) => Promise<{
     roads: { rn: string; road_bt: number | null; geojson: unknown }[];
-    legal_bcr: string | null; legal_far: string | null;
+    legal_bcr: number[] | null; legal_far: number[] | null;
   }>;
 }) {
   const q = useQuery({ queryKey: ["scene", pk], queryFn: () => (fetchScene ?? buildingsApi.scene)(pk) });
   const parcel = b.parcel_geom;
   if (!parcel || !q.data) return null;
-  const pct = (v: unknown) => {                     // 법정값은 '250%' 같은 문자열로 온다
-    // 걸친 필지는 '50%, 60%' 처럼 둘이 올 수 있다. 숫자만 남기면 5060 이 된다.
-    const s = String(v ?? "");
-    if (s.includes(",")) return null;               // 값이 둘이면 부피를 안 그린다
-    const n = parseFloat(s.replace(/[^0-9.]/g, ""));
-    return Number.isFinite(n) ? n : null;
-  };
+  // 법정값은 숫자 목록으로 온다(0153): [250] 하나이거나 [50,60] 병기.
+  // 병기면 부피를 안 그린다 — 하나를 고르면 지어내는 것이다.
+  const pct = (v: unknown) =>
+    Array.isArray(v) && v.length === 1 && Number.isFinite(Number(v[0])) ? Number(v[0]) : null;
   return (
     <section className="rv-card" id={id}>
       <span className="rv-k">입체 지적도</span>

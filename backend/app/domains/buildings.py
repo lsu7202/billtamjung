@@ -233,9 +233,18 @@ async def building_scene(building_pk: str, _: CurrentUser = Depends(current_user
                   (SELECT geom::geography FROM master.buildings WHERE building_pk=$1), 40)
             ORDER BY r.road_bt DESC LIMIT 12""", building_pk)
     lim = await pool().fetchrow(
-        """SELECT max(p.legal_bcr) AS bcr, max(p.legal_far) AS far
-             FROM master.building_parcels bp JOIN master.parcels p ON p.pnu = bp.pnu
-            WHERE bp.building_pk = $1""", building_pk)
+        # **숫자로 고른다.** 0153 전에는 text 에 max() 를 걸어 '50%' 가 '245%' 보다
+        # 컸다(첫 글자 5>2). 여러 필지에 걸친 건물 5,494동 중 332동이 틀린 값을 받고 있었다.
+        # 병기(길이>1)는 견줄 수 없으므로 뺀다 — 다른 필지 값이 있으면 그것을 쓴다.
+        """SELECT
+             (SELECT p.legal_bcr FROM master.building_parcels bp
+                JOIN master.parcels p ON p.pnu = bp.pnu
+               WHERE bp.building_pk = $1 AND array_length(p.legal_bcr, 1) = 1
+               ORDER BY p.legal_bcr[1] DESC LIMIT 1) AS bcr,
+             (SELECT p.legal_far FROM master.building_parcels bp
+                JOIN master.parcels p ON p.pnu = bp.pnu
+               WHERE bp.building_pk = $1 AND array_length(p.legal_far, 1) = 1
+               ORDER BY p.legal_far[1] DESC LIMIT 1) AS far""", building_pk)
     return {
         "roads": [{"rn": r["rn"], "road_bt": float(r["road_bt"]) if r["road_bt"] is not None else None,
                    "geojson": json.loads(r["geojson"])} for r in roads],
@@ -335,20 +344,18 @@ async def get_parcels(building_pk: str, user: CurrentUser = Depends(current_user
 _PCT = re.compile(r"[\d.]+")
 
 
-def _pct(v: str | None) -> float | None:
-    """'60%' → 60.0. 원천이 문자열이라 숫자만 뽑는다. 못 읽으면 None(비워 둔다).
+def _pct(v) -> float | None:
+    """법정 건폐/용적 목록 → 계산에 쓸 숫자. 값이 하나일 때만 준다(0153).
+
+    [60] → 60.0 · [50, 60] → None · None → None
 
     **값이 둘이면 비운다.** 걸친 필지 중 작은 쪽이 330㎡(상업 660㎡)를 넘으면 법이
-    가중평균을 금해서 '50%, 60%' 처럼 병기된다(서울 5,416필지). 앞 숫자만 집으면
-    작은 쪽을 법정치인 양 쓰게 되고, 그 값이 확인설명서로 나간다.
+    가중평균을 금해 각각 적는다(서울 6,529필지). 하나를 고르면 작은 쪽을 법정치인 양
+    쓰게 되고, 그 값이 확인설명서로 나간다.
     """
     if not v:
         return None
-    s = str(v)
-    if "," in s:
-        return None
-    m = _PCT.search(s)
-    return float(m.group()) if m else None
+    return float(v[0]) if len(v) == 1 else None
 
 
 @router.get("/{building_pk}/rent-series")

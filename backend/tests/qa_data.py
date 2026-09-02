@@ -187,6 +187,17 @@ async def main():
     # 이 값은 확인설명서로 그대로 나가므로 조용히 비면 안 된다.
     pb = 100.0 * r["b"] / max(r["n"], 1)
     chk(pb >= 95.0, f"법정 건폐/용적 있는 필지 {r['b']:,}/{r['n']:,} ({pb:.1f}%)", "기준 95%")
+    # 칸 모양이 되돌아가지 않았는지 — 0153 에서 text → integer[] 로 바꿨다.
+    # text 로 되돌아가면 읽는 쪽 열 곳이 각자 정규식을 쓰게 되고, 그 버그가
+    # 2026-09-02 하루에 여섯 개 나왔다. 값이 아니라 **모양**을 지키는 검사다.
+    t = await c.fetchval("""SELECT data_type FROM information_schema.columns
+                             WHERE table_schema='master' AND table_name='parcels'
+                               AND column_name='legal_bcr'""")
+    chk(t == "ARRAY", f"legal_bcr 칸 모양 {t}", "integer[] 이어야 한다(0153)")
+    # 병기가 있어야 정상이다 — 0이면 걸침 계산이 통째로 빠진 것이다
+    m = await c.fetchval("""SELECT count(*) FROM master.parcels
+                             WHERE array_length(legal_bcr, 1) > 1""")
+    chk(m > 1000, f"병기된 필지 {m:,}", "기준 1,000 (걸침 계산이 빠지면 0이 된다)")
 
     print("\n[파생 배치] 원천이 바뀌면 같이 돌아야 하는 계산값 — 비어 있지 않은가")
     # 파생 배치는 파이프라인 밖에 있어서 「돌린 적 없음」이 조용히 0행으로 남았다(2026-08-30).

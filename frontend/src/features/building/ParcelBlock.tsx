@@ -65,18 +65,14 @@ export const REG_FIELD: Record<string, string> = {   // 규제 라벨 → 필지
   "경관지구": "reg_gyeong", "방화지구": "reg_banghwa", "문화재보존": "reg_munhwa",
 };
 const num = (x: unknown): number | null => (x == null || x === "" ? null : Number(x));
-// 법정 건폐/용적은 "50%" 하나로 오거나, 걸친 필지면 "50%, 60%" 처럼 둘이 온다
-// (작은 쪽이 330㎡·상업 660㎡ 를 넘으면 법이 가중평균을 금해 각각 적는다 — 서울 6,529필지).
-// 예전엔 replace("%","") 로 **첫 % 만** 지우고 뒤에 %를 다시 붙여 "50, 60%%" 가 됐다.
-const legalText = (x: unknown): string | null => (x == null || x === "" ? null : String(x));
+// 법정 건폐/용적은 **숫자 목록**으로 온다(0153): [55] 하나이거나 [50,60] 병기.
+// 걸친 필지에서 작은 쪽이 330㎡(상업 660㎡)를 넘으면 법이 가중평균을 금해 각각 적는다
+// (서울 6,529필지). 예전엔 문자열이라 읽는 쪽마다 정규식을 썼고 버그가 여섯 개 나왔다.
+const legalText = (v: unknown): string | null =>
+  Array.isArray(v) && v.length ? v.map((x) => `${x}%`).join(", ") : null;
 // 계산에 쓸 숫자. 값이 둘이면 null — 하나를 고르면 작은 쪽을 법정치인 양 쓰게 된다.
-const legalNum = (x: unknown): number | null => {
-  if (x == null || x === "") return null;
-  const s = String(x);
-  if (/%\s*,\s*\d/.test(s)) return null;
-  const m = s.match(/[\d.]+/);
-  return m ? Number(m[0]) : null;
-};
+const legalNum = (v: unknown): number | null =>
+  Array.isArray(v) && v.length === 1 ? Number(v[0]) : null;
 
 const PY = 3.305785;
 export function ParcelBlock({ pk, useZoneMix, unit = "m2", bcr, far }: {

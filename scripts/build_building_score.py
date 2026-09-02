@@ -34,24 +34,17 @@ CHUNK = 20_000
 
 
 def _legal_far(v) -> float | None:
-    """legal_far 텍스트 → (generate_report._parse_far 와 같은 규칙)
+    """법정 용적률 목록 → 계산에 쓸 숫자. 값이 하나일 때만 준다(0153).
 
-    → float(%). 못 읽거나 값이 둘이면 None.
+    [800] → 800.0 · [50, 250] → None · None → None
 
-    '800%' → 800 · '1,000% (도심 800%)' → 1000 (앞의 숫자).
-
-    **값이 둘이면 비운다.** 걸친 필지 중 작은 쪽이 330㎡(상업 660㎡)를 넘으면 법이
-    가중평균을 금해서 '50%, 250%' 처럼 병기된다(서울 6,529필지). 앞 숫자만 집으면
-    작은 쪽을 법정치인 양 쓰게 되고, 그러면 그 건물이 한도를 크게 넘은 것처럼 나온다.
-    천 단위 쉼표('1,000%')와는 「% 뒤의 쉼표」로 구분한다.
+    걸친 필지 중 작은 쪽이 330㎡(상업 660㎡)를 넘으면 법이 가중평균을 금해 각각 적는다.
+    하나를 고르면 작은 쪽을 법정치인 양 쓰게 되고, 증축 여지가 음수로 뒤집힌다.
+    generate_report._parse_far 와 같은 규칙.
     """
     if not v:
         return None
-    s = str(v)
-    if re.search(r"%\s*,\s*\d", s):      # '50%, 250%' — 병기. 하나를 고르지 않는다.
-        return None
-    m = re.search(r"[\d,.]+", s)
-    return float(m.group().replace(",", "")) if m else None
+    return float(v[0]) if len(v) == 1 else None
 
 
 def _years(d: dt.date | None, today: dt.date) -> float | None:
@@ -129,9 +122,14 @@ async def main() -> None:
                            -- 활용 유형·매력도는 **분석값**이라 계산 용적률을 얹는다(0144).
                            -- 화면·서류로 나가는 대장값(master.buildings.far)과는 다른 길이다.
                            COALESCE(b.far, bcx.far_calc) AS far,
-                           (SELECT max(pr.legal_far) FROM master.building_parcels bp
+                           -- 숫자로 고른다(0153). 예전엔 text 에 max() 를 걸어
+                           -- '50%' 가 '245%' 보다 컸다(첫 글자 5>2) — 332동이 틀렸다.
+                           -- 병기(길이>1)는 견줄 수 없으므로 뺀다.
+                           (SELECT pr.legal_far FROM master.building_parcels bp
                               JOIN master.parcels pr ON pr.pnu = bp.pnu
-                             WHERE bp.building_pk = b.building_pk) AS legal_far,
+                             WHERE bp.building_pk = b.building_pk
+                               AND array_length(pr.legal_far, 1) = 1
+                             ORDER BY pr.legal_far[1] DESC LIMIT 1) AS legal_far,
                            sa.p_last_ym AS last_sale_ym,
                            CASE WHEN g5.price > 0
                                 THEN (b.gongsi_latest - g5.price) / g5.price::numeric * 100 END AS gongsi_up5,

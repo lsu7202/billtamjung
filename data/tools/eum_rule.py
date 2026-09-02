@@ -111,7 +111,9 @@ def calc(zone_codes, areas, land_area, district_codes=()):
     land_area     지적면적(㎡).
     district_codes 이 필지의 용도지구 코드들.
 
-    → (건폐 문자열, 용적 문자열, 방식) · 못 내면 (None, None, 사유)
+    → (건폐 목록, 용적 목록, 방식) · 못 내면 (None, None, 사유)
+      값이 하나면 [55], 병기면 [50, 60]. **문자열로 만들지 않는다** — 문자열로 두면
+      읽는 쪽마다 정규식을 따로 쓰게 되고, 2026-09-02 하루에 그 버그가 여섯 개 나왔다.
       방식: '단일' · '계산' · '병기'
     """
     # 원장은 같은 코드를 「포함」과 「저촉」 두 줄로 주기도 한다. 그대로 세면 그 지역을
@@ -126,7 +128,7 @@ def calc(zone_codes, areas, land_area, district_codes=()):
     if len(zs) == 1:
         # 한 지역이면 조례값 그대로다. 면적이 필요 없다(토지이음도 안 본다).
         b, f = SEOUL[zs[0]]
-        return f"{b}%", f"{f}%", "단일"
+        return [b], [f], "단일"
 
     if not land_area or land_area <= 0:
         return None, None, "면적없음"            # 걸침은 분모가 있어야 한다
@@ -150,15 +152,14 @@ def calc(zone_codes, areas, land_area, district_codes=()):
                 bs.append(b)
             if f not in fs:
                 fs.append(f)
-        return (", ".join(f"{x}%" for x in sorted(bs)),
-                ", ".join(f"{x}%" for x in sorted(fs)), "병기")
+        return sorted(bs), sorted(fs), "병기"
 
     def weighted():
         gun = sum(SEOUL[c][0] * a[c] for c in zs)
         yong = sum(SEOUL[c][1] * a[c] for c in zs)
         if gun <= 0 and yong <= 0:
             return None, None, "교차면적없음"   # 토지이음도 이때 "-" 를 낸다
-        return f"{js_round(gun / land_area)}%", f"{js_round(yong / land_area)}%", "계산"
+        return [js_round(gun / land_area)], [js_round(yong / land_area)], "계산"
 
     has_green = any(c in GREEN for c in zs)
     if min_area > 330:

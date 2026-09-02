@@ -393,24 +393,18 @@ async def _nearby_rent_apply(building_pk: str, subject: dict, team_id: int) -> d
             "nearby_roi": round(float(nearby_roi), 2) if nearby_roi else None}
 
 
-def _parse_far(txt) -> float | None:
-    """legal_far 텍스트 → float(%). 못 읽거나 값이 둘이면 None.
+def _parse_far(v) -> float | None:
+    """법정 건폐/용적 목록 → 계산에 쓸 숫자. 값이 하나일 때만 준다(0153).
 
-    '800%' → 800 · '1,000% (도심 800%)' → 1000 (앞의 숫자).
+    [800] → 800.0 · [50, 250] → None · None → None
 
-    **값이 둘이면 비운다.** 걸친 필지 중 작은 쪽이 330㎡(상업 660㎡)를 넘으면 법이
-    가중평균을 금해서 '50%, 250%' 처럼 병기된다(서울 6,529필지). 앞 숫자만 집으면
-    작은 쪽을 법정치인 양 쓰게 되고, 그러면 그 건물이 한도를 크게 넘은 것처럼 나온다.
-    천 단위 쉼표('1,000%')와는 「% 뒤의 쉼표」로 구분한다.
+    걸친 필지 중 작은 쪽이 330㎡(상업 660㎡)를 넘으면 법이 가중평균을 금해 각각 적는다
+    (서울 6,529필지). 하나를 고르면 작은 쪽을 법정치인 양 쓰게 되고, 그러면 그 위에 선
+    건물이 한도를 크게 넘은 것처럼 나온다.
     """
-    import re
-    if not txt:
+    if not v:
         return None
-    s = str(txt)
-    if re.search(r"%\s*,\s*\d", s):      # '50%, 250%' — 병기. 하나를 고르지 않는다.
-        return None
-    m = re.search(r"[\d,.]+", s)
-    return float(m.group().replace(",", "")) if m else None
+    return float(v[0]) if len(v) == 1 else None
 
 
 async def _market_zones(building_pk: str) -> list[dict]:
@@ -437,8 +431,11 @@ async def _market_zones(building_pk: str) -> list[dict]:
 async def _use_type(building_pk: str, b: dict) -> dict | None:
     """F-20 활용 유형(투자 유형) 분류 — legal_far·상권 프로필 조립 후 classify()."""
     lf = await pool().fetchval(
-        """SELECT max(pr.legal_far) FROM master.building_parcels bp
-           JOIN master.parcels pr ON pr.pnu = bp.pnu WHERE bp.building_pk = $1""", building_pk)
+        # 숫자로 고른다(0153). 병기는 견줄 수 없으므로 뺀다.
+        """SELECT (SELECT pr.legal_far FROM master.building_parcels bp
+                  JOIN master.parcels pr ON pr.pnu = bp.pnu
+                 WHERE bp.building_pk = $1 AND array_length(pr.legal_far, 1) = 1
+                 ORDER BY pr.legal_far[1] DESC LIMIT 1)""", building_pk)
     mk = await pool().fetchrow(
         """WITH s AS (SELECT geom FROM master.buildings WHERE building_pk=$1),
              f AS (SELECT fo.use FROM master.floor_outline fo JOIN master.buildings b USING(building_pk), s
@@ -670,8 +667,16 @@ async def _briefing_snapshot(building_pk: str, b: dict, team_id: int) -> dict:
     # 건폐율도 같이 싣는다: 기존 건축물이 법정을 넘는 경우가 흔하고(종로2가 71-6은 97.98% vs 법정 60%),
     # 그건 '신축하면 바닥이 줄어든다'는 뜻이라 브리핑에서 빠지면 안 되는 사실이다.
     lr = await pool().fetchrow(
-        """SELECT max(pr.legal_far) far, max(pr.legal_bcr) bcr FROM master.building_parcels bp
-           JOIN master.parcels pr ON pr.pnu = bp.pnu WHERE bp.building_pk = $1""", building_pk)
+        # 숫자로 고른다(0153). 병기(길이>1)는 견줄 수 없으므로 뺀다.
+        """SELECT
+             (SELECT pr.legal_far FROM master.building_parcels bp
+                JOIN master.parcels pr ON pr.pnu = bp.pnu
+               WHERE bp.building_pk = $1 AND array_length(pr.legal_far, 1) = 1
+               ORDER BY pr.legal_far[1] DESC LIMIT 1) AS far,
+             (SELECT pr.legal_bcr FROM master.building_parcels bp
+                JOIN master.parcels pr ON pr.pnu = bp.pnu
+               WHERE bp.building_pk = $1 AND array_length(pr.legal_bcr, 1) = 1
+               ORDER BY pr.legal_bcr[1] DESC LIMIT 1) AS bcr""", building_pk)
     if lr:
         b = {**b, "legal_far": _parse_far(lr["far"]), "legal_bcr": _parse_far(lr["bcr"])}
 

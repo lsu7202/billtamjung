@@ -63,15 +63,15 @@ async def main() -> None:
         # 인덱스 갱신이 행마다 붙어 몇십 분이 된다(층 표기 백필 때 실측).
         await c.execute("""
             CREATE TEMP TABLE _luris(
-              pnu text PRIMARY KEY, use_zone text, legal_bcr text,
-              legal_far text, regulations jsonb)""")   # 세션과 함께 사라진다
+              pnu text PRIMARY KEY, use_zone text, legal_bcr integer[],
+              legal_far integer[], regulations jsonb)""")   # 세션과 함께 사라진다
 
         rows, n = [], 0
         op = gzip.open if SRC.endswith(".gz") else open
         with op(SRC, "rt", encoding="utf-8") as f:
             for r in csv.DictReader(f):
                 rows.append((r["pnu"] or None, r["use_zone"] or None,
-                             r["legal_bcr"] or None, r["legal_far"] or None,
+                             _ints(r["legal_bcr"]), _ints(r["legal_far"]),
                              json.loads(r["regulations"]) if r["regulations"] else None))
                 if len(rows) >= 50_000:
                     await c.copy_records_to_table(
@@ -114,6 +114,19 @@ async def main() -> None:
             sys.exit(1)
     finally:
         await c.close()
+
+
+def _ints(v):
+    """gz 의 '55' · '20,60' → [55] · [20, 60]. 빈칸은 None.
+
+    값이 여럿인 것은 걸친 필지의 병기다(작은 쪽이 330㎡·상업 660㎡ 초과 → 법이
+    가중평균을 금한다). 목록을 목록으로 싣는다 — 문자열로 두면 읽는 쪽마다 정규식을
+    쓰게 되고 2026-09-02 하루에 그 버그가 여섯 개 나왔다.
+    """
+    v = (v or "").strip()
+    if not v:
+        return None
+    return [int(x) for x in v.split(",") if x.strip()]
 
 
 def _enc(rows):

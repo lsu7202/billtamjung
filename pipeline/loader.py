@@ -46,7 +46,11 @@ SOURCES = {
                             NULLIF(NULLIF(land_use,''),'지정되지않음'),
                             NULLIF(NULLIF(slope,''),'지정되지않음'), NULLIF(NULLIF(shape,''),'지정되지않음'),
                             NULLIF(NULLIF(road_frontage,''),'지정되지않음'),
-                            NULLIF(NULLIF(use_zone,''),'미지정'), NULLIF(legal_bcr,''), NULLIF(legal_far,''),
+                            NULLIF(NULLIF(use_zone,''),'미지정'),
+                            -- 이 두 칸은 export 가 늘 빈칸으로 보낸다(원장이 정본이라
+                            -- load_parcel_luris 가 적재 뒤에 되붙인다). 0153 에서
+                            -- integer[] 가 됐으므로 빈 문자열이 아니라 NULL 을 넣는다.
+                            NULL::integer[], NULL::integer[],
                             NULLIF(gongsi_latest,'')::bigint,
                             NULLIF(reg_godo,''), NULLIF(reg_district,''), NULLIF(reg_jeongbi,''),
                             NULLIF(reg_gyeong,''), NULLIF(reg_banghwa,''), NULLIF(reg_munhwa,''),

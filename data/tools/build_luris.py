@@ -184,11 +184,14 @@ def main():
                 # ── 토지이음 산식 그대로(eum_rule). 화면과 한 글자도 달라선 안 된다.
                 zcodes = [it[2] for it in zones]
                 dcodes = [it[2] for it in items if it[2] in eum_rule.TARGET_DISTRICT]
-                bcr, far, m = eum_rule.calc(zcodes, zarea.get(pnu) or {},
+                b_l, f_l, m = eum_rule.calc(zcodes, zarea.get(pnu) or {},
                                             areas.get(pnu), dcodes)
                 how[m] += 1
-                if bcr is None:
-                    bcr = far = ""
+                # gz 에는 **숫자만** 쉼표로 잇는다: '55' · '20,60'. % 를 붙이면 읽는 쪽이
+                # 또 정규식을 쓰게 된다(2026-09-02 그 버그가 여섯 개 나왔다).
+                bcr = ",".join(map(str, b_l)) if b_l else ""
+                far = ",".join(map(str, f_l)) if f_l else ""
+                if not bcr:
                     if len(zones) >= 2:
                         rep.note_odd(f"걸침인데 법정치를 못 냄({m}) — 이름만 병기", pnu, use_zone)
                     else:
