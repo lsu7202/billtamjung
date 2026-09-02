@@ -29,7 +29,7 @@ import re
 import sys
 import urllib.parse
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "tools"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "tools"))
 import eum_rule                                                   # noqa: E402
 
 SPATIAL = "data/tools/_spatial_ALL.json"

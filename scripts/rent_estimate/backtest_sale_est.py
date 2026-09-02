@@ -94,6 +94,12 @@ def value_factor(age: float | None, d1: float, d2: float, d3: float) -> float:
     return max(0.55, f)
 
 
+def _dn(d):
+    """주야비(낮÷밤 생활인구). 한쪽이라도 없으면 None — 없는 값을 1.0 으로 지어내지 않는다."""
+    dv, nv = d.get("day_pop"), d.get("night_pop")
+    return (dv / nv) if (dv and nv and nv > 0) else None
+
+
 def _q_of(ym):
     ym=str(ym); m=ym[4:6]
     return ym[:4]+("Q1" if m<="03" else "Q2" if m<="06" else "Q3" if m<="09" else "Q4")
@@ -110,7 +116,8 @@ def appraise_variant(subject, comps, time_adjust, target_year,
                      age_cfg=None, sim_weight=False, alpha_floor=0.0,
                      wg=0.6, recency_scale=None, sim_age_scale=10.0, sim_size_scale=1.0,
                      cost_c=None, cost_lambda=0.0, alpha_max=0.6, qidx=None, target_ym=None, trim_lo=None, trim_hi=None, option_k=0.0,
-                     road_pct=0.0, struct_w=0.0, mu_pen=1.0, sta_scale=None):
+                     road_pct=0.0, struct_w=0.0, mu_pen=1.0, sta_scale=None,
+                     pop_pct=0.0, pop_dens_pct=0.0, pop_scale=None, pop_lo=0.5, pop_hi=2.5):
     """report_calc.appraise 변형 — comp 가격을 타깃 연도 기준으로 정규화 + B/C/D 옵션.
     (원본은 '현재' 기준이라 백테스트용으로 시점 재기준화가 필요해 별도 구현. 산식 골격 동일)"""
     subj_ta, subj_la = subject.get("total_area"), subject.get("land_area")
@@ -152,6 +159,14 @@ def appraise_variant(subject, comps, time_adjust, target_year,
             gs, gc = road_grade(subject.get("road_frontage")), road_grade(c.get("road_frontage"))
             if gs is not None and gc is not None:
                 padj *= (1.0 + road_pct) ** (gs - gc)
+        if pop_pct:                                        # 주야비 보정(대칭) — 낮÷밤이 큰 자리가 비싸다
+            rs, rc = _dn(subject), _dn(c)
+            if rs and rc:
+                padj *= max(pop_lo, min(pop_hi, rs / rc)) ** pop_pct
+        if pop_dens_pct:                                   # 낮 인구 밀도 자체(자리의 사람 수)
+            ds, dc = subject.get("day_pop"), c.get("day_pop")
+            if ds and dc and dc > 0:
+                padj *= max(pop_lo, min(pop_hi, ds / dc)) ** pop_dens_pct
         if struct_w:                                       # 구조 등급 보정(대칭, 건물분 비중만큼)
             ss, sc = STRUCT_GRADE.get(subject.get("structure") or ""), STRUCT_GRADE.get(c.get("structure") or "")
             if ss and sc:
@@ -170,6 +185,10 @@ def appraise_variant(subject, comps, time_adjust, target_year,
                 w *= mu_pen                                # 용도 불일치 감점
         if sta_scale and subject.get("station_dist") is not None and c.get("station_dist") is not None:
             w *= 1.0 / (1.0 + abs(c["station_dist"] - subject["station_dist"]) / sta_scale)
+        if pop_scale:                                      # 주야비가 비슷한 comp 를 더 본다(가중형)
+            rs, rc = _dn(subject), _dn(c)
+            if rs and rc:
+                w *= 1.0 / (1.0 + abs(math.log(rs / rc)) / pop_scale)
         if gt:
             R.append((padj / gt, w))
         if la:
@@ -208,9 +227,11 @@ async def load(gu: str, since: str):
                sh.total_area::float AS total_area, sh.land_area::float AS land_area,
                b.gongsi_latest::float AS gongsi_latest, b.approval_ymd, b.remodel_ymd, b.use_zone,
                b.structure, b.road_frontage, b.main_use, b.station_dist::float AS station_dist,
+               pp.day_avg::float AS day_pop, pp.night_avg::float AS night_pop,
                ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat
         FROM master.sales_history sh
         JOIN master.buildings b USING (building_pk)
+        LEFT JOIN master.building_pop pp ON pp.building_pk = b.building_pk
         WHERE b.bjd_code LIKE $1 || '%' AND sh.price > 0 AND sh.total_area > 0
           AND (b.land_use = ANY($2) OR substr(b.main_use,1,2) IN ({_MU_IN}))
         ORDER BY sh.contract_ym""", gu, list(SECT))
@@ -232,7 +253,8 @@ def run_variant(name, sales, targets, time_adjust, remodel_offset=None, radius=N
                 "_age": eff_age_of(t["approval_ymd"], t.get("remodel_ymd"), ty, remodel_offset),
                 "_fs": far_slack(t.get("use_zone"), t["total_area"], t["land_area"]),
                 "road_frontage": t.get("road_frontage"), "structure": t.get("structure"),
-                "main_use": t.get("main_use"), "station_dist": t.get("station_dist")}
+                "main_use": t.get("main_use"), "station_dist": t.get("station_dist"),
+                "day_pop": t.get("day_pop"), "night_pop": t.get("night_pop")}
         comps = []
         for c in sales:
             if c["building_pk"] == t["building_pk"]:
@@ -249,7 +271,8 @@ def run_variant(name, sales, targets, time_adjust, remodel_offset=None, radius=N
                           "_age": eff_age_of(c["approval_ymd"], c.get("remodel_ymd"), ty, remodel_offset),
                           "_fs": far_slack(c.get("use_zone"), c["total_area"], c["land_area"]),
                           "road_frontage": c.get("road_frontage"), "structure": c.get("structure"),
-                          "main_use": c.get("main_use"), "station_dist": c.get("station_dist")})
+                          "main_use": c.get("main_use"), "station_dist": c.get("station_dist"),
+                          "day_pop": c.get("day_pop"), "night_pop": c.get("night_pop")})
         if len(comps) < 3:
             continue
         pred = appraise_variant(subj, comps, time_adjust, ty, target_ym=t["contract_ym"], **opt)

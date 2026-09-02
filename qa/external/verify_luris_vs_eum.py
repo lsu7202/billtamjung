@@ -25,7 +25,7 @@ import sys
 import time
 import urllib.request
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "tools"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "tools"))
 import eum_rule                                             # noqa: E402
 
 GZ = "data/exports/luris/parcel_luris.csv.gz"

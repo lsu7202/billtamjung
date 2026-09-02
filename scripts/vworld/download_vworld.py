@@ -34,17 +34,47 @@ DATASETS = {
 }
 PICK = "_5174_서울.zip"   # 정확히 전체 '서울' 5174 파일(예: LSMD_CONT_LDREG_5174_서울_중랑구.zip 같은 구단위 제외)
 # NA 카탈로그(무상공급) = 시군구별 다중 파일. dsId(페이지) → 라벨. 다운로드 ds_id는 행마다 문자열(dsFileId).
-NA = {"4": "토지특성(AL_D194, 서울 25구)", "6": "공시지가(AL_D150, 서울)"}
+NA = {"4": "토지특성(AL_D194, 서울 25구)", "6": "공시지가(AL_D150, 서울)",
+      # 필지별 용도지역·지구 **원장**(토지이음이 보여주는 그 표). 폴리곤 교차로는
+      # 못 맞추는 필지가 남아서 원장을 정본으로 쓴다(2026-08-28).
+      "14": "토지이용계획정보(KLIP, 서울 25구)"}
 # MISC = LSMD 패턴('_5174_서울.zip')이 아닌 MK 레이어(전국 단일 SHP). 최대 파일(SHP본) 선택.
 MISC = {"30115": "지구단위계획(C_UQ161)"}
+# SIDO = 시도별로 쪼개 올리는 MK 레이어. **파일명으로** 서울을 고른다(2026-08-30).
+# 최대 파일(MISC)로는 못 고른다 — 서울(12MB)보다 충남(41MB)이 크다.
+# fileNo 는 갱신 때마다 바뀌므로 번호를 박아 두지 않는다.
+SIDO = {"30055": ("도로명주소 도로구간", "(도로명주소)도로구간_서울.zip")}
+
+
+def _alive(cookie):
+    """이 쿠키로 **실제로 파일이 받아지는가.** 만료된 세션도 페이지는 정상으로 내주고
+    다운로드만 0바이트를 준다 — 그래서 페이지 조회로는 못 가린다(2026-08-30 실측)."""
+    try:
+        req = urllib.request.Request(
+            f"{BASE}/downloadResourceFile.do?ds_id=30305&fileNo=33",
+            headers={"Cookie": cookie, "User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return r.read(2) == b"PK"
+    except Exception:
+        return False
 
 
 def _cookie():
-    """쿠키 획득 우선순위: ① VW_COOKIE_FILE(수동) → ② VW_ID/VW_PW 자동로그인."""
+    """쿠키 획득: ① VW_COOKIE_FILE 이 **살아 있으면** 그것 → ② VW_ID/VW_PW 자동로그인.
+
+    예전엔 파일이 있기만 하면 무조건 썼다. 그래서 8/28 자 쿠키가 만료된 뒤로 모든 다운로드가
+    **0바이트를 받고도 성공처럼 지나갔다.** 자동로그인 자격증명이 멀쩡히 있는데도 그랬다.
+    이제 한 번 받아 보고 죽었으면 다시 로그인한다."""
     p = os.environ.get("VW_COOKIE_FILE")
+    has_creds = os.environ.get("VW_ID") or os.environ.get("VWORLD_ID")
     if p and os.path.exists(p):
-        return open(p, encoding="utf-8").read().strip()
-    if os.environ.get("VW_ID") or os.environ.get("VWORLD_ID"):
+        ck = open(p, encoding="utf-8").read().strip()
+        if _alive(ck):
+            return ck
+        print("  ℹ️ 저장된 쿠키가 만료됐습니다 — 다시 로그인합니다")
+        if not has_creds:
+            sys.exit("쿠키 만료 · VW_ID/VW_PW 가 없어 갱신할 수 없습니다")
+    if has_creds:
         from login import get_cookie          # 같은 디렉토리(scripts/vworld)
         return get_cookie(save_to=p)           # p 있으면 캐시 저장
     sys.exit("V-World 쿠키 없음: VW_COOKIE_FILE(수동) 또는 VW_ID/VW_PW(자동로그인) 필요")
@@ -87,6 +117,21 @@ def find_na_seoul(dsid, cookie):
     return out
 
 
+def find_sido(dsid, want, cookie):
+    """시도별 목록에서 **파일명이 want 인 행**의 fileNo. 페이지가 2쪽이면 둘 다 본다."""
+    for page in ("1", "2"):
+        q = urllib.parse.urlencode({"dsId": dsid, "svcCde": "MK",
+                                    "datPageSize": "200", "datPageIndex": page})
+        html = _get(f"{BASE}/dtmk_ntads_s002.do?{q}", cookie)
+        for m in re.finditer(r"listFnc\.download\(\s*'%s'\s*,\s*'(\d+)'\s*,\s*'(\d+)'\s*\)" % dsid, html):
+            fno = m.group(1)
+            # 파일명은 버튼 **앞쪽** 표 칸에 있다 — 태그를 걷어내고 이름을 찾는다
+            seg = re.sub(r"<[^>]+>", " ", html[max(0, m.start() - 1200):m.start()])
+            if want in " ".join(seg.split()):
+                return fno
+    return None
+
+
 def find_largest(dsid, cookie):
     """상세 페이지에서 listFnc.download('dsId','fileNo','sizeKB') 중 최대 크기 fileNo(=SHP본)."""
     html = _get(f"{BASE}/dtmk_ntads_s002.do?dsId={dsid}&svcCde=MK", cookie)
@@ -104,7 +149,14 @@ def _download(ds_id, fno, cookie):
     with urllib.request.urlopen(req, timeout=300) as r:
         cd = r.headers.get("Content-Disposition", "")
         fn = re.search(r'filename="?([^";]+)', cd)
-        return r.read(), (fn.group(1) if fn else f"{ds_id}_{fno}.zip")
+        name = fn.group(1) if fn else f"{ds_id}_{fno}.zip"
+        # 헤더는 latin-1 로 읽힌다(HTTP 규격) — 한글 파일명이 깨져 나온다.
+        # 되돌려 UTF-8 로 읽는다. 실패하면 원문 그대로 둔다(영문 파일명은 그대로 맞다).
+        try:
+            name = name.encode("latin-1").decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
+        return r.read(), name
 
 
 def main():
@@ -113,6 +165,7 @@ def main():
     ap.add_argument("--only", help="쉼표구분 dsId만")
     ap.add_argument("--na", action="store_true", help="NA 카탈로그(토지특성·공시지가, 시군구 다중파일)")
     ap.add_argument("--misc", action="store_true", help="비LSMD MK 레이어(지구단위계획 등, 최대파일=SHP)")
+    ap.add_argument("--sido", action="store_true", help="시도별로 쪼갠 MK 레이어(도로구간 등, 파일명=서울)")
     args = ap.parse_args()
     cookie = _cookie()
     os.makedirs(args.out, exist_ok=True)
@@ -127,6 +180,19 @@ def main():
             ok = data[:2] == b"PK"
             open(os.path.join(args.out, name), "wb").write(data)
             print(f"  [{dsid}] {MISC.get(dsid, dsid)}: {'✓' if ok else '✗'} {name} ({len(data)//1024:,}KB) fileNo={fno}")
+        return
+    if args.sido:
+        ids = args.only.split(",") if args.only else list(SIDO)
+        for dsid in ids:
+            label, want = SIDO[dsid]
+            fno = find_sido(dsid, want, cookie)
+            if not fno:
+                print(f"  [{dsid}] {label}: ✗ '{want}' 못 찾음(로그인 만료? 파일명 변경?)")
+                continue
+            data, name = _download(dsid, fno, cookie)
+            ok = data[:2] == b"PK"
+            open(os.path.join(args.out, name), "wb").write(data)
+            print(f"  [{dsid}] {label}: {'✓' if ok else '✗'} {name} ({len(data)//1024:,}KB) fileNo={fno}")
         return
     if args.na:
         ids = args.only.split(",") if args.only else list(NA)

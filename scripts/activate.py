@@ -1,7 +1,7 @@
 """활성화 레이어 — 크롤러 스테이징 산출물을 빌더가 읽는 정규 raw 경로로 물질화.
 
 크롤 다음 단계. 스테이징(zip·json·xlsx·csv)을 훑어 종류별로 라우팅:
-  · HUB zip           → 압축해제 → mart_djy_NN.txt(전국) → extract_seoul → data/raw/seoul/*_seoul.txt
+  · HUB zip           → [2026-09-01 이후 안 온다] 아래 「건축HUB」 참고
                                    mart_kcy_01.txt(전국) → data/raw/mart_kcy_01.txt (그대로)
   · V-World MK zip     → 압축해제 → data/raw/<정규 LSMD dir>/  (paths.py가 *.shp glob)
   · V-World NA zip     → 토지특성(AL_D194 25구) → data/raw/토지특성/<stem>/ · 공시지가(AL_D150) → data/raw/<stem>/
@@ -44,6 +44,21 @@ def note(msg):
     print("  " + msg, flush=True)
 
 
+def _rename_stem(d, prefix, stem):
+    """폴더 안 SHP 한 벌의 이름을 `stem.*` 로 통일한다.
+
+    배포본 이름은 판마다 바뀌고(TL_SPRD_MANAGE_11_202608) 한글은 CP949 로 깨져 나오는데,
+    빌더·로더는 고정 이름을 박고 있다. 여기서 맞춰 주지 않으면 「받았는데 못 읽는다」가 된다.
+    prefix 가 있으면 그걸로 시작하는 것만, 없으면 폴더 안 전부를 바꾼다."""
+    for f in os.listdir(d):
+        base, ext = os.path.splitext(f)
+        if not ext or (prefix and not base.startswith(prefix)):
+            continue
+        src, dst = os.path.join(d, f), os.path.join(d, stem + ext)
+        if src != dst:
+            os.replace(src, dst)
+
+
 def _unzip_to(zip_path, dest_dir):
     os.makedirs(dest_dir, exist_ok=True)
     with zipfile.ZipFile(zip_path) as z:
@@ -53,7 +68,15 @@ def _unzip_to(zip_path, dest_dir):
 
 
 def handle_hub(zip_path, djy_txts):
-    """HUB zip → 내부 mart_*.txt를 raw 최상위로. djy는 extract_seoul 대상으로 수집."""
+    """[남겨 둔 길] HUB 전국본 zip → 내부 mart_*.txt 를 raw 최상위로.
+
+    ## 건축HUB 는 이제 스테이징을 안 거친다 (2026-09-01)
+
+    scripts/hub/download_seoul.py 가 **서울본을 곧바로** data/raw/hub_seoul/ 에 쌓는다
+    (55장 × 25구, 이어받기 전제). zip 도 전국본도 오지 않으므로 이 함수는 안 불린다.
+
+    전국본을 다시 받는 날을 위해 길만 남긴다.
+    """
     tmp = os.path.join(RAW, "_unzip_tmp")
     names = _unzip_to(zip_path, tmp)
     for n in names:
@@ -109,6 +132,19 @@ def classify_and_route(path, djy_txts):
                     if n.lower().endswith(".csv"):
                         z.extract(n, RAW)
                         note(f"승강기 {os.path.basename(n)} → data/raw/")
+        # 아래 둘은 **파일 이름까지 맞춰 준다.** 배포본 이름에 판번호·인코딩이 섞여 있어
+        # 빌더·로더가 박아 둔 이름과 다르다. 지금까지는 손으로 바꿔 쓰고 있었고,
+        # 그래서 재현이 안 됐다(2026-08-30).
+        elif "도로구간" in name:      # TL_SPRD_MANAGE_11_202608.* → TL_SPRD_MANAGE.Seoul.*
+            dest = os.path.join(RAW, "(도로명주소)도로구간_서울")
+            _unzip_to(path, dest)
+            _rename_stem(dest, "TL_SPRD_MANAGE", "TL_SPRD_MANAGE.Seoul")
+            note(f"도로구간 {name} → {os.path.relpath(dest, ROOT)}/")
+        elif "상권분석서비스" in name:   # zip 안 이름이 CP949 로 깨져 나온다 → sanggwon.*
+            dest = os.path.join(RAW, "서울시 상권분석서비스(영역-상권)")
+            _unzip_to(path, dest)
+            _rename_stem(dest, None, "sanggwon")
+            note(f"상권분석 {name} → {os.path.relpath(dest, ROOT)}/")
         elif name.startswith("C_UQ"):                    # 지구단위계획 등 비LSMD → 이름 그대로 dir
             dest = os.path.join(RAW, re.sub(r"\.zip$", "", name))
             _unzip_to(path, dest)
@@ -132,6 +168,7 @@ def classify_and_route(path, djy_txts):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--staging", default="data/raw/_dl", help="크롤러 스테이징 루트(재귀 스캔)")
+    # 전국본을 받던 시절의 길. 서울본은 뽑을 것이 없어 실제로는 안 탄다.
     ap.add_argument("--no-extract", action="store_true", help="extract_seoul(서울추출) 생략")
     a = ap.parse_args()
     os.chdir(ROOT)

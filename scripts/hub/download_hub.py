@@ -26,11 +26,22 @@ LIST = BASE + "/portal/opn/lps/idx-lgcpt-pvsn-srvc-list.do"
 DOWN = BASE + "/cmm/fms/fileOpnDown.do"
 # 접두어별 업무코드 (djy=건축물대장, kcy=건축인허가) — 서비스코드 = {업무}{두자리}
 TASK = {"djy": "03", "kcy": "01"}
-# 기본 수집 대상 = 파이프라인이 실제 소비하는 것만(감사 확정):
-#   djy_02 총괄표제부·djy_03 표제부·djy_04 층별개요·djy_05 부속지번 → seoul 추출본 사용
-#   kcy_01 건축인허가 기본개요 → 전국본 그대로 사용(build_daesuseon이 건축구분으로 대수선 재구성)
-# (kcy_05 대수선 원본은 프로젝트에서 폐기: build_daesuseon 주석 'idx15 kcy_05 폐기')
-DEFAULT = ["djy_02", "djy_03", "djy_04", "djy_05", "kcy_01"]
+# 기본 수집 대상 = **건축물대장 10종 전부**(2026-08-31).
+#
+# 예전엔 「파이프라인이 실제 소비하는 것만」 4종을 받았다. 그 판단이 틀렸다 —
+# 우리가 지금 안 쓴다는 건 우리 사정이지 대장의 사정이 아니고, 안 받아 두면
+# 나중에 필요할 때 그 시점의 대장을 못 구한다(마트는 최신월만 내려준다).
+# 실제로 전유부(0309)를 안 받아서, 부속지번이 가리키는 전유부 PK 488개가
+# 갈 곳 없는 미아로 떠 있었다.
+#
+#   djy_01 기본개요 · 02 총괄표제부 · 03 표제부 · 04 층별개요 · 05 부속지번
+#   djy_06 전유공용면적 · 07 오수정화시설 · 08 공동주택가격 · 09 전유부 · 10 지역지구구역
+#   kcy_01 건축인허가 기본개요 → build_daesuseon 이 건축구분으로 대수선 재구성
+#
+# 칸 뜻은 짐작하지 않는다 — scripts/hub/fetch_layout.py 가 HUB 에서 정의서를 받아
+# data/raw/_hub_layout/task{03,01}.json 에 둔다. 그게 정본이다.
+DEFAULT = ["djy_01", "djy_02", "djy_03", "djy_04", "djy_05",
+           "djy_06", "djy_07", "djy_08", "djy_09", "djy_10", "kcy_01"]
 
 _JAR = http.cookiejar.CookieJar()
 _OPENER = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(_JAR))

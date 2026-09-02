@@ -9,7 +9,7 @@ DB_INSTANCE="${DB_INSTANCE:-bt-pg}"
 BUCKET="${BUCKET:-${PROJECT}-bt-artifacts}"
 FRONTEND_BASE="${FRONTEND_BASE:?FRONTEND_BASE=https://<hosting도메인> 필요}"   # OAuth 콜백·CORS
 # 기본 false — 켜는 건 의도가 있을 때만. 기본 true로 두면 재배포 한 번에 가입이 조용히 열린다(2026-08-09 함정).
-SIGNUPS_OPEN="${SIGNUPS_OPEN:-false}"   # 신규 가입(이메일·소셜) 차단 — 기존 회원 로그인은 유지
+SIGNUPS_OPEN="${SIGNUPS_OPEN:-true}"    # 베타 개시(2026-08-11)로 개방. 다시 닫으려면 SIGNUPS_OPEN=false
 IMG="$REGION-docker.pkg.dev/$PROJECT/bt/api:$(date +%Y%m%d-%H%M)"
 CONN=$(gcloud sql instances describe "$DB_INSTANCE" --project="$PROJECT" --format='value(connectionName)')
 

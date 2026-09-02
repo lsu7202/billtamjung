@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S04 · 매물·매수자 모달 — 빌탐정 와이어프레임</title>
+<style>
+.spec-note{max-width:1020px; margin:18px auto 0; padding:10px 16px; font-size:13px; color:#6b7280;
+  background:#fff; border:1px solid #E5E8EC; border-radius:10px}
+.spec-note b{color:#262320}
+
+  :root{
+    --ink:#262320; --ink-2:#474C55; --muted:#868D97;
+    --bg:#F6F7F9; --panel:#FFFFFF; --surface-2:#F1F3F6; --surface-3:#E9EDF2;
+    --line:#E5E8EC; --line-2:#D2D7DE;
+    --green:#0E8A5F; --green-bg:#E6F4EE; --blue:#2563C7; --blue-bg:#E8EFFB;
+    --purple:#6B54E0; --up:#C2352B; --up-bg:#FBEBE9;
+    --amber:#B77B06; --amber-bg:#F7EBCB;
+  }
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+    --ink:#F2F1EF; --ink-2:#C4CAD3; --muted:#8A929C;
+    --bg:#141518; --panel:#1C1E22; --surface-2:#24272C; --surface-3:#2B2F35;
+    --line:#2C3036; --line-2:#3D434B;
+    --green:#5BC496; --green-bg:#142A22; --blue:#7FADEE; --blue-bg:#172232;
+    --purple:#A492F0; --up:#E8776B; --up-bg:#331D1B; --amber:#DFAE4E; --amber-bg:#312814; } }
+  :root[data-theme="dark"]{
+    --ink:#F2F1EF; --ink-2:#C4CAD3; --muted:#8A929C;
+    --bg:#141518; --panel:#1C1E22; --surface-2:#24272C; --surface-3:#2B2F35;
+    --line:#2C3036; --line-2:#3D434B;
+    --green:#5BC496; --green-bg:#142A22; --blue:#7FADEE; --blue-bg:#172232;
+    --purple:#A492F0; --up:#E8776B; --up-bg:#331D1B; --amber:#DFAE4E; --amber-bg:#312814; }
+  *{box-sizing:border-box}
+  body{background:var(--bg); color:var(--ink); margin:0;
+    font-family:"Pretendard",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+    font-size:15px; line-height:1.6; letter-spacing:-.012em; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1020px; margin:0 auto; padding:44px 16px 90px; display:flex; flex-direction:column; gap:46px; overflow-x:auto}
+  h1{font-size:22px; font-weight:800; letter-spacing:-.03em; margin:0}
+  h2{font-size:16px; font-weight:800; letter-spacing:-.02em; margin:0 0 10px}
+
+  .modal{background:var(--panel); border:1px solid var(--line); border-radius:16px; overflow:hidden;
+    box-shadow:0 10px 34px rgba(38,35,32,.10); min-width:900px}
+  .mhead{display:flex; align-items:center; gap:10px; padding:15px 20px; border-bottom:1px solid var(--line)}
+  .mhead b{font-size:17px; font-weight:800; letter-spacing:-.02em}
+  .chipst{display:inline-flex; align-items:center; font-size:12px; font-weight:700;
+    padding:3px 11px; border-radius:999px; background:var(--amber-bg); color:var(--amber)}
+  .mhead .sp{flex:1}
+  .mhead .x{color:var(--muted); font-size:16px; font-weight:700}
+  .mbody{display:grid; grid-template-columns:1fr 262px}
+  .mmain{padding:0 20px 18px; min-height:420px}
+  .tabs{display:flex; gap:2px; border-bottom:1px solid var(--line); margin:0 -20px; padding:0 18px}
+  .tabs i{font-style:normal; font-size:13.5px; font-weight:800; color:var(--muted); padding:11px 13px 9px; cursor:pointer;
+    border-bottom:2px solid transparent; margin-bottom:-1px; transition:color .18s}
+  .tabs i.dis{opacity:.45; cursor:default}
+  .tabs i.on{color:var(--ink); border-bottom-color:var(--ink)}
+  .pane{display:none; padding-top:16px; flex-direction:column; gap:12px}
+  .pane.on{display:flex; animation:fadein .22s ease}
+  @keyframes fadein{from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:none}}
+
+  .chip{display:inline-block; font-size:12.5px; font-weight:700; padding:4px 12px; border-radius:999px;
+    background:var(--surface-2); color:var(--ink-2); cursor:pointer; transition:background .15s, color .15s, transform .12s}
+  .chip:active{transform:scale(.96)}
+  .chip.on{background:var(--ink); color:var(--panel)}
+  .chip.ghost{border:1px solid var(--line-2); background:none; color:var(--muted)}
+  .vp{display:inline-flex; align-items:baseline; gap:6px; font-size:13px; font-weight:700; padding:5px 13px;
+    border-radius:999px; border:1px solid var(--line-2); color:var(--muted); cursor:pointer; transition:border-color .15s}
+  .vp b{font-size:14px; font-weight:800; color:var(--ink); font-variant-numeric:tabular-nums}
+  .vp:hover{border-color:var(--muted)}
+  .vp.hero{border-color:var(--green); background:var(--green-bg)}
+  .vp.hero b{color:var(--green); font-size:16px}
+  .rowx{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+  .seg2{display:inline-flex; background:var(--surface-2); border-radius:999px; padding:2px}
+  .seg2 i{font-style:normal; font-size:11.5px; padding:3px 11px; border-radius:999px; color:var(--muted); font-weight:700; cursor:pointer; transition:all .15s}
+  .seg2 i.on{background:var(--panel); color:var(--ink); box-shadow:0 1px 2px rgba(38,35,32,.14)}
+
+  .money{display:flex; align-items:flex-start; padding:14px 6px 6px}
+  .mnode{flex:1; display:flex; flex-direction:column; gap:3px; position:relative; padding-top:12px}
+  .mnode::before{content:""; position:absolute; top:4px; left:0; right:0; height:3px; border-radius:3px; background:var(--line)}
+  .mnode.paid::before{background:var(--green)}
+  .mnode.next::before{background:linear-gradient(90deg, var(--green) 0%, var(--line) 60%)}
+  .mnode .ml{font-size:10.5px; font-weight:800; color:var(--muted); letter-spacing:.03em}
+  .mnode .mv{font-size:14.5px; font-weight:800; font-variant-numeric:tabular-nums}
+  .mnode.paid .mv{color:var(--green)}
+  .mnode .md{font-size:11px; color:var(--muted)}
+  .mnode+.mnode{margin-left:8px}
+
+  .ck{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-2); padding:3px 4px; border-radius:7px; transition:background .13s}
+  .ck:hover{background:var(--surface-2)}
+  .ck input{appearance:none; width:15px; height:15px; border:1.5px solid var(--line-2); border-radius:4.5px; margin:0; cursor:pointer;
+    display:grid; place-items:center; transition:border-color .12s, background .12s; flex:0 0 auto}
+  .ck input:checked{background:var(--green); border-color:var(--green); animation:pop .28s cubic-bezier(.2,1.6,.4,1)}
+  .ck input:checked::after{content:"✓"; color:#fff; font-size:9.5px; font-weight:900}
+  @keyframes pop{0%{transform:scale(.7)} 60%{transform:scale(1.18)} 100%{transform:scale(1)}}
+  .ck .h{margin-left:auto; opacity:0; font-size:11.5px; color:var(--muted); font-weight:800; transition:opacity .15s}
+  .ck:hover .h{opacity:1}
+  .grp{display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:800; padding:5px 12px; border-radius:999px;
+    background:var(--surface-2); color:var(--ink-2); cursor:pointer; transition:background .15s}
+  .grp:hover{background:var(--surface-3)}
+  .grp .g{width:44px; height:5px; border-radius:5px; background:var(--line-2); overflow:hidden}
+  .grp .g i{display:block; height:100%; background:var(--green); border-radius:5px; transition:width .35s ease}
+  .mk{display:inline-block; font-size:12px; font-weight:800; padding:4px 13px; border-radius:999px;
+    border:1px solid var(--line-2); color:var(--ink-2); cursor:pointer; transition:all .15s}
+  .mk:hover{border-color:var(--muted)}
+  .mk.done{border-color:var(--green); color:var(--green)}
+  .sett{border-collapse:collapse; font-size:12.5px; font-variant-numeric:tabular-nums; max-width:420px}
+  .sett td{padding:4px 12px 4px 0; border-bottom:1px solid var(--line); color:var(--ink-2)}
+  .sett td:last-child{text-align:right; font-weight:800; color:var(--ink)}
+  .sett td .no{color:var(--muted); font-weight:600}
+  .sett tr:last-child td{border-bottom:0}
+  .say{font-size:12.5px; color:var(--ink-2)}
+  .warnc{color:var(--up); font-weight:800}
+  .cp{font-size:11.5px; color:var(--muted); font-weight:700; margin-left:auto}
+
+  .memo{border-left:1px solid var(--line); display:flex; flex-direction:column}
+  .memo .mt{font-size:12px; font-weight:800; color:var(--muted); letter-spacing:.04em; padding:12px 14px 8px}
+  .memo ul{list-style:none; margin:0; padding:0 14px; flex:1; display:flex; flex-direction:column; overflow-y:auto}
+  .memo li{padding:9px 0; border-bottom:1px solid var(--line)}
+  .memo li:last-child{border-bottom:0}
+  .memo .d{font-size:11px; font-weight:700; color:var(--muted)}
+  .memo .t{font-size:13px; line-height:1.5; margin-top:1px}
+  .memo .w{font-size:11px; color:var(--muted); margin-top:1px}
+  .memo .in{margin:8px 12px 12px; border:1px solid var(--line-2); border-radius:999px; padding:7px 14px; font-size:13px; color:var(--muted)}
+
+  /* 1안 타임라인 */
+  .tl{position:relative; padding-left:26px}
+  .tl::before{content:""; position:absolute; left:8px; top:10px; bottom:10px; width:2px; background:var(--line)}
+  .ts{position:relative; padding:7px 0 7px 6px}
+  .ts::before{content:""; position:absolute; left:-24px; top:14px; width:12px; height:12px; border-radius:999px;
+    background:var(--panel); border:2px solid var(--line-2); transition:all .2s}
+  .ts.done::before{background:var(--green); border-color:var(--green)}
+  .ts.now::before{border-color:var(--green); animation:pulse 1.8s ease-out infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(14,138,95,.35)} 70%{box-shadow:0 0 0 7px rgba(14,138,95,0)} 100%{box-shadow:0 0 0 0 rgba(14,138,95,0)}}
+  .ts .th{display:flex; align-items:baseline; gap:9px; cursor:pointer}
+  .ts .th b{font-size:13.5px; font-weight:800}
+  .ts .th .cnt{font-size:11.5px; font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums}
+  .ts .tb{overflow:hidden; max-height:0; transition:max-height .3s ease; display:flex; flex-direction:column; gap:6px}
+  .ts.open .tb{max-height:560px; padding-top:8px}
+
+  /* 2안 층 카드 */
+  .cards{display:flex; flex-direction:column; gap:8px}
+  .cardx{border:1px solid var(--line); border-radius:12px; background:var(--panel); overflow:hidden;
+    transition:box-shadow .22s, transform .22s, background .22s; cursor:pointer}
+  .cardx .chh{display:flex; align-items:baseline; gap:9px; padding:11px 15px}
+  .cardx .chh b{font-size:13.5px; font-weight:800}
+  .cardx .chh .cnt{font-size:11.5px; font-weight:700; color:var(--muted)}
+  .cardx .cbb{display:none; padding:0 15px 13px; flex-direction:column; gap:7px}
+  .cardx.raised{box-shadow:0 8px 22px rgba(38,35,32,.13); transform:translateY(-1px)}
+  .cardx.raised .cbb{display:flex; animation:fadein .2s ease}
+  .cardx.dim{background:var(--surface-2)}
+
+  /* 3안 집중 */
+  .spills{display:flex; gap:6px; flex-wrap:wrap}
+  .spill{display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:800; padding:6px 13px;
+    border-radius:999px; background:var(--surface-2); color:var(--ink-2); cursor:pointer; transition:all .18s}
+  .spill.on{background:var(--ink); color:var(--panel)}
+  .spill svg{transform:rotate(-90deg)}
+  .spill .ring{stroke:var(--line-2)}
+  .spill.on .ring{stroke:rgba(255,255,255,.25)}
+  .spill .arc{stroke:var(--green); transition:stroke-dashoffset .5s ease}
+  .fpane{display:none; flex-direction:column; gap:10px}
+  .fpane.on{display:flex; animation:slidein .26s ease}
+  @keyframes slidein{from{opacity:0; transform:translateX(10px)} to{opacity:1; transform:none}}
+  .ftitle{font-size:19px; font-weight:800; letter-spacing:-.028em; margin-top:4px}
+  .ftitle small{font-size:12px; color:var(--muted); font-weight:700; margin-left:8px}
+  .mlegend{display:flex; gap:14px; align-items:center; font-size:11.5px; color:var(--muted); font-weight:700; font-variant-numeric:tabular-nums; flex-wrap:wrap}
+  .mlegend b{color:var(--ink)}
+  .moneybar{display:flex; height:8px; border-radius:8px; overflow:hidden; background:var(--line); margin:4px 0 2px}
+  .moneybar i{display:block; height:100%}
+  .moneybar .a{background:var(--green); width:4%}
+
+
+  /* 복원 섹션용 */
+  .row{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
+  .row .k{flex:0 0 62px; font-size:11.5px; font-weight:800; color:var(--muted)}
+  .row b{font-size:14.5px; font-weight:800; letter-spacing:-.02em}
+  .row .dim{color:var(--muted); font-size:12.5px; font-weight:600}
+  .big{font-size:16.5px; font-weight:800}
+  .seg{display:inline-flex; background:var(--surface-2); border-radius:999px; padding:2px}
+  .seg i{font-style:normal; font-size:12px; padding:4px 12px; border-radius:999px; color:var(--muted); font-weight:700; cursor:pointer}
+  .seg i.on{background:var(--panel); color:var(--ink); box-shadow:0 1px 2px rgba(38,35,32,.12)}
+  .val{display:inline-block; font-size:13px; font-weight:800; padding:4px 12px; border-radius:999px;
+    border:1px solid var(--line-2); cursor:pointer}
+  .val.ok{border-color:var(--green); color:var(--green)}
+  .stop{margin-top:8px; padding-top:10px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px}
+  .stop .st{font-size:12px; font-weight:800; color:var(--muted)}
+  .subtabs{display:flex; gap:2px; border-bottom:1px solid var(--line); margin-bottom:4px}
+  .subtabs i{font-style:normal; font-size:12.5px; font-weight:700; color:var(--muted); padding:6px 10px; cursor:pointer;
+    border-bottom:2px solid transparent; margin-bottom:-1px}
+  .subtabs i.on{color:var(--ink); border-bottom-color:var(--ink)}
+  .spane{display:none; flex-direction:column; gap:10px; padding-top:8px}
+  .spane.on{display:flex}
+  .docs{display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; font-size:12.5px; color:var(--ink-2)}
+  .docs label{display:flex; gap:7px; align-items:center}
+  .docs i{width:13px; height:13px; border:1.5px solid var(--line-2); border-radius:3.5px; display:inline-block; flex:0 0 auto}
+  .docs i.on{background:var(--green); border-color:var(--green); position:relative}
+  .docs i.on::after{content:"✓"; position:absolute; inset:0; color:#fff; font-size:9px; font-weight:900; display:grid; place-items:center}
+  .ob{border-collapse:collapse; font-size:12.5px; font-variant-numeric:tabular-nums; width:100%}
+  .ob th{font-size:11px; font-weight:800; color:var(--muted); text-align:right; padding:4px 10px; border-bottom:1px solid var(--line-2)}
+  .ob th.who{text-align:left}
+  .ob td{padding:5px 10px; text-align:right; border-bottom:1px solid var(--line); color:var(--ink-2)}
+  .ob td.who{text-align:left; font-weight:800}
+  .ob tr.sell td.who{color:var(--purple)}
+  .ob tr.buy td.who{color:var(--blue)}
+  .ob td.now,.ob th.now{font-weight:800; color:var(--ink)}
+  .ob tr:last-child td{border-bottom:0}
+  .k2{font-size:11.5px; font-weight:800; color:var(--muted); margin-left:8px}
+  .mny{display:inline-block; min-width:64px; border-bottom:1.5px dashed var(--line-2); text-align:right;
+    font-size:12.5px; color:var(--muted); padding:1px 3px; font-variant-numeric:tabular-nums}
+  .mny b{color:var(--ink); font-size:13px}
+  .accx{border-top:1px solid var(--line)}
+  .acch{display:flex; align-items:baseline; gap:10px; padding:9px 0; cursor:pointer}
+  .acch b{font-size:13.5px; font-weight:800}
+  .acch .cnt{font-size:11.5px; font-weight:700; color:var(--muted)}
+  .accb{display:none; flex-direction:column; gap:7px; padding:2px 0 12px}
+  .accx.open .accb{display:flex}
+  .questr{display:flex; gap:9px; align-items:baseline; background:var(--surface-2); border-radius:8px; padding:7px 11px; font-size:12.5px}
+  .questr b{font-size:13px}
+  @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
+
+</style>
+</head>
+<body>
+<div class="spec-note"><b>S04 · 매물·매수자 모달</b> — 합의·계약 경계 개편. 계약 탭 디자인은 아래 3안 중 택1.</div>
+<div class="wrap">
+<h1>매물 · 매수자 모달</h1>
+
+<!-- ═══════════ 매물 모달 ═══════════ -->
+<section>
+  <h2>매물 모달</h2>
+  <div class="modal">
+    <div class="mhead"><b>삼성동 147-4</b><span class="chipst">계약예정</span><span class="sp"></span><span class="x">✕</span></div>
+    <div class="mbody">
+      <div class="mmain">
+        <div class="tabs" data-tabs="m1">
+          <i data-t="owner">소유자</i><i data-t="touch">접촉</i><i data-t="info">정보</i><i data-t="deal">합의</i><i data-t="run" class="on">계약</i>
+        </div>
+
+        <div class="pane" data-p="m1:owner">
+          <div class="row"><span class="k">이름</span><b class="big">김영순</b></div>
+          <div class="row"><span class="k">전화</span><b class="big">010-5215-8731</b></div>
+          <div class="row"><span class="k">구분</span><span class="chip on">개인</span><span class="chip">법인</span></div>
+          <div class="row"><span class="k">관계</span><span class="chip on">건물주/법인대표</span><span class="chip">관리자</span><span class="chip">친인척</span><span class="chip">부동산</span><span class="chip">기타</span></div>
+          <div class="row"><span class="k">나이</span><span class="chip">20·30대</span><span class="chip">40·50대</span><span class="chip on">60·70대</span><span class="chip">70대 이상</span></div>
+          <div class="row"><span class="k">성별</span><span class="chip">남성</span><span class="chip on">여성</span></div>
+          <div class="row"><span class="k">협조</span><span class="chip on">협조적</span><span class="chip">보통</span><span class="chip">비협조적</span></div>
+          <div class="row"><span class="k">응대</span><span class="chip">친절</span><span class="chip on">보통</span><span class="chip">불친절</span></div>
+          <div class="stop"><span class="st">멈춤</span>
+            <div class="row"><span class="k">사유</span><span class="chip">연락처를 못 캠</span><span class="chip">법인 담당을 못 찾음</span></div>
+          </div>
+        </div>
+
+        <div class="pane" data-p="m1:touch">
+          <div class="row"><span class="k">통화</span><span class="chip on">통화됨</span><span class="chip">부재중</span><span class="chip">전원꺼짐</span><span class="chip">끊어짐</span><span class="chip">통화중</span><span class="chip">해외로밍</span><span class="chip">결번</span></div>
+          <div class="row"><span class="k">의사</span><span class="chip on">원함</span><span class="chip">검토</span></div>
+          <div class="row"><span class="k">급함</span><span class="chip">매우급함</span><span class="chip">급함</span><span class="chip on">보통</span><span class="chip">여유</span></div>
+          <div class="row"><span class="k">시기</span><span class="chip">이달 안</span><span class="chip on">올해 안</span><span class="chip">상반기</span><span class="chip">하반기</span><span class="chip">연말</span><span class="chip">내년 초</span><span class="chip">봄</span><span class="chip">가을</span><span class="chip ghost">날짜로</span></div>
+          <div class="row"><span class="k">전환</span><span class="chip">매수도 원함</span></div>
+          <div class="stop"><span class="st">멈춤</span>
+            <div class="row"><span class="k">사유</span><span class="chip">연락두절</span><span class="chip">통화를 거부함</span><span class="chip">매도의사 없음</span><span class="chip">나중에 팔 생각</span></div>
+          </div>
+        </div>
+
+        <div class="pane" data-p="m1:info">
+          <div class="row"><span class="k">명도</span><span class="chip">확인중</span><span class="chip">완료</span><span class="chip on">가능</span><span class="chip">불가</span><span class="chip">일부</span><span class="chip">조건부</span></div>
+          <div class="row"><span class="k">용도변경</span><span class="chip on">확인중</span><span class="chip">나대지(주차장)</span><span class="chip">근생</span><span class="chip">상가주택</span><span class="chip">다가구주택</span><span class="chip">다세대주택</span><span class="chip">가능</span><span class="chip">불가</span><span class="chip">협의가능</span><span class="chip">조건부</span></div>
+          <div class="row"><span class="k">멸실</span><span class="chip">확인중</span><span class="chip">불가</span><span class="chip">협조가능</span><span class="chip">잔금전멸실</span><span class="chip">나대지(주차장)</span><span class="chip">협의가능</span><span class="chip">조건부</span></div>
+          <div class="row"><span class="k">임대내역</span><span class="chip">확인중</span><span class="chip on">받음</span><span class="val">12건 · 공실 1 ↗</span></div>
+          <div class="row"><span class="k">가격</span><span class="val">매매가 148억</span><span class="val">매도희망 125억</span></div>
+        </div>
+
+        <div class="pane" data-p="m1:deal">
+          <div class="subtabs" data-tabs="m1d">
+            <i data-t="d" class="on">합의</i><i data-t="b1">이서연</i><i data-t="b2">김민준</i><i data-t="add">＋ 매수자</i><i data-t="board">호가판</i>
+          </div>
+          <div class="spane on" data-p="m1d:d">
+            <div class="row"><span class="k">매매가</span><span class="val">148억</span><span class="dim">시장에 내건 값</span></div>
+            <div class="row"><span class="k">매도희망</span><span class="val">125억</span><span class="dim">매도자가 원하는 값</span></div>
+            <div class="row"><span class="k">계약 상대</span><span class="chip on">김민준</span><span class="chip">이서연</span></div>
+            <div class="row"><span class="k">거래금액</span><span class="val ok">128억</span></div>
+            <div class="stop"><span class="st">멈춤</span>
+              <div class="row"><span class="k">사유</span><span class="chip">맞는 매수자가 없음</span></div>
+            </div>
+          </div>
+          <div class="spane" data-p="m1d:b1">
+            <div class="row"><span class="k">브리핑</span><span class="chip">현장에서</span><span class="chip on">사무실에서</span><span class="chip">전화</span><span class="chip">자료 발송</span><span class="dim">8/12</span></div>
+            <div class="row"><span class="k">매수희망</span><span class="val">120억</span></div>
+          </div>
+          <div class="spane" data-p="m1d:b2">
+            <div class="row"><span class="k">브리핑</span><span class="chip on">현장에서</span><span class="chip">사무실에서</span><span class="chip">전화</span><span class="chip">자료 발송</span><span class="dim">8/9</span></div>
+            <div class="row"><span class="k">매수희망</span><span class="val">128억</span></div>
+          </div>
+          <div class="spane" data-p="m1d:board">
+            <table class="ob">
+              <thead><tr><th class="who">호가판</th><th>8/2</th><th>8/9</th><th>8/12</th><th>8/19</th><th class="now">지금</th><th>갭</th></tr></thead>
+              <tbody>
+                <tr class="sell"><td class="who">매도희망</td><td>130억</td><td></td><td>125억</td><td></td><td class="now">125억</td><td></td></tr>
+                <tr class="buy"><td class="who">김민준</td><td></td><td>120억</td><td></td><td>128억</td><td class="now">128억</td><td>3억</td></tr>
+                <tr class="buy"><td class="who">이서연</td><td></td><td></td><td>120억</td><td></td><td class="now">120억</td><td>5억</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="pane on" data-p="m1:run">
+          <div class="questr"><b>준비물 안내</b><span class="dim">매도 2건 · 매수 3건 미확인 · 계약 D-4</span><span class="cp">⧉</span></div>
+          <div class="row"><span class="k">부가세</span><span class="chip on">별도</span><span class="chip">포함</span>
+            <span class="k2">가계약</span><span class="mny"><b>5,000만</b></span><span class="dim">8/12</span></div>
+          <div class="row"><span class="k">계약금</span><span class="mny"><b>12.8억</b></span><span class="dim">계약 8/26 14:00</span>
+            <span class="k2">중도금</span><span class="mny">—</span>
+            <span class="k2">잔금</span><span class="mny">115.2억</span><span class="dim">9/22</span></div>
+          <div class="row"><span class="k">중개보수</span><span class="val">0.9% · 1.15억</span>
+            <span class="k2">기한</span><span class="chip" style="background:var(--up-bg); color:var(--up)">신고 D-6</span><span class="chip">등기·취득세 60일</span></div>
+          <div class="accx open">
+            <div class="acch"><b>계약 전</b><span class="cnt">9/14</span><span class="cp">⧉ 준비물 문자</span></div>
+            <div class="accb">
+              <div class="docs">
+                <label><i class="on"></i>공부 확인(등기·대장·토지이용)</label><label><i class="on"></i>현장 대조</label>
+                <label><i class="on"></i>등기권리증 보유 확인</label><label><i></i>확정일자 열람 대조</label>
+                <label><i class="on"></i>매도 · 신분증</label><label><i class="on"></i>매도 · 인감도장</label>
+                <label><i class="on"></i>매도 · 임대차계약서 사본</label><label><i></i>매도 · 임차인 현황표</label>
+                <label><i class="on"></i>매수 · 신분증</label><label><i class="on"></i>매수 · 도장</label>
+              </div>
+            </div>
+          </div>
+          <div class="accx">
+            <div class="acch"><b>계약 당일</b><span class="cnt">0/9</span><span class="cp">8/26</span></div>
+            <div class="accb">
+              <div class="docs">
+                <label><i></i>아침 공부 재발급·대조</label><label><i></i>본인·대표권·대리권 확인</label>
+                <label><i></i>근거자료 제시</label><label><i></i>계약금 입금 확인</label>
+                <label><i></i>확인설명서 교부</label><label><i></i>공제증서 사본 교부</label>
+              </div>
+              <div class="row"><span class="k">문서</span><span class="mk">계약서</span><span class="mk">확인설명서</span><span class="mk">영수증</span></div>
+            </div>
+          </div>
+          <div class="accx">
+            <div class="acch"><b>신고 · 중도금</b><span class="cnt">0/3</span><span class="cp" style="color:var(--up)">신고 D-6</span></div>
+            <div class="accb">
+              <div class="docs">
+                <label><i></i>부동산 거래신고 — 신고일</label><label><i></i>신고필증 전달(양쪽·법무사)</label>
+                <label><i></i>중도금 입금 확인</label>
+              </div>
+            </div>
+          </div>
+          <div class="accx">
+            <div class="acch"><b>잔금</b><span class="cnt">1/19</span><span class="cp">9/22</span></div>
+            <div class="accb">
+              <div class="docs">
+                <label><i class="on"></i>법무사 선임</label><label><i></i>매수인 대출 확인</label>
+                <label><i></i>매도인 상환계좌</label><label><i></i>말소 방법</label>
+                <label><i></i>신고필증↔계약서 대조</label><label><i></i>잔금 입금 확인</label>
+                <label><i></i>매도 · 매도용 인감증명서</label><label><i></i>매도 · 주민등록초본</label>
+                <label><i></i>매도 · 등기권리증</label><label><i></i>매도 · 임대차계약서 원본</label>
+                <label><i></i>매수 · 주민등록등본</label><label><i></i>등기 접수증 수령</label>
+                <label><i></i>인수인계 · 열쇠·출입</label><label><i></i>인수인계 · 문서</label>
+                <label><i></i>인수인계 · 시설</label><label><i></i>인수인계 · 인원·업체</label>
+              </div>
+              <div class="row"><span class="k">정산</span><span class="mny">임대료 <b>600만</b></span><span class="mny">보증금 승계 —</span><span class="mny">검침 —</span><span class="mny">정화조 —</span><span class="mny">부가세 —</span><span class="mny">상환액 —</span><span class="mny">차액 —</span></div>
+              <div class="row"><span class="k">문서</span><span class="mk">인수인계표</span><span class="mk">영수증(잔금)</span></div>
+              <div class="row"><span class="k">보수</span><span class="mny">수령 —</span></div>
+            </div>
+          </div>
+          <div class="accx">
+            <div class="acch"><b>사후</b><span class="cnt">0/7</span><span class="cp">등기·취득세 60일</span></div>
+            <div class="accb">
+              <div class="docs">
+                <label><i></i>임차인 새 계좌 안내</label><label><i></i>명의변경</label>
+                <label><i></i>등기 완료 확인</label><label><i></i>등기·취득세 60일 안내</label>
+                <label><i></i>양도세 안내</label><label><i></i>사업자등록 안내</label>
+              </div>
+              <div class="row"><span class="k">차액정산</span><span class="mny">—</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="memo">
+        <div class="mt">메모</div>
+        <ul>
+          <li><div class="d">8/19</div><div class="t">매각 여부는 딸과 고민해본다</div><div class="w">이승욱</div></li>
+          <li><div class="d">8/02</div><div class="t">딸이 3개월 뒤 결혼이라 지금 바쁨</div><div class="w">이승욱</div></li>
+          <li><div class="d">7/28</div><div class="t">아침 10시 전 전화 선호</div><div class="w">박팀장</div></li>
+        </ul>
+        <div class="in">메모</div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 매수자 모달 ═══════════ -->
+<section>
+  <h2>매수자 모달</h2>
+  <div class="modal">
+    <div class="mhead"><b>김민준</b><span class="chipst">계약예정</span><span class="sp"></span><span class="x">✕</span></div>
+    <div class="mbody">
+      <div class="mmain">
+        <div class="tabs" data-tabs="m2">
+          <i data-t="prof" class="on">프로필</i><i data-t="cond">조건</i><i data-t="deal">계약</i>
+        </div>
+
+        <div class="pane on" data-p="m2:prof">
+          <div class="row"><span class="k">이름</span><b class="big">김민준</b></div>
+          <div class="row"><span class="k">전화</span><b class="big">010-3187-4407</b></div>
+          <div class="row"><span class="k">구분</span><span class="chip on">개인</span><span class="chip">법인</span></div>
+          <div class="row"><span class="k"></span><span class="chip on">본인</span><span class="chip">대리인(공동중개)</span></div>
+          <div class="row"><span class="k">등급</span><span class="chip on">확실</span><span class="chip">보통</span><span class="chip">관망</span></div>
+          <div class="row"><span class="k">출처</span><span class="chip">소개</span><span class="chip">광고</span><span class="chip on">직접문의</span><span class="chip">기존고객</span><span class="chip">기타</span></div>
+          <div class="row"><span class="k">급함</span><span class="chip">매우급함</span><span class="chip on">급함</span><span class="chip">보통</span><span class="chip">여유</span></div>
+          <div class="row"><span class="k">나이</span><span class="chip">20·30대</span><span class="chip on">40·50대</span><span class="chip">60·70대</span><span class="chip">70대 이상</span></div>
+          <div class="row"><span class="k">성별</span><span class="chip on">남성</span><span class="chip">여성</span></div>
+          <div class="row"><span class="k">협조</span><span class="chip on">협조적</span><span class="chip">보통</span><span class="chip">비협조적</span></div>
+          <div class="row"><span class="k">응대</span><span class="chip on">친절</span><span class="chip">보통</span><span class="chip">불친절</span></div>
+        </div>
+
+        <div class="pane" data-p="m2:cond">
+          <div class="row"><span class="k">조건</span><b>삼성동 수익형</b><span class="dim">삼성동 · 130억 이하 · 대지 90평~</span><span class="chip ghost">지도에서 열기</span></div>
+          <div class="row"><span class="k"></span><b>역삼동 사옥</b><span class="dim">역삼동 · 100억 이하</span><span class="chip ghost">지도에서 열기</span></div>
+          <div class="row"><span class="k"></span><span class="chip ghost">＋ 조건</span></div>
+        </div>
+
+        <div class="pane" data-p="m2:deal">
+          <div class="subtabs" data-tabs="m2d">
+            <i data-t="p1" class="on">삼성동 147-4</i><i data-t="p2">역삼동 682-11</i><i data-t="add">＋ 매물</i>
+          </div>
+          <div class="spane on" data-p="m2d:p1">
+            <div class="row"><span class="k">브리핑</span><span class="chip on">현장에서</span><span class="chip">사무실에서</span><span class="chip">전화</span><span class="chip">자료 발송</span><span class="dim">8/9</span></div>
+            <div class="row"><span class="k">매도희망</span><b>125억</b></div>
+            <div class="row"><span class="k">매수희망</span><span class="val">128억</span></div>
+            <div class="row"><span class="k">계약</span><b>계약 상대</b><span class="dim">거래금액 128억 · 계약 8/26</span></div>
+          </div>
+          <div class="spane" data-p="m2d:p2">
+            <div class="row"><span class="k">브리핑</span><span class="chip">현장에서</span><span class="chip">사무실에서</span><span class="chip">전화</span><span class="chip on">자료 발송</span><span class="dim">8/14</span></div>
+            <div class="row"><span class="k">매도희망</span><b>96억</b></div>
+            <div class="row"><span class="k">매수희망</span><span class="val">—</span></div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="memo">
+        <div class="mt">메모</div>
+        <ul>
+          <li><div class="d">8/16</div><div class="t">잔금은 대출 없이 현금. 법인 전환 고민 중</div><div class="w">이승욱</div></li>
+          <li><div class="d">8/05</div><div class="t">화요일 오전은 골프 — 연락 피하기</div><div class="w">이승욱</div></li>
+        </ul>
+        <div class="in">메모</div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+
+<!-- 1안 -->
+<section>
+  <h2>1안 · 타임라인</h2>
+  <div class="modal">
+    <div class="mhead"><b>삼성동 147-4</b><span class="chipst">계약예정</span><span class="sp"></span><span class="x">✕</span></div>
+    <div class="mbody">
+      <div class="mmain">
+        <div class="tabs" data-tabs="v1">
+          <i class="dis">소유자</i><i class="dis">접촉</i><i class="dis">정보</i><i data-t="agree">합의</i><i data-t="deal" class="on">계약</i>
+        </div>
+
+        <div class="pane" data-p="v1:agree">
+          <div class="rowx"><span class="chip">이서연</span><span class="chip on">김민준</span><span class="chip ghost">＋</span><span class="chip ghost">호가판</span></div>
+          <div class="rowx">
+            <span class="vp">매매가 <b>148억</b></span>
+            <span class="vp">매도희망 <b>125억</b></span>
+            <span class="vp hero">거래금액 <b>128억</b></span>
+          </div>
+        </div>
+
+        <div class="pane on" data-p="v1:deal">
+          <div class="money">
+            <div class="mnode paid"><span class="ml">가계약</span><span class="mv">5,000만</span><span class="md">8/12</span></div>
+            <div class="mnode next"><span class="ml">계약금</span><span class="mv">12.8억</span><span class="md">8/26</span></div>
+            <div class="mnode"><span class="ml">중도금</span><span class="mv">없음</span><span class="md"></span></div>
+            <div class="mnode"><span class="ml">잔금</span><span class="mv">115.2억</span><span class="md">9/22</span></div>
+            <div class="mnode"><span class="ml">보수</span><span class="mv">1.15억</span><span class="md">0.9%</span></div>
+          </div>
+          <div class="rowx"><span class="seg2"><i class="on">부가세 별도</i><i>포함</i></span></div>
+
+          <div class="tl">
+            <div class="ts open now">
+              <div class="th"><b>계약 전</b><span class="cnt">9/14</span><span class="say">임차인 현황표, 확정일자 열람이 남았습니다</span><span class="cp">⧉</span></div>
+              <div class="tb">
+                <div class="rowx">
+                  <span class="grp">매도 서류 <span class="g"><i style="width:71%"></i></span> 5/7</span>
+                  <span class="grp">매수 서류 <span class="g"><i style="width:67%"></i></span> 2/3</span>
+                  <span class="grp">공부·확인 <span class="g"><i style="width:50%"></i></span> 2/4</span>
+                </div>
+                <label class="ck"><input type="checkbox" checked><span>공부 확인(등기·대장·토지이용)</span><span class="h">✎ ✕</span></label>
+                <label class="ck"><input type="checkbox" checked><span>현장 대조</span><span class="h">✎ ✕</span></label>
+                <label class="ck"><input type="checkbox"><span>확정일자 열람 대조</span><span class="h">✎ ✕</span></label>
+                <label class="ck"><input type="checkbox"><span>매도 · 임차인 현황표</span><span class="h">✎ ✕</span></label>
+              </div>
+            </div>
+            <div class="ts">
+              <div class="th"><b>계약 당일</b><span class="cnt">0/9</span><span class="cp">8/26</span></div>
+              <div class="tb">
+                <label class="ck"><input type="checkbox"><span>아침 공부 재발급·대조</span></label>
+                <label class="ck"><input type="checkbox"><span>본인·대표권·대리권 확인</span></label>
+                <label class="ck"><input type="checkbox"><span>근거자료 제시</span></label>
+                <label class="ck"><input type="checkbox"><span>계약금 입금 확인</span></label>
+                <label class="ck"><input type="checkbox"><span>확인설명서 교부</span></label>
+                <label class="ck"><input type="checkbox"><span>공제증서 사본 교부</span></label>
+                <div class="rowx"><span class="mk">계약서</span><span class="mk">확인설명서</span><span class="mk">영수증</span></div>
+              </div>
+            </div>
+            <div class="ts">
+              <div class="th"><b>신고 · 중도금</b><span class="cnt">0/3</span><span class="cp warnc">신고 D-6</span></div>
+              <div class="tb">
+                <label class="ck"><input type="checkbox"><span>부동산 거래신고, 신고일</span></label>
+                <label class="ck"><input type="checkbox"><span>신고필증 전달(양쪽·법무사)</span></label>
+                <label class="ck"><input type="checkbox"><span>중도금 입금 확인</span></label>
+              </div>
+            </div>
+            <div class="ts">
+              <div class="th"><b>잔금</b><span class="cnt">1/19</span><span class="cp">9/22</span></div>
+              <div class="tb">
+                <div class="rowx">
+                  <span class="grp">준비 <span class="g"><i style="width:20%"></i></span> 1/5</span>
+                  <span class="grp">서류 <span class="g"><i style="width:0%"></i></span> 0/5</span>
+                  <span class="grp">인수인계 <span class="g"><i style="width:0%"></i></span> 0/4</span>
+                </div>
+                <table class="sett">
+                  <tr><td>임대료 일할</td><td>600만</td></tr>
+                  <tr><td>보증금 승계</td><td><span class="no">아직</span></td></tr>
+                  <tr><td>검침 · 정화조 · 부가세 · 상환액 · 차액</td><td><span class="no">아직</span></td></tr>
+                </table>
+                <div class="rowx"><span class="mk">인수인계표</span><span class="mk">영수증(잔금)</span></div>
+              </div>
+            </div>
+            <div class="ts">
+              <div class="th"><b>사후</b><span class="cnt">0/7</span><span class="cp">등기·취득세 60일</span></div>
+              <div class="tb">
+                <label class="ck"><input type="checkbox"><span>임차인 새 계좌 안내</span></label>
+                <label class="ck"><input type="checkbox"><span>명의변경</span></label>
+                <label class="ck"><input type="checkbox"><span>등기 완료 확인</span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="memo">
+        <div class="mt">메모</div>
+        <ul>
+          <li><div class="d">8/19</div><div class="t">매각 여부는 딸과 고민해본다</div><div class="w">이승욱</div></li>
+          <li><div class="d">8/02</div><div class="t">딸이 3개월 뒤 결혼이라 지금 바쁨</div><div class="w">이승욱</div></li>
+        </ul>
+        <div class="in">메모</div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- 2안 -->
+<section>
+  <h2>2안 · 층 카드</h2>
+  <div class="modal">
+    <div class="mhead"><b>삼성동 147-4</b><span class="chipst">계약예정</span><span class="sp"></span><span class="x">✕</span></div>
+    <div class="mbody">
+      <div class="mmain">
+        <div class="tabs" data-tabs="v2">
+          <i class="dis">소유자</i><i class="dis">접촉</i><i class="dis">정보</i><i data-t="agree">합의</i><i data-t="deal" class="on">계약</i>
+        </div>
+
+        <div class="pane" data-p="v2:agree">
+          <div class="rowx"><span class="chip">이서연</span><span class="chip on">김민준</span><span class="chip ghost">＋</span><span class="chip ghost">호가판</span></div>
+          <div class="rowx">
+            <span class="vp">매매가 <b>148억</b></span>
+            <span class="vp">매도희망 <b>125억</b></span>
+            <span class="vp hero">거래금액 <b>128억</b></span>
+          </div>
+        </div>
+
+        <div class="pane on" data-p="v2:deal">
+          <div class="moneybar"><i class="a"></i></div>
+          <div class="mlegend"><span>받음 <b>5,000만</b></span><span>계약금 <b>12.8억</b> · 8/26</span><span>잔금 <b>115.2억</b> · 9/22</span><span>보수 <b>1.15억</b></span><span class="seg2"><i class="on">부가세 별도</i><i>포함</i></span></div>
+
+          <div class="cards">
+            <div class="cardx raised">
+              <div class="chh"><b>계약 전</b><span class="cnt">9/14</span><span class="say">임차인 현황표, 확정일자 열람이 남았습니다</span><span class="cp">⧉</span></div>
+              <div class="cbb">
+                <div class="rowx">
+                  <span class="grp">매도 서류 <span class="g"><i style="width:71%"></i></span> 5/7</span>
+                  <span class="grp">매수 서류 <span class="g"><i style="width:67%"></i></span> 2/3</span>
+                  <span class="grp">공부·확인 <span class="g"><i style="width:50%"></i></span> 2/4</span>
+                </div>
+                <label class="ck"><input type="checkbox"><span>확정일자 열람 대조</span><span class="h">✎ ✕</span></label>
+                <label class="ck"><input type="checkbox"><span>매도 · 임차인 현황표</span><span class="h">✎ ✕</span></label>
+              </div>
+            </div>
+            <div class="cardx">
+              <div class="chh"><b>계약 당일</b><span class="cnt">0/9</span><span class="cp">8/26</span></div>
+              <div class="cbb">
+                <label class="ck"><input type="checkbox"><span>아침 공부 재발급·대조</span></label>
+                <label class="ck"><input type="checkbox"><span>계약금 입금 확인</span></label>
+                <div class="rowx"><span class="mk">계약서</span><span class="mk">확인설명서</span><span class="mk">영수증</span></div>
+              </div>
+            </div>
+            <div class="cardx">
+              <div class="chh"><b>신고 · 중도금</b><span class="cnt">0/3</span><span class="cp warnc">신고 D-6</span></div>
+              <div class="cbb">
+                <label class="ck"><input type="checkbox"><span>부동산 거래신고, 신고일</span></label>
+                <label class="ck"><input type="checkbox"><span>신고필증 전달(양쪽·법무사)</span></label>
+              </div>
+            </div>
+            <div class="cardx">
+              <div class="chh"><b>잔금</b><span class="cnt">1/19</span><span class="cp">9/22</span></div>
+              <div class="cbb">
+                <table class="sett">
+                  <tr><td>임대료 일할</td><td>600만</td></tr>
+                  <tr><td>보증금 승계</td><td><span class="no">아직</span></td></tr>
+                </table>
+                <div class="rowx"><span class="mk">인수인계표</span><span class="mk">영수증(잔금)</span></div>
+              </div>
+            </div>
+            <div class="cardx">
+              <div class="chh"><b>사후</b><span class="cnt">0/7</span><span class="cp">등기·취득세 60일</span></div>
+              <div class="cbb">
+                <label class="ck"><input type="checkbox"><span>임차인 새 계좌 안내</span></label>
+                <label class="ck"><input type="checkbox"><span>등기 완료 확인</span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="memo">
+        <div class="mt">메모</div>
+        <ul>
+          <li><div class="d">8/19</div><div class="t">매각 여부는 딸과 고민해본다</div><div class="w">이승욱</div></li>
+          <li><div class="d">8/02</div><div class="t">딸이 3개월 뒤 결혼이라 지금 바쁨</div><div class="w">이승욱</div></li>
+        </ul>
+        <div class="in">메모</div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- 3안 -->
+<section>
+  <h2>3안 · 집중</h2>
+  <div class="modal">
+    <div class="mhead"><b>삼성동 147-4</b><span class="chipst">계약예정</span><span class="sp"></span><span class="x">✕</span></div>
+    <div class="mbody">
+      <div class="mmain">
+        <div class="tabs" data-tabs="v3">
+          <i class="dis">소유자</i><i class="dis">접촉</i><i class="dis">정보</i><i data-t="agree">합의</i><i data-t="deal" class="on">계약</i>
+        </div>
+
+        <div class="pane" data-p="v3:agree">
+          <div class="rowx"><span class="chip">이서연</span><span class="chip on">김민준</span><span class="chip ghost">＋</span><span class="chip ghost">호가판</span></div>
+          <div class="rowx">
+            <span class="vp">매매가 <b>148억</b></span>
+            <span class="vp">매도희망 <b>125억</b></span>
+            <span class="vp hero">거래금액 <b>128억</b></span>
+          </div>
+        </div>
+
+        <div class="pane on" data-p="v3:deal">
+          <div class="spills" data-tabs="st3">
+            <span class="spill on" data-t="s1"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle class="ring" cx="8" cy="8" r="6.5" stroke-width="2.6"/><circle class="arc" cx="8" cy="8" r="6.5" stroke-width="2.6" stroke-dasharray="40.8" stroke-dashoffset="14.6" stroke-linecap="round"/></svg>계약 전</span>
+            <span class="spill" data-t="s2"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle class="ring" cx="8" cy="8" r="6.5" stroke-width="2.6"/><circle class="arc" cx="8" cy="8" r="6.5" stroke-width="2.6" stroke-dasharray="40.8" stroke-dashoffset="40.8" stroke-linecap="round"/></svg>당일</span>
+            <span class="spill" data-t="s3"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle class="ring" cx="8" cy="8" r="6.5" stroke-width="2.6"/><circle class="arc" cx="8" cy="8" r="6.5" stroke-width="2.6" stroke-dasharray="40.8" stroke-dashoffset="40.8" stroke-linecap="round"/></svg>신고·중도금</span>
+            <span class="spill" data-t="s4"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle class="ring" cx="8" cy="8" r="6.5" stroke-width="2.6"/><circle class="arc" cx="8" cy="8" r="6.5" stroke-width="2.6" stroke-dasharray="40.8" stroke-dashoffset="38.7" stroke-linecap="round"/></svg>잔금</span>
+            <span class="spill" data-t="s5"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle class="ring" cx="8" cy="8" r="6.5" stroke-width="2.6"/><circle class="arc" cx="8" cy="8" r="6.5" stroke-width="2.6" stroke-dasharray="40.8" stroke-dashoffset="40.8" stroke-linecap="round"/></svg>사후</span>
+          </div>
+          <div class="mlegend"><span>가계약 <b>5,000만</b> ✓</span><span>계약금 <b>12.8억</b> · 8/26</span><span>잔금 <b>115.2억</b> · 9/22</span><span>보수 <b>1.15억</b></span><span class="seg2"><i class="on">부가세 별도</i><i>포함</i></span></div>
+
+          <div class="fpane on" data-p="st3:s1">
+            <div class="ftitle">계약 전 <small>9/14 · 계약까지 4일</small></div>
+            <div class="rowx"><span class="say">임차인 현황표, 확정일자 열람이 남았습니다</span><span class="cp">⧉ 준비물 문자</span></div>
+            <div class="rowx">
+              <span class="grp">매도 서류 <span class="g"><i style="width:71%"></i></span> 5/7</span>
+              <span class="grp">매수 서류 <span class="g"><i style="width:67%"></i></span> 2/3</span>
+              <span class="grp">공부·확인 <span class="g"><i style="width:50%"></i></span> 2/4</span>
+            </div>
+            <label class="ck"><input type="checkbox"><span>확정일자 열람 대조</span><span class="h">✎ ✕</span></label>
+            <label class="ck"><input type="checkbox"><span>매도 · 임차인 현황표</span><span class="h">✎ ✕</span></label>
+          </div>
+          <div class="fpane" data-p="st3:s2">
+            <div class="ftitle">계약 당일 <small>8/26 14:00</small></div>
+            <label class="ck"><input type="checkbox"><span>아침 공부 재발급·대조</span></label>
+            <label class="ck"><input type="checkbox"><span>본인·대표권·대리권 확인</span></label>
+            <label class="ck"><input type="checkbox"><span>근거자료 제시</span></label>
+            <label class="ck"><input type="checkbox"><span>계약금 입금 확인</span></label>
+            <label class="ck"><input type="checkbox"><span>확인설명서 교부</span></label>
+            <label class="ck"><input type="checkbox"><span>공제증서 사본 교부</span></label>
+            <div class="rowx"><span class="mk">계약서</span><span class="mk">확인설명서</span><span class="mk">영수증</span></div>
+          </div>
+          <div class="fpane" data-p="st3:s3">
+            <div class="ftitle">신고 · 중도금 <small class="warnc">신고 D-6</small></div>
+            <label class="ck"><input type="checkbox"><span>부동산 거래신고, 신고일</span></label>
+            <label class="ck"><input type="checkbox"><span>신고필증 전달(양쪽·법무사)</span></label>
+            <label class="ck"><input type="checkbox"><span>중도금 입금 확인</span></label>
+          </div>
+          <div class="fpane" data-p="st3:s4">
+            <div class="ftitle">잔금 <small>9/22</small></div>
+            <div class="rowx">
+              <span class="grp">준비 <span class="g"><i style="width:20%"></i></span> 1/5</span>
+              <span class="grp">서류 <span class="g"><i style="width:0%"></i></span> 0/5</span>
+              <span class="grp">인수인계 <span class="g"><i style="width:0%"></i></span> 0/4</span>
+            </div>
+            <table class="sett">
+              <tr><td>임대료 일할</td><td>600만</td></tr>
+              <tr><td>보증금 승계</td><td><span class="no">아직</span></td></tr>
+              <tr><td>검침 · 정화조 · 부가세 · 상환액 · 차액</td><td><span class="no">아직</span></td></tr>
+            </table>
+            <div class="rowx"><span class="mk">인수인계표</span><span class="mk">영수증(잔금)</span></div>
+          </div>
+          <div class="fpane" data-p="st3:s5">
+            <div class="ftitle">사후 <small>등기·취득세 60일</small></div>
+            <label class="ck"><input type="checkbox"><span>임차인 새 계좌 안내</span></label>
+            <label class="ck"><input type="checkbox"><span>명의변경</span></label>
+            <label class="ck"><input type="checkbox"><span>등기 완료 확인</span></label>
+          </div>
+        </div>
+      </div>
+      <aside class="memo">
+        <div class="mt">메모</div>
+        <ul>
+          <li><div class="d">8/19</div><div class="t">매각 여부는 딸과 고민해본다</div><div class="w">이승욱</div></li>
+          <li><div class="d">8/02</div><div class="t">딸이 3개월 뒤 결혼이라 지금 바쁨</div><div class="w">이승욱</div></li>
+        </ul>
+        <div class="in">메모</div>
+      </aside>
+    </div>
+  </div>
+</section>
+</div>
+
+<script>
+document.querySelectorAll('[data-tabs]').forEach(bar => {
+  const ns = bar.getAttribute('data-tabs');
+  bar.querySelectorAll('[data-t]').forEach(tab => {
+    tab.addEventListener('click', () => {
+      bar.querySelectorAll('[data-t]').forEach(t => t.classList.remove('on'));
+      tab.classList.add('on');
+      document.querySelectorAll('[data-p^="'+ns+':"]').forEach(p => p.classList.remove('on'));
+      const pane = document.querySelector('[data-p="'+ns+':'+tab.getAttribute('data-t')+'"]');
+      if (pane) pane.classList.add('on');
+    });
+  });
+});
+document.querySelectorAll('.acch').forEach(h => {
+  h.addEventListener('click', () => h.parentElement.classList.toggle('open'));
+});
+document.querySelectorAll('.ts .th').forEach(h => {
+  h.addEventListener('click', () => h.parentElement.classList.toggle('open'));
+});
+document.querySelectorAll('.cardx').forEach(c => {
+  c.querySelector('.chh').addEventListener('click', () => {
+    c.parentElement.querySelectorAll('.cardx').forEach(x => x.classList.remove('raised'));
+    c.classList.add('raised');
+  });
+});
+</script>
+</body>
+</html>

@@ -200,7 +200,7 @@ if step_ge load; then
   fi
 
   echo "  → qa_data (데이터 불변식)"
-  if ! BT_DATABASE_URL="$DATABASE_URL" "$LOADER_PY" backend/tests/qa_data.py; then
+  if ! BT_DATABASE_URL="$DATABASE_URL" "$LOADER_PY" qa/data/qa_data.py; then
     echo ""
     echo "  ❌ qa_data 실패 — 위에 ✗ 로 뜬 항목을 고치기 전에는 이 데이터를 쓰지 마세요."
     echo "     적재·파생은 이미 끝났습니다. 산식을 고쳤으면 해당 파생 배치만 다시 돌리면 됩니다:"

@@ -5,7 +5,8 @@
 """
 import os, asyncio, sys, time
 os.environ.setdefault("BT_DATABASE_URL", "postgresql://postgres:test@localhost:55432/billtamjung")
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# qa/app/ → 저장소 뿌리 → backend (app.main 을 부르려면 backend 가 경로에 있어야 한다)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "backend"))
 import httpx
 from app.main import app
 from app.core import db

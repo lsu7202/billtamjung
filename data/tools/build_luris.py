@@ -55,8 +55,8 @@ EPSG:5174(중부원점, 축척계수 1.0), 토지이음은 EPSG:5179(UTM-K, 0.99
 서울에서 0.99923 배 차이라 우리 면적이 늘 0.077% 컸고, 그 차이가 반올림을 넘겼다.
 spatial_join 이 넓이에 이 배율을 곱한다(실측 대조 소수 여섯째 자리까지 일치).
 
-대조 도구: scripts/verify_luris_vs_eum.py (우리 면적 vs 토지이음 면적)
-         scripts/verify_eum_selfconsistent.py (화면이 자기와 맞는지 — 조사용)
+대조 도구: qa/external/verify_luris_vs_eum.py (우리 면적 vs 토지이음 면적)
+         qa/external/verify_eum_selfconsistent.py (화면이 자기와 맞는지 — 조사용)
 
     data/.venv/bin/python data/tools/build_luris.py [원장.csv]
 """

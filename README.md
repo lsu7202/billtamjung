@@ -29,7 +29,7 @@ cd backend && python -m venv .venv && ./.venv/bin/pip install -e . && \
   BT_DATABASE_URL=postgresql://postgres:test@localhost:55432/billtamjung \
   ./.venv/bin/uvicorn app.main:app --reload
 ```
-검증: `backend/tests/smoke.py`(가입→크레딧→자동완성→건물병합→오버레이→401).
+검증: `qa/app/smoke.py`(가입→크레딧→자동완성→건물병합→오버레이→401).
 
 ## 핵심 설계 포인트
 - **데이터 3레이어**: 공공 마스터(불변) + 유저 오버레이(팀 공유·EAV) + 커뮤니티. 화면값 = master COALESCE overlay.
