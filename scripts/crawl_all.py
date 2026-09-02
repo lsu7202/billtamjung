@@ -125,7 +125,7 @@ def main():
         print("[연1] V-World 공시지가·토지특성(NA)"); vworld(a.out, "--na")
         print("[연1] 지가변동률(R-ONE)"); jiga(a.out)
     print("\n※ 다운로드는 스테이징(--out). raw 활성화(unzip+빌더 하드코딩 경로 갱신)는 별도 마이그레이션.")
-    print("※ 토지이용계획정보(AL_D155)는 받기만 하고 parcel_luris.csv.gz 로 바꾸는 코드가 없다.")
+    print("※ 토지이용계획정보(AL_D155) → parcel_luris.csv.gz 는 build_all.py 의 luris 단계가 만든다.")
 
 
 if __name__ == "__main__":

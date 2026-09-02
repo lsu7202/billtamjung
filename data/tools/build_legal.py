@@ -68,8 +68,12 @@ def luris(걸침, 토지면적, 개발제한비중):
     else:
         wavg=bool(np.any(areas<=threshold))
     if wavg:
-        fb=round(float(np.sum(bcr*areas))/tot)              # 건폐 가중평균→반올림
-        ff=int(np.sum(np.floor(areas/tot*far)))             # 용적 절사합산
+        # 둘 다 **면적 가중평균 → 반올림**. 토지이음 산출정보와 같은 방식이다(2026-09-02 대조).
+        # 예전엔 용적만 기여분을 각각 절사해 더했는데(floor), 그러면 1%씩 낮게 나온다:
+        #   삼성동 78 · 제3종 491.6㎡ + 일반상업 434.8㎡ / 전체 926.4㎡
+        #   절사합산 132+375 = 507%  ·  가중평균 508.14 → 508%  ·  토지이음 508%
+        fb=round(float(np.sum(bcr*areas))/tot)
+        ff=round(float(np.sum(far*areas))/tot)
         return f"{int(fb)}%", f"{int(ff)}%", '가중평균'
     else:
         ub=sorted(set(int(x) for x in bcr)); uf=sorted(set(int(x) for x in far))
