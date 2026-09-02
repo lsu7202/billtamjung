@@ -44,6 +44,7 @@ SPEC = {
                 "unit_kind": "단위구분", "cap_person": "용량인용", "cap_m3": "용량루베",
                 "created_ymd": "생성일자"},
     },
+    # 공동주택가격은 파이프라인에서 뺐다(2026-09-02) — 읽는 곳이 없다. 정의는 남긴다.
     "aptprice": {
         "src": "data/tools/_aptprice.jsonl", "out": "aptprice.csv",
         "cols": ["unit_pk", "year", "seq", "price"],
@@ -57,14 +58,22 @@ def norm_ymd(s):
     return f"{s[:4]}-{s[4:6]}-{s[6:8]}" if len(s) == 8 and s.isdigit() else ""
 
 
+# 기본 실행에서 빼는 마트. --only 로 이름을 대면 여전히 만든다.
+# aptprice(공동주택가격)는 2,794만 행인데 읽는 화면·API 가 없다(2026-09-02).
+SKIP_BY_DEFAULT = {"aptprice"}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out-dir", default="data/exports/_load")
-    ap.add_argument("--only", help="basic | septic | aptprice")
+    ap.add_argument("--only", help="basic | septic | aptprice(파이프라인에선 안 돈다)")
     a = ap.parse_args()
     os.makedirs(a.out_dir, exist_ok=True)
     for name, sp in SPEC.items():
         if a.only and a.only != name:
+            continue
+        if not a.only and name in SKIP_BY_DEFAULT:
+            print(f"  ⏭ {name}: 파이프라인에서 뺐습니다(--only {name} 로 만들 수 있습니다)")
             continue
         if not os.path.exists(sp["src"]):
             print(f"  ⏭ {name}: {sp['src']} 없음, 건너뜀")

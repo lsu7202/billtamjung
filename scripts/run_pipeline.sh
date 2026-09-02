@@ -62,7 +62,9 @@ if step_ge load; then
     "building_parcels:building_parcels.csv" "gongsi_series:gongsi_series.csv"
     "sales_history:sales_history.csv" "complex:complex.csv"
     "unit:unit.csv" "energy:energy.csv" "zone:zone.csv" "closed:closed.csv"
-    "basic:basic.csv" "septic:septic.csv" "aptprice:aptprice.csv"
+    "basic:basic.csv" "septic:septic.csv"
+    # aptprice 는 뺐다(2026-09-02) — 읽는 화면·API 가 없다. 되살리려면 build_all 의
+    # aptprice 단계와 여기 "aptprice:aptprice.csv" 를 같이 켠다.
   )
   for m in "${MAP[@]}"; do
     src="${m%%:*}"; csv="$EXPORT_DIR/${m##*:}"

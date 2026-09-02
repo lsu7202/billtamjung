@@ -54,7 +54,11 @@ def stages(exp):
         ("closed",             [f"{T}/build_closed.py"]),   # 폐쇄말소대장(사라진 건물) — 0149
         ("basic",              [f"{T}/build_basic.py"]),    # 대장 기본개요(세 층을 잇는 뼈대) — 0150
         ("septic",             [f"{T}/build_septic.py"]),   # 오수정화 — 0150
-        ("aptprice",           [f"{T}/build_aptprice.py"]), # 공동주택가격 2008~2026 — 0150·0151
+        # 공동주택가격(대장/공동주택가격)은 **뺐다**(2026-09-02). 아파트 호별 공시가격
+        # 2008~2026 · 2,794만 행인데 **읽는 화면·API 가 하나도 없다.** 지금 우리는 아파트를
+        # 다루지 않는다(빌딩 중개). 원천은 계속 받아 두고, 쓸 데가 생기면 이 줄을 되살린다.
+        # 빌더는 data/tools/build_aptprice.py 에 그대로 있다.
+        # ("aptprice",         [f"{T}/build_aptprice.py"]),
         ("integrated",         [f"{T}/build_integrated.py"]),
         ("sqlite",             [f"{T}/build_sqlite.py"]),
         ("export_seoul",       [f"{P}/export_seoul.py", "--out", f"{exp}/buildings.csv"]),

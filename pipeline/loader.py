@@ -230,6 +230,10 @@ SOURCES = {
                      FROM {tmp} WHERE building_pk <> ''""",
         "checks": ["rows"],
     },
+    # 2026-09-02: 파이프라인이 이 소스를 더 안 부른다(build_all·run_pipeline 에서 뺐다).
+    # 읽는 화면·API 가 없고 2,794만 행이라 빌드·적재 시간만 먹었다. 정의는 남긴다 —
+    # 되살리려면 build_all 의 aptprice 단계, export_ledger_rest 의 SKIP_BY_DEFAULT,
+    # run_pipeline 의 MAP 셋을 같이 켜면 된다.
     "aptprice": {        # 공동주택 공시가격 2008~2026(0150). 2,971만 행 — 칸을 최소로 둔다
         "columns": ["unit_pk", "year", "seq", "price"],
         "table": "apt_price",
