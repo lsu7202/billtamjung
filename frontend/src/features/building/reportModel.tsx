@@ -93,9 +93,16 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   // land_use 로딩 전(undefined)엔 막지 않음 → 로딩되면 비상업은 fair=null + nonCommercial 플래그.
   const nonCommercial = !!(b.land_use || b.main_use) && !isSaleEstTarget(b.land_use, b.main_use);
   const saleEst = num(b.sale_est);
-  // 라이브(요약·모달)든 스냅샷이든 오버레이(상권) 반영된 preview가 정본 — 배치(saleEst)는 로딩 중 폴백.
-  // 배치 우선이면 상권을 바꿔도 적정가가 고정되는 버그(예상수익률 등 다른 값은 preview 기준이라 불일치).
-  const fair = nonCommercial ? null : (pv?.fair_price ?? saleEst ?? null);
+  // ★ 적정가는 배치(master.building_sale_est)가 정본이다(2026-09-02).
+  //
+  // 예전엔 preview(그 자리 계산)를 먼저 썼다. 「상권 반경을 바꾸면 적정가도 따라 움직여야
+  // 한다」는 전제였는데, 그러면 같은 건물이 보는 사람마다 다른 값이 된다 —
+  // 실측 500동에서 반경만 바꿔도 중앙 4%, 상위 10%는 14%, 최대 67% 벌어졌다.
+  // 그래서 반경은 **주변 시세 비교** 전용으로 돌리고 적정가는 하나로 고정했다.
+  //
+  // preview 는 여전히 폴백이다 — 배치에 값이 없는 건물(신축·comp 부족)과
+  // 오버레이(comp 제외·필드 수정)가 걸린 요청에서는 그쪽이 맞는 값이다.
+  const fair = nonCommercial ? null : (saleEst ?? pv?.fair_price ?? null);
   const ask = pv?.ask_price ?? num(b.ask_price) ?? null;
   const rent = pv?.applied_rent ?? sub?.total_rent ?? null;
   const _floors0 = (pv?.rent_floors ?? []) as RentFloor[];
@@ -124,7 +131,10 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   const compMax = _perVals.length ? Math.round(Math.max(..._perVals) / 1e4) : null;
   const floors = _floors0;
   // 예상수익률 = synthesize 정본(rent ÷ 매매가, 매매가 기본=적정가). 적정가 직접 분모 아님(매매가 추종).
-  const roiFair = pv?.expected_roi ?? null;
+  // 추정 수익률은 **적정가와 같은 분모**를 써야 한다. preview 의 값을 그대로 쓰면
+  // 적정가는 배치(1,023억)인데 수익률만 라이브(1,078억) 기준이 되어 둘이 안 맞는다.
+  const roiFair = (fair && rent) ? Number(((rent * 12) / fair * 100).toFixed(2))
+                                 : (pv?.expected_roi ?? null);
   const rs = pv?.rent_summary ?? null;
   const rFloors = rs?.floor_count ?? floors.length;
   const rCurDep = rs?.cur_deposit ?? null;

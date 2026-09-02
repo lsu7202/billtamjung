@@ -515,7 +515,13 @@ def synthesize(subject: dict, subject_score: float, comps: list[dict],
     #
     # comp 는 계속 모은다 — 설명(근거·공시배율·비교표)에 필요하기 때문이다.
     if fair_override:
-        ap = {**ap, "fair_price": float(fair_override)}
+        # 값만 바꾸면 평당가·수익률이 옛 값 기준으로 남는다. **파생값도 같이 맞춘다.**
+        _f = float(fair_override)
+        _py = (_fnum(subject.get("total_area")) or 0) / report_calc.M2_PER_PYEONG
+        _lpy = (_fnum(subject.get("land_area")) or 0) / report_calc.M2_PER_PYEONG
+        ap = {**ap, "fair_price": _f,
+              "avg_per_pyeong": round(_f / _py) if _py else ap.get("avg_per_pyeong"),
+              "avg_per_land": round(_f / _lpy) if _lpy else ap.get("avg_per_land")}
     _cur = _fnum(subject.get("total_rent"))
     _est_mo = (_fnum(subject.get("est_annual_rent")) or 0) / 12 or None   # 마스터 추정(월) — 배치 폴백과 동일
     if apply_market and rent_apply:

@@ -129,8 +129,13 @@ async def create(body: CreateIn, bg: BackgroundTasks, user: CurrentUser = Depend
 
 @router.get("/{report_id}")
 async def get(report_id: int, user: CurrentUser = Depends(current_user)):
+    # 보고서는 **만든 시점 값을 굳힌 발행물**이다(PDF·PPT 로 손님에게 나간다).
+    # 그러니 열었을 때 「지금 값과 다르다」를 반드시 알려야 한다 — 2026-09-02 까지
+    # 목록에만 stale 판정이 붙어 있어, 정작 펼쳐 보면 옛 데이터인 줄 몰랐다.
+    # 같은 건물이 상세에선 1,023억, 8/29 에 만든 보고서에선 1,078억으로 보이던 이유다.
     row = await pool().fetchrow(
-        "SELECT * FROM app.reports WHERE id=$1 AND account_id=$2", report_id, user.account_id
+        "SELECT r.*, app.report_is_stale(r.id) AS is_stale "
+        "FROM app.reports r WHERE r.id=$1 AND r.account_id=$2", report_id, user.account_id
     )
     if not row:
         raise HTTPException(404, "산출물이 없습니다")
