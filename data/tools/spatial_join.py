@@ -7,7 +7,7 @@
 import sys, os, json, time, glob, re
 import shapefile
 from shapely.geometry import shape
-from shapely import STRtree, area, intersection, make_valid
+from shapely import STRtree, area, intersection, make_valid, union_all
 from shapely.ops import transform as shp_transform
 from pyproj import Transformer
 from uqa_codes import uqa_name
@@ -20,6 +20,32 @@ from build_report import Report   # noqa: E402
 _T = Transformer.from_crs(5186, 5174, always_xy=True)
 def to5174(g):
     return shp_transform(lambda x, y, z=None: _T.transform(x, y), g)
+
+# ── 토지이음은 넓이를 EPSG:5179(UTM-K)에서 잰다 (2026-09-02 실측)
+#
+# 우리 5174(중부원점)는 원점 축척계수가 1.0, 5179 는 0.9996 이라 같은 땅의 넓이가
+# 서울에서 0.99923 배로 다르다. 그대로 두면 우리 교차면적이 늘 0.077% 크고,
+# 그 차이가 `.toFixed(1)` 과 마지막 반올림을 넘겨 값이 1%씩 어긋난다.
+# 실측 대조(150필지)에서 어긋난 30건이 전부 이것이었다. 배율을 곱해 맞춘다.
+#
+#   1129010400101420000  배율 0.999230  ·  실측 저쪽/우리 0.999230
+#   1156011700101210204  배율 0.999249  ·  실측 저쪽/우리 0.999250
+#
+# 배율은 위치만의 함수라 500m 격자로 캐시한다(서울 전역 약 3천 칸).
+_T5179 = Transformer.from_crs(5174, 5179, always_xy=True)
+_scale_cache = {}
+def area_scale(x, y, d=250.0):
+    """5174 에서 잰 넓이 → 5179 에서 잰 넓이 배율."""
+    key = (round(x / 500), round(y / 500))
+    s = _scale_cache.get(key)
+    if s is None:
+        xs = [x - d, x + d, x + d, x - d]
+        ys = [y - d, y - d, y + d, y + d]
+        X, Y = _T5179.transform(xs, ys)
+        a = sum(X[i] * Y[(i + 1) % 4] - X[(i + 1) % 4] * Y[i] for i in range(4))
+        s = abs(a) / 2 / (2 * d) ** 2
+        _scale_cache[key] = s
+    return s
 
 LDREG=LDREG
 UQ111=UQ111
@@ -75,17 +101,21 @@ def run(sgg):
         rec={'용도지역':[], '개발제한비중':0.0}
         # 용도지역
         cand=ztree.query(pg, predicate='intersects')
-        parts={}
+        # 같은 용도지역이 여러 장으로 나뉘어 오거나 서로 겹쳐 온다(도면 단위로 잘려 있다).
+        # 넓이를 **더하면 겹친 만큼 두 번 센다** — 실측: 도봉구 산80-63 이 제1종을
+        # 3,000.9㎡ 대신 6,001.8㎡ 로 잡아 건폐율이 59% 대신 117% 가 됐다(2026-09-02).
+        # 토지이음(MapPlan)은 코드마다 한 값을 주므로 **합집합** 넓이를 쓴다.
+        geoms={}
         for zi in cand:
-            try: ia=intersection(pg, zones_g[zi]).area
+            try: ig=intersection(pg, zones_g[zi])
             except Exception: continue
-            if ia<=0: continue
+            if ig.is_empty or ig.area<=0: continue
             name,code=uqa_name(uqa_code(zones_a[zi]['MNUM']))
             # UQ111 이 안 덮은 자리를 「미지정」으로 세면 필지가 반쪽으로 갈린다.
             # 토지이음은 그 자리를 아예 안 적는다 — 우리도 안 적는다(2026-08-28).
             if name=='미지정': continue
-            key=(name,code)
-            parts[key]=parts.get(key,0.0)+ia
+            geoms.setdefault((name,code), []).append(ig)
+        parts={k: (v[0].area if len(v)==1 else union_all(v).area) for k,v in geoms.items()}
         if parts:
             covered+=1
             # 슬리버 제거 + 재정규화
@@ -93,9 +123,18 @@ def run(sgg):
             if not kept: kept={max(parts,key=parts.get):max(parts.values())}
             tot=sum(kept.values())
             rec['용도지역']=sorted(
-                [{'명':k[0],'코드':k[1],'비중':round(v/tot,4)} for k,v in kept.items()],
+                [{'명':k[0],'코드':k[1],'비중':round(v/tot,4),'면적':round(v,4)}
+                 for k,v in kept.items()],
                 key=lambda x:-x['비중'])
             if len(rec['용도지역'])>1: multi+=1
+            # ── 원본 교차면적(㎡). 슬리버도 안 버리고 정규화도 안 한다.
+            # 토지이음은 법정 건폐/용적을 이 값으로 낸다(2026-09-02, luLandDetUse.js):
+            #     건폐 = round( Σ(조례건폐 × 교차면적.toFixed(1)) / 지적면적 )
+            # 비중(정규화)으로는 재현이 안 된다 — 겹치는 용도지역(예정 지역·상위 분류)이
+            # 있으면 합이 1을 넘고, 그때 60% 를 넘는 값이 나온다. 그게 그쪽 화면의 값이다.
+            c = pg.centroid
+            k5179 = area_scale(c.x, c.y)
+            rec['원본면적']={k[1]: round(v * k5179, 4) for k,v in parts.items()}
         # 개발제한
         if dtree is not None:
             dc=dtree.query(pg, predicate='intersects')
