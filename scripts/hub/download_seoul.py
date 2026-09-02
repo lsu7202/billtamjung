@@ -241,7 +241,12 @@ def bjd_codes(sgg_cd):
     """
     p = os.path.join(OUT, "대장_표제부", f"{sgg_cd}.csv")
     if not os.path.exists(p):
-        return []
+        # 2026-09-02: 「받자마자 압축」을 넣은 뒤로 표제부가 이 시점엔 이미 접혀 있다.
+        # 그래서 공동주택가격 20개 구가 「법정동 목록 없음」으로 통째로 실패했다.
+        # 압축본에서 도로 편다 — 같은 판이어야 빠지는 동이 없다는 원칙은 그대로다.
+        _unfold("대장_표제부")
+        if not os.path.exists(p):
+            return []
     import csv
     csv.field_size_limit(1 << 27)
     with open(p, encoding="utf-8-sig", newline="") as f:
@@ -249,6 +254,16 @@ def bjd_codes(sgg_cd):
         if "법정동코드" not in (rd.fieldnames or []):
             return []
         return sorted({r["법정동코드"] for r in rd if (r["법정동코드"] or "").strip()})
+
+
+def _unfold(mart):
+    """압축해 둔 마트를 원본 자리로 도로 편다. 없거나 실패하면 조용히 넘어간다."""
+    tar = os.path.join(ROOT, "data", "raw", "_archive", "hub_seoul", f"{mart}.tar.zst")
+    if not os.path.exists(tar) or os.path.isdir(os.path.join(OUT, mart)):
+        return
+    print(f"    · {mart}: 압축본에서 푸는 중(법정동 목록이 필요합니다)…", flush=True)
+    subprocess.run(f'cd "{OUT}" && tar --use-compress-program="zstd -d" -xf "{tar}"',
+                   shell=True, capture_output=True, text=True)
 
 
 def export_by_bjd(r_code, inputxml, sgg_cd):

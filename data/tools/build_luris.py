@@ -24,14 +24,14 @@
              둘 이상이면 포함을 저촉보다 앞세우고, 그래도 여럿이면 이름을 병기한다
              (하나를 고르면 지어내는 것이 된다).
 
-  legal_bcr  한 지역이면 서울시 조례값 그대로(전 필지의 95.3%).
-  legal_far  **걸친 필지는 국토계획법 제84조대로 면적 가중평균**한다. 작은 쪽이 330㎡
-             (상업 낀 곳은 660㎡)를 넘으면 법이 가중평균을 금하므로 값을 병기한다.
-             면적 비중은 공간조인(_spatial_ALL.json), 필지 면적은 토지특성 원장에서 온다.
-             원장과 공간조인의 용도지역 목록이 다르면(걸침의 7.2%) **비운다.**
-             종을 모르면(「일반주거지역」처럼 상위 분류만 올 때)도 비운다 — 제1·2·3종이
-             60/150 · 60/200 · 50/250 로 달라서 하나를 고르면 지어내는 것이고, 그 값은
-             확인설명서로 그대로 나간다.
+  legal_bcr  **토지이음 산식 그대로**(`eum_rule.py`). 우리가 산식을 만들지 않는다 —
+  legal_far  중개인이 토지이음을 열어 놓고 대조하기 때문에 화면과 한 글자도 달라선 안 된다.
+             한 지역이면 조례값 그대로(전 필지의 95.3%), 걸치면 교차면적으로 계산하거나
+             병기한다. 갈래·반올림·정규화 여부까지 그쪽 계산 스크립트를 옮겼다.
+             교차면적은 공간조인(_spatial_ALL.json 의 `원본면적`), 분모인 지적면적은
+             토지특성 원장에서 온다. 종을 모르면(「일반주거지역」처럼 상위 분류만 올 때)
+             비운다 — 제1·2·3종이 60/150 · 60/200 · 50/250 로 달라서 하나를 고르면
+             지어내는 것이고, 그 값은 확인설명서로 그대로 나간다.
 
   regulations  용도지역을 뺀 나머지 전부. [명, 저촉여부, 코드] 목록.
                **UQ 코드(국토계획법)를 먼저, 그 다음 다른 법령.** 토지이음 화면이
@@ -40,28 +40,23 @@
                각 묶음 안에서 포함 → 저촉 → 접함, 같은 등급끼리는 가나다순. 중복은 뺀다
                (같은 규제가 도면 단위로 여러 줄 오기도 한다 — 실측 토지거래허가구역 3줄).
 
-## 토지이음과는 왜 안 맞나 (2026-09-02 실측)
+## 토지이음과 어떻게 맞췄나 (2026-09-02)
 
-걸친 필지의 건폐·용적을 토지이음 「행위제한내용설명 → 건폐율·용적률」과 맞추려 했는데,
-**토지이음 화면이 자기 자신과 안 맞는다.** 화면에 같이 실린 산출면적과 조례값으로
-화면의 산출정보를 다시 계산해 본 결과(47필지):
+한동안 값이 1%씩 어긋났다. 화면에 적힌 면적으로는 화면의 결과가 재현되지 않아서
+「토지이음이 자기 모순이라 못 맞춘다」고 적었는데, **그 판단이 틀렸다.** 화면의 면적은
+표시용으로 지적면적에 맞춰 늘린 값이고, 계산은 늘리기 전 원본 교차면적으로 한다.
 
-    자기 화면으로 재현됨            8필지 (17.0%)
-    조례 최대치를 넘는 값           12필지  ← 가중평균으로는 나올 수 없다
-    그중 건폐율 110%                2필지  ← 대지보다 바닥이 넓다는 뜻
+산식은 서버가 아니라 **브라우저가 돌린다.** 그래서 그 스크립트를 그대로 옮겼다:
 
-    강남구 삼성동 35-29  전체 11.4㎡ = 제2종 5.7㎡ + 제3종 5.7㎡
-                        조례 60/200 · 50/250 → 가중평균 55% / 225%
-                        토지이음 화면 110% / 450%   (60+50, 200+250 을 그냥 더한 값)
+    https://www.eum.go.kr/web/js/ar/lu/luLandDetUse.js  →  data/tools/eum_rule.py
 
-이 필지는 「제3종일반주거지역(안)」과 「지구단위계획구역(안)」이 걸려 있다. 예정 지역이
-현재 지역과 같은 땅에 겹치는데 토지이음이 두 겹으로 세어 비중 합이 2가 됐다. 화면 위에
-「용도지역별 면적은 단순 추출한 것으로서 전체면적과 일치하지 않을 수 있습니다」,
-「본 서비스는 법적 효력이 없으며」라고 적혀 있는 그대로다.
+옮기고 나서도 30/150 이 1씩 어긋났는데, 원인은 **좌표계 하나**였다. 우리는
+EPSG:5174(중부원점, 축척계수 1.0), 토지이음은 EPSG:5179(UTM-K, 0.9996)에서 넓이를 잰다.
+서울에서 0.99923 배 차이라 우리 면적이 늘 0.077% 컸고, 그 차이가 반올림을 넘겼다.
+spatial_join 이 넓이에 이 배율을 곱한다(실측 대조 소수 여섯째 자리까지 일치).
 
-그래서 **토지이음을 정답지로 삼지 않는다.** 우리는 국토계획법 제84조와 서울시 도시계획
-조례를 따른다. 토지이음도 근거법령으로 같은 조문을 든다. 대조 도구는 남겨 뒀다 —
-scripts/verify_eum_selfconsistent.py.
+대조 도구: scripts/verify_luris_vs_eum.py (우리 면적 vs 토지이음 면적)
+         scripts/verify_eum_selfconsistent.py (화면이 자기와 맞는지 — 조사용)
 
     data/.venv/bin/python data/tools/build_luris.py [원장.csv]
 """
@@ -75,8 +70,9 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from build_legal import LEGAL                 # noqa: E402  조례표(서울시). 산식 정본은 그쪽
+from build_legal import LEGAL                 # noqa: E402  조례표(서울시) — 이름→값
 from build_report import Report               # noqa: E402
+import eum_rule                               # noqa: E402  토지이음 산식 정본
 
 OUT = "data/exports/luris/parcel_luris.csv.gz"
 SPATIAL = "data/tools/_spatial_ALL.json"      # 용도지역 면적 비중 (spatial_join 단계)
@@ -93,16 +89,29 @@ def find_src():
     return c[-1]                               # 여러 판이면 최신
 
 
-def load_ratios():
-    """PNU → {용도지역명: 면적비중}. 공간조인이 낸 것."""
+def load_areas_by_zone():
+    """PNU → {토지이음 코드: 필지 ∩ 용도지역 교차면적(㎡)}.
+
+    공간조인이 내는 `원본면적` 을 그대로 쓴다. 정규화하면 안 된다 — 토지이음이 안 한다.
+    """
     if not os.path.exists(SPATIAL):
         sys.exit(f"✗ {SPATIAL} 없음 — 파이프라인의 spatial_join 단계를 먼저 돌리세요")
     sp = json.load(open(SPATIAL, encoding="utf-8"))
     out = {}
     for pnu, v in sp.items():
-        z = {x["명"]: x["비중"] for x in (v.get("용도지역") or []) if x["명"] in LEGAL}
+        raw = v.get("원본면적")
+        if not raw:
+            # 옛 판(원본면적 없음)으로 돌리면 걸침 계산이 통째로 비어 버린다. 조용히 넘기지 않는다.
+            continue
+        z = {}
+        for code, area in raw.items():
+            u = eum_rule.to_uqa(code)
+            if u:
+                z[u] = z.get(u, 0.0) + area
         if z:
             out[pnu] = z
+    if not out:
+        sys.exit(f"✗ {SPATIAL} 에 `원본면적` 이 없습니다 — spatial_join 을 다시 돌리세요")
     return out
 
 
@@ -118,54 +127,14 @@ def load_areas():
     return out
 
 
-def half_up(x):
-    """사사오입. 파이썬 round() 는 「오사오입」이라 235.5 를 236 이 아니라 236… 짝수로 붙인다.
-
-    행정 관례는 사사오입이고 토지이음도 그렇게 낸다(실측: 참값 235.5 → 화면 236%).
-    소수 오차도 같이 걷어낸다 — 면적을 곱했다 나누면 235.5 가 235.4999… 로 떨어져
-    round() 가 235 를 준다.
-    """
-    return int(decimal.Decimal(repr(x)).quantize(decimal.Decimal("1"),
-                                                 rounding=decimal.ROUND_HALF_UP))
-
-
-def straddle(names, ratios, area):
-    """걸친 필지의 법정 건폐·용적. → (건폐, 용적, 방식) · 못 내면 (None, None, 사유)
-
-    국토계획법 제84조: 가장 작은 부분이 330㎡(상업이 끼면 660㎡) 이하면 **면적 가중평균**,
-    넘으면 각 부분에 각각 적용한다(=값을 병기한다).
-
-    가중평균은 **비중으로 바로** 낸다. 면적은 Σ(조례×면적)÷Σ면적 에서 약분되므로
-    곱했다 나눌 이유가 없고, 곱하면 소수 오차만 생긴다. 면적이 필요한 곳은 330㎡ 문턱뿐이다.
-    """
-    if not ratios or set(names) != set(ratios):
-        # 원장이 말하는 지역과 공간조인이 찾은 지역이 다르다. 비중을 갖다 쓸 수 없다.
-        return None, None, "목록불일치"
-    if not area:
-        return None, None, "면적없음"
-    w = {n: ratios[n] for n in names}
-    wsum = sum(w.values())
-    if wsum <= 0:
-        return None, None, "면적없음"
-    threshold = 660.0 if any("상업" in n for n in names) else 330.0
-    if min(w.values()) * area > threshold:
-        # 법이 가중평균을 금한다 — 각 부분이 제 조례를 따른다. 값을 병기한다.
-        ub = sorted({LEGAL[n][0] for n in names})
-        uf = sorted({LEGAL[n][1] for n in names})
-        return ", ".join(f"{x}%" for x in ub), ", ".join(f"{x}%" for x in uf), "병기"
-    b = half_up(sum(LEGAL[n][0] * v for n, v in w.items()) / wsum)
-    f = half_up(sum(LEGAL[n][1] * v for n, v in w.items()) / wsum)
-    return f"{b}%", f"{f}%", "가중평균"
-
-
 def main():
     src = sys.argv[1] if len(sys.argv) > 1 else find_src()
     rep = Report("build_luris",
-                 src=f"{os.path.basename(src)} (토지이용계획정보 원장) + 공간조인 비중 + 토지면적")
+                 src=f"{os.path.basename(src)} (토지이용계획정보 원장) + 공간조인 교차면적 + 토지면적")
     print(f"원장: {src}")
-    print("면적 비중·필지 면적 로드…")
-    ratios, areas = load_ratios(), load_areas()
-    rep.also_read("_spatial_ALL.json(용도지역 비중)", len(ratios), folded_to=len(ratios))
+    print("교차면적·필지 면적 로드…")
+    zarea, areas = load_areas_by_zone(), load_areas()
+    rep.also_read("_spatial_ALL.json(용도지역 교차면적)", len(zarea), folded_to=len(zarea))
     rep.also_read("_land_master.jsonl(필지 면적)", len(areas), folded_to=len(areas))
 
     acc = {}                                   # PNU → {(명, 저촉, 코드)}
@@ -211,16 +180,19 @@ def main():
                 multi += 1
             use_zone = ", ".join(dict.fromkeys(x[0] for x in zones))
             bcr = far = ""
-            if len(zones) == 1:
-                bcr, far = (f"{v}%" for v in LEGAL[zones[0][0]])
-            elif zones:
-                # 걸친 필지 — 국토계획법 제84조. 면적 비중은 공간조인이 준다.
-                names = [x[0] for x in zones]
-                bcr, far, m = straddle(names, ratios.get(pnu), areas.get(pnu))
+            if zones:
+                # ── 토지이음 산식 그대로(eum_rule). 화면과 한 글자도 달라선 안 된다.
+                zcodes = [it[2] for it in zones]
+                dcodes = [it[2] for it in items if it[2] in eum_rule.TARGET_DISTRICT]
+                bcr, far, m = eum_rule.calc(zcodes, zarea.get(pnu) or {},
+                                            areas.get(pnu), dcodes)
                 how[m] += 1
                 if bcr is None:
                     bcr = far = ""
-                    rep.note_odd(f"걸침인데 법정치를 못 냄({m}) — 이름만 병기", pnu, use_zone)
+                    if len(zones) >= 2:
+                        rep.note_odd(f"걸침인데 법정치를 못 냄({m}) — 이름만 병기", pnu, use_zone)
+                    else:
+                        rep.note_odd(f"법정치를 못 냄({m})", pnu, use_zone)
             elif any(it[0] in ("주거지역", "일반주거지역", "상업지역", "공업지역", "녹지지역")
                      for it in items):
                 nolaw += 1        # 종이 없는 상위 분류만 온다 — 조례값을 정할 수 없다
@@ -241,13 +213,13 @@ def main():
     rep.merge("한 필지의 여러 줄을 한 행으로 접음", n=rep.n_write - n)
     rep.note(f"필지 {n:,} · 용도지역 {z:,} · 법정치 {b:,} · 걸침 {multi:,} · 종 없는 상위분류 {nolaw:,}")
     if how:
-        rep.note("걸침 처리: " + " · ".join(f"{k} {v:,}" for k, v in how.most_common()))
+        rep.note("처리 방식: " + " · ".join(f"{k} {v:,}" for k, v in how.most_common()))
     rep.finish()
     print(f"\n완료: {n:,}필지 → {OUT} ({os.path.getsize(OUT)/2**20:.1f}MB)")
     print(f"  용도지역 {z:,} ({z/n*100:.1f}%) · 법정건폐/용적 {b:,} ({b/n*100:.1f}%)")
     print(f"  용도지역 둘 이상 {multi:,} · 종 없는 상위분류만 {nolaw:,}")
     for k, v in how.most_common():
-        print(f"    걸침 {k:<8} {v:>7,}")
+        print(f"    {k:<10} {v:>7,}")
 
 
 if __name__ == "__main__":
