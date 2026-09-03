@@ -38,8 +38,10 @@ export function MetricStack({ items }: {
 }
 
 /* 점수 레이더 — N축(F-16 8축 등). score 0~100. */
-export function ScoreRadar({ axes, size = 210, color = "var(--signal)", showValues }: {
+export function ScoreRadar({ axes, size = 210, color = "var(--signal)", showValues, unit = "%" }: {
   axes: { label: string; score: number }[]; size?: number; color?: string; showValues?: boolean;
+  /** 값 꼬리 — 점수는 0~100「점」이다. 기존 리포트가 %로 굳어 있어 기본값만 그대로 둔다 */
+  unit?: string;
 }) {
   const n = axes.length;
   if (n < 3) return null;
@@ -63,7 +65,7 @@ export function ScoreRadar({ axes, size = 210, color = "var(--signal)", showValu
         return (
           <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle" fontSize={10.5} fill="var(--muted)">
             <tspan x={x}>{ax.label}</tspan>
-            {showValues && <tspan x={x} dy={12} fontWeight={700} fill={color}>{Math.round(ax.score)}%</tspan>}
+            {showValues && <tspan x={x} dy={12} fontWeight={700} fill={color}>{Math.round(ax.score)}{unit}</tspan>}
           </text>
         );
       })}

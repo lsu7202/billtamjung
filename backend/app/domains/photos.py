@@ -18,12 +18,18 @@ router = APIRouter(prefix="/buildings/{building_pk}/photos", tags=["photos"])
 
 @router.get("")
 async def list_photos(building_pk: str, user: CurrentUser = Depends(current_user)):
-    """종류별 정렬(0032). 브리핑이 서류 슬롯을 종류로 찾는다."""
+    """종류별 정렬(0032). 브리핑이 서류 슬롯을 종류로 찾는다.
+
+    ORDER BY 는 `photos.kind` 로 못박는다. 그냥 `kind` 라고 쓰면 SELECT 의 출력 컬럼
+    `kind::text` 가 먼저 잡혀 **글자순**으로 선다 — building_ledger 가 exterior 앞에 오고,
+    표지에 건축물대장이 박힌다(실제로 그랬다). 테이블 컬럼을 가리켜야 enum 선언 순서
+    (exterior · interior · land_use · building_ledger · cadastral · etc)로 선다.
+    """
     rows = await pool().fetch(
         """SELECT id, kind::text, caption, sort_order, transform
            FROM app.photos
            WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL
-           ORDER BY kind, sort_order, id""",
+           ORDER BY photos.kind, sort_order, id""",
         building_pk, user.team_id)
     return [{**dict(r), "url": f"/buildings/{building_pk}/photos/{r['id']}"} for r in rows]
 
@@ -35,9 +41,16 @@ async def upload(building_pk: str, file: UploadFile = File(...), kind: str = For
         raise HTTPException(422, "이미지 파일만 업로드할 수 있습니다")
     if kind not in KINDS:
         raise HTTPException(422, f"알 수 없는 종류: {kind}")
+    # 아이폰 기본 포맷 — 서버엔 올라가지만 브라우저가 못 그려서 "올렸는데 안 보인다"가 된다.
+    name = (file.filename or "").lower()
+    if name.endswith((".heic", ".heif")) or "heic" in (file.content_type or "") or "heif" in (file.content_type or ""):
+        raise HTTPException(422, "아이폰 HEIC 형식은 지원하지 않습니다 — JPG·PNG로 바꿔 올려주세요")
+    data = await file.read()
+    if len(data) > 20 * 1024 * 1024:
+        raise HTTPException(413, f"20MB가 넘습니다 ({len(data) / 1048576:.1f}MB)")
     ext = os.path.splitext(file.filename or "")[1][:8] or ".jpg"
     key = f"photos/{uuid.uuid4().hex}{ext}"
-    await storage.save(key, await file.read(), file.content_type or "image/jpeg")
+    await storage.save(key, data, file.content_type or "image/jpeg")
     path = key
     seq = await pool().fetchval(
         """SELECT COALESCE(max(sort_order), -1) + 1 FROM app.photos

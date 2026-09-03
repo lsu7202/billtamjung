@@ -14,7 +14,7 @@ import "./reportslide.css";
 import "./briefing.css";
 
 /** 브리핑 자료 — 그 건물에 대한 '사실'만 담는 기초자료.
- *  빌탐정 리포트가 우리 판단(적정가·매력도·미래가치)을 서술하는 것과 반대다.
+ *  빌탐정 리포트가 우리 판단(추정가·매력도·미래가치)을 서술하는 것과 반대다.
  *  구성(7장): 표지 · 건물 개요 · 위치도(지도·지적도) · 입체 지적도 ·
  *  건축물정보·토지이용계획 · 층별 임대정보 · 건물 사진.
  *  원본 pptx의 '마무리'(성공적인 투자…)는 사실이 아니라 인사말이라 뺐다. */
@@ -24,6 +24,8 @@ const z = ([n, u]: [string, string]) => ({ n, u });
 
 const P = 3.305785;
 const py = (m2: unknown) => (m2 ? `${(Number(m2) / P).toFixed(2)}평` : "—");
+// 면적 원값 — 층별 합산이라 6464.793146 같은 소수 여섯 자리가 그대로 온다. 둘째 자리까지만.
+const sqm = (m2: unknown) => (m2 == null ? "—" : (Math.round(Number(m2) * 100) / 100).toLocaleString());
 const num = (v: unknown) => (v == null || v === "" ? null : Number(v));
 const man = (won: unknown) => { const w = num(won); return w ? `${Math.round(w / 1e4).toLocaleString()}만원` : "—"; };
 /** 원 단위 그대로 — 공시지가처럼 대장 원문을 옮기는 값(원본 표기: 15,450,000원) */
@@ -152,7 +154,7 @@ export function BriefingPage() {
 
   // ── 01 매물 기본정보 — 담는 값은 원본 표 그대로(소재지·토지·건물·금융).
   // 표현은 우리 언어로: 핵심 3지표를 먼저 세우고 나머지는 묶음별 스펙시트로 읽힌다.
-  // 하이브리드 — 팀 수기 매매가 우선, 없으면 적정가. 값은 쓰되 '(빌탐정 적정가)' 같은
+  // 하이브리드 — 팀 수기 매매가 우선, 없으면 추정가. 값은 쓰되 '(빌탐정 추정가)' 같은
   // 우리 내부 표기는 고객에게 주는 자료에 넣지 않는다.
   const price = num(s.sale_price) ?? num(s.sale_est);
   const perLand = price && num(s.land_area) ? price / (Number(s.land_area) / P) : null;
@@ -177,7 +179,7 @@ export function BriefingPage() {
   // 스펙시트는 토지 / 건물 / 임대 세 묶음. 금액은 위 헤로로 올려서 되풀이하지 않는다.
   const groups: { g: string; rows: [string, string][] }[] = [
     { g: "토지", rows: [
-      ["대지면적", `${s.land_area ?? "—"}m² · ${py(s.land_area)}`],
+      ["대지면적", `${sqm(s.land_area)}m² · ${py(s.land_area)}`],
       ["용도지역", String(s.use_zone ?? "—")],
       ["도로상황", roadTxt],
       ["지목 / 형상", `${s.jimok ?? "—"} / ${s.shape ?? "—"}`],
@@ -186,8 +188,8 @@ export function BriefingPage() {
       ["평단가", man(perLand)],
     ] },
     { g: "건물", rows: [
-      ["연면적", `${s.total_area ?? "—"}m² · ${py(s.total_area)}`],
-      ["건축면적", `${s.build_area ?? "—"}m² · ${py(s.build_area)}`],
+      ["연면적", `${sqm(s.total_area)}m² · ${py(s.total_area)}`],
+      ["건축면적", `${sqm(s.build_area)}m² · ${py(s.build_area)}`],
       ["건폐율 / 용적률", `${s.bcr ?? "—"}% / ${s.far ?? "—"}%`],
       ["규모 / 높이", `${scale(s.floors_below, s.floors_above)}${num(s.height) ? ` · ${num(s.height)}m` : ""}`],
       ["주차 / 승강기", `${cnt(s.parking, "대")} / ${cnt(s.elevator, "대")}`],
@@ -230,7 +232,8 @@ export function BriefingPage() {
         <div className="bf-cover3-foot">
           <Seal mono size={8.5} />
           <div className="bf-cover3-office">
-            <b>{String(o.office_name ?? o.name ?? "")}</b>
+            {/* 상호가 없으면 비워 둔다. 팀 이름은 「홍길동 팀」이라 고객이 받는 자료에 찍히면 안 된다 */}
+            <b>{String(o.office_name ?? "")}</b>
             <span>
               {[o.phone && `연락처 ${o.phone}`, o.fax && `팩스 ${o.fax}`, o.email].filter(Boolean).join(" · ")}
             </span>

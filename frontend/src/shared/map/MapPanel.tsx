@@ -3,7 +3,7 @@ import { loadNaver, PIN_COLORS } from "./naver";
 import { makeCanvasPinLayer, type CanvasLayer, type CanvasPin } from "./mapCanvasLayer";
 import { meters, areaM2, geoToPaths, circleToGeoJSON, conePath } from "./geo";
 import { makeRuler, Ruler } from "./ruler";
-import { Icon } from "../ui/Icon";
+import { Icon, type IconName } from "../ui/Icon";
 import { Segmented } from "../ui/Segmented";
 import { SourceTag } from "../ui/Notice";
 import { searchApi } from "../api/endpoints";
@@ -21,12 +21,52 @@ export interface MapPin {
   last_sale_price?: number | null;
   sale_est?: number | null;
   roi?: number | null;
+  /** 값이 팀 매매가가 아니라 추정가로 대체됐나 — 실측 짝을 세울 수 있는지 이걸로 갈린다(0134) */
+  price_is_est?: boolean;
+  /** 순수 추정 수익률(추정임대 ÷ 추정가) — 실측 roi 와 섞지 않는다(0134) */
+  roi_est?: number | null;
   land_area?: number | null;
   floors_above?: number | null;
   floors_below?: number | null;
 }
 
-type DrawMode = "off" | "free" | "poly" | "magnet" | "circle" | "ruler";
+/* 자석 올가미는 뺐다(2026-08-27) — 「드래그로 감싸면 필지 경계로 스냅」이었는데,
+   감싸는 손짓이 자유곡선과 똑같아 무엇이 다른지 손에 안 잡혔고 결과도 예측이 안 됐다.
+   필지 단위로 고르는 일은 지적도를 켜고 필지를 클릭하는 쪽이 이미 더 정확하다. */
+type DrawMode = "off" | "free" | "poly" | "circle" | "ruler";
+
+/** 묶음 이름 옆에 뱃지로 남길 「지금 켜진 것」 */
+const DRAW_LABEL: Record<string, string> = {
+  free: "자유곡선", poly: "다각형", circle: "원 반경", ruler: "자",
+};
+const MEASURE_LABEL: Record<string, string> = { dist: "거리", area: "면적", radius: "반경" };
+
+/** 도구 묶음 — 이름을 누르면 아래로 펼쳐진다.
+ *  아이콘만 늘어놓으면 「이게 뭐 하는 건지」를 눌러 봐야 알았다. 펼침 안에서는
+ *  이름과 한 줄 설명을 같이 준다 — 도구는 배우는 것이라 처음 한 번은 읽혀야 한다. */
+function ToolGroup({ label, icon, active, open, onToggle, children }: {
+  label: string; icon: IconName; active: string | null; open: boolean;
+  onToggle: () => void; children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) onToggle(); };
+    // 여는 클릭이 바로 닫지 않게 다음 틱부터 듣는다
+    const t = setTimeout(() => document.addEventListener("mousedown", away), 0);
+    return () => { clearTimeout(t); document.removeEventListener("mousedown", away); };
+  }, [open, onToggle]);
+  return (
+    <div className="mp-g" ref={ref}>
+      <button className={`mp-t ${active ? "on" : ""} ${open ? "open" : ""}`} onClick={onToggle}>
+        <Icon name={icon} size={15} />{label}
+        {active && <i>{active}</i>}
+        <s>▾</s>
+      </button>
+      {open && <div className="mp-menu">{children}</div>}
+    </div>
+  );
+}
 
 const fmtDist = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(2)}km` : `${Math.round(m)}m`);
 const fmtArea = (a: number) => `${a >= 10000 ? `${(a / 10000).toFixed(2)}ha` : `${Math.round(a).toLocaleString()}㎡`} (${Math.round(a / 3.3058).toLocaleString()}평)`;
@@ -43,7 +83,7 @@ export function MapPanel({
   selectedCol?: "mine" | "normal" | null;
   onParcelClick?: (building_pk: string | null, pnu: string) => void;  // 필지 클릭(부동산플래닛식)
   centerReq?: { lng: number; lat: number; zoom?: number } | null;  // 지도 중심 이동 요청(사이드바·지도위치 선택 시)
-  priceMode?: "fair" | "real";               // 핀 태그 가격: 적정가/실거래가
+  priceMode?: "fair" | "real";               // 핀 태그 가격: 추정가/실거래가
 }) {
   const divRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -59,7 +99,7 @@ export function MapPanel({
   const [drawMode, setDrawMode] = useState<DrawMode>("off");
   const [rulerOn, setRulerOn] = useState(false);        // 자(straightedge) 표시 — 자유곡선 스냅 가이드
   const rulerRef = useRef<Ruler | null>(null);
-  const [snapping, setSnapping] = useState(false);       // 자석 스냅 진행 표시
+  const [menu, setMenu] = useState<"draw" | "measure" | null>(null);   // 열린 도구 묶음
   const [street, setStreet] = useState(false);           // 로드뷰 모드(StreetLayer + 클릭→로드뷰)
   const [roadview, setRoadview] = useState<{ lng: number; lat: number } | null>(null);  // 파노라마 위치
   const [panoBig, setPanoBig] = useState(false);         // 로드뷰 작은/큰 화면
@@ -333,26 +373,15 @@ export function MapPanel({
         const ring = d.pts.map((ll: any) => [ll.lng(), ll.lat()]);
         ring.push(ring[0]);
         const raw = { type: "Polygon", coordinates: [ring] };
-        if (d.mode === "magnet") {
-          // 자석(후처리): 그린 영역 → 걸치는 필지 합집합으로 스냅
-          setSnapping(true);
-          try {
-            const { polygon } = await searchApi.snap(raw);
-            if (polygon) { drawOverlay(toPaths(polygon), true); onPolygon(polygon); }
-            else { drawOverlay([d.pts], false); onPolygon(raw); }   // 필지 미포함 → 원본 폴백
-          } catch { drawOverlay([d.pts], false); onPolygon(raw); }
-          finally { setSnapping(false); }
-        } else {
-          drawOverlay([d.pts], false);
-          onPolygon(raw);
-        }
+        drawOverlay([d.pts], false);
+        onPolygon(raw);
       }
       d.pts = [];
       setDrawMode("off");
     };
 
     const listeners: any[] = [];
-    if (drawMode === "free" || drawMode === "magnet") {
+    if (drawMode === "free") {
       let down = false;
       listeners.push(
         naver.maps.Event.addListener(map, "mousedown", (e: any) => { down = true; d.pts = [snap(e.coord)]; }),
@@ -445,7 +474,7 @@ export function MapPanel({
   // 도구별 커서 — 그리기·측정=크로스헤어(class+!important로 naver 기본 openhand 덮음), 그 외 기본(팬)
   useEffect(() => {
     if (!ready || !divRef.current) return;
-    const drawing = drawMode === "free" || drawMode === "poly" || drawMode === "magnet" || drawMode === "circle" || measure !== "off";
+    const drawing = drawMode === "free" || drawMode === "poly" || drawMode === "circle" || measure !== "off";
     divRef.current.classList.toggle("map-crosshair", drawing);
   }, [ready, drawMode, measure]);
 
@@ -514,13 +543,14 @@ export function MapPanel({
   const hintBox = (bg: string): React.CSSProperties => ({ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", zIndex: 5, background: bg, color: "#fff", fontSize: 12, padding: "7px 14px", borderRadius: 999, whiteSpace: "nowrap" });
 
   return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      {/* 지도 영역 */}
-      <div style={{ position: "relative", flex: 1, overflow: "hidden" }}>
+    <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+      {/* 지도 영역 — 도구 줄은 그 위에 뜬다(.mp-bar 가 absolute) */}
+      <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
         <div ref={divRef} style={mapStyle} />
 
         {/* 데이터 출처 — 구석에 최소 노출, 호버로 펼침 */}
-        <div style={{ position: "absolute", right: 10, bottom: 10, zIndex: 6 }}><SourceTag /></div>
+        {/* 출처 — 오른쪽 아래는 도구 줄 자리라 왼쪽으로 비킨다 */}
+        <div style={{ position: "absolute", left: 10, bottom: 10, zIndex: 5 }}><SourceTag /></div>
 
         {/* 로드뷰 위치 마크 — 지도 정중앙 고정 */}
         {rvOpen && (
@@ -551,43 +581,74 @@ export function MapPanel({
         )}
         {street && !roadview && <div style={hintBox("var(--ink)")}>파란 도로를 클릭하면 그 위치 로드뷰가 열립니다</div>}
         {drawMode === "ruler" && <div style={hintBox("var(--ink)")}>자를 드래그해 이동 · 양 끝(●)을 드래그해 회전 → 자유곡선으로 대고 그리세요</div>}
-        {((drawMode !== "off" && drawMode !== "ruler") || snapping) && (
+        {drawMode !== "off" && drawMode !== "ruler" && (
           <div style={hintBox("var(--ink)")}>
-            {snapping ? "🧲 필지 경계로 스냅 중…"
-              : drawMode === "poly" ? "클릭으로 꼭짓점 · 더블클릭으로 닫기"
-              : drawMode === "magnet" ? "드래그로 감싸면 필지 경계로 자동 스냅됩니다"
+            {drawMode === "poly" ? "클릭으로 꼭짓점 · 더블클릭으로 닫기"
               : drawMode === "circle" ? "중심을 누른 뒤 드래그해 반경을 정하세요"
               : `드래그로 영역을 그리세요${rulerOn ? " · 자에 대면 직선" : ""}`}
           </div>
         )}
       </div>
 
-      {/* 푸터 아이콘 툴바 — 로드뷰 전체화면 시 숨김 */}
+      {/* 푸터 툴바 — 관련끼리 묶어 드롭다운으로(2026-08-27).
+          아이콘 열 개가 한 줄에 늘어서 있었는데, 그중 뭘 눌러야 하는지는
+          **하려는 일**로 갈린다: 영역을 그린다 · 길이를 잰다 · 지도를 갈아 본다.
+          그래서 세 묶음으로 접고, 지금 켜진 것은 묶음 이름 옆에 뱃지로 남긴다. */}
       {!panoBig && (
-        <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "6px 10px", background: "#fff", borderTop: "1px solid var(--line)", flexWrap: "wrap" }}>
-          <button className={`tool-btn ${drawMode === "free" ? "on" : ""}`} title="자유곡선 (드래그)" onClick={() => { const on = drawMode === "free"; setDrawMode(on ? "off" : "free"); if (!on) { setStreet(false); setMeasure("off"); } }}><Icon name="free" size={16} /></button>
-          <button className={`tool-btn ${drawMode === "poly" ? "on" : ""}`} title="다각형 (클릭·더블클릭)" onClick={() => { const on = drawMode === "poly"; setDrawMode(on ? "off" : "poly"); if (!on) { setStreet(false); setMeasure("off"); } }}><Icon name="polygon" size={16} /></button>
-          <button className={`tool-btn ${drawMode === "magnet" ? "on" : ""}`} title="자석 올가미 (필지 스냅)" onClick={() => { const on = drawMode === "magnet"; setDrawMode(on ? "off" : "magnet"); if (!on) { setStreet(false); setMeasure("off"); } }}><Icon name="magnet" size={16} /></button>
-          <button className={`tool-btn ${drawMode === "circle" ? "on" : ""}`} title="원 반경 (중심→드래그)" onClick={() => { const on = drawMode === "circle"; setDrawMode(on ? "off" : "circle"); if (!on) { setStreet(false); setMeasure("off"); } }}><Icon name="circle" size={16} /></button>
-          <button className={`tool-btn ${drawMode === "ruler" ? "on" : ""}`} title="자 (직선 가이드)" onClick={() => (rulerOn && drawMode === "ruler" ? (setRulerOn(false), setDrawMode("off")) : (setRulerOn(true), setDrawMode("ruler"), setStreet(false), setMeasure("off")))}><Icon name="ruler" size={16} /></button>
-          {polygonActive && <button className="tool-btn" style={{ color: "var(--up)" }} title="영역 지우기" onClick={clearPolygon}><Icon name="delete" size={16} /></button>}
+        <div className="mp-bar">
+          <ToolGroup label="영역 그리기" icon="free" active={DRAW_LABEL[drawMode] ?? null}
+            open={menu === "draw"} onToggle={() => setMenu(menu === "draw" ? null : "draw")}>
+            {([["free", "free", "자유곡선", "드래그로 그린다"],
+               ["poly", "polygon", "다각형", "클릭으로 꼭짓점 · 더블클릭으로 닫기"],
+               ["circle", "circle", "원 반경", "중심을 누른 뒤 드래그"],
+               ["ruler", "ruler", "자", "직선 가이드 — 대고 그리면 반듯해진다"]] as const).map(([k, ico, name, tip]) => (
+              <button key={k} className={drawMode === k ? "on" : ""} onClick={() => {
+                if (k === "ruler") {
+                  if (rulerOn && drawMode === "ruler") { setRulerOn(false); setDrawMode("off"); }
+                  else { setRulerOn(true); setDrawMode("ruler"); setStreet(false); setMeasure("off"); }
+                } else {
+                  const on = drawMode === k;
+                  setDrawMode(on ? "off" : k);
+                  if (!on) { setStreet(false); setMeasure("off"); }
+                }
+                setMenu(null);
+              }}><Icon name={ico} size={15} /><b>{name}</b><em>{tip}</em></button>
+            ))}
+            {polygonActive && (
+              <button className="bad" onClick={() => { clearPolygon(); setMenu(null); }}>
+                <Icon name="delete" size={15} /><b>영역 지우기</b><em>그린 것을 없앤다</em></button>
+            )}
+          </ToolGroup>
 
-          <span className="tool-sep" />
-          {([["dist", "distance", "거리재기"], ["area", "area", "면적"], ["radius", "radius", "반경"]] as const).map(([k, ico, tip]) => (
-            <button key={k} className={`tool-btn ${measure === k ? "on" : ""}`} title={tip}
-              onClick={() => { const on = measure === k; setMeasure(on ? "off" : k); if (!on) { setDrawMode("off"); setStreet(false); } }}><Icon name={ico} size={16} /></button>
-          ))}
-          {measure !== "off" && <button className="tool-btn" style={{ color: "var(--up)" }} title="측정 종료" onClick={() => setMeasure("off")}><Icon name="delete" size={16} /></button>}
+          <ToolGroup label="재기" icon="distance" active={MEASURE_LABEL[measure] ?? null}
+            open={menu === "measure"} onToggle={() => setMenu(menu === "measure" ? null : "measure")}>
+            {([["dist", "distance", "거리", "두 점 사이를 잰다"],
+               ["area", "area", "면적", "여러 점을 이어 넓이를 잰다"],
+               ["radius", "radius", "반경", "중심에서 뻗은 거리를 잰다"]] as const).map(([k, ico, name, tip]) => (
+              <button key={k} className={measure === k ? "on" : ""} onClick={() => {
+                const on = measure === k;
+                setMeasure(on ? "off" : k);
+                if (!on) { setDrawMode("off"); setStreet(false); }
+                setMenu(null);
+              }}><Icon name={ico} size={15} /><b>{name}</b><em>{tip}</em></button>
+            ))}
+            {measure !== "off" && (
+              <button className="bad" onClick={() => { setMeasure("off"); setMenu(null); }}>
+                <Icon name="delete" size={15} /><b>측정 종료</b><em>잰 것을 지운다</em></button>
+            )}
+          </ToolGroup>
 
-          <span className="tool-sep" style={{ marginLeft: "auto" }} />
+          <span style={{ flex: 1 }} />
+          {/* 지도 보기는 늘 보이는 스위치 — 묶어 접으면 「지금 위성인가」가 안 보인다 */}
           <Segmented value={mapType} onChange={(v) => setMapType(v)} size="sm"
             options={[{ value: "normal", icon: "maptype", title: "일반지도" }, { value: "satellite", icon: "satellite", title: "위성" }]} />
-          <button className={`tool-btn ${cadastre ? "on" : ""}`} title="지적도" onClick={() => setCadastre(!cadastre)}><Icon name="cadastral" size={16} /></button>
-          <button className={`tool-btn ${street ? "on" : ""}`} title="로드뷰" onClick={() => {
+          <button className={`mp-t ${cadastre ? "on" : ""}`} onClick={() => setCadastre(!cadastre)}>
+            <Icon name="cadastral" size={15} />지적도</button>
+          <button className={`mp-t ${street ? "on" : ""}`} onClick={() => {
             const on = street; setStreet(!on);
             if (on) setRoadview(null);
             else { setDrawMode("off"); setMeasure("off"); const c = mapRef.current?.getCenter(); if (c) setRoadview({ lng: c.lng(), lat: c.lat() }); }
-          }}><Icon name="roadview" size={16} /></button>
+          }}><Icon name="roadview" size={15} />로드뷰</button>
         </div>
       )}
     </div>

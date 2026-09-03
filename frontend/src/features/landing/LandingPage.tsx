@@ -20,7 +20,7 @@ export function LandingPage() {
     authApi.publicConfig().then((c) => setSignupsOpen(c.signups_open)).catch(() => {});
   }, []);
 
-  // 진입 즉시 이동. 세션 있으면 매물 검색, 없으면 로그인.
+  // 진입 즉시 이동. 세션 있으면 건물 검색, 없으면 로그인.
   useEffect(() => {
     setLeaving(true);
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;

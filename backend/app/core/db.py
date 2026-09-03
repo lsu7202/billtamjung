@@ -13,7 +13,9 @@ async def connect() -> None:
         # 풀(max 10)을 잠식해 서비스 전체 행업(QA에서 실측: 1h22m짜리 12개 누적). 30s 상한.
         _pool = await asyncpg.create_pool(
             settings.database_url, min_size=1, max_size=10,
-            server_settings={"statement_timeout": "30000"},
+            # timezone: 손님은 전부 한국 중개인이다. DB가 UTC로 돌면 자정~오전 9시(KST)에
+            # current_date 가 어제라서 「오늘」이 비고 커밋 날짜가 하루 밀린다(2026-08-15 실측).
+            server_settings={"statement_timeout": "30000", "timezone": "Asia/Seoul"},
         )
 
 

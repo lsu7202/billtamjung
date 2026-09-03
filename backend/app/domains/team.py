@@ -131,17 +131,21 @@ class OfficeIn(BaseModel):
     fax: str | None = None
     email: str | None = None
     office_addr: str | None = None
+    reg_no: str | None = None              # 개설등록번호(0128) — 계약서·확인설명서 하단 란
+    fee_rate: float | None = None          # 중개보수 요율(%) 기본값(0128)
 
 
-_OFFICE_COLS = ("office_name", "agent_name", "agent_title", "phone", "fax", "email", "office_addr")
+_OFFICE_COLS = ("office_name", "agent_name", "agent_title", "phone", "fax", "email", "office_addr", "reg_no")
 
 
 @router.get("/office")
 async def get_office(user: CurrentUser = Depends(current_user)):
     row = await pool().fetchrow(
-        f"SELECT name, {', '.join(_OFFICE_COLS)}, logo_path FROM app.teams WHERE id=$1", user.team_id)
+        f"SELECT name, {', '.join(_OFFICE_COLS)}, fee_rate, logo_path FROM app.teams WHERE id=$1", user.team_id)
     d = dict(row) if row else {}
     d["has_logo"] = bool(d.pop("logo_path", None))
+    if d.get("fee_rate") is not None:
+        d["fee_rate"] = float(d["fee_rate"])
     return d
 
 
@@ -149,11 +153,22 @@ async def get_office(user: CurrentUser = Depends(current_user)):
 async def set_office(body: OfficeIn, user: CurrentUser = Depends(current_user)):
     if user.role != "owner":
         raise HTTPException(403, "대표만 사무소 정보를 수정할 수 있습니다")
-    vals = body.model_dump()
-    sets = ", ".join(f"{c}=${i + 2}" for i, c in enumerate(_OFFICE_COLS))
+    # PATCH 는 **보낸 칸만** 고친다(2026-08-28). 예전엔 body 전체를 그대로 UPDATE 해서,
+    # 한 칸만 담아 보내면 나머지가 전부 NULL 로 지워졌다. 화면이 늘 폼 전체를 보내던 시절엔
+    # 안 드러났는데, 줄 하나씩 고치는 어법으로 바꾸자마자 상호·등록번호·연락처가 날아갔다.
+    vals = body.model_dump(exclude_unset=True)
+    if not vals:
+        return {"ok": True}
+    sets, args = [], []
+    for c in _OFFICE_COLS:
+        if c in vals:
+            args.append((vals[c] or "").strip() or None)
+            sets.append(f"{c}=${len(args) + 1}")
+    if "fee_rate" in vals:
+        args.append(vals["fee_rate"])
+        sets.append(f"fee_rate=${len(args) + 1}")
     await pool().execute(
-        f"UPDATE app.teams SET {sets} WHERE id=$1", user.team_id,
-        *[(vals[c] or "").strip() or None for c in _OFFICE_COLS])
+        f"UPDATE app.teams SET {', '.join(sets)} WHERE id=$1", user.team_id, *args)
     return {"ok": True}
 
 

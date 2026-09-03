@@ -14,16 +14,19 @@
 .ac-tag.ad{background:var(--green-bg); color:var(--green)}
 .ac-empty{padding:14px 12px; font-size:13px; color:var(--muted); text-align:center}
 
-/* 조건 칩 */
-.chips{display:flex; gap:8px; flex-wrap:wrap; margin-top:11px}
-.chip{display:inline-flex; align-items:center; gap:6px; background:var(--signal-bg); border:1px solid #d3e0fd; border-radius:999px; padding:4px 11px; font-size:12px; color:var(--signal-ink); font-weight:600}
-.chip .x{color:#7fa0e6; cursor:pointer}
-.chip .x:hover{color:var(--signal-ink)}
+/* 조건 칩 — 테두리 없는 알약(2026-08-27 개편). 선을 걷고 바탕색으로만 가른다. */
+.chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:11px}
+.chip{display:inline-flex; align-items:center; gap:6px; background:#EBF4FF; border-radius:999px;
+  padding:5px 11px; font-size:11.5px; color:#3182F6; font-weight:700}
+.chip .x{color:#8BB6F5; cursor:pointer; font-size:10px}
+.chip .x:hover{color:#3182F6}
 
-/* 세그먼트 토글 */
-.segmented{display:inline-flex; border:1px solid var(--line-2); border-radius:var(--radius-sm); overflow:hidden; background:#fff}
-.segmented button{border:0; background:#fff; padding:7px 16px; cursor:pointer; font-size:13px; color:var(--ink-2); font-weight:600}
-.segmented button.active{background:var(--ink); color:#fff}
+/* 세그먼트 토글 — 회색 바탕 위 흰 알약. 켜진 칸이 떠 보인다. */
+.segmented{display:inline-flex; background:var(--surface-2); border-radius:10px; padding:2px; gap:1px}
+.segmented button{border:0; background:none; padding:6px 13px; cursor:pointer; font-size:12px;
+  color:var(--muted); font-weight:800; border-radius:8px; font:inherit; font-size:12px; font-weight:800}
+.segmented button:hover{color:var(--ink-2)}
+.segmented button.active{background:#fff; color:var(--ink); box-shadow:0 1px 3px rgba(0,19,43,.12)}
 
 /* S01 3열 결과 */
 .result-cols{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px}
@@ -196,10 +199,49 @@
 /* ── 슬라이딩 언더라인 탭(사이드바 업무/위키/힌트/메모) ── */
 .bt-tabs { position: relative; display: flex; border-bottom: 1px solid var(--line); }
 .bt-tabs button { flex: 1; border: 0; background: none; padding: 12px 0; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; transition: color .2s; }
-.bt-tabs button.on { color: var(--signal); }
+/* 선택 표시는 어디서나 파랑 하나다(2026-08-28) — 잉크 밑줄이면 「고른 것」과
+   「그냥 글자」가 같은 색이라, 탭 줄에서 지금 어디인지가 두께로만 남는다. */
+.bt-tabs button.on { color: #191F28; }
 .bt-tabs button:not(.on):hover { color: var(--ink-2); }
-.bt-tabs-ink { position: absolute; bottom: -1px; left: 0; height: 2px; width: calc(100% / var(--tab-n)); background: var(--signal); border-radius: 2px; transform: translateX(calc(var(--tab-i) * 100%)); transition: transform .3s cubic-bezier(.4,0,.2,1); }
+.bt-tabs-ink { position: absolute; bottom: -1px; left: 0; height: 2px; width: calc(100% / var(--tab-n)); background: #3182F6; border-radius: 2px; transform: translateX(calc(var(--tab-i) * 100%)); transition: transform .3s cubic-bezier(.4,0,.2,1); }
 @media (prefers-reduced-motion: reduce) { .bt-tabs-ink { transition: none; } }
 
 /* 스페이스 팬(피그마식) — Space 홀드 시 grab 커서 */
 .map-spacepan, .map-spacepan * { cursor: grab !important; }
+
+/* 상권을 그리는 동안은 지도만 남는다(2026-08-26).
+   지도 오버레이가 z 1000 인데도 앱바·머리줄·하단 바가 위에 남았다 — 각자 다른
+   stacking context 라 z 로는 안 덮인다. 그리는 동안만 걷어내고, 나오면 되돌아온다. */
+/* .bt-page 의 직계 .panel 은 머리줄과 하단 바 둘뿐이다 — 본문 카드는 .bt-cols 안에 있다 */
+/* 머리줄·하단 바는 인라인 style 로 display 를 잡고 있어 !important 로만 덮인다 */
+body.map-full .appbar,
+body.map-full .bt-page > .panel { display: none !important }
+
+
+/* 글자 버튼 — 테두리 없는 링크(2026-08-27 전역화).
+   원래 `.sales .lnk` 로만 있어서 업무 탭 밖에서는 규칙이 안 걸렸다. 그래서 건물 상세의
+   「업무에서 관리 →」·전화번호가 **브라우저 기본 버튼**(2px outset 회색 네모)으로 떴다 —
+   네모 버튼을 인라인에 두지 않는다는 규칙을 코드가 아니라 CSS 누락이 어긴 셈이다.
+   검색 필터·지도 판도 같은 클래스를 쓰므로 한곳에 둔다. */
+.lnk{border:0; background:none; padding:0; font:inherit; color:inherit;
+  cursor:pointer; text-align:left; border-radius:6px}
+.lnk:hover{color:#3182F6}
+.lnk.num{color:#3182F6; font-weight:800}
+.lnk.dim2{color:#8B95A1; font-weight:700}
+.lnk.dim2:hover{color:#333D4B}
+
+/* ── 하위 탭(subnav) ── 화면 이동은 밑줄 텍스트, GNB와 같은 어법. 알약은 상태 전환 전용.
+   층위가 다른 두 컨트롤이 같은 모양이면 첫인상부터 복잡해진다(2026-08-10).
+   2026-08-28: 활성 밑줄을 골드→파랑으로. 금색은 로고에만 남기고 선택은 어디서나 파랑 하나다.
+   sales-nav 는 옛 이름 — 마이페이지도 같은 줄을 쓴다. */
+.subnav, .sales-nav { display: flex; align-items: baseline; gap: 4px; margin: 6px 2px 16px;
+  border-bottom: 1px solid var(--line); }
+.subnav button, .sales-nav button { border: 0; background: none; cursor: pointer; font: inherit;
+  font-size: 14px; font-weight: 700; color: var(--muted); padding: 8px 6px 11px; margin-right: 18px;
+  border-bottom: 2px solid transparent; }
+.subnav button:hover, .sales-nav button:hover { color: var(--ink-2); }
+.subnav button.on, .sales-nav button.on { color: #191F28; border-bottom-color: #3182F6; }
+/* 성격이 다른 탭은 띄워 세운다 — 「무엇을」 무리와 「언제」가 붙어 있으면 흐름이 안 읽힌다.
+   금 긋지 않고 여백만으로 가른다: 선을 하나 더 그으면 탭 줄에 선이 두 겹이 된다. */
+.subnav button.apart, .sales-nav button.apart { margin-left: 30px; }
+.subnav button.lead, .sales-nav button.lead { font-size: 15.5px; font-weight: 800; letter-spacing: -.02em; }

@@ -18,6 +18,12 @@ class OverlayIn(BaseModel):
 @router.put("")
 async def upsert(body: OverlayIn, user: CurrentUser = Depends(current_user)):
     """자동저장(넛지·저장버튼 없음). 잘못된 필드·enum은 트리거가 차단."""
+    # 값 이력(0109) — 덮어쓰기 전에 이전 값을 뜬다. 「125 → 120」이 협상의 핵심 정보라
+    # 값만 갈아치우면 그 사실이 사라진다(조사 규범: append + 현재값은 최신 행).
+    prev = await pool().fetchval(
+        """SELECT value FROM app.overlays
+            WHERE team_id=$1 AND target_type=$2 AND target_id=$3 AND field=$4""",
+        user.team_id, body.target_type, body.target_id, body.field)
     try:
         await pool().execute(
             """INSERT INTO app.overlays(team_id,target_type,target_id,field,value,updated_by)
@@ -28,6 +34,11 @@ async def upsert(body: OverlayIn, user: CurrentUser = Depends(current_user)):
         )
     except asyncpg.RaiseError as e:  # 트리거 검증 실패
         raise HTTPException(422, str(e))
+    if (prev or None) != (body.value or None):
+        await pool().execute(
+            """INSERT INTO app.field_events(team_id, target_type, target_id, field, prev, value, created_by)
+               VALUES($1,$2,$3,$4,$5,$6,$7)""",
+            user.team_id, "listing", body.target_id, body.field, prev, body.value, user.account_id)
     return {"ok": True}
 
 

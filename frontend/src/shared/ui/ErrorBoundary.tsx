@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
           <button className="btn primary" onClick={() => location.reload()}>새로고침</button>
-          <button className="btn" onClick={() => { location.href = "/search"; }}>매물 검색으로</button>
+          <button className="btn" onClick={() => { location.href = "/search"; }}>건물 검색으로</button>
         </div>
         <details style={{ marginTop: 6, fontSize: 11.5, color: "var(--muted)" }}>
           <summary style={{ cursor: "pointer" }}>오류 내용</summary>

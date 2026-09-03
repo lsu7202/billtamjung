@@ -70,23 +70,46 @@ def remodel_score(years_since: float | None) -> int:
 FLOAT_POP_SCORES = {"매우높음": 100, "높음": 78, "보통": 50, "낮음": 22, "매우낮음": 6}
 
 
+# 유동인구 5분위 칸 — 서울 전체 건물 559,458동의 주간 생활인구 실측 분포(2026-08-27).
+# 접근성 proxy 를 「유동인구」라 부르던 것을 걷어냈다. 이름이 값과 달랐다.
+POP_CUTS = [(2383, "매우높음", 100), (1615, "높음", 78), (1025, "보통", 50), (381, "낮음", 22)]
+
+
+def _pop_bucket(b: dict[str, Any]):
+    """실측 주간 생활인구(master.building_pop.day_avg) → (등급, 점수). 없으면 None."""
+    day = _num(b.get("pop_day"))
+    if day is None:
+        return None
+    for cut, lbl, sc in POP_CUTS:
+        if day >= cut:
+            return lbl, sc
+    return "매우낮음", 6
+
+
 def float_pop_score(b: dict[str, Any]) -> int:
     ov = b.get("float_pop")
     if ov in FLOAT_POP_SCORES:                # 유저 오버레이 우선
         return FLOAT_POP_SCORES[ov]
+    hit = _pop_bucket(b)                      # 실측
+    if hit:
+        return hit[1]
+    # 실측이 없는 4.3%(좌표 없는 건물)만 접근성 proxy 로 메운다
     proxy = (ROAD_SCORES.get(b.get("road_frontage") or "", 0)
-             + station_score(_num(b.get("station_dist")))) / 2   # 접근성 proxy(0~100)
-    for cut, sc in [(80, 100), (60, 78), (40, 50), (20, 22)]:     # 버킷 → 점수표 앵커
+             + station_score(_num(b.get("station_dist")))) / 2
+    for cut, sc in [(80, 100), (60, 78), (40, 50), (20, 22)]:
         if proxy >= cut:
             return sc
     return 6
 
 
 def float_pop_label(b: dict[str, Any]) -> str:
-    """표시용 유동인구 등급 — 오버레이 있으면 그 값, 없으면 접근성 proxy 버킷(추정)."""
+    """유동인구 등급 — 오버레이 > 실측(생활인구) > 접근성 proxy."""
     ov = b.get("float_pop")
     if ov in FLOAT_POP_SCORES:
         return ov
+    hit = _pop_bucket(b)
+    if hit:
+        return hit[0]
     proxy = (ROAD_SCORES.get(b.get("road_frontage") or "", 0)
              + station_score(_num(b.get("station_dist")))) / 2
     for cut, lbl in [(80, "매우높음"), (60, "높음"), (40, "보통"), (20, "낮음")]:

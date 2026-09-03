@@ -133,6 +133,11 @@ async def callback(provider: str, code: str | None = Query(default=None), state:
         prof = await client.get(p["profile"], headers={"Authorization": f"Bearer {access}"})
         uid, email, name = _parse_profile(provider, prof.json())
 
+    # 개발서버 빗장(2026-08-20) — 허용 목록 밖이면 계정을 만들지도, 들여보내지도 않는다
+    from .auth import login_blocked
+    if login_blocked(email):
+        return _back("social_failed")
+
     try:
         async with tx() as conn:
             acc = await _find_or_create(conn, provider, uid, email, name)

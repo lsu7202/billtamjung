@@ -28,7 +28,7 @@
 .bf-cover3-office b { color: #fff; font-size: 1.35cqw; font-weight: 800; letter-spacing: -.01em; }
 
 /* ── (구) 표지·마무리 — 등각 SVG 폴백 등에서 여전히 쓰는 틀 ── */
-.bf-cover { background: linear-gradient(160deg, #1E2A4A 0%, #16203A 60%, #101827 100%); color: #fff; }
+.bf-cover { background: linear-gradient(160deg, #191F28 0%, #14181F 60%, #0F1218 100%); color: #fff; }
 .bf-cover-in { height: 100%; display: flex; flex-direction: column; justify-content: center;
   padding: 3cqw 4cqw; box-sizing: border-box; }
 .bf-office { font-size: 1.45cqw; letter-spacing: .18em; color: #8FB0E0; font-weight: 700; }
@@ -71,16 +71,25 @@
 /* ── 04 층별 임대정보 ── */
 /* rs-body가 flex라 표가 내용폭으로 줄고 각주가 옆으로 밀렸다 — 이 장은 세로 스택 */
 .bf-slide .rs-body:has(.bf-table.rent) { display: block; }
-.bf-table.rent { width: 100%; table-layout: fixed; }
+/* 층이 많으면 16:9 아래로 잘렸다(삼성동 78, 15줄에서 아랫줄 절단 · 2026-08-28).
+   층수는 데이터가 정하는 값이라 표를 줄일 게 아니라 **글자를 슬라이드에 맞춘다** —
+   cqw 라 컨테이너 폭 기준으로 함께 줄어든다. 줄 수가 아주 많은 건물은
+   패딩·행높이가 먼저 줄고, 그래도 넘치면 아래 여백부터 먹는다. */
+.bf-table.rent { width: 100%; table-layout: fixed; font-size: .92cqw; }
+.bf-table.rent th { padding: .34cqw .6cqw; }
+/* 13줄부터 한 눈금 더 — 삼성동 78(층 15)이 이 층계에서 정확히 들어맞는다 */
+.bf-table.rent:has(tbody tr:nth-child(13)) { font-size: .78cqw; }
+.bf-table.rent:has(tbody tr:nth-child(13)) td { padding: .2cqw .6cqw; }
+.bf-table.rent:has(tbody tr:nth-child(13)) th { padding: .26cqw .6cqw; }
 .bf-table.rent th { background: var(--navy); color: #fff; text-align: center; font-weight: 700; }
 .bf-table.rent th:first-child, .bf-table.rent td:first-child { width: 22%; }
-.bf-table.rent td { padding: .42cqw .6cqw; }
+.bf-table.rent td { padding: .3cqw .6cqw; }
 .bf-table.rent .n { text-align: right; font-variant-numeric: tabular-nums; }
 .bf-table.rent tr.sum td { background: #F2F4F8; font-weight: 800; color: var(--navy); }
 .bf-est, .bf-vac { font-size: .95cqw; border-radius: .3cqw; padding: .08cqw .38cqw; margin-left: .4cqw;
   vertical-align: middle; }
 .bf-est { background: #EEF1F6; color: #6B7484; }
-.bf-vac { background: #FCEFE1; color: var(--peach-tx); }
+.bf-vac { background: var(--peach-bg); color: var(--peach-tx); }
 
 /* ── 서류·사진 슬롯 ── */
 .bf-docs { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6cqw; height: 100%; }

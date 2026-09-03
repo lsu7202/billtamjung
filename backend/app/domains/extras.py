@@ -8,14 +8,20 @@ from ..core.deps import current_user, CurrentUser
 router = APIRouter(tags=["extras"])
 
 
-_enum_cache: dict | None = None
+# 프로세스 전역 캐시였다가 TTL로 바꿨다(2026-08-10) — 영원 캐시는 마이그레이션으로 enum을
+# 추가할 때마다 서버 재시작 전까지 옛 목록을 준다(0049 buyer_age가 이렇게 안 보였다).
+# ref.enums는 수백 행이라 1분 캐시면 충분히 싸다.
+_enum_cache: tuple[float, dict] | None = None
+_ENUM_TTL = 60.0
 
 
 @router.get("/enums")
 async def enums(_: CurrentUser = Depends(current_user)):
     """전 enum 그룹 {enum_key: [{code,label,tier}]} — 드롭다운·코드↔라벨 매핑(레지스트리)."""
+    import time
     global _enum_cache
-    if _enum_cache is None:
+    now = time.monotonic()
+    if _enum_cache is None or now - _enum_cache[0] > _ENUM_TTL:
         rows = await pool().fetch(
             "SELECT enum_key, code, label, tier FROM ref.enums WHERE active ORDER BY enum_key, sort_order"
         )
@@ -24,8 +30,8 @@ async def enums(_: CurrentUser = Depends(current_user)):
             out.setdefault(r["enum_key"], []).append(
                 {"code": r["code"], "label": r["label"], "tier": r["tier"]}
             )
-        _enum_cache = out
-    return _enum_cache
+        _enum_cache = (now, out)
+    return _enum_cache[1]
 
 
 @router.get("/fields")

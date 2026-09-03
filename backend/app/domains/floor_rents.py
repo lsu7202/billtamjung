@@ -1,23 +1,16 @@
 """층별 임대정보: 사적(팀)·자동저장. 내 매물 아니어도 입력 가능. specs S02 §3.5."""
-import re
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from ..core.db import pool, tx
-from ..core.floor_label import normalize as _norm_floor
+from ..core.floor_label import normalize as _norm_floor, signed as _signed_floor
 from ..core.deps import current_user, CurrentUser
 
 router = APIRouter(prefix="/buildings/{building_pk}/floor-rents", tags=["floor-rents"])
 
-
-def _signed_floor(fl: str | None) -> int | None:
-    """'15층'→15, '지하1층'/'B1'→-1. 팀입력·대장 층 라벨 매칭용."""
-    if not fl:
-        return None
-    s = str(fl)
-    n = re.sub(r"\D", "", s)
-    if "지하" in s or s.strip().upper().startswith("B"):
-        return -int(n) if n else -1
-    return int(n) if n else None
+# 층 파싱은 core/floor_label 하나만 쓴다(2026-08-29).
+# 여기 있던 _signed_floor 는 「지하」 두 글자만 지하로 봤다. 대장 표기는 「지1층」·「지1」·「지층」이
+# 훨씬 많아서(37만건) 지하가 지상으로 뒤집혀 읽혔고, 층 매칭이 통째로 어긋났다.
+# 저장할 때는 이미 정규화를 거치는데(_norm_floor) 읽을 때만 옛 함수를 쓰고 있었다.
 
 
 class RentIn(BaseModel):

@@ -25,7 +25,10 @@ export function mergeGeo(list: object[]): object | null {
 export type CompPoint = { building_pk: string; lng: number; lat: number; kind: "sale" | "rent" };
 
 /** 매물 상세를 새 탭으로 (redirect=항상 새 탭). */
-export const openDetail = (pk: string) => window.open(`/buildings/${pk}`, "_blank", "noopener");
+// 나대지 매물은 building_pk 자리에 'P'+pnu 가 산다(2026-08-27) — 상세도 필지 화면으로 간다.
+// 진짜 건물 PK 는 숫자로 시작하므로(대장 PK) 접두 'P' 와 부딪히지 않는다.
+export const openDetail = (pk: string) =>
+  window.open(pk.startsWith("P") ? `/parcels/${pk.slice(1)}` : `/buildings/${pk}`, "_blank", "noopener");
 
 /** 원(중심+반경) → GeoJSON 폴리곤(n각형 근사). 백엔드 ST_Within 필터용. */
 export function circleToGeoJSON(center: { lng: number; lat: number }, radius_m: number, n = 64): object {

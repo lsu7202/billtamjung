@@ -192,9 +192,14 @@ async def nearby_sales(building_pk: str, radius_m: int = 500, years: int = 5, li
 
     pers = sorted(x["per_area"] for x in ok)
     median = pers[len(pers) // 2] if pers else None
+    # 총액 중앙 — 평당과 **같은 표본**에서 낸다. 건물 크기가 제각각이라 뜻은 약하지만
+    # 「얼마짜리가 오가는 동네인가」는 총액으로 감이 온다(2026-08-28 비교 막대).
+    prices = sorted(x["price"] for x in ok)
+    median_price = prices[len(prices) // 2] if prices else None
 
     return {"radius_m": radius_m, "years": years,
             "total": len(sales),                      # 반경 내 전체(막대는 가까운 limit개만)
             "excluded": len(sales) - len(ok),         # 이상치로 뺀 건수 — 숨기지 않고 말한다
             "median_per_area": median,                # 주변 중앙값 — 이상치에 안 흔들린다
+            "median_price": median_price,
             "sales": ok[:limit]}

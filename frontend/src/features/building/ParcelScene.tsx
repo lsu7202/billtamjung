@@ -17,7 +17,7 @@ export type SceneData = {
   roads: { rn: string; road_bt: number; geojson: Geo }[];
   landArea?: number | null;      // ㎡
   totalArea?: number | null;     // ㎡
-  bcr?: number | null;           // %
+  bcr?: number | null;           // % — 마스터가 채운다(대장 | 건축면적 계산 · 단독 필지만, 0040~0044)
   far?: number | null;           // %
   legalFar?: number | null;      // %
   legalBcr?: number | null;      // % — 기존 건축물이 넘는 경우가 흔하다(신축 시 바닥이 줄어든다)
@@ -25,6 +25,7 @@ export type SceneData = {
   frontRn?: string | null;
   floorsAbove?: number | null;
   height?: number | null;        // m — 건축물대장 표제부 실측. 없으면 null(가정값을 넣지 않는다)
+  slope?: string | null;         // 대장 지세(평지·완경사·급경사·고지·저지) — 3D 에서만 각도로 편다
 };
 
 /* ── 도형 유틸 ───────────────────────────────────────────── */

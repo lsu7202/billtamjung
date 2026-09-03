@@ -120,7 +120,7 @@ export function ReportPage() {
             </div>
             <div className="rs-fade" style={{ display: "flex", alignItems: "center", gap: "2.6cqw", paddingTop: "1.3cqw", borderTop: "1px solid var(--rl)", fontSize: "1.1cqw", color: "var(--rmuted)", ["--d" as string]: "360ms" }}>
               {summaryTail.primary ? <span>투자 유형 <b style={{ color: "var(--blue)" }}>{summaryTail.primary}</b>{summaryTail.officeApt && <span style={{ fontSize: ".8cqw", color: "#fff", background: "var(--navy)", borderRadius: "1cqw", padding: ".1cqw .6cqw", marginLeft: ".4cqw", fontWeight: 700 }}>사옥 적합</span>}</span> : null}
-              <span>대지 평당 적정가 <b style={{ color: "var(--navy)" }}>{summaryTail.avgPerMan}</b></span>
+              <span>대지 평당 추정가 <b style={{ color: "var(--navy)" }}>{summaryTail.avgPerMan}</b></span>
               <span>연면적 <b style={{ color: "var(--navy)" }}>{summaryTail.totalPy}</b></span>
             </div>
           </div>
@@ -176,7 +176,7 @@ export function ReportPage() {
                 <td className="b" style={{ maxWidth: "16cqw", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{shortAddr}</td>
                 <td className="r">—</td>
                 <td>—</td>
-                <td className="r b blue">{fair ? eokman(fair) : "—"}<span style={{ fontSize: ".82cqw", color: "var(--rmuted)", fontWeight: 500 }}> 적정가</span></td>
+                <td className="r b blue">{fair ? eokman(fair) : "—"}<span style={{ fontSize: ".82cqw", color: "var(--rmuted)", fontWeight: 500 }}> 추정가</span></td>
                 <td className="r">{py(totalArea)}평</td>
                 <td className="r b blue">{avgPer ? `${Math.round(avgPer / 1e4).toLocaleString()}만` : "—"}</td>
                 <td className="r">—</td>
@@ -193,7 +193,7 @@ export function ReportPage() {
                   <td className="r">{c.time_adj != null ? `${c.time_adj >= 0 ? "+" : ""}${Math.round(c.time_adj * 100)}%` : "—"}</td>
                 </tr>
               )) : <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--rmuted)", padding: "2cqw" }}>반경 내 실거래 사례 없음</td></tr>}
-              {moreCount > 0 && <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--rmuted)", fontSize: ".95cqw", padding: ".55cqw", borderTop: "1px dashed var(--rl)" }}>가까운 순 4건 표시 · 외 <b style={{ color: "var(--navy)" }}>+{moreCount}건</b>도 적정가 산정에 반영됨</td></tr>}
+              {moreCount > 0 && <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--rmuted)", fontSize: ".95cqw", padding: ".55cqw", borderTop: "1px dashed var(--rl)" }}>가까운 순 4건 표시 · 외 <b style={{ color: "var(--navy)" }}>+{moreCount}건</b>도 추정가 산정에 반영됨</td></tr>}
             </tbody>
           </table>
           <div style={{ display: "flex", gap: "2.5cqw", alignItems: "center", flex: 1 }}>
@@ -211,7 +211,7 @@ export function ReportPage() {
                   : <>반경 내 유사 실거래가 충분치 않아, 다른 기준을 함께 반영해 시세를 분석했습니다.</>}
               </div>
               <div style={{ fontSize: "1cqw", lineHeight: 1.6, color: "var(--rmuted)", marginTop: ".9cqw" }}>
-                이 실거래 기준값은 하나의 근거이며, 공시지가·주변 임대시세(수익가치) 등 다른 요소와 함께 종합해 최종 적정가를 산정합니다. 종합 결론은 마지막 장에서 정리합니다.
+                이 실거래 기준값은 하나의 근거이며, 공시지가·주변 임대시세(수익가치) 등 다른 요소와 함께 종합해 최종 추정가를 산정합니다. 종합 결론은 마지막 장에서 정리합니다.
               </div>
             </div>
           </div>
@@ -313,7 +313,7 @@ export function ReportPage() {
                   ? <ReportMap lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom} zones={ut.zones as any} />
                   : <div style={{ color: "var(--rmuted)", fontSize: "1.05cqw", padding: "2cqw 0" }}>주변 상권 데이터가 부족합니다.</div>}
                 <div style={{ display: "flex", gap: "1cqw", flexWrap: "wrap", fontSize: ".85cqw", color: "var(--rmuted)" }}>
-                  {[["업무", "#2B5AA8"], ["먹자", "#E8833A"], ["유흥", "#D64545"], ["판매", "#2E9E6B"]].map(([k, c]) => (
+                  {[["업무", "#3182F6"], ["먹자", "#E8833A"], ["유흥", "#D64545"], ["판매", "#2E9E6B"]].map(([k, c]) => (
                     <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: ".3cqw" }}><span style={{ width: ".9cqw", height: ".9cqw", background: c, borderRadius: ".2cqw", display: "inline-block" }} />{k}</span>
                   ))}
                 </div>
@@ -371,7 +371,7 @@ export function ReportPage() {
                   : <> 다만 이는 입지·수익이 이미 성숙한 <b>우량자산</b>이라는 의미로, 지가가 꾸준히 오르는 만큼 <b>보유 시 가치도 점진적으로 상승</b>합니다. 개발·리모델링을 더하면 추가 상승 여력도 열립니다.</>}
             </div>
             <div style={{ fontSize: ".9cqw", lineHeight: 1.5, color: "var(--rmuted)", textAlign: "center", maxWidth: "90%", margin: "0 auto" }}>
-              ※ 미래가치 = 개발여지(40%) + 임대 상향 여력(30%) + 지가 상승 추세(30%) 블렌드. 현재가치(적정가)와 별개의 상승 잠재력 지표입니다. 지가 상승은 개별 공시지가 5년 변동률(없으면 자치구 지가변동률)을 사용합니다.
+              ※ 미래가치 = 개발여지(40%) + 임대 상향 여력(30%) + 지가 상승 추세(30%) 블렌드. 현재가치(추정가)와 별개의 상승 잠재력 지표입니다. 지가 상승은 개별 공시지가 5년 변동률(없으면 자치구 지가변동률)을 사용합니다.
             </div>
           </> : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--rmuted)", fontSize: "1.2cqw" }}>미래가치 산정에 필요한 데이터가 부족합니다.</div>}
         </div>
@@ -388,10 +388,10 @@ export function ReportPage() {
             <span className="cv-r">월임대료 <b style={{ color: "var(--navy)" }}>{rent ? `${man(rent)}만원` : "—"}</b></span>
             <span className="cv-r" style={{ color: "var(--rmuted)" }}>을 종합</span>
           </div>
-          {/* 결론 — 적정가 초대형(팝인+카운트업+글로우 수렴) */}
+          {/* 결론 — 추정가 초대형(팝인+카운트업+글로우 수렴) */}
           <div className="rs-pop" style={{ textAlign: "center", position: "relative", ["--d" as string]: "260ms" }}>
             <div className="cv-glow" />
-            <div style={{ position: "relative", fontSize: "1.2cqw", color: "var(--rmuted)", fontWeight: 700, letterSpacing: ".06em" }}>빌탐정 적정가</div>
+            <div style={{ position: "relative", fontSize: "1.2cqw", color: "var(--rmuted)", fontWeight: 700, letterSpacing: ".06em" }}>빌탐정 추정가</div>
             <div style={{ fontSize: "5.4cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1, letterSpacing: "-.02em" }}>
               <CountUp end={eokManParts(fair)[0]} dur={1300} delay={400} fmt={(v) => Math.round(v).toLocaleString()} /><span style={{ fontSize: "2.4cqw" }}>억{eokManParts(fair)[1] ? ` ${eokManParts(fair)[1].toLocaleString()}만원` : "원"}</span>
             </div>
@@ -400,7 +400,7 @@ export function ReportPage() {
           {/* 핵심 지표 3 — 큼지막, hairline, 순차 카운트업 */}
           <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
             {([
-              ["예상수익률", <CountUp key="r" end={roiFair ?? 0} dur={1000} delay={1200} fmt={(v) => v.toFixed(2)} />, "%", nbhdRoi ? `주변 평균 ${nbhdRoi}%` : "적정가 기준"],
+              ["예상수익률", <CountUp key="r" end={roiFair ?? 0} dur={1000} delay={1200} fmt={(v) => v.toFixed(2)} />, "%", nbhdRoi ? `주변 평균 ${nbhdRoi}%` : "추정가 기준"],
               ["예상 월임대수익", rent ? `${man(rent)}만원` : "—", "", "주변 임대시세 적용"],
               ["매력도", grade, "등급", `가치점수 ${score}점`],
             ] as [string, React.ReactNode, string, string][]).map(([k, v, u, d], i) => (
@@ -415,7 +415,7 @@ export function ReportPage() {
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "4.5cqw", marginTop: ".6cqw" }}>
             {([
               ut?.primary ? { lab: "투자 유형", val: ut.primary, extra: officeApt ? "사옥 적합" : null, c: "var(--blue)" } : null,
-              fut?.label ? { lab: "미래가치", val: fut.label, extra: null, c: "var(--purple)" } : null,
+              fut?.label ? { lab: "미래가치", val: fut.label, extra: null, c: "var(--blue)" } : null,
             ].filter(Boolean) as { lab: string; val: string; extra: string | null; c: string }[]).map((t, i) => (
               <Fragment key={t.lab}>
                 {i > 0 && <div style={{ width: "1px", height: "3.4cqw", background: "var(--rl)" }} />}

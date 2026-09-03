@@ -52,10 +52,30 @@ function makeToMeters(lng0: number, lat0: number) {
   return ([lng, lat]: LngLat): V2 => ({ x: (lng - lng0) * mx, z: -(lat - lat0) * my });
 }
 
-const centroid = (pts: V2[]): V2 => ({
-  x: pts.reduce((a, p) => a + p.x, 0) / pts.length,
-  z: pts.reduce((a, p) => a + p.z, 0) / pts.length,
-});
+/** 폴리곤 무게중심 — **면적 가중**이다(2026-08-27).
+ *
+ *  예전엔 정점의 산술 평균을 썼다. 정점이 고르게 흩어진 도형에선 같은 값이지만,
+ *  지적도 폴리곤은 도로에 접한 변에 정점이 몰려 있는 일이 흔하다. 그러면 중심이
+ *  그 변 쪽으로 끌려가고, 그 중심을 기준으로 줄인 건물 바닥이 통째로 밀려서
+ *  **대지 경계 밖으로 튀어나온다**(실측: 건폐율 43.87%인데 건물이 대지를 벗어남).
+ *
+ *  넓이가 0(선분·중복점)이면 나눗셈이 깨지므로 그때만 산술 평균으로 물러난다.
+ */
+const centroid = (pts: V2[]): V2 => {
+  let a2 = 0, cx = 0, cz = 0;
+  for (let i = 0, n = pts.length; i < n; i++) {
+    const p = pts[i], q = pts[(i + 1) % n];
+    const cross = p.x * q.z - q.x * p.z;
+    a2 += cross;
+    cx += (p.x + q.x) * cross;
+    cz += (p.z + q.z) * cross;
+  }
+  if (Math.abs(a2) < 1e-9) {
+    return { x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
+             z: pts.reduce((s, p) => s + p.z, 0) / pts.length };
+  }
+  return { x: cx / (3 * a2), z: cz / (3 * a2) };
+};
 
 /** 중심을 향해 k배 줄인 도형 — 건폐율만큼 작은 건물 바닥을 만든다. */
 const shrink = (pts: V2[], k: number, c: V2): V2[] =>
@@ -150,6 +170,17 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
     rim.position.set(46, 22, -42);
     scene.add(rim);
 
+    /* 지형 그룹 — 지세를 각도로 펴려면 지면·도로·대지·건물이 **함께** 기울어야 한다.
+       조명은 밖(scene)에 남긴다. 같이 돌면 음영이 그대로라 기울인 티가 안 난다.
+       회전 중심은 필지 중심이다: pivot 을 거기 놓고 land 를 그만큼 되밀어 두면
+       자식들은 지금 쓰는 절대 좌표를 그대로 쓸 수 있다. */
+    const pivot = new THREE.Group();
+    pivot.position.set(c.x, 0, c.z);
+    const land = new THREE.Group();
+    land.position.set(-c.x, 0, -c.z);
+    pivot.add(land);
+    scene.add(pivot);
+
     /* 굵은 선 — 기본 Line은 굵기를 못 준다(WebGL 제약). Line2로 픽셀 굵기를 준다. */
     const lineMats: LineMaterial[] = [];
     const thick = (pts: THREE.Vector3[], color: number, opt: {
@@ -180,12 +211,12 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
       new THREE.MeshBasicMaterial({ color: C.ground }),
     );
     ground.position.set(c.x, -0.06, c.z);
-    scene.add(ground);
+    land.add(ground);
     const grid = new THREE.GridHelper(120, 24, C.grid, C.grid);   // 5m 눈금
     (grid.material as THREE.Material).transparent = true;
     (grid.material as any).opacity = 0.5;
     grid.position.set(c.x, 0, c.z);
-    scene.add(grid);
+    land.add(grid);
 
     // ── 접한 도로 ─────────────────────────────────────────
     // DoubleSide 필수 — 띠를 위에서 내려다보는데 감김 방향에 따라 뒷면이 되면 통째로 사라진다
@@ -200,8 +231,8 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
         if (pts.length < 2) return;
         const front = r.rn === data.frontRn;
         const { mesh, edges } = ribbon(pts, r.road_bt, front ? 0.06 : 0.04, front ? frontMat : roadMat);
-        scene.add(mesh);
-        edges.forEach((e) => scene.add(thick(e, front ? C.frontEdge : C.roadEdge, {
+        land.add(mesh);
+        edges.forEach((e) => land.add(thick(e, front ? C.frontEdge : C.roadEdge, {
           // 멀리 뻗는 경계선은 옅게 — 안개가 안 먹는 선이라 그대로 두면 화면을 가로지른다
           width: front ? 2.2 : 1.2, opacity: front ? 0.9 : 0.3,
         })));
@@ -221,10 +252,10 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
     });
 
     // ── 대지 ──────────────────────────────────────────────
-    scene.add(slab(parcel, -0.4, 0.4, new THREE.MeshStandardMaterial({
+    land.add(slab(parcel, -0.4, 0.4, new THREE.MeshStandardMaterial({
       color: C.plate, roughness: 0.95, metalness: 0,
     })));
-    scene.add(thick(loop(parcel, 0.03), C.plateEdge, { width: 2.6 }));
+    land.add(thick(loop(parcel, 0.03), C.plateEdge, { width: 2.6 }));
 
     // ── 건물 매스 ─────────────────────────────────────────
     const far = data.far ?? 0, bcr = data.bcr ?? 0;
@@ -236,11 +267,22 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
     const storey = H / Math.max(1, floors);
     const foot = shrink(parcel, bcr > 0 ? Math.sqrt(Math.min(bcr, 100) / 100) : 0.9, c);
 
+    // 건폐율이 있으면 바닥은 사실이다(마스터가 사실만 채운다 — 0044에서 추정 출처 제거).
+    // 없으면 0.9는 그리기 위한 임의값이라 사실이 아니다 — 높이 치수와 같은 규칙: 반투명 + 점선.
+    const solid = bcr > 0;
+    // 건물은 **기울이지 않는다**. 땅이 비탈이어도 건물은 수직으로 선다 —
+    // 매스까지 같이 기울면 그림이 거짓말이 된다(2026-08-26). 회전 중심이 필지 중심이라
+    // 중심의 높이는 그대로여서, 매스를 scene 에 두면 기운 땅 위 제자리에 선다.
     scene.add(slab(foot, 0, H, new THREE.MeshStandardMaterial({
       color: C.mass, roughness: 0.45, metalness: 0.1,
+      transparent: !solid, opacity: solid ? 1 : 0.5,
     })));
     for (let i = 1; i < floors; i++) scene.add(thick(loop(foot, i * storey), C.massLine, { width: 1, opacity: 0.3 }));
-    scene.add(thick(loop(foot, H), 0xffffff, { width: 2, opacity: 0.9 }));
+    scene.add(thick(loop(foot, H), 0xffffff, { width: 2, opacity: 0.9, dash: solid ? undefined : [0.8, 0.5] }));
+    // 바닥선 — 건물 밑둘레를 땅 높이에 그린다(2026-08-27). 검산으로는 바닥이 대지 안인데
+    // 낮은 카메라에선 뒤에 선 높은 매스가 앞쪽 경계선을 가로질러 보여 「대지를 벗어났다」로
+    // 읽혔다(실사용 보고). 경계선과 같은 평면에 밑둘레가 있어야 눈이 같은 자로 잰다.
+    scene.add(thick(loop(foot, 0.12), 0xffffff, { width: 1.6, opacity: 0.85, top: false }));
 
     // ── 치수선 — 값을 대상 옆에 붙인다 ──────────────────────
     const labs: Label[] = [];
@@ -253,8 +295,8 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
       const p1 = new THREE.Vector3(r.near.x - nx * r.w / 2, y, r.near.z - nz * r.w / 2);
       const p2 = new THREE.Vector3(r.near.x + nx * r.w / 2, y, r.near.z + nz * r.w / 2);
       const col = r.front ? C.frontEdge : C.roadEdge;
-      scene.add(thick([p1, p2], col, { width: 2.4, dash: DASH, top: true }));
-      [p1, p2].forEach((p) => scene.add(thick(
+      land.add(thick([p1, p2], col, { width: 2.4, dash: DASH, top: true }));
+      [p1, p2].forEach((p) => land.add(thick(
         [p.clone().setY(0), p.clone().setY(3)], col, { width: 2, dash: [0.5, 0.35], top: true },
       )));
       labs.push({
@@ -274,36 +316,43 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
       labs.push({ text: `${H.toFixed(1)}m`, kind: "mass", at: V(H / 2), dx: 30 });
     }
 
-    // 대지 — 가장 긴 변에 길이 치수
-    let e0 = 0, eLen = 0;
+    // 대지 변 길이 치수는 그리지 않는다(2026-08-27 제거).
+    // 치수선을 변의 법선으로 밀어내도 필지 모양·카메라 각에 따라 건물과 겹쳐 보이는 각이 남았다.
+    // 이 그림의 핵심은 **도로**(어느 쪽에 몇 m 도로가 붙었나)이고 그건 잘 선다 —
+    // 헷갈리게 하는 보조 정보는 없는 편이 낫다. eLen 은 카메라 거리 계산에만 남긴다.
+    let eLen = 0;
     parcel.forEach((p, i) => {
       const q = parcel[(i + 1) % parcel.length];
-      const L = Math.hypot(q.x - p.x, q.z - p.z);
-      if (L > eLen) { eLen = L; e0 = i; }
+      eLen = Math.max(eLen, Math.hypot(q.x - p.x, q.z - p.z));
     });
-    {
-      const p = parcel[e0], q = parcel[(e0 + 1) % parcel.length];
-      const mx = (p.x + q.x) / 2, mz = (p.z + q.z) / 2;
-      const L = Math.hypot(mx - c.x, mz - c.z) || 1;
-      const ox = ((mx - c.x) / L) * 4.5, oz = ((mz - c.z) / L) * 4.5;   // 건물 밖으로 빼서 겹치지 않게
-      scene.add(thick([
-        new THREE.Vector3(p.x + ox, 0.25, p.z + oz), new THREE.Vector3(q.x + ox, 0.25, q.z + oz),
-      ], C.plateEdge, { width: 2.4, dash: DASH, top: true }));
-      labs.push({ text: `${eLen.toFixed(1)}m`, kind: "plate", dy: 12,
-        at: new THREE.Vector3(mx + ox, 0.9, mz + oz) });
-    }
 
     // ── 카메라 — 고정. 끌면 돈다 ───────────────────────────
     const widest = drawn.reduce((a, r) => Math.max(a, r.w), 0);
     // 전면도로 쪽에서 45° 비껴본 조감. 정면으로 서면 도로가 카메라 뒤로 빠져 폭이 안 보이고,
     // 도로와 나란히 서면 건물이 옆으로 눕는다. 그 사이가 조감도다.
     const fr = drawn.find((r) => r.front) ?? drawn[0];
+
+    /* 지세 — 대장엔 낱말(평지·완경사·급경사)뿐이고 실제 고저 데이터가 없다.
+       낱말마다 대표 각도를 정해 편다. **추정이고**, 그래서 화면에 「추정」이라 적는다.
+       기우는 방향은 전면도로에서 필지 안쪽으로 올라가는 쪽으로 잡는다 —
+       길이 낮고 안쪽이 높은 게 흔한 모양이라 그렇지, 이 필지가 그렇다는 근거는 없다.
+       고지·저지는 경사가 아니라 주변 대비 높낮이라 기울이지 않는다. */
+    const TILT: Record<string, number> = { 완경사: 4, 급경사: 12 };
+    const tilt = ((TILT[String(data.slope ?? "")] ?? 0) * Math.PI) / 180;
+    if (tilt && fr) {
+      const ux = c.x - fr.near.x, uz = c.z - fr.near.z;
+      const L = Math.hypot(ux, uz) || 1;
+      // 회전축 = 경사 방향과 수직인 수평축. 이 축으로 돌리면 경사 방향이 들린다.
+      pivot.rotateOnAxis(new THREE.Vector3(uz / L, 0, -ux / L).normalize(), tilt);
+      pivot.updateMatrixWorld(true);
+    }
     let az = (fr ? Math.atan2(fr.near.z - c.z, fr.near.x - c.x) : 0.68) + 0.8;
     let elev = 0.60;
     let dist = Math.max(92, H * 3.3, eLen * 4.2, widest * 2.4);
 
-    const project = (v: THREE.Vector3, w: number, h: number, dx = 0, dy = 0) => {
-      const p = v.clone().project(cam);
+    // 치수 라벨의 좌표는 land 안(기울기 전) 값이라, 기운 뒤 화면 어디인지는 월드로 옮겨야 안다
+    const project = (v: THREE.Vector3, w: number, h: number, dx = 0, dy = 0, tilted = true) => {
+      const p = (tilted ? land.localToWorld(v.clone()) : v.clone()).project(cam);
       return {
         sx: Math.min(w - 40, Math.max(40, (p.x * 0.5 + 0.5) * w + dx)),
         sy: Math.min(h - 16, Math.max(16, (-p.y * 0.5 + 0.5) * h + dy)),
@@ -331,7 +380,7 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
       renderer.render(scene, cam);
 
       // 겹치는 치수는 아래로 밀어 떼어 놓는다 — 겹친 숫자는 둘 다 못 읽는다
-      const placed = labs.map((L) => ({ ...L, ...project(L.at, w, h, L.dx, L.dy) }))
+      const placed = labs.map((L) => ({ ...L, ...project(L.at, w, h, L.dx, L.dy, L.kind !== "mass") }))
         .sort((a, b) => a.sy - b.sy);
       // 실제로 겹칠 때만 떼어낸다. 넉넉하게 잡으면 멀쩡한 라벨까지 한 줄로 쌓여
       // 자기 치수선에서 떨어져 나간다(실측: 9m·4m·21.6m가 한 열로 모였다).
@@ -397,35 +446,8 @@ export function ParcelScene3D({ data, animate = true }: { data: SceneData; anima
 
   return (
     <div className="ps3" ref={host}>
-      {/* 좌 — 무엇을 보고 있는지. 우 — 현재값과 법정한도를 나란히.
-          현재가 법정을 넘으면 색으로 표시한다(기존 건축물. 신축하면 그만큼 줄어든다). */}
-      <div className="ps3-hud left">
-        {data.useZone && <div className="ps3-zone">{data.useZone}</div>}
-        <div className="ps3-k">대지면적</div>
-        <div className="ps3-v">{data.landArea ? `${(data.landArea / 3.305785).toFixed(1)}평` : "—"}</div>
-        <div className="ps3-k">연면적</div>
-        <div className="ps3-v">{data.totalArea ? `${(data.totalArea / 3.305785).toFixed(1)}평` : "—"}</div>
-      </div>
-      <div className="ps3-hud right">
-        <table className="ps3-tbl">
-          <thead><tr><th /><th>현재</th><th>법정</th></tr></thead>
-          <tbody>
-            <tr>
-              <th>건폐율</th>
-              <td className={data.legalBcr != null && (data.bcr ?? 0) > data.legalBcr ? "over" : ""}>
-                {data.bcr ?? "—"}%</td>
-              <td>{data.legalBcr != null ? `${data.legalBcr}%` : "—"}</td>
-            </tr>
-            <tr>
-              <th>용적률</th>
-              <td className={data.legalFar != null && (data.far ?? 0) > data.legalFar ? "over" : ""}>
-                {data.far ?? "—"}%</td>
-              <td>{data.legalFar != null ? `${data.legalFar}%` : "—"}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
+      {/* 정보 판(용도지역·면적·건폐/용적)은 뺐다(2026-08-27) — 같은 탭의 건물정보·토지정보
+          카드에 다 있는 값이라 두 번 적는 꼴이었다. 이 그림이 할 말은 도로와 덩어리뿐이다. */}
       {/* 치수 — 3D 위치를 화면 좌표로 옮겨 붙인다(글자는 또렷하게) */}
       {labels.map((L, i) => L.on && (
         <div key={i} className={`ps3-dim ${L.kind}`} style={{ left: L.sx, top: L.sy }}>{L.text}</div>

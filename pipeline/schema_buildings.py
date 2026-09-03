@@ -17,6 +17,8 @@ COLUMNS = [
     "gongsi_latest", "last_sale_ym", "last_sale_price",
     "build_area", "far_area", "elevator", "parking",
     "height",
+    "bcr_src",   # 건폐율 출처: 대장 | 건축면적 | 층별개요추정(=추정) | 빈값
+    "far_src",   # 용적률 출처: 대장 | 용적산정연면적(단독필지만) | 빈값
 ]
 
 # 광범위 확보돼야 하는 컬럼 — 전 건물 100% NULL = 파이프라인 어딘가에서 필드가 조용히 누락된 것.
@@ -24,6 +26,6 @@ COLUMNS = [
 EXPECT_DATA = [
     "land_area", "total_area", "build_area", "far_area",
     "floors_above", "bcr", "far", "main_use", "main_use_name", "structure",
-    "approval_ymd", "elevator", "parking", "height",
+    "approval_ymd", "elevator", "parking", "height", "bcr_src", "far_src",
     "jimok", "land_use", "use_zone", "gongsi_latest", "station_dist",
 ]

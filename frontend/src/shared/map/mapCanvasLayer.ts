@@ -7,7 +7,7 @@ export interface CanvasPin {
   building_pk: string; addr?: string; lng: number; lat: number;
   col: "mine" | "normal"; price: number | null; last_sale_price?: number | null; sale_est?: number | null;
 }
-export type PriceMode = "fair" | "real";   // 핀 태그 가격: 적정가 / 실거래가
+export type PriceMode = "fair" | "real";   // 핀 태그 가격: 추정가 / 실거래가
 type Member = { p: CanvasPin; cx: number; cy: number };
 type Item =
   | { t: "pin"; cx: number; cy: number; p: CanvasPin }
@@ -135,14 +135,14 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
     if (it.t === "cluster") drawCluster(it.cx, it.cy, it.n, hover);
     else {
       const sel = it.p.building_pk === selected;
-      // fair(적정가)=배치 sale_est(상업만 적재됨) 또는 팀 매매가 · 실거래=실제 거래가. 값 없으면 회색 점(주거·비대상).
+      // fair(추정가)=배치 sale_est(상업만 적재됨) 또는 팀 매매가 · 실거래=실제 거래가. 값 없으면 회색 점(주거·비대상).
       const pv = mode === "real" ? (it.p.last_sale_price ?? null) : (it.p.sale_est ?? it.p.price ?? null);
       if (pv == null) drawDot(it.cx, it.cy, hover, sel);
       else drawPin(it.cx, it.cy, priceLabel(pv), PIN_COLORS[it.p.col], hover, sel);
     }
   }
 
-  // 적정가 산정 대상 아님(주거) · 값 없음 → 작은 회색 점(지도 정리 + 상업 매물 부각)
+  // 추정가 산정 대상 아님(주거) · 값 없음 → 작은 회색 점(지도 정리 + 상업 매물 부각)
   function drawDot(x: number, y: number, hover: boolean, sel: boolean) {
     const r = (hover || sel ? 6 : 4.5);
     ctx.save();

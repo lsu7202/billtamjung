@@ -1,9 +1,16 @@
-/* 분석 보고서 슬라이드 — R_example.pptx 디자인 이식(네이비 코퍼레이트, 16:9).
- * 모든 크기 cqw(슬라이드 폭 기준) → 어떤 폭에서도 비율 유지(PPT 슬라이드처럼). specs R-보고서 §6a. */
+/* 분석 보고서 슬라이드 — 16:9.
+ * 모든 크기 cqw(슬라이드 폭 기준) → 어떤 폭에서도 비율 유지(PPT 슬라이드처럼). specs R-보고서 §6a.
+ *
+ * 2026-08-28 색 개편. 원본(R_example.pptx)의 네이비 코퍼레이트를 그대로 이식했더니
+ * 보고서만 다른 제품처럼 보였다 — 앱은 회색 바탕 위 흰 카드에 파랑 하나인데,
+ * 보고서는 네이비 + 강조 테라코타 + 보라 + 민트로 유채색이 넷이었다.
+ * 이름(navy·blue·peach)은 자리를 가리키는 말로 남기고 값만 결로 맞춘다:
+ *   navy = 구조(제목·머리띠·표 선) → 잉크 / blue·peach = 값·주인공 → 파랑 하나.
+ * 위계는 색이 아니라 크기·굵기로 준다. */
 .rslide-root {
-  --navy: #1E2A4A; --navy-2: #2A3A5E; --blue: #2B5AA8; --green: #1C8C63;
-  --purple: #6E56CF; --peach-bg: #FCEFE1; --peach-line: #E6A968; --peach-tx: #C2571C;
-  --rl: #E4E7ED; --card: #F6F7F9; --rink: #1A1F2B; --rmuted: #828A99;
+  --navy: #191F28; --navy-2: #333D4B; --blue: #3182F6; --green: #3182F6;
+  --purple: #8B95A1; --peach-bg: #EBF4FF; --peach-line: #3182F6; --peach-tx: #3182F6;
+  --rl: #E5E8EB; --card: #F2F4F6; --rink: #191F28; --rmuted: #8B95A1;
   max-width: 1160px; margin: 0 auto; padding: 0 16px 80px;
   display: flex; flex-direction: column; gap: 18px;
   font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", "Segoe UI", sans-serif;
@@ -16,7 +23,7 @@
   position: relative; width: 100%; aspect-ratio: 16 / 9;
   container-type: inline-size;
   background: #fff; border: 1px solid var(--rl); border-radius: 12px;
-  overflow: hidden; box-shadow: 0 2px 10px rgba(20, 30, 60, .07);
+  overflow: hidden; box-shadow: 0 1px 3px rgba(15, 26, 46, .05);
   display: flex; flex-direction: column;
 }
 .rs-head { display: flex; align-items: center; padding: 2.1cqw 3cqw 0; gap: .9cqw; flex: 0 0 auto; }
@@ -107,15 +114,22 @@
 .deck-top { display: flex; align-items: center; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--rl); flex: 0 0 auto; background: #fff; }
 .deck-top .ttl { font-size: 13px; font-weight: 700; color: var(--rmuted); }
 .deck-main { flex: 1 1 auto; display: flex; min-height: 0; }
-.deck-nav { flex: 0 0 178px; border-right: 1px solid var(--rl); overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 9px; background: #EEECE7; }
-.deck-thumb { border: 2px solid transparent; border-radius: 8px; overflow: hidden; cursor: pointer; position: relative; background: #fff; box-shadow: 0 1px 4px rgba(20, 30, 60, .1); transition: border-color .12s; }
-.deck-thumb:hover { border-color: #b9c4d8; }
-.deck-thumb.on { border-color: var(--blue); box-shadow: 0 2px 8px rgba(43, 90, 168, .3); }
-.deck-thumb .tnum { position: absolute; top: 4px; left: 5px; font-size: 9px; font-weight: 800; color: #fff; background: rgba(30, 42, 74, .82); border-radius: 4px; padding: 1px 5px; z-index: 3; }
-.deck-thumb .twrap { pointer-events: none; }
-.deck-stage { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; position: relative; min-width: 0; padding: 26px 66px; background: #E9E7E2; }
+.deck-nav { flex: 0 0 178px; border-right: 1px solid var(--rl); overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 9px; background: #F2F4F6; }
+.deck-thumb { border: 2px solid transparent; border-radius: 8px; overflow: hidden; cursor: pointer; position: relative; background: #fff; box-shadow: 0 1px 3px rgba(15, 26, 46, .08); transition: border-color .12s; }
+.deck-thumb:hover { border-color: #C4CBD3; }
+.deck-thumb.on { border-color: var(--blue); box-shadow: 0 2px 8px rgba(49, 130, 246, .28); }
+.deck-thumb .tnum { position: absolute; top: 4px; left: 5px; font-size: 9px; font-weight: 800; color: #fff; background: rgba(25, 31, 40, .82); border-radius: 4px; padding: 1px 5px; z-index: 3; }
+/* 썸네일 = 슬라이드를 **통째로 축소**한 것(2026-08-28).
+   예전엔 150px 폭에 그대로 그렸는데, 슬라이드는 cqw 로 짜여 있어도 차트 눈금·표 글자는
+   px·vw 라 안 줄었다. 그래서 「4,196」·「32」 같은 숫자가 썸네일 밖으로 삐져나왔다.
+   폭을 슬라이드 원폭(1160px)으로 주고 transform 으로 줄이면 px 까지 같이 줄어든다.
+   0.1293 = 150(썸네일 실폭 = .deck-nav 178 − 좌우 padding 24 − 테두리 4) ÷ 1160. */
+.deck-thumb { aspect-ratio: 16 / 9; }
+.deck-thumb .twrap { pointer-events: none; width: 1160px; transform: scale(.1293);
+  transform-origin: top left; }
+.deck-stage { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; position: relative; min-width: 0; padding: 26px 66px; background: #F2F4F6; }
 .stage-slide { width: 100%; max-width: calc((100vh - 210px) * 16 / 9); }
-.deck-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--rl); background: #fff; font-size: 22px; color: var(--navy); cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(20, 30, 60, .16); z-index: 2; }
+.deck-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--rl); background: #fff; font-size: 22px; color: var(--navy); cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(15, 26, 46, .14); z-index: 2; }
 .deck-arrow:disabled { opacity: .32; cursor: default; }
 .deck-arrow.l { left: 16px; } .deck-arrow.r { right: 16px; }
 .deck-counter { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); font-size: 12.5px; font-weight: 700; color: var(--navy); background: #fff; border: 1px solid var(--rl); border-radius: 999px; padding: 4px 14px; }
@@ -126,12 +140,12 @@
 .stage-slide.rs-enter { animation: bt-slidein .5s cubic-bezier(.22,1,.36,1) both; }
 .stage-slide.rs-enter .rs-fade { animation: bt-rise .6s cubic-bezier(.22,1,.36,1) both; animation-delay: var(--d, 120ms); }
 @media (prefers-reduced-motion: reduce) { .stage-slide.rs-enter, .stage-slide.rs-enter .rs-fade { animation: none !important; } }
-/* 07 수렴 플로우 — 3축이 적정가로 모이는 라인 draw(진입 시) */
+/* 07 수렴 플로우 — 3축이 추정가로 모이는 라인 draw(진입 시) */
 @keyframes bt-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes bt-pop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
 @keyframes bt-wipe { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes bt-dot-pop { 0% { opacity: 0; transform: scale(0); } 70% { transform: scale(1.35); } 100% { opacity: 1; transform: scale(1); } }
-/* 종합결론 수렴 — supporting 값이 중앙(적정가)으로 모여듦 */
+/* 종합결론 수렴 — supporting 값이 중앙(추정가)으로 모여듦 */
 @keyframes bt-converge-l { from { opacity: 0; transform: translateX(-34px); } to { opacity: 1; transform: none; } }
 @keyframes bt-converge-r { from { opacity: 0; transform: translateX(34px); } to { opacity: 1; transform: none; } }
 @keyframes bt-glow { 0% { opacity: 0; transform: scale(.6); } 55% { opacity: .8; } 100% { opacity: .5; transform: scale(1); } }
@@ -140,13 +154,13 @@
 .story-sec.in .cv-l { animation: bt-converge-l .7s cubic-bezier(.22,1,.36,1) .15s both; }
 .story-sec.in .cv-r { animation: bt-converge-r .7s cubic-bezier(.22,1,.36,1) .15s both; }
 .cv-glow { position: absolute; left: 50%; top: 50%; width: 46%; aspect-ratio: 1; transform: translate(-50%,-50%); border-radius: 50%; pointer-events: none;
-  background: radial-gradient(circle, rgba(95,224,168,.28), transparent 68%); }
+  background: radial-gradient(circle, rgba(49,130,246,.14), transparent 68%); }
 .stage-slide.rs-enter .cv-glow { animation: bt-glow 1s ease .4s both; }
 .story-sec.in .cv-glow { animation: bt-glow 1.1s ease .5s both; }
 .stage-slide.rs-enter .rs-converge path { animation: bt-draw .85s cubic-bezier(.4,0,.2,1) both; animation-delay: var(--d, 700ms); }
 .stage-slide.rs-enter .rs-converge circle { transform-box: fill-box; transform-origin: center; animation: bt-pop .4s cubic-bezier(.22,1,.36,1) both; animation-delay: 1450ms; }
 @media (prefers-reduced-motion: reduce) { .stage-slide.rs-enter .rs-converge path, .stage-slide.rs-enter .rs-converge circle { animation: none !important; stroke-dashoffset: 0 !important; } }
-/* 결론 강조 팝인(스케일 바운스) — 적정가 등 핵심 숫자용 */
+/* 결론 강조 팝인(스케일 바운스) — 추정가 등 핵심 숫자용 */
 .stage-slide.rs-enter .rs-pop { animation: bt-pop .7s cubic-bezier(.34,1.56,.64,1) both; animation-delay: var(--d, 300ms); }
 @media (prefers-reduced-motion: reduce) { .stage-slide.rs-enter .rs-pop { animation: none !important; } }
 
@@ -212,7 +226,7 @@
 .story-dark .st-row .k { color: #9fb0cc; } .story-dark .st-row .v { color: #eaf0fa; } .story-dark .st-row .v.hl { color: #6ea0e6; }
 .story-dark .story-note { color: #5f6d86; }
 
-.story-prog { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, #2b5aa8, #5fe0a8); z-index: 30; }
+.story-prog { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, #3182F6, #7FB0FF); z-index: 30; }
 .story-rail { position: fixed; right: 24px; top: 50%; transform: translateY(-50%); z-index: 25; display: flex; flex-direction: column; gap: 13px; }
 .story-rail button { display: flex; align-items: center; gap: 10px; background: none; border: none; cursor: pointer; color: #9aa4b4; padding: 2px; }
 .story-rail .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .38; transition: transform .3s, opacity .3s; }
@@ -240,3 +254,4 @@
 .story-tbl .r { text-align: right; } .story-tbl .b { font-weight: 700; } .story-tbl .hl { color: #2b5aa8; }
 .story-tbl tr.sub { background: color-mix(in srgb, #2b5aa8 7%, transparent); }
 @media (prefers-reduced-motion: reduce) { .story-sec > * { opacity: 1; transform: none; } }
+

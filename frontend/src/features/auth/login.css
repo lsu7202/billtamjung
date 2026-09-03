@@ -23,7 +23,7 @@
 .s00-word { color: #fff; font-size: 24px; font-weight: 800; letter-spacing: -.03em; margin-bottom: 5px;
   opacity: 0; animation: s00-rise .6s .5s cubic-bezier(.22,1,.36,1) forwards; }
 .s00-word .dot { color: var(--gold); }
-.s00-tagline { color: #ADA69B; font-size: 13.5px; margin-bottom: 26px;
+.s00-tagline { color: #A7A29B; font-size: 13.5px; margin-bottom: 26px;
   opacity: 0; animation: s00-rise .6s .65s cubic-bezier(.22,1,.36,1) forwards; }
 .s00-tagline b { color: var(--gold); font-weight: 700; }
 @keyframes s00-rise { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }

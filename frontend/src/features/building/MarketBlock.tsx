@@ -50,9 +50,12 @@ function EokInput({ v, ph, onSave }: { v: number | null; ph: string; onSave: (wo
   );
 }
 
-export function MarketBlock({ pk, lng, lat, area, comp, onComp, onComps }: {
+export function MarketBlock({ pk, lng, lat, area, comp, onComp, onComps, salesOnly }: {
   pk: string; lng: number; lat: number; area: MarketArea;
   comp: CompFilter; onComp: (c: CompFilter) => void; onComps?: (pts: CompPoint[]) => void;
+  /** 주변 임대시세 표를 접는다(2026-08-25) — 반경이 이미 무효였고(가까운 300동 캡)
+   *  분석 탭 층별 카드가 같은 말을 더 짧게 한다. 실거래 탭은 실거래만 본다. */
+  salesOnly?: boolean;
 }) {
   const [unchecked, setUnchecked] = useState<Set<string>>(new Set());
   const [openFloors, setOpenFloors] = useState<Set<string>>(new Set());   // 층별 접고펴기
@@ -123,6 +126,7 @@ export function MarketBlock({ pk, lng, lat, area, comp, onComp, onComps }: {
   const shownFloors = rentFloorsOpen ? subjectFloors : subjectFloors.slice(0, 5);   // 층 많으면 5개까지만
   return (
     <>
+    {!salesOnly && (<>
     {/* 주변 임대시세 — 별도 카드 */}
     <div className="panel">
       <div className="sec-head">주변 임대시세 <small style={{ color: "var(--muted)", fontWeight: 400 }}>본매물 층별 · 펼치면 주변 임대 comps · 주소 클릭 = 상세로 이동해 입력</small>
@@ -148,7 +152,7 @@ export function MarketBlock({ pk, lng, lat, area, comp, onComp, onComps }: {
                   <tr key={keyOf(c)} style={{ background: "var(--surface-2)", ...(c.is_outlier ? { opacity: .6 } : {}) }}>
                     <td colSpan={3} style={{ padding: "4px 8px 4px 22px", fontSize: 12 }}>
                       <input type="checkbox" checked={effChecked(c)} onChange={() => toggle(c)} title="체크=층 평균 포함" style={{ marginRight: 8, verticalAlign: "middle" }} />
-                      <a onClick={() => openDetail(c.building_pk)} style={{ cursor: "pointer", color: "var(--signal)" }} title="클릭 = 이 매물 상세로 이동해 임대정보 입력">{shortAddr(c.addr)}</a>
+                      <a onClick={() => openDetail(c.building_pk)} style={{ cursor: "pointer", color: "var(--signal)" }} title="클릭 = 이 건물 상세로 이동해 임대정보 입력">{shortAddr(c.addr)}</a>
                       {c.is_outlier && <span className="tag stale" style={{ marginLeft: 5 }}>이상치</span>}
                       {c.is_estimate && <span className="tag" style={{ marginLeft: 5, color: "var(--muted)" }}>추정</span>}
                       <span style={{ color: "var(--muted)" }}>{c.contract_area != null ? ` · ${(c.contract_area / P).toFixed(0)}평` : ""} · 보 {man(c.deposit) || "—"} · 임 {man(c.rent) || "—"} · 평당 {man(c.per_rent) || "—"}</span>
@@ -168,6 +172,7 @@ export function MarketBlock({ pk, lng, lat, area, comp, onComp, onComps }: {
         </div>
       )}
     </div>
+    </>)}
 
     {/* 주변 실거래 — 별도 카드 */}
     <div className="panel">
@@ -197,7 +202,7 @@ export function MarketBlock({ pk, lng, lat, area, comp, onComp, onComps }: {
           {(salesOpen ? sales : sales.slice(0, 10)).map((s) => (
             <tr key={`${s.building_pk}-${s.contract_ym}-${s.price}`} style={s.is_outlier ? { opacity: .6 } : undefined}>
               <td style={{ fontSize: 12 }}>
-                <a onClick={() => openDetail(s.building_pk)} style={{ cursor: "pointer", color: "var(--signal)" }} title="클릭 = 이 매물 상세로 이동(새 탭)">{shortAddr(s.addr)}<Icon name="external" size={11} style={{ verticalAlign: "-1px", marginLeft: 3, opacity: .6 }} /></a>
+                <a onClick={() => openDetail(s.building_pk)} style={{ cursor: "pointer", color: "var(--signal)" }} title="클릭 = 이 건물 상세로 이동(새 탭)">{shortAddr(s.addr)}<Icon name="external" size={11} style={{ verticalAlign: "-1px", marginLeft: 3, opacity: .6 }} /></a>
                 {s.is_outlier && <span className="tag stale" style={{ marginLeft: 5 }}>이상치</span>}
               </td>
               <td className="num">{s.dist_m}m</td>

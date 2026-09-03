@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # 기존 회원 로그인·refresh·팀 초대 수락은 그대로 동작한다(홍보 선행 · 베타 개시 전 차단용).
     signups_open: bool = True
 
+    # 로그인 허용 목록(2026-08-20) — **개발서버 전용 빗장**. 값이 있으면 그 이메일만 로그인된다.
+    # 설문 링크를 밖으로 뿌리는 동안 테스트계정 외의 접속을 막는다(운영은 미설정이라 무영향).
+    # 예: BT_LOGIN_ALLOW="coms1768@gmail.com,demo9@billtamjung.com"
+    login_allow: str = ""
+
     # 소셜 로그인(OAuth) — 키는 카카오/네이버 개발자센터 발급 후 env로 주입(BT_KAKAO_CLIENT_ID 등).
     # 비어 있으면 /auth/social/* 은 503(미설정) 반환. 스키마·골격은 준비됨(기능목록 §1).
     kakao_client_id: str = ""

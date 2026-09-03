@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { DocPage } from "../features/sales/draft/DocPage";
 import { AuthGuard } from "./AuthGuard";
 import { Shell } from "./Shell";
 import { refresh } from "../shared/api/client";
@@ -8,8 +9,10 @@ import { LoginPage } from "../features/auth/LoginPage";
 import { LandingPage } from "../features/landing/LandingPage";
 import { GuidePage } from "../features/beta/GuidePage";
 import { SurveyPage } from "../features/beta/SurveyPage";
+import { Beta1Survey } from "../features/beta/Beta1Survey";
 import { OnboardingPage } from "../features/landing/OnboardingPage";
 import { SearchPage } from "../features/search/SearchPage";
+import { ParcelPage } from "../features/building/ParcelPage";
 import { BuildingPage } from "../features/building/BuildingPage";
 import { ReportPage } from "../features/building/ReportPage";
 import { BriefingPage } from "../features/building/BriefingPage";
@@ -36,19 +39,25 @@ export function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/guide" element={<GuidePage />} />
           <Route path="/survey" element={<SurveyPage />} />
+          {/* 1차 마무리 설문(2026-08-20) — 로그인 없이, 링크로 뿌린다 */}
+          <Route path="/survey/beta1" element={<Beta1Survey />} />
           <Route path="/welcome" element={<AuthGuard><OnboardingPage /></AuthGuard>} />
           <Route element={<AuthGuard><Shell /></AuthGuard>}>
             <Route path="/search" element={<ErrorBoundary><SearchPage /></ErrorBoundary>} />
             <Route path="/buildings/:pk" element={<ErrorBoundary><BuildingPage /></ErrorBoundary>} />
+            {/* 나대지 — 건물이 없는 필지. building_pk 가 없어 pnu 로 가리킨다(2026-08-27) */}
+            <Route path="/parcels/:pnu" element={<ErrorBoundary><ParcelPage /></ErrorBoundary>} />
             <Route path="/sales" element={<ErrorBoundary><SalesPage /></ErrorBoundary>} />
             <Route path="/mypage" element={<ErrorBoundary><MyPage /></ErrorBoundary>} />
           </Route>
           {/* 보고서 = 헤더 없는 전체화면(새 탭으로 여는 독립 뷰) */}
-          <Route element={<AuthGuard><div style={{ height: "100vh", overflow: "hidden" }}><Outlet /></div></AuthGuard>}>
+          <Route element={<AuthGuard><div className="fullview" style={{ height: "100vh", overflow: "hidden" }}><Outlet /></div></AuthGuard>}>
             <Route path="/buildings/:pk/report" element={<ErrorBoundary><ReportPage /></ErrorBoundary>} />
             <Route path="/buildings/:pk/story" element={<ErrorBoundary><ReportStory /></ErrorBoundary>} />
             <Route path="/reports/:id" element={<ErrorBoundary><ReportPage /></ErrorBoundary>} />
             <Route path="/briefings/:id" element={<ErrorBoundary><BriefingPage /></ErrorBoundary>} />
+            {/* 계약 문서(초안) — 모달이 아니라 새 탭. 종이는 크게 본다 */}
+            <Route path="/deals/:pk/papers" element={<ErrorBoundary><DocPage /></ErrorBoundary>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

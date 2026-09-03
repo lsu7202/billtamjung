@@ -7,9 +7,9 @@
   animation: ob-in .5s cubic-bezier(.22,1,.36,1); max-width: 640px; }
 @keyframes ob-in { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: none } }
 
-.ob-count { color: #8F887E; font-size: 12.5px; font-weight: 700; letter-spacing: .08em; margin-bottom: 14px; }
+.ob-count { color: #8C8A86; font-size: 12.5px; font-weight: 700; letter-spacing: .08em; margin-bottom: 14px; }
 .ob-q { color: #fff; font-size: clamp(24px, 3.2vw, 32px); font-weight: 800; letter-spacing: -.02em; line-height: 1.35; }
-.ob-hint { color: #ADA69B; font-size: 14px; margin-top: 10px; }
+.ob-hint { color: #A7A29B; font-size: 14px; margin-top: 10px; }
 
 .ob-chips { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 30px; }
 .ob-chip { border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.06); color: #fff;
@@ -21,14 +21,14 @@
 .ob-inputrow { display: flex; gap: 9px; margin-top: 30px; width: min(430px, 90vw); }
 .ob-input { flex: 1; border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.07); color: #fff;
   border-radius: 10px; padding: 13px 16px; font: inherit; font-size: 15px; }
-.ob-input::placeholder { color: #8F887E; }
+.ob-input::placeholder { color: #8C8A86; }
 .ob-input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(231,200,118,.18); }
 .ob-go { border: 0; border-radius: 10px; background: var(--gold); color: var(--ink); font: inherit; font-size: 14.5px;
   font-weight: 800; padding: 0 22px; cursor: pointer; }
 .ob-go:disabled { opacity: .4; cursor: default; }
 
-.ob-skip { border: 0; background: none; color: #8F887E; font: inherit; font-size: 13px; margin-top: 26px;
+.ob-skip { border: 0; background: none; color: #8C8A86; font: inherit; font-size: 13px; margin-top: 26px;
   cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-.ob-skip:hover { color: #ADA69B; }
+.ob-skip:hover { color: #A7A29B; }
 
 .ob-done { display: flex; flex-direction: column; align-items: center; gap: 14px; animation: ob-in .5s cubic-bezier(.22,1,.36,1); }

@@ -23,7 +23,7 @@ const STEPS: Step[] = [
   { key: "career_years", q: "중개 경력이 얼마나 되세요?", optional: true, chips: [["lt1", "1년 미만"], ["y1_3", "1~3년"], ["y3_10", "3~10년"], ["gt10", "10년 이상"]],
     when: (a) => a.job_role === "broker" },
   { key: "prior_tools", q: "부동산 프로그램을 써본 적 있나요?", optional: true, chips: [["yes", "있어요"], ["no", "없어요"]] },
-  { key: "expect_feature", q: "빌탐정에서 가장 기대하는 건 뭐예요?", chips: [["search", "매물 검색"], ["valuation", "적정가·가치분석"], ["report", "빌탐정 리포트"], ["manage", "매물 관리"]] },
+  { key: "expect_feature", q: "빌탐정에서 가장 기대하는 건 뭐예요?", chips: [["search", "건물 검색"], ["valuation", "추정가·가치분석"], ["report", "빌탐정 리포트"], ["manage", "매물 관리"]] },
   { key: "interest_region", q: "주로 보는 지역이 어디세요?", optional: true, input: "예: 강남구, 서초구" },
   { key: "referral_source", q: "빌탐정은 어떻게 알게 되셨어요?", optional: true, chips: [["referral", "지인 추천"], ["search", "검색"], ["sns", "SNS"], ["ad", "광고"], ["etc", "기타"]] },
 ];

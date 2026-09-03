@@ -1,414 +1,288 @@
-import { useState, useEffect, useCallback, type CSSProperties } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { listingsApi, extrasApi, overlaysApi, buildingsApi, buyersApi, proposalsApi, REJECT_REASONS, type MatchingBuyer } from "../../shared/api/endpoints";
+import { listingsApi, overlaysApi, buildingsApi, proposalsApi, schedulesApi } from "../../shared/api/endpoints";
+import { negoWord } from "../sales/words";
+import { MemoLog } from "../sales/draft/MemoLog";
+import { PickModal } from "../sales/PickModal";
 import { Loading } from "../../shared/ui/Spinner";
-import { KV, wonToEok, vPos, formatPhone } from "./KV";
+import { KV, wonToEok, vPos } from "./KV";
+import { won } from "../../shared/format";
+import { useRentTotals } from "./rentTotals";
 import { useNavigate } from "react-router-dom";
-import { api } from "../../shared/api/client";
 import { useEnums } from "../../shared/hooks/useEnums";
-import { Chips } from "./EnumField";
 import { Icon } from "../../shared/ui/Icon";
 
-/** S02 우측 고정 사이드바 — 업무 / 위키 / 수정이력 / 메모 4탭(§4). enum=enums.md 정본. */
+/** S02 우측 고정 사이드바 — 소유자 / 매수자 / 메모 3탭(2026-08-26 개편).
+ *
+ *  이 화면의 규칙은 **왼쪽은 건물, 오른쪽은 거래**다. 왼쪽은 누가 보든 같은 값(대장·지적·실거래),
+ *  오른쪽은 우리 팀만의 값(소유자·매수자·메모).
+ *
+ *  위키·힌트를 뺐다: 둘 다 **팀 밖의 것**이라 이 줄에 성격이 안 맞았다 —
+ *  위키는 전체 이용자가 쓰는 글이고, 힌트는 남들이 그 칸을 뭐로 갖고 있는지의 익명 분포다.
+ *  화면에서만 뺐고 컴포넌트·API는 그대로 둔다(WikiTab·HistTab). 자리를 정해 다시 넣는다:
+ *  힌트는 값 옆 곁말로, 위키는 건물·토지 탭 맨 아래가 유력하다.
+ *
+ *  **만드는 일은 업무에서만, 고치는 일은 업무 모달이 정본이다.** 여기서 고치는 건 금액 셋과 메모뿐 —
+ *  창구를 둘로 두면 어느 쪽이 최신인지 아무도 모른다.
+ */
 
 export function Sidebar({ pk }: { pk: string }) {
-  const qc = useQueryClient();
-  const [tab, setTab] = useState<"biz" | "buyers" | "wiki" | "hist" | "memo">("biz");
+  const [tab, setTab] = useState<"biz" | "buyers" | "memo">("biz");
 
   const listing = useQuery({ queryKey: ["listing", pk], queryFn: () => listingsApi.get(pk) });
-  const wiki = useQuery({ queryKey: ["wiki", pk], queryFn: () => extrasApi.wikiList(pk), enabled: tab === "wiki" });
-  const memos = useQuery({ queryKey: ["memos", pk], queryFn: () => extrasApi.memoList(pk), enabled: tab === "memo" });
-  const dist = useQuery({ queryKey: ["dist", pk], queryFn: () => overlaysApi.distribution(pk), enabled: tab === "hist" });
-
-  // 매물을 받으면 중개인이 제일 먼저 하는 생각이 "누구한테 돌리지"다 — 그 자리를 업무 옆에 둔다(S04).
-  const TABS = [["biz", "업무"], ["buyers", "매수자"], ["wiki", "위키"], ["hist", "힌트"], ["memo", "메모"]] as const;
-  const tabIdx = TABS.findIndex(([t]) => t === tab);
+  // 매물을 받으면 중개인이 제일 먼저 하는 생각이 "누구한테 돌리지"다 — 그 자리를 매도자 옆에 둔다(S04).
+  // 이름은 업무 탭과 같게 「매물」 — 같은 것을 두 이름으로 부르면 같은 것인 줄 모른다(2026-08-27)
+  const TABS = [["biz", "매물"], ["buyers", "매수자"], ["memo", "메모"]] as const;
 
   return (
     <div className="panel" style={{ position: "sticky", top: 12 }}>
-      <div className="bt-tabs" style={{ "--tab-n": TABS.length, "--tab-i": tabIdx } as CSSProperties}>
+      {/* 알약 탭 — 통합 매물 모달(.um-tabs)과 같은 어법. 본문의 밑줄 탭(bt-tabs)은
+          화면을 가르는 큰 전환이고, 사이드바처럼 작은 칸 안에서는 알약이 결에 맞는다. */}
+      <div className="sb-tabs">
         {TABS.map(([t, label]) => (
           <button key={t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>{label}</button>
         ))}
-        <span className="bt-tabs-ink" aria-hidden />
       </div>
       <div style={{ padding: 14, minHeight: 300, maxHeight: "calc(100vh - 180px)", overflow: "auto" }}>
-        {tab === "biz" && <BizTab pk={pk} listing={listing.data} refresh={() => qc.invalidateQueries({ queryKey: ["listing", pk] })} />}
-        {tab === "buyers" && <MatchTab pk={pk} />}
-        {tab === "wiki" && <WikiTab pk={pk} items={wiki.data ?? []} refresh={() => qc.invalidateQueries({ queryKey: ["wiki", pk] })} />}
-        {tab === "hist" && <HistTab pk={pk} dist={dist.data ?? {}} refresh={() => { qc.invalidateQueries({ queryKey: ["dist", pk] }); qc.invalidateQueries({ queryKey: ["building", pk] }); }} />}
-        {tab === "memo" && <MemoTab pk={pk} memos={memos.data ?? []} refresh={() => qc.invalidateQueries({ queryKey: ["memos", pk] })} />}
+        {tab === "biz" && <SellerTab pk={pk} listing={listing.data} />}
+        {tab === "buyers" && <BuyersTab pk={pk} />}
+        {tab === "memo" && <MemoTab pk={pk} />}
       </div>
     </div>
   );
 }
 
-/* ── 매수자 추천(S04) — "이 매물, 누구에게?"
-   조건 O/X만 내면 그건 필터지 추천이 아니다. 왜 맞는지·무엇이 걸리는지를 같이 낸다.
-   조건 밖 매수자도 접어서 둔다 — 조건은 참고지 규칙이 아니고,
-   "조건엔 없지만 이건 보여줄 만하다"가 현장에서 자주 일어난다. */
-function MatchTab({ pk }: { pk: string }) {
+/* ── 매수자 탭(S04) — **이 매물에 걸린 사람들**.
+   예전엔 조건에 맞는 사람을 추천해 보여줬는데, 매물을 열고 이 탭을 누르는 이유는 대개
+   "지금 누구한테 나가 있지?"다. 탐색은 가끔이고 확인은 매번인데 화면이 탐색용으로 서 있었다.
+   그래서 기본은 담긴 사람 목록, 담는 일은 「＋」 뒤로 보낸다 —
+   영업 화면(사람 하나 고정 · 탭 = 담긴 매물)과 정확히 대칭이다. */
+function BuyersTab({ pk }: { pk: string }) {
+  const { options } = useEnums();
+  const gradeLabel = (c: string) => options("buyer_grade").find((o) => o.code === c)?.label ?? c;
   const qc = useQueryClient();
   const nav = useNavigate();
-  const [showOut, setShowOut] = useState(false);
-  const q = useQuery({ queryKey: ["matching-buyers", pk], queryFn: () => buyersApi.matching(pk) });
-  const add = async (id: number) => {
-    await proposalsApi.upsert({ buyer_id: id, building_pk: pk });
-    qc.invalidateQueries({ queryKey: ["matching-buyers", pk] });
-  };
-  if (q.isLoading) return <Loading label="찾는 중" minHeight="120px" />;
-  const all = q.data ?? [];
-  if (!all.length) {
-    return <p style={{ color: "var(--muted)", fontSize: 12.5, lineHeight: 1.6, margin: 0 }}>
-      등록된 매수자가 없습니다.<br />영업 탭에서 매수자를 등록하면 여기에 뜹니다.</p>;
-  }
-  const hit = all.filter((b) => b.matched);
-  const out = all.filter((b) => !b.matched);
-  const card = (b: MatchingBuyer) => (
-    <div className={`mb-card ${b.matched ? "" : "out"}`} key={b.id}>
-      <div className="h">
-        {/* 이름을 누르면 영업 탭의 그 매수자로 간다 — 지금은 눌러도 갈 곳이 없었다 */}
-        <b className="lnk" onClick={() => nav(`/sales?buyer=${b.id}`)} title="영업에서 보기">{b.name}</b>
-        {b.grade ? <span className="g">{b.grade}</span> : null}
-        <span className="sp" />
-        {b.proposal_status
-          ? <span className="st">{b.proposal_status}</span>
-          : <button className="btn" onClick={() => add(b.id)}>후보로</button>}
-      </div>
-      {b.matched_condition && <div className="c">{b.matched_condition}</div>}
-      {b.checks.length > 0 && (
-        <div className="ck">
-          {b.checks.map((k, i) => (
-            <div className={k.ok ? "y" : "n"} key={i}>
-              <i>{k.ok ? "✓" : "✗"}</i>{k.label}
-              <span>{k.want} · 이 매물 {k.got}</span>
-            </div>
-          ))}
+  const rows = useQuery({ queryKey: ["proposals", "pk", pk], queryFn: () => proposalsApi.list({ building_pk: pk }) });
+  const list = rows.data ?? [];
+  const [pick, setPick] = useState(false);
+
+  return (
+    <div className="btab">
+      {rows.isLoading ? <Loading label="불러오는 중" minHeight="80px" /> : (
+        <div className="btab-list">
+          {list.map((p) => {
+            const days = Math.round((Date.now() - new Date(p.updated_at).getTime()) / 86400000);
+            return (
+              <button key={p.id} className={`btab-row ${p.stop_id || p.dropped_at ? "off" : ""}`}
+                onClick={() => nav(`/sales?buyer=${p.buyer_id}`)} title="거래에서 보기">
+                <b>{p.buyer_name}</b>
+                {p.buyer_grade && <span className="g">{gradeLabel(p.buyer_grade)}</span>}
+                <span className={`pp-st s-${negoWord(p)}`}>{negoWord(p)}</span>
+                {p.hope_price != null && <span className="dim2 num" style={{ fontSize: 11 }}>희망 {Math.round(p.hope_price / 1e8)}억</span>}
+                <span className="sp" />
+                {p.stop_reason && <span className="rj">{p.stop_reason}</span>}
+                <span className="d">{days === 0 ? "오늘" : `${days}일 전`}</span>
+              </button>
+            );
+          })}
+          {list.length === 0 && <p className="btab-none">아직 담긴 매수자가 없습니다</p>}
         </div>
       )}
-      {b.rejects.length > 0 && (
-        <div className="rj">지난 거절 {b.rejects.map((r) =>
-          `${REJECT_REASONS.find((x) => x.k === r.reason)?.label ?? r.reason}${r.n > 1 ? ` ${r.n}` : ""}`).join(" · ")}</div>
-      )}
-    </div>
-  );
-  return (
-    <div className="mb-list">
-      {hit.length ? hit.map(card)
-        : <p style={{ color: "var(--muted)", fontSize: 12.5, margin: "0 0 8px" }}>조건에 걸리는 매수자가 없습니다.</p>}
-      {out.length > 0 && (
-        <>
-          <button className="mb-more" onClick={() => setShowOut((v) => !v)}>
-            조건 밖 {out.length}명 {showOut ? "접기" : "보기"}</button>
-          {showOut && out.map(card)}
-        </>
+
+      {/* 담기는 창 하나로(2026-08-20) — 이름 자동완성만으로는 「누구에게 돌릴지」를 못 고른다.
+          추천(조건 기반)·내 매수자를 한자리에서 보고 여러 명을 한 번에 담는다. */}
+      <button className="pick-open" onClick={() => setPick(true)}>＋ 매수자 담기</button>
+      {pick && (
+        <PickModal mode="buyer" buildingPk={pk} title="매수자 담기"
+          onClose={() => setPick(false)}
+          onAdded={() => {
+            qc.invalidateQueries({ queryKey: ["proposals"] });
+            qc.invalidateQueries({ queryKey: ["sales-today"] });
+          }} />
       )}
     </div>
   );
 }
 
-/* ── 업무 탭(§4.1) — 목업 순서: 진행상태(segmented)+내광고 상단 → 담당자·긴급도·소유자타입·소유자명·관계·협조도·친절도·매수의향서·전화번호 ── */
-type BizRow = { label: string; k: string; kind: "enum" | "text"; extra: string };
-const BIZ_ROWS: BizRow[] = [
-  { label: "긴급도", k: "urgency", kind: "enum", extra: "urgency" },
-  { label: "소유자 타입", k: "owner_type", kind: "enum", extra: "owner_type" },
-  { label: "소유자 명", k: "owner_name", kind: "text", extra: "성명/법인명" },
-  { label: "관계", k: "relation", kind: "enum", extra: "relation" },
-  { label: "협조도", k: "cooperation", kind: "enum", extra: "cooperation" },
-  { label: "친절도", k: "kindness", kind: "enum", extra: "kindness" },
-  { label: "매수의향서", k: "intent", kind: "enum", extra: "intent" },
-  { label: "전화번호", k: "owner_phone", kind: "text", extra: "010-0000-0000" },
-];
-
-function BizTab({ pk, listing, refresh }: { pk: string; listing?: Record<string, unknown>; refresh: () => void }) {
-  const en = useEnums();
+/* ── 매도자 탭(§4.1 개편 2026-08-13) — 요약만.
+   프로필·업무 필드는 한번 정해지면 잘 안 바뀌는 값이라 매물상세에 설정을 늘어놓지 않는다 —
+   자세한 관리(등록·소유자 정보·긴급도·기록)는 거래 섹션이 정본이고, 여기는 현재 상황과
+   금액(매도희망가)만 보여준다. 스펙 그대로: 진행상태·담당자는 절대 가리지 않고,
+   전화번호만 담당자·대표 외 마스킹, 클릭=복사. */
+function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unknown> }) {
+  const nav = useNavigate();
   const members = useQuery({ queryKey: ["team-members"], queryFn: listingsApi.members });
-  const me = useQuery({ queryKey: ["me"], queryFn: () => api<{ account_id: number }>("/auth/me") });
-  const [assignErr, setAssignErr] = useState<string | null>(null);
   const building = useQuery({ queryKey: ["building", pk], queryFn: () => buildingsApi.get(pk) });
+  const props = useQuery({ queryKey: ["proposals", "pk", pk], queryFn: () => proposalsApi.list({ building_pk: pk }) });
+  // 이 매물의 지금 = 살아 있는 짝들 중 **가장 앞선 합의 단계**(0142·업무탭 매물 줄과 같은 규칙)
+  const topWord = (() => {
+    const alive = (props.data ?? []).filter((p) => !p.dropped_at);
+    if (!alive.length) return null;
+    const top = alive.reduce((a, x) => ((x.nego ?? 0) > (a.nego ?? 0) ? x : a));
+    return negoWord(top);
+  })();
+  // 다음 일정 — 「내일 만나기로 했나?」를 보려고 업무로 나가야 했다(2026-08-26).
+  // 일정 조회에 매물 필터가 없어 앞으로 두 달치를 받아 여기서 거른다(캘린더와 같은 캐시를 탄다).
+  const today = new Date().toISOString().slice(0, 10);
+  const until = new Date(Date.now() + 60 * 864e5).toISOString().slice(0, 10);
+  const scheds = useQuery({ queryKey: ["sched", today, until],
+    queryFn: () => schedulesApi.range(today, until) });
+  const nextSched = (scheds.data ?? [])
+    .filter((x) => x.building_pk === pk && x.state !== "완료" && x.on_date >= today)
+    .sort((a, b) => (a.on_date + (a.at_time ?? "")).localeCompare(b.on_date + (b.at_time ?? "")))[0];
+  const [copied, setCopied] = useState(false);
+  const qc = useQueryClient();
   const bd = building.data as Record<string, unknown> | undefined;
-  async function saveOv(field: string, wonStr: string) {   // 원 입력 → 원 저장(오버레이)
-    const t = wonStr.trim();
-    await overlaysApi.put(pk, field, t ? String(Math.round(parseFloat(t))) : "");
-    building.refetch();
-  }
-  const assignee = listing?.assignee_account_id != null ? Number(listing.assignee_account_id) : null;
-  // 담당자 본인 또는 대표만 담당자를 바꾼다(서버 규칙과 같은 경계).
-  const myRole = (members.data ?? []).find((m) => m.account_id === me.data?.account_id)?.role;
-  const canAssign = myRole === "owner" || (assignee != null && assignee === me.data?.account_id);
-  const assigneeName = (members.data ?? []).find((m) => m.account_id === assignee)?.name ?? "—";
-  const val = (k: string) => (listing?.[k] != null ? String(listing[k]) : "");
-  const status = val("status") || "미지정";
+  const l = listing ?? {};
+  const v = (k: string) => (l[k] != null ? String(l[k]) : "");
+  // 조건 넷은 app.listings 가 저장소다 — 업무 탭 매물 모달과 **같은 API**(patchBiz)를 쓴다.
+  // 두 화면이 같은 칸을 보므로 한쪽만 고쳐 어긋나는 일이 구조적으로 안 생긴다.
+  // 수익률·평단가 — 매매가에서 나오는 값. 매매가가 비면 같이 빈다(추정치로 채우지 않는다)
+  const salePrice = bd?.sale_price != null && bd.sale_price !== "" ? Number(bd.sale_price) : null;
+  // 임대 총계는 공용 정본 하나에서만 나온다(rentTotals) — 머리줄 수익률도 같은 값을 본다.
+  const { rent: totRent, deposit: totDep, mgmt: totMgmt, fromFloors, floorRows, yearRent } = useRentTotals(pk);
+  const roi = salePrice && yearRent ? (yearRent / salePrice) * 100 : null;
+  /** 총계 한 줄 — 층별이 있으면 파생이라 못 고친다(고치는 자리는 임대 탭 층별 표 하나) */
+  const totRow = (label: string, field: string, val: number | null) => fromFloors ? (
+    <div className="sb-r"><span className="l">{label}</span>
+      <span className="r num">{val ? won(val) : "—"}
+        <em className="sb-src">층별 {floorRows}개</em></span></div>
+  ) : (
+    // 억 고정 표기(wonToEok)는 총계에 안 맞다 — 월 임대료 1,000만이 「0.10억」으로 뭉개진다
+    <KV label={label} field={field} value={val ? won(val) : "—"}
+      editable money current={val != null ? String(val) : ""} validate={vPos}
+      onSave={async (_f, w) => {
+        await listingsApi.patchBiz(pk, { [field]: w.trim() ? String(Math.round(parseFloat(w))) : "" });
+        qc.invalidateQueries({ queryKey: ["listing", pk] });
+      }}
+      onRevert={async () => {
+        await listingsApi.patchBiz(pk, { [field]: "" });
+        qc.invalidateQueries({ queryKey: ["listing", pk] });
+      }} />
+  );
+  const landPy = bd?.land_area ? Number(bd.land_area) / 3.305785 : null;
+  const ppLand = salePrice && landPy ? salePrice / landPy : null;
+  const assignee = l.assignee_account_id != null ? Number(l.assignee_account_id) : null;
+  const assigneeName = (members.data ?? []).find((m) => m.account_id === assignee)?.name;
+  const goTrade = () => nav(`/sales?listing=${pk}`);
 
-  async function save(k: string, v: string) {
-    await listingsApi.patchBiz(pk, { [k]: v || null });
-    refresh();
-  }
-  // 담당자 지정=등록 · null=해제. 서버가 팀 권한을 검증한다(선점·해제 규칙 S0M §3.5).
-  // 거부되면 이유를 보여준다 — 눌렀는데 아무 일도 안 일어나면 고장으로 읽힌다.
-  async function assign(id: number | null) {
-    try {
-      setAssignErr(null);
-      await listingsApi.claim(pk, id);
-      refresh();
-    } catch (e) {
-      setAssignErr(String((e as Error)?.message ?? "담당자를 바꾸지 못했습니다"));
-    }
-  }
-
-  // 미등록 = 내 매물 아님 → 등록 CTA로 잠금. 등록하면 담당자=나로 지정되며 업무 정보 열림.
-  if (assignee == null) {
+  // 아무것도 없는 매물 — 등록은 거래에서(리다이렉트). 여기서 폼을 펼치지 않는다.
+  if (assignee == null && !v("owner_name") && !v("status")) {
     return (
       <div style={{ display: "grid", gap: 12, justifyItems: "center", textAlign: "center", padding: "30px 16px" }}>
-        <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--signal-bg)", display: "grid", placeItems: "center", fontSize: 24 }}><Icon name="building" size={24} /></div>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>아직 내 매물이 아닙니다</div>
-        <p style={{ color: "var(--muted)", fontSize: 12.5, lineHeight: 1.5, margin: 0, maxWidth: 240 }}>등록하면 담당자로 지정되고 진행상태·소유자 정보 등 업무 정보를 관리할 수 있습니다.</p>
-        <button className="btn primary" style={{ padding: "9px 20px", fontSize: 14, fontWeight: 700 }}
-          disabled={me.data?.account_id == null} onClick={() => me.data && assign(me.data.account_id)}>＋ 내 매물로 등록하기</button>
+        <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--signal-bg)", display: "grid", placeItems: "center" }}><Icon name="building" size={24} /></div>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>아직 거래에 담지 않은 매물입니다</div>
+        <p style={{ color: "var(--muted)", fontSize: 12.5, lineHeight: 1.6, margin: 0, maxWidth: 240 }}>
+          업무 탭에서 등록하면 담당자로 지정되고 소유자·매수자 관리가 열립니다.</p>
+        <button className="btn primary" style={{ padding: "9px 20px", fontSize: 14 }} onClick={goTrade}>
+          거래에서 등록 →</button>
       </div>
     );
   }
 
+  // 사람 요약 한 줄 — 비어 있는 항목은 말하지 않는다(요약이 빈칸 목록이 되면 안 된다)
+  const person = [v("relation"), v("cooperation") && `${v("cooperation")}`, v("kindness") && `응대 ${v("kindness")}`]
+    .filter(Boolean).join(" · ");
+  const hopes = (props.data ?? []).map((x) => x.hope_price).filter((x): x is number => x != null);
+  const bidFallback = bd?.bid_price != null ? Number(bd.bid_price) : null;
+
   return (
-    <div style={{ display: "grid", gap: 8, fontSize: 13 }}>
-      {/* 진행상태(segmented) — 목업 .wk-status 상단 */}
-      <div className="kv" style={{ alignItems: "flex-start" }}>
-        <span className="k">진행상태</span>
-        <span style={{ display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "flex-end" }}>
-          {en.options("jindo").map((o) => (
-            <button key={o.code} className={`btn ${status === o.code ? "primary" : ""}`}
-              style={{ padding: "3px 8px", fontSize: 12 }} onClick={() => save("status", o.code)}>{o.label}</button>
-          ))}
-        </span>
-      </div>
-
-      <div style={{ margin: "6px 0 2px", fontWeight: 700 }}>업무 정보</div>
-      {/* 담당자 — 대표는 재배정·해제, 팀원은 자기 매물만. 남의 매물이면 이름만 보인다.
-          눌러도 거부될 컨트롤을 띄우면 "왜 안 되지"만 남는다(권한 QA 2026-08-09). */}
-      <div className="kv" style={{ alignItems: "center" }}>
-        <span className="k">담당자</span>
-        <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          {canAssign
-            ? <select className="input" style={{ maxWidth: 130, padding: "4px 8px", fontSize: 13 }}
-                value={assignee ?? ""} onChange={(e) => e.target.value && assign(Number(e.target.value))}>
-                {(members.data ?? []).map((m) => (
-                  <option key={m.account_id} value={m.account_id}>
-                    {m.name}{me.data?.account_id === m.account_id ? " (나)" : ""}{m.role === "owner" ? " · 대표" : ""}
-                  </option>
-                ))}
-              </select>
-            : <span className="v">{assigneeName}</span>}
-          {canAssign && (
-            <button className="btn" style={{ color: "var(--up)", padding: "3px 9px", fontSize: 12 }} title="내 매물에서 제거"
-              onClick={() => { if (confirm("내 매물에서 제거할까요? (담당자 해제)")) assign(null); }}>제거</button>
-          )}
-        </span>
-      </div>
-      {assignErr && <div style={{ color: "var(--up)", fontSize: 11.5, margin: "-2px 0 4px" }}>{assignErr}</div>}
-
-      {/* 가격 협의 — 오버레이(보고서 매도희망가·협의금액 근거). 억 단위 입력·클릭 편집. 매매가와 별개 */}
-      <div style={{ margin: "8px 0 2px", fontWeight: 700 }}>가격 협의</div>
-      {([["ask_price", "매도희망가"], ["bid_price", "매수희망가"]] as const).map(([f, label]) => (
-        <KV key={`${f}-${String(bd?.[f] ?? "")}`} label={label} field={f} value={wonToEok(bd?.[f])}
-          editable money current={bd?.[f] != null ? String(bd[f]) : ""} validate={vPos}
-          onSave={(field, v) => saveOv(field, v)} onRevert={() => saveOv(f, "")} />
-      ))}
-
-      {BIZ_ROWS.map((r) => {
-        if (r.kind === "text") {
-          return (
-            <KV key={r.k} label={r.label} field={r.k} value={val(r.k)} editable
-              current={val(r.k)} parse={(v) => v} format={r.k === "owner_phone" ? formatPhone : undefined}
-              onSave={(f, v) => save(f, v)} onRevert={() => save(r.k, "")} />
-          );
-        }
-        const opts = en.options(r.extra);
-        const cur = val(r.k) || "미지정";
-        return (
-          <div className="kv" key={r.k} style={{ alignItems: "center" }}>
-            <span className="k">{r.label}</span>
-            <Chips opts={opts} cur={cur} onSelect={(v) => save(r.k, v)} onRevert={() => save(r.k, "")} />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-const WIKI_CATS = ["권리·명도", "임차인", "개발·도로", "건물상태", "소유자", "기타"];
-/** 위키 댓글 스레드 — 펼칠 때 로드, 등록/삭제 시 재조회 + 목록 카운트 갱신(onChange). */
-function CommentThread({ postId, onChange }: { postId: number; onChange: () => void }) {
-  const [list, setList] = useState<{ id: number; body: string; author: string; mine: boolean }[]>([]);
-  const [txt, setTxt] = useState("");
-  const load = useCallback(async () => setList(await extrasApi.commentsList(postId)), [postId]);
-  useEffect(() => { load(); }, [load]);
-  async function add() { if (!txt.trim()) return; await extrasApi.commentAdd(postId, txt.trim()); setTxt(""); await load(); onChange(); }
-  async function del(id: number) { await extrasApi.commentDel(id); await load(); onChange(); }
-  return (
-    <div style={{ marginTop: 8, paddingLeft: 10, borderLeft: "2px solid var(--line)", display: "grid", gap: 6 }}>
-      {list.map((c) => (
-        <div key={c.id} style={{ fontSize: 12.5, display: "flex", gap: 6, alignItems: "baseline" }}>
-          <span style={{ fontWeight: 600, color: "var(--muted)", flex: "0 0 auto" }}>{c.author}</span>
-          <span style={{ flex: 1, minWidth: 0 }}>{c.body}</span>
-          {c.mine && <button className="tool-btn" style={{ minWidth: 22, height: 22, fontSize: 11, color: "var(--up)", flex: "0 0 auto" }} onClick={() => del(c.id)} title="삭제"><Icon name="trash" size={12} /></button>}
-        </div>
-      ))}
-      {list.length === 0 && <div style={{ fontSize: 12, color: "var(--muted)" }}>첫 댓글을 남겨보세요.</div>}
-      <div style={{ display: "flex", gap: 6 }}>
-        <input className="input" style={{ height: 30, fontSize: 12.5 }} placeholder="댓글" value={txt}
-          onChange={(e) => setTxt(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) add(); }} />
-        <button className="btn" style={{ flex: "0 0 auto" }} onClick={add}><Icon name="check" size={13} />등록</button>
-      </div>
-    </div>
-  );
-}
-
-function WikiTab({ pk, items, refresh }: { pk: string; items: Record<string, unknown>[]; refresh: () => void }) {
-  const [body, setBody] = useState("");
-  const [cat, setCat] = useState(WIKI_CATS[0]);
-  const [showAll, setShowAll] = useState(false);
-  const [openC, setOpenC] = useState<number | null>(null);
-  async function vote(id: number) { await extrasApi.wikiVote(id); refresh(); }
-  async function del(id: number) { if (!confirm("이 위키 글을 삭제할까요?")) return; await extrasApi.wikiDel(id); refresh(); }
-  async function post() { if (!body.trim()) return; await extrasApi.wikiPost(pk, body.trim(), cat); setBody(""); refresh(); }
-  async function report(id: number) { if (!confirm("이 글을 부적절한 내용으로 신고할까요?")) return; await extrasApi.wikiReport(id); alert("신고가 접수되었습니다."); }
-  const row = (w: Record<string, unknown>, full: boolean) => {
-    const id = Number(w.id);
-    return (
-    <div key={id} style={{ borderBottom: "1px solid var(--line)", padding: "9px 0" }}>
-      <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-            <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--signal)", background: "var(--signal-bg)", padding: "1px 8px", borderRadius: 999 }}>{String(w.category ?? "일반")}</span>
-            {full && w.author != null && <span style={{ fontSize: 11, color: "var(--muted)" }}>{String(w.author)}</span>}
-          </div>
-          <div style={{ lineHeight: 1.45 }}>{String(w.body)}</div>
-        </div>
-        <div style={{ display: "flex", gap: 4, flex: "0 0 auto" }}>
-          <button className="tool-btn" style={{ minWidth: 46, height: 28, fontSize: 12, background: "var(--surface-2)" }} onClick={() => vote(id)} title="동의(다시 누르면 취소)"><Icon name="like" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />{String(w.votes)}</button>
-          <button className="tool-btn" style={{ minWidth: 46, height: 28, fontSize: 12, background: openC === id ? "var(--signal-bg)" : "var(--surface-2)" }} onClick={() => setOpenC(openC === id ? null : id)} title="댓글"><Icon name="comment" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />{String(w.comments ?? 0)}</button>
-          {Boolean(w.mine)
-            ? <button className="tool-btn" style={{ minWidth: 28, height: 28, fontSize: 12, color: "var(--up)" }} onClick={() => del(id)} title="내 글 삭제"><Icon name="trash" size={13} /></button>
-            : <button className="tool-btn" style={{ minWidth: 28, height: 28, fontSize: 12, color: "var(--muted)" }} onClick={() => report(id)} title="신고"><Icon name="flag" size={14} /></button>}
-        </div>
-      </div>
-      {openC === id && <CommentThread postId={id} onChange={refresh} />}
-    </div>
-    );
-  };
-  return (
-    <div style={{ display: "grid", gap: 8, fontSize: 13 }}>
-      {items.length === 0 && <p style={{ color: "var(--muted)" }}>등록된 특이사항이 없습니다 — 첫 글을 남겨보세요.</p>}
-      {items.slice(0, 3).map((w) => row(w, false))}
-      {items.length > 3 && <button className="btn" style={{ justifySelf: "start", padding: "4px 10px", fontSize: 12 }} onClick={() => setShowAll(true)}>전체보기 {items.length} →</button>}
-      {/* 작성 — 카테고리 칩 + 본문 */}
-      <div style={{ display: "grid", gap: 6, background: "var(--surface-2)", borderRadius: 8, padding: 8, marginTop: 2 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-          {WIKI_CATS.map((c) => (
-            <button key={c} onClick={() => setCat(c)} style={{ border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 999, background: cat === c ? "var(--signal)" : "#fff", color: cat === c ? "#fff" : "var(--ink-2)", transition: "background .12s" }}>{c}</button>
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          <input className="input" placeholder="특이사항 (전체 공유)" value={body} onChange={(e) => setBody(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) post(); }} />
-          <button className="btn primary" style={{ flex: "0 0 auto" }} onClick={post}><Icon name="check" size={13} />등록</button>
-        </div>
-      </div>
-      {showAll && (
-        <div className="modal-bg open" onClick={() => setShowAll(false)}>
-          <div className="modal" style={{ width: "min(680px,100%)" }} onClick={(e) => e.stopPropagation()}>
-            <h3>위키 · 집단지성 특이사항 <small style={{ fontSize: 12, color: "var(--muted)", fontWeight: 400, marginLeft: 8 }}>{items.length}건</small>
-              <span className="right"><button className="btn" onClick={() => setShowAll(false)}>닫기</button></span></h3>
-            <div style={{ display: "grid", gap: 2, maxHeight: "60vh", overflow: "auto", fontSize: 13 }}>{items.map((w) => row(w, true))}</div>
-          </div>
+    /* 세 묶음 — 지금 / 소유자 / 금액(2026-08-26).
+       선을 두른 박스와 kv 줄이 섞여 있던 것을 줄 문법 하나로 갈았다: 라벨 왼쪽, 값 오른쪽,
+       선 없음, 묶음 사이는 여백이 가른다. 「이 매물 지금 어떻게 됐지」에 답하는 것만 남긴다. */
+    <div className="sb">
+      {/* 상태 칩 — 매물엔 상태 칸이 없다(0142). **담긴 짝들 중 가장 앞선 것**이 이 매물의
+          지금이다(업무탭 매물 줄과 같은 규칙). 짝이 하나도 없으면 칩을 안 세운다:
+          미지정을 칩으로 세우면 진짜 상태처럼 읽힌다. */}
+      {(topWord || assigneeName) && (
+        <div className="sb-hd">
+          {topWord && <span className={`pp-st s-${topWord}`}>{topWord}</span>}
+          {assigneeName && <span className="who g">담당 {assigneeName}</span>}
         </div>
       )}
+
+      <div className="sb-g">
+        {nextSched && (
+          <button className="sb-r act" onClick={goTrade} title="업무에서 이 일정을 엽니다">
+            <span className="l">다음 일정</span>
+            {/* 제목에서 주소를 뗀다 — 「계약 — 삼성동 147-4」의 뒷부분은 이 화면이 이미 아는 것이라
+                그대로 두면 줄이 접힌다. 앞의 낱말(계약·현장·통화)만 있으면 무슨 약속인지 안다. */}
+            <span className="r num">
+              {nextSched.on_date.slice(5).replace("-", "/")}
+              {nextSched.at_time ? ` ${nextSched.at_time.slice(0, 5)}` : ""}
+              {nextSched.title ? ` · ${nextSched.title.split(/\s*[—·-]\s*/)[0].trim()}` : ""}</span>
+          </button>
+        )}
+      </div>
+
+      <div className="sb-g">
+        <span className="sb-lb">소유자</span>
+        <div className="sb-r">
+          <span className="l ink">{v("owner_name") || "소유자 미확인"}
+            {v("owner_type") === "법인" && <em className="tag">법인</em>}</span>
+          {v("owner_phone") && (
+            <button className="r lnk num" title="클릭하면 복사됩니다"
+              onClick={async () => {
+                try { await navigator.clipboard.writeText(v("owner_phone")); setCopied(true); setTimeout(() => setCopied(false), 1200); } catch { /* http 환경 */ }
+              }}>{copied ? "복사됨" : v("owner_phone")}</button>
+          )}
+        </div>
+        {person && <div className="sb-r"><span className="l">성향</span><span className="r dim">{person}</span></div>}
+        {v("owner_note") && <div className="sb-note">“{v("owner_note")}”</div>}
+      </div>
+
+      {/* 금액 — 가격 셋(매도희망·매매·매수희망)이 한 자리에 선다(2026-08-25).
+          고치는 자리는 여기 하나고 머리줄 매매가는 읽기만 한다.
+          매수희망가는 매수자별 값(proposals.hope_price)의 파생이라 읽기 전용(0064). */}
+      <div className="sb-g">
+        <span className="sb-lb">금액</span>
+        <KV label="매도희망가" field="ask_price" value={wonToEok(bd?.ask_price) || "—"}
+          editable money current={bd?.ask_price != null ? String(bd.ask_price) : ""} validate={vPos}
+          onSave={async (_f, w) => { await overlaysApi.put(pk, "ask_price", w.trim() ? String(Math.round(parseFloat(w))) : ""); building.refetch(); }}
+          onRevert={async () => { await overlaysApi.put(pk, "ask_price", ""); building.refetch(); }} />
+        <KV label="매매가" field="sale_price" value={wonToEok(bd?.sale_price) || "—"}
+          editable money current={bd?.sale_price != null ? String(bd.sale_price) : ""} validate={vPos}
+          onSave={async (_f, w) => { await overlaysApi.put(pk, "sale_price", w.trim() ? String(Math.round(parseFloat(w))) : ""); building.refetch(); }}
+          onRevert={async () => { await overlaysApi.put(pk, "sale_price", ""); building.refetch(); }} />
+        <div className="sb-r"><span className="l">매수희망가</span>
+          <span className="r num">
+            {hopes.length ? `${wonToEok(Math.max(...hopes))} · ${hopes.length}명 중 최고`
+              : bidFallback ? `${wonToEok(bidFallback)} · 직접 입력` : "—"}
+          </span></div>
+        {/* 임대 총계(0134) — 수익률의 분자. 재료가 결과 바로 위에 선다.
+            층별 임대를 넣으면 파생으로 차고, 없으면 여기서 총액을 직접 적는다. */}
+        {/* 「총」을 뗐다(2026-08-28) — 사이드바는 건물 단위가 기본이라 굳이 붙일 이유가 없다.
+            층별은 층 이름이 붙어 있어 헷갈리지 않는다. */}
+        {totRow("보증금", "total_deposit", totDep)}
+        {totRow("임대료", "total_rent", totRent)}
+        {totRow("관리비", "total_mgmt", totMgmt)}
+        {/* 이름에 분모를 박는다(2026-08-27) — 「수익률」 한 낱말이 화면마다 다른 값을 가리켰다.
+            분자도 추정을 안 섞는다: 총임대료가 비면 수익률도 빈다. */}
+        <div className="sb-r"><span className="l">매매가 대비 수익률</span>
+          <span className={`r num ${roi != null ? "" : "dim"}`}>{roi != null
+            ? `${roi.toFixed(2)}%`
+            : salePrice == null ? "매매가를 넣으면 섭니다" : "임대료를 넣으면 섭니다"}</span></div>
+        <div className="sb-r"><span className="l">대지 평단가</span>
+          <span className={`r num ${ppLand != null ? "" : "dim"}`}>
+            {ppLand != null ? wonToEok(ppLand) : "—"}</span></div>
+      </div>
+
+      {/* 명도·용도변경·멸실·임대내역을 뺐다(2026-08-26) — **거래 조건**이라 업무 모달 정보 탭이 정본이다.
+          여기서도 고칠 수 있게 두면 창구가 둘이 되고, 그러면 어느 쪽이 최신인지 아무도 모른다.
+          이 사이드바가 하는 일은 「이 매물 지금 어떻게 됐지」에 답하는 것까지다. */}
+
+      {/* 최근 기록 한 줄은 메모 탭이 받는다 — 같은 장부(contacts)를 두 탭에서 두 번 보일 이유가 없다 */}
+
+      {/* 고치는 문은 맨 아래 하나 — 값들을 다 읽고 나서 여는 문이라 읽는 흐름의 끝이 제자리다 */}
+      <button className="sb-go" onClick={goTrade}>업무에서 관리 →</button>
     </div>
   );
 }
 
-/* ── 수정이력: 전 유저 값 분포(익명·공공 필드만, §4.3) ── */
-function HistTab({ pk, dist, refresh }: { pk: string; dist: Record<string, { label: string; values: { value: string; count: number }[] }>; refresh: () => void }) {
-  const [applying, setApplying] = useState(false);
-  const entries = Object.entries(dist);
-  if (entries.length === 0) {
-    return <p style={{ color: "var(--muted)", fontSize: 13 }}>다른 이용자의 값 힌트가 아직 없습니다.<br />값을 수정하면 익명 분포로 서로에게 힌트가 됩니다.</p>;
-  }
-  async function applyAll() {   // 각 항목 다수값(최빈값)을 내 오버레이에 일괄 적용
-    if (!confirm("각 항목의 다수값을 내 데이터로 한번에 적용할까요?")) return;
-    setApplying(true);
-    for (const [field, e] of entries) {
-      const top = e.values[0];
-      if (top && top.value != null && top.value !== "") await overlaysApi.put(pk, field, top.value);
-    }
-    setApplying(false);
-    refresh();
-  }
-  return (
-    <div style={{ display: "grid", gap: 12, fontSize: 13 }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-        <p style={{ color: "var(--muted)", fontSize: 12, margin: 0 }}>다른 이용자들이 이 값을 무엇으로 갖고 있는지 (익명 · 공공 필드). 클릭 한 번으로 다수값을 내 값으로 채웁니다.</p>
-        <button className="btn primary" style={{ padding: "5px 11px", fontSize: 12, whiteSpace: "nowrap", flex: "0 0 auto" }} disabled={applying} onClick={applyAll}>{applying ? "적용 중…" : "다수값 적용"}</button>
-      </div>
-      {entries.map(([field, e]) => {
-        const max = Math.max(...e.values.map((v) => v.count));
-        return (
-          <div key={field}>
-            <div style={{ fontWeight: 700, marginBottom: 5 }}>{e.label}</div>
-            {e.values.map((v, i) => (
-              <div key={v.value ?? "null"} style={{ display: "flex", alignItems: "center", gap: 8, margin: "3px 0" }}>
-                <span style={{ flex: "0 0 70px", color: i === 0 ? "var(--signal)" : "var(--ink-2)", fontWeight: i === 0 ? 700 : 400 }}>{v.value ?? "—"}</span>
-                <span style={{ flex: 1, height: 8, background: "var(--surface-2)", borderRadius: 5, overflow: "hidden" }}>
-                  <span style={{ display: "block", height: "100%", width: `${(v.count / max) * 100}%`, background: i === 0 ? "var(--signal)" : "var(--line-2)" }} />
-                </span>
-                <span className="num" style={{ color: "var(--muted)", fontSize: 11 }}>{v.count}명</span>
-              </div>
-            ))}
-          </div>
-        );
-      })}
-      <p style={{ color: "var(--muted)", fontSize: 11 }}>분포가 쏠려도 자동 반영되지 않습니다. 채택은 직접 판단하세요.</p>
-    </div>
-  );
-}
 
-function MemoTab({ pk, memos, refresh }: { pk: string; memos: Record<string, unknown>[]; refresh: () => void }) {
-  const [body, setBody] = useState("");
-  const [kind, setKind] = useState<"team" | "secret">("team");
-  async function add() { if (!body.trim()) return; await extrasApi.memoAdd(pk, kind, body.trim()); setBody(""); refresh(); }
-  async function del(id: number) { if (!confirm("이 메모를 삭제할까요?")) return; await extrasApi.memoDel(pk, id); refresh(); }
-  return (
-    <div style={{ display: "grid", gap: 8, fontSize: 13 }}>
-      {memos.length === 0 && <p style={{ color: "var(--muted)" }}>메모가 없습니다</p>}
-      {memos.map((m) => {
-        const secret = m.kind === "secret";
-        return (
-          <div key={String(m.id)} style={{ padding: "8px 10px", borderRadius: 8, lineHeight: 1.45, display: "flex", gap: 8, alignItems: "flex-start",
-            background: secret ? "#FFF7ED" : "var(--surface-2)", border: `1px solid ${secret ? "#FED7AA" : "var(--line)"}` }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              {secret && <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--vacant)", marginRight: 6 }}><Icon name="lock" size={12} style={{verticalAlign:"-2px",marginRight:3}} />비밀</span>}
-              {String(m.body)}
-            </div>
-            {Boolean(m.mine) && <button className="tool-btn" style={{ minWidth: 24, height: 24, fontSize: 12, color: "var(--up)", flex: "0 0 auto" }} onClick={() => del(Number(m.id))} title="내 메모 삭제"><Icon name="trash" size={13} /></button>}
-          </div>
-        );
-      })}
-      {/* 작성 — 세그먼트(팀/비밀) + 본문 */}
-      <div style={{ display: "grid", gap: 6, marginTop: 2 }}>
-        <div style={{ display: "inline-flex", background: "var(--surface-2)", borderRadius: 8, padding: 2, width: "fit-content" }}>
-          {(["team", "secret"] as const).map((k) => (
-            <button key={k} onClick={() => setKind(k)} style={{ border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 6,
-              background: kind === k ? "#fff" : "transparent", color: kind === k ? (k === "secret" ? "var(--vacant)" : "var(--signal)") : "var(--muted)", boxShadow: kind === k ? "var(--shadow)" : "none" }}>
-              {k === "team" ? "팀 메모" : <><Icon name="lock" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />비밀메모</>}</button>
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          <input className="input" placeholder={kind === "secret" ? "비밀메모 (담당자·대표만)" : "팀 메모 (팀 전체)"} value={body}
-            onChange={(e) => setBody(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) add(); }} />
-          <button className="btn primary" style={{ flex: "0 0 auto" }} onClick={add}>저장</button>
-        </div>
-        {kind === "secret" && <p style={{ color: "var(--muted)", fontSize: 11, margin: 0 }}><Icon name="lock" size={12} style={{verticalAlign:"-2px",marginRight:3}} />담당자 본인 + 대표만 · 보고서·분포 제외</p>}
-      </div>
-    </div>
-  );
+/* 메모 탭 — 업무 모달과 **같은 컴포넌트**(MemoLog)다(2026-08-27).
+   저장소는 진작 하나였는데(contacts · kind=메모) 그리는 코드가 따로 살아서 얼굴이 달랐다.
+   같은 장부는 같은 얼굴이어야 어디서 열어도 같은 것인 줄 안다. */
+function MemoTab({ pk }: { pk: string }) {
+  return <div className="sb-memo"><MemoLog target="listing" id={pk} /></div>;
 }

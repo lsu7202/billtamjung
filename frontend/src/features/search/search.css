@@ -26,30 +26,50 @@
 .col-pager .pg { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
 /* ── 지도 뷰: 좌 사이드바(선택카드+미니리스트) / 우 지도 (목업 .map-split) ── */
-.map-split { display: grid; grid-template-columns: 360px 1fr; gap: 0; flex: 1; min-height: 0;
-  border: 1px solid var(--line); border-top: 0; overflow: hidden; box-shadow: var(--shadow); }
-.map-list { background: #fff; border-right: 1px solid var(--line); overflow-y: auto; display: flex; flex-direction: column; }
-.map-canvas { position: relative; }
+/* 지도 한 장(2026-08-27) — 지도가 바탕을 다 덮고 검색 패널이 그 위에 뜬다.
+   예전엔 좌 360px + 우 지도로 칸을 나눠서, 패널을 접어도 지도가 안 넓어졌다. */
+.map-one { position: relative; flex: 1; min-height: 0; overflow: hidden;
+  border: 1px solid var(--line); border-top: 0; box-shadow: var(--shadow); }
+.map-canvas { position: absolute; inset: 0; }
 
-/* 선택 매물 요약 카드 (S02 헤더 축약 + 시계열) */
+/* 떠 있는 패널 — 목록과 선택 카드를 번갈아 맡는다 */
+.mo-panel { position: absolute; left: 12px; top: 12px; bottom: 12px; width: 340px; z-index: 7;
+  background: rgba(255,255,255,.96); border-radius: 16px; box-shadow: 0 10px 34px rgba(0,19,43,.20);
+  backdrop-filter: blur(10px) saturate(1.3); display: flex; flex-direction: column; overflow: hidden; }
+.mo-top { display: flex; align-items: center; gap: 7px; padding: 9px 11px;
+  border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+.mo-top .sp { margin-left: auto; }
+.mo-lg { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700;
+  color: var(--muted); white-space: nowrap; }
+.mo-lg b { width: 8px; height: 8px; border-radius: 50%; display: block; }
+.mo-fold, .mo-open { border: 0; font: inherit; cursor: pointer; font-size: 13px; font-weight: 800;
+  color: var(--ink-2); width: 24px; height: 24px; border-radius: 8px; background: var(--surface-2);
+  flex: 0 0 auto; }
+.mo-fold:hover, .mo-open:hover { background: #E8EBEE; }
+.mo-open { position: absolute; left: 12px; top: 12px; z-index: 6; width: 32px; height: 32px;
+  background: rgba(255,255,255,.96); box-shadow: 0 4px 16px rgba(0,19,43,.18); }
+.mo-body { flex: 1; min-height: 0; overflow-y: auto; }
+.mo-back { border: 0; font: inherit; cursor: pointer; display: block; width: 100%; text-align: left;
+  padding: 10px 14px; font-size: 11.5px; font-weight: 800; color: var(--ink-2);
+  background: none; border-bottom: 1px solid var(--line); }
+.mo-back:hover { color: var(--ink); background: var(--surface-2); }
+
+/* 선택 매물 요약 카드 */
 .sel-card { border-bottom: 8px solid var(--surface-2); }
 .sel-road { height: 260px; position: relative; background: linear-gradient(150deg, #8a97a6, #5f6b7a); }
 .sel-road::after { content: "로드뷰"; position: absolute; left: 10px; bottom: 8px; font-size: 10px; font-weight: 700; color: #fff; background: rgba(15,26,46,.55); padding: 2px 8px; border-radius: 5px; }
 .sel-body { padding: 13px 15px; }
 .sel-addr { font-size: 15px; font-weight: 800; letter-spacing: -.02em; display: flex; align-items: center; gap: 7px; }
 .sel-addr .star { font-size: 17px; margin-left: auto; cursor: pointer; }
-.sel-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-top: 12px; }
-.sel-metrics .m { background: #fff; padding: 9px 11px; }
-.sel-metrics .m.wide { grid-column: 1 / -1; }
-.sel-metrics .mk { font-size: 10.5px; color: var(--muted); font-weight: 600; }
-.sel-metrics .mv { font-size: 15px; font-weight: 800; font-family: var(--mono); font-variant-numeric: tabular-nums; margin-top: 2px; letter-spacing: -.01em; }
-.sel-metrics .mv small { font-size: 11px; color: var(--muted); font-weight: 600; }
-.sel-area { display: flex; gap: 11px; font-size: 13px; font-weight: 700; font-family: var(--mono); }
-.sel-area i { font-style: normal; font-size: 10px; color: var(--muted); font-weight: 600; margin-right: 2px; }
-.sel-spark { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; padding: 12px 13px; }
-.sel-spark .sh { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 700; margin-bottom: 10px; }
-.sel-detail { display: block; width: 100%; margin-top: 12px; text-align: center; background: var(--signal); color: #fff; border: 0; border-radius: 8px; padding: 11px; font-size: 13px; font-weight: 700; cursor: pointer; }
-.sel-detail:hover { background: var(--signal-ink); }
+/* 바닥 두 갈래 — 상세보기가 주인공이라 폭을 갖고, 접어두기는 곁에 붙는다(2026-08-29).
+   접기는 「이건 아니다」라는 판단이고, 그 판단은 골라서 들여다본 뒤에 난다. */
+.sel-acts { display: flex; gap: 8px; margin-top: 15px; }
+.sel-detail { flex: 1; text-align: center; background: #191F28; color: #fff; border: 0; border-radius: 12px; padding: 12px; font-size: 13.5px; font-weight: 800; cursor: pointer; }
+.sel-detail:hover { background: #333D4B; }
+.sel-hide { flex: none; display: inline-flex; align-items: center; gap: 5px; background: #fff;
+  color: #8B95A1; border: 1px solid #E5E8EB; border-radius: 12px; padding: 12px 14px;
+  font-size: 13px; font-weight: 700; cursor: pointer; }
+.sel-hide:hover { border-color: #3182F6; color: #3182F6; background: #EBF4FF; }
 .sel-empty { padding: 34px 16px; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.6; }
 
 /* 미니 리스트(핀 동기) */
@@ -63,7 +83,7 @@
 .ml-row.on { background: var(--signal-bg); box-shadow: inset 3px 0 0 var(--signal); }
 .ml-row .ml-a { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .ml-row .ml-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
-.ml-tag.ad { background: var(--green); } .ml-tag.mine { background: var(--blue); } .ml-tag.normal { background: var(--purple); }
+.ml-tag.ad { background: var(--green); } .ml-tag.mine { background: var(--blue); } .ml-tag.normal { background: var(--muted); }
 .ml-row .ml-nums { font-size: 12px; color: var(--ink); text-align: right; white-space: nowrap; font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 700; }
 .ml-row .ml-nums small { color: var(--muted); font-weight: 600; }
 
@@ -77,3 +97,141 @@
   background: color-mix(in srgb, var(--blue) 8%, var(--surface)); border: 1px solid var(--blue);
   border-radius: 10px; font-size: 12.5px; }
 .bc-bar .cnt { color: var(--muted); }
+
+/* 지도 푸터 툴바 — 관련끼리 묶어 드롭다운으로(2026-08-27).
+   아이콘 열 개를 한 줄에 늘어놓던 것을 「영역 그리기 · 재기 · 보기」 세 묶음으로 접었다.
+   토스 결 그대로: 테두리 없는 알약, 켜지면 연파랑. */
+/* 지도 도구 — 지도 위에 떠 있는 알약 줄(2026-08-27).
+   예전엔 지도 아래 한 줄을 통째로 먹어서 지도 높이가 그만큼 줄었다.
+   패널이 왼쪽을 쓰므로 오른쪽 아래에 붙인다. */
+.mp-bar{position:absolute; right:12px; bottom:12px; z-index:6; border-radius:14px;
+  box-shadow:0 6px 22px rgba(0,19,43,.18); backdrop-filter:blur(10px) saturate(1.3);
+  display:flex; align-items:center; gap:6px; padding:7px 10px; background:rgba(255,255,255,.96);
+  flex-wrap:nowrap}
+.mp-g{position:relative}
+.mp-t{border:0; background:#F2F4F6; color:#4E5968; font:inherit; font-size:12.5px; font-weight:700;
+  padding:7px 12px; border-radius:11px; cursor:pointer; display:inline-flex; align-items:center;
+  gap:6px; transition:all .13s; white-space:nowrap}
+.mp-t:hover{background:#E8EBEE; color:#333D4B}
+.mp-t.on{background:#EBF4FF; color:#3182F6}
+.mp-t.open{background:#E8EBEE}
+.mp-t i{font-style:normal; font-size:11px; font-weight:800; color:#3182F6;
+  background:#fff; border-radius:6px; padding:2px 6px}
+.mp-t s{text-decoration:none; font-size:9px; color:#B0B8C1; margin-left:1px}
+
+/* 펼침 — 위로 뜬다(툴바가 화면 아래에 있다). 이름 + 한 줄 설명 */
+.mp-menu{position:absolute; bottom:calc(100% + 7px); left:0; z-index:30; min-width:230px;
+  background:#fff; border-radius:14px; padding:6px; display:flex; flex-direction:column; gap:2px;
+  box-shadow:0 12px 32px rgba(0,19,43,.16)}
+.mp-menu button{border:0; background:none; font:inherit; cursor:pointer; text-align:left;
+  display:grid; grid-template-columns:20px 1fr; gap:2px 10px; align-items:center;
+  padding:8px 11px; border-radius:10px; transition:background .12s}
+.mp-menu button:hover{background:#F7F8FA}
+.mp-menu button.on{background:#EBF4FF}
+.mp-menu button.on b{color:#3182F6}
+.mp-menu button svg{grid-row:span 2; color:#6B7684}
+.mp-menu button.on svg{color:#3182F6}
+.mp-menu button b{font-size:13px; font-weight:700; color:#191F28}
+.mp-menu button em{font-style:normal; font-size:11.5px; color:#8B95A1; grid-column:2}
+.mp-menu button.bad b{color:#F04452}
+.mp-menu button.bad:hover{background:#FDEBEA}
+
+/* 선택 카드 — 건물 상세 머리줄·실거래 탭과 **같은 문법**(2026-08-27).
+   원본은 bldgtab.css/report.css 에 있지만 그 파일들은 건물 상세에서만 실린다.
+   같은 얼굴을 쓰되 좁은 칸(340px)에 맞춰 한 치수 줄인 사본을 여기 둔다. */
+.sel-pills{display:flex; gap:6px; flex-wrap:wrap; margin:11px 0 0}
+.sel-pills .pill{flex:0 0 auto; background:#F2F4F6; border-radius:10px; padding:5px 10px;
+  display:flex; align-items:baseline; gap:6px}
+.sel-pills .pill i{font-style:normal; font-size:10px; font-weight:700; color:#8B95A1; white-space:nowrap}
+.sel-pills .pill b{font-size:13.5px; font-weight:800; letter-spacing:-.02em; white-space:nowrap;
+  font-variant-numeric:tabular-nums; color:#191F28}
+.sel-pills .pill.hero{background:#EBF4FF}
+.sel-pills .pill.hero i{color:#6BA3F0}
+.sel-pills .pill.hero b{color:#3182F6; font-size:15px}
+.sel-pills .pill.hero em{font-style:normal; font-size:9px; font-weight:800; color:#fff;
+  background:#8BB6F5; border-radius:5px; padding:1px 4px}
+
+/* 주변 실거래 — 실거래 탭의 「중앙값 하나 + 이 건물이 어디쯤」 */
+.sel-near{margin-top:14px; padding-top:13px; border-top:1px solid var(--line)}
+.sel-near .k{font-size:11px; font-weight:800; letter-spacing:.05em; color:#8B95A1; margin-bottom:7px;
+  display:flex; justify-content:space-between; align-items:baseline}
+.sel-near .k span{font-weight:700; color:#C4CBD3; letter-spacing:0}
+.sel-near .rv-pv{font-size:22px; font-weight:800; letter-spacing:-.035em; color:#191F28;
+  font-variant-numeric:tabular-nums; display:flex; align-items:baseline; gap:9px}
+.sel-near .rv-pv .side{margin-left:auto; font-size:11.5px; font-weight:700; color:#B0B8C1}
+.sel-near .rv-pg{position:relative; height:12px; border-radius:5px; background:#F2F4F6; margin-top:11px}
+.sel-near .rv-pg i{display:block; height:100%; border-radius:5px; background:#3182F6}
+.sel-near .rv-pg u{position:absolute; top:-3px; width:3px; height:18px; border-radius:2px; background:#4E5968}
+.sel-near .rv-pn{margin-top:9px; font-size:12.5px; font-weight:700; color:#8B95A1;
+  font-variant-numeric:tabular-nums}
+
+/* 값 묶음 — 건물 상세 머리줄과 같은 문법(0134). 좁은 칸이라 한 치수 줄인다.
+   bldgtab.css 의 .hd-grp 는 건물 상세에서만 실리므로 여기 사본을 둔다. */
+.sel-pills .hd-grp{display:flex; align-items:center; gap:1px; flex:0 0 auto;
+  border-radius:11px; padding:0 3px}
+.sel-pills .hd-grp .pill{background:none; padding:5px 7px}
+.sel-pills .hd-grp.est{background:#EBF4FF}
+.sel-pills .hd-grp.est .pill i{color:#6BA3F0}
+.sel-pills .hd-grp.est .pill b{color:#3182F6; font-size:15px}
+.sel-pills .hd-grp.est .pill.off b{color:#A9C9F5}
+.sel-pills .hd-grp.real{background:#F2F4F6}
+.sel-pills .hd-grp .hd-badge{font-style:normal; font-size:9px; font-weight:800; color:#fff;
+  background:#3182F6; border-radius:5px; padding:1px 4px; margin-right:3px; flex:0 0 auto}
+.sel-pills .pill.off b{color:#C4CBD3}
+
+/* 값의 출처를 색으로 가른다(2026-08-27) — 연파랑은 빌탐정 추정가, 검정은 팀이 적은 매매가.
+   낱말을 안 붙여도 갈리고, 필터·카드·머리줄이 같은 신호를 쓴다. */
+.ml-row .ml-nums.est{color:#3182F6}
+.ml-row .ml-nums.est small{color:#8BB6F5}
+
+/* 패널 머리 — 검색·조건·정렬이 전부 여기 산다(2026-08-27).
+   예전엔 지도 위에 검색바·조건칩·결과바가 세 층으로 쌓여 지도가 그만큼 눌렸다. */
+.mo-search{display:flex; align-items:center; gap:6px; padding:10px 11px; position:relative;
+  border-bottom:1px solid var(--line); flex:0 0 auto}
+.mo-q{flex:1; min-width:0; display:flex; align-items:center; gap:7px; height:34px;
+  border-radius:999px; background:var(--surface-2); padding:0 12px; color:var(--muted)}
+.mo-q input{flex:1; min-width:0; border:0; background:none; outline:none; font:inherit;
+  font-size:13px; color:var(--ink)}
+.mo-q input::placeholder{color:var(--faint, #B0B8C1)}
+.mo-x{border:0; background:none; cursor:pointer; color:var(--muted); padding:2px; display:flex}
+.mo-x:hover{color:var(--ink)}
+.mo-filter{border:0; font:inherit; cursor:pointer; font-size:11.5px; font-weight:800;
+  padding:8px 13px; border-radius:11px; background:var(--surface-2); color:var(--ink-2);
+  flex:0 0 auto; white-space:nowrap}
+.mo-filter:hover{background:#E8EBEE}
+.mo-filter.on{background:#EBF4FF; color:#3182F6}
+
+.mo-search .ac-drop{position:absolute; left:11px; right:11px; top:calc(100% - 2px); z-index:20;
+  background:#fff; border-radius:14px; box-shadow:0 12px 32px rgba(0,19,43,.18); padding:5px;
+  max-height:320px; overflow-y:auto}
+.mo-search .ac-item{display:flex; align-items:center; gap:8px; padding:9px 11px; border-radius:10px;
+  font-size:12.5px; cursor:pointer}
+.mo-search .ac-item.active,.mo-search .ac-item:hover{background:#EBF4FF}
+.mo-search .ac-addr{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  font-weight:700}
+.mo-search .ac-sub{font-size:11px; color:var(--muted); flex:0 0 auto}
+.mo-search .ac-p{font-size:11.5px; color:var(--muted); flex:0 0 auto}
+.mo-search .ac-none{color:var(--muted); cursor:default}
+
+.mo-chips{display:flex; gap:5px; flex-wrap:wrap; padding:9px 11px; border-bottom:1px solid var(--line);
+  flex:0 0 auto}
+.mo-chips .chip{display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700;
+  padding:4px 10px; border-radius:999px; background:#EBF4FF; color:#3182F6}
+.mo-chips .chip .x{cursor:pointer; opacity:.5; font-size:9.5px}
+.mo-chips .chip .x:hover{opacity:1}
+
+.ml-head{display:flex; align-items:center; gap:8px}
+
+/* 접어두기 — 「봤는데 필요 없다」(2026-08-28).
+   조작은 고른 줄에서만, 아이콘으로 작게. 줄마다 상시로 세우면 스무 줄에 버튼이 스무 개다. */
+.ml-row .ml-hide{width:26px; height:26px; flex:none; display:none; align-items:center; justify-content:center;
+  border:1px solid #E5E8EB; border-radius:8px; background:#fff; color:#8B95A1; cursor:pointer; padding:0}
+.ml-row:hover .ml-hide{display:inline-flex}
+.ml-row .ml-hide:hover{border-color:#3182F6; color:#3182F6; background:#EBF4FF}
+
+.hid-pill{display:inline-flex; align-items:center; gap:4px; height:24px; padding:0 9px;
+  border:1px solid #E5E8EB; border-radius:999px; background:#fff; color:#4E5968;
+  font-size:11.5px; font-weight:700; letter-spacing:-.01em; cursor:pointer; white-space:nowrap}
+.hid-pill b{color:#191F28}
+.hid-pill:hover{border-color:#3182F6; color:#3182F6}
+.hid-undo{margin-left:5px; padding-left:7px; border-left:1px solid #E5E8EB; color:#3182F6; font-weight:800}

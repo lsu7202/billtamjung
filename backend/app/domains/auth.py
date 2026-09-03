@@ -107,6 +107,16 @@ async def signup(body: SignupIn, resp: Response):
     return await _issue(resp, dict(acc))
 
 
+def login_blocked(email: str | None) -> bool:
+    """개발서버 빗장(2026-08-20) — 허용 목록이 있으면 그 밖의 계정은 못 들어온다.
+
+    설문 링크를 밖으로 뿌리는 동안 쓴다. 목록이 비어 있으면(운영) 아무 것도 막지 않는다.
+    거절 문구는 기존과 **같게** 둔다 — 「이 계정은 막혀 있다」는 말은 계정 존재를 알려 준다.
+    """
+    allow = [x.strip().lower() for x in (settings.login_allow or "").split(",") if x.strip()]
+    return bool(allow) and (email or "").strip().lower() not in allow
+
+
 @router.post("/login", response_model=TokenOut)
 async def login(body: LoginIn, resp: Response):
     acc = await pool().fetchrow(
@@ -114,7 +124,8 @@ async def login(body: LoginIn, resp: Response):
         body.email,
     )
     # 존재여부 은닉: 실패 메시지 통일(S00 §3.2)
-    if not acc or not security.verify_password(body.password, acc["password_hash"] or ""):
+    if not acc or not security.verify_password(body.password, acc["password_hash"] or "") \
+       or login_blocked(body.email):
         raise HTTPException(401, "이메일 또는 비밀번호가 올바르지 않습니다")
     return await _issue(resp, dict(acc), remember=body.remember)
 
