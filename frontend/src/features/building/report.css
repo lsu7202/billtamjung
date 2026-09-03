@@ -383,3 +383,27 @@
   font: inherit; font-size: 15.5px; font-weight: 800; letter-spacing: -.02em; cursor: pointer; }
 .gm-go:hover:not(:disabled) { background: #1B64DA; }
 .gm-go:disabled { background: #E5E8EB; color: #B0B8C1; cursor: default; }
+
+/* 업체 정보 — 카카오 로컬(참고). 우리 값이 아니라 조용하다.
+   줄 문법: 왼쪽에 이름, 오른쪽에 세부업종·전화. 전화가 40%쯤 비어 있어 열을 따로 두면
+   빈 칸이 줄줄이 선다 — 한 칸에 「미용실 · 02-540-5411」로 이어 붙인다. */
+.rv-chips{display:flex; flex-wrap:wrap; gap:6px; margin:12px 0 4px}
+.rv-chips button{border:1px solid #E5E8EB; background:#fff; border-radius:999px;
+  padding:5px 11px; font-size:12px; font-weight:700; color:#4E5968; cursor:pointer;
+  font-family:inherit; line-height:1.2}
+.rv-chips button i{font-style:normal; color:#8B95A1; margin-left:3px; font-weight:700}
+.rv-chips button:hover{border-color:#C6D3E3}
+.rv-chips button.on{background:#EBF3FE; border-color:#3182F6; color:#3182F6}
+.rv-chips button.on i{color:#3182F6}
+.rv-tenants{list-style:none; margin:8px 0 0; padding:0}
+.rv-tenants li{display:flex; justify-content:space-between; align-items:baseline; gap:14px;
+  padding:7px 0; border-bottom:1px solid #F2F4F6}
+.rv-tenants li:last-child{border-bottom:0}
+.rv-tenants b,.rv-tenants a{font-size:13px; font-weight:700; color:#191F28;
+  text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.rv-tenants a:hover{color:#3182F6}
+.rv-tenants em{font-style:normal; font-size:11.5px; font-weight:600; color:#8B95A1;
+  white-space:nowrap; font-variant-numeric:tabular-nums}
+.rv-more{margin-top:8px; border:0; background:none; padding:2px 0; cursor:pointer;
+  font-family:inherit; font-size:12px; font-weight:800; color:#8B95A1}
+.rv-more:hover{color:#3182F6}

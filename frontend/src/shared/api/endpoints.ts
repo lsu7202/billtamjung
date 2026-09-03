@@ -293,6 +293,20 @@ export const teamApi = {
   leave: () => api<TokenOut>("/team/leave", { method: "POST" }),
 };
 
+/** 이 주소에 등록된 업체(카카오 로컬) — **참고용**이다.
+ *  업체가 스스로 등록한 것이라 빠진 곳도, 이사 간 뒤 남은 곳도 있다.
+ *  임대 추정·수익률 어디에도 안 들어간다. 저장하지 않고 열 때마다 받아 온다. */
+export interface PlaceItem {
+  /** group=대분류(「음식점」·「교육,학문」) · detail=끝마디(「호프,요리주점」) */
+  name: string; group: string; detail: string; phone: string | null;
+  url: string | null; road_addr: string | null;
+}
+export const placesApi = {
+  /** truncated=true 면 카카오가 주는 45곳에서 잘린 것이다(이게 전부가 아니다) */
+  list: (pk: string) => api<{ items: PlaceItem[]; truncated: boolean; source: string }>(
+    `/buildings/${pk}/places`),
+};
+
 export const rentsApi = {
   list: (pk: string) => api<{ items: FloorRent[]; total: Record<string, number>; hidden_floors: string[] }>(`/buildings/${pk}/floor-rents`),
   upsert: (pk: string, r: FloorRent) =>

@@ -18,7 +18,13 @@ services:
   api:
     volumes:
       - ../../backend/app:/srv/app
+    # 바깥 API 키(카카오 등)를 컨테이너에 넣는다. 위 파일의 environment: 가 이것보다 세므로
+    # BT_DATABASE_URL 은 그대로 db 컨테이너를 가리킨다(.env 의 localhost 로 안 바뀐다).
+    env_file:
+      - ../../backend/.env
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--app-dir", "/srv"]
   worker:
     volumes:
       - ../../backend/app:/srv/app
+    env_file:
+      - ../../backend/.env

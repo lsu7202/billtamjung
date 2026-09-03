@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../shared/api/client";
+import { placesApi } from "../../shared/api/endpoints";
 import { Loading } from "../../shared/ui/Spinner";
 import { Segmented } from "../../shared/ui/Segmented";
 import { TrendChart } from "./TrendChart";
@@ -49,6 +50,78 @@ function floorRank(f: string): number {
 /** 임대 시세 추이 — 한국부동산원 임대동향 요율로 지난 임대료를 역산한 값(2026-08-28).
  *  공시지가 카드와 같은 어법이다: 그래프/표 토글 + 상승률 배지. 두 카드를 나란히 두면
  *  「땅값은 올랐는데 임대는 제자리」 같은 어긋남이 바로 보인다. */
+/** 업체 정보 — 이 주소에 등록된 업체를 카카오 로컬에서 그때그때 받아 온다.
+ *
+ *  **우리 값이 아니다.** 업체가 스스로 등록한 것이라 빠진 곳도, 이사 간 뒤 남은 곳도 있다.
+ *  임대 추정·수익률 어디에도 안 들어간다. 그래서 출처를 배지로 밝히고 우리 숫자와 같은
+ *  자리에 세우지 않는다. 없으면 카드를 아예 안 그린다.
+ *
+ *  **업종을 먼저 보여준다.** 중개인이 이 자료에서 얻는 것은 이름 열거가 아니라
+ *  「이 건물이 무슨 건물인가」다 — 학원 셋이면 학원 건물이고 음식점 위주면 회전이 빠르다.
+ *  그래서 대분류 칩이 위에 서고, 칩을 누르면 그 업종만 남는다(재클릭=전체).
+ *
+ *  분류 묶음은 category_name 의 앞머리를 쓴다. 카카오의 category_group_name 은
+ *  사무실·병원·부동산에서 비어 있다(테헤란로 152 는 15곳 중 9곳이 빈칸 · 2026-09-03).
+ */
+const TENANT_HEAD = 12;   // 처음 보여줄 줄. 45곳까지 오는 건물이 있어 다 펴면 탭이 길어진다
+
+function Tenants({ pk }: { pk: string }) {
+  const q = useQuery({
+    queryKey: ["places", pk],
+    queryFn: () => placesApi.list(pk),
+    staleTime: 6 * 3600 * 1000,
+    retry: false,
+  });
+  const [pickGroup, setPickGroup] = useState<string | null>(null);
+  const [all, setAll] = useState(false);
+
+  const items = q.data?.items ?? [];
+  if (q.isLoading || q.isError || !items.length) return null;
+
+  const groups = Object.entries(
+    items.reduce((m: Record<string, number>, x) => ((m[x.group] = (m[x.group] ?? 0) + 1), m), {}),
+  ).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+  const rows = pickGroup ? items.filter((x) => x.group === pickGroup) : items;
+  const shown = all || pickGroup ? rows : rows.slice(0, TENANT_HEAD);
+  const rest = rows.length - shown.length;
+
+  return (
+    <section className="rv-card" id="rt-tenants">
+      <div className="sec-head">
+        <span className="rv-k">업체 정보
+          <em className="rv-est">카카오 지도{q.data?.truncated ? " · 45곳까지" : ""}</em></span>
+      </div>
+
+      {groups.length > 0 && (
+        <div className="rv-chips">
+          {groups.map(([g, n]) => (
+            <button key={g} type="button" className={pickGroup === g ? "on" : ""}
+              onClick={() => setPickGroup(pickGroup === g ? null : g)}>
+              {g} <i>{n}</i>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <ul className="rv-tenants">
+        {shown.map((x) => (
+          <li key={`${x.name}-${x.detail}`}>
+            {x.url
+              ? <a href={x.url} target="_blank" rel="noreferrer">{x.name}</a>
+              : <b>{x.name}</b>}
+            <em>{[x.detail || x.group, x.phone].filter(Boolean).join(" · ")}</em>
+          </li>
+        ))}
+      </ul>
+
+      {rest > 0 && (
+        <button type="button" className="rv-more" onClick={() => setAll(true)}>+{rest}</button>
+      )}
+    </section>
+  );
+}
+
 function RentTrend({ pk }: { pk: string }) {
   const [mode, setMode] = useState<"c" | "t">("c");
   const q = useQuery({ queryKey: ["rent-series", pk],
@@ -136,6 +209,7 @@ export function RentPanel({ pk, unit, items, total, refresh }: {
           { id: "rt-real", label: "층별 임대정보" },
           { id: "rt-trend", label: "임대 시세 추이" },
           ...(fl.length ? [{ id: "rt-est", label: "임대료·보증금 추정" }] : []),
+          { id: "rt-tenants", label: "업체 정보" },
         ]} />
         <div className="rv-body">
           {/* 실측 — 팀이 넣는 값. 표가 아니라 층 줄이다(FloorRows) */}
@@ -152,6 +226,8 @@ export function RentPanel({ pk, unit, items, total, refresh }: {
               total={{ rent: curRent, mktRent, dep: rs?.cur_deposit ?? null, mktDep: rs?.mkt_deposit ?? null }}
               side={{ rent: twoPy(curRent), dep: twoPy(rs?.cur_deposit, 0) }} />
           )}
+
+          <Tenants pk={pk} />
         </div>
       </div>
     </div>
