@@ -15,7 +15,7 @@ COLUMNS = [
     "jimok", "parcel_area", "land_use", "use_zone", "use_zone_mix",
     "slope", "shape", "road_frontage", "station_dist", "subway_json", "bus_json",
     "gongsi_latest", "last_sale_ym", "last_sale_price",
-    "build_area", "far_area", "elevator", "parking",
+    "build_area", "far_area", "elevator", "elevator_ext", "parking",
     "height",
     "bcr_src",   # 건폐율 출처: 대장 | 건축면적 | 층별개요추정(=추정) | 빈값
     "far_src",   # 용적률 출처: 대장 | 용적산정연면적(단독필지만) | 빈값
@@ -27,5 +27,7 @@ EXPECT_DATA = [
     "land_area", "total_area", "build_area", "far_area",
     "floors_above", "bcr", "far", "main_use", "main_use_name", "structure",
     "approval_ymd", "elevator", "parking", "height", "bcr_src", "far_src",
+    # elevator_ext(승강기공단 참조·0156)는 넣지 않는다 — 도로명 매칭이 성기게 붙는 참조값이라
+    # 100% NULL 이 아니어도 커버리지가 낮은 것이 정상이다. 본값은 elevator 가 지킨다.
     "jimok", "land_use", "use_zone", "gongsi_latest", "station_dist",
 ]

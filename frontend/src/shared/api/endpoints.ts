@@ -8,6 +8,7 @@ export interface FloorRent {
   id?: number; floor: string; unit_no: string; use?: string | null;
   contract_area?: number | null;   // 면적은 이것 하나(0035) — 전용면적은 우리 데이터에 없다
   deposit: number; rent: number; maintenance: number; is_vacant: boolean | null;   // null=미지정·false=임대중·true=공실
+  tenant_name?: string | null;     // 상호명(0155) — 용도 대신 화면에 선다. 모르면 null
 }
 export interface Report {
   id: number; building_pk: string; kind: "analysis" | "briefing";
@@ -313,6 +314,8 @@ export const rentsApi = {
     api(`/buildings/${pk}/floor-rents`, { method: "PUT", body: JSON.stringify(r) }),
   del: (pk: string, id: number) =>
     api(`/buildings/${pk}/floor-rents/${id}`, { method: "DELETE" }),
+  /** 대장 구조로 되돌리기 — 팀 행과 없앤 층 표시를 한 번에(2026-09-04) */
+  revert: (pk: string) => api(`/buildings/${pk}/floor-rents`, { method: "DELETE" }),
   hideFloor: (pk: string, floor: string, hidden: boolean) =>
     api(`/buildings/${pk}/floor-rents/hidden`, { method: "POST", body: JSON.stringify({ floor, hidden }) }),
   outline: (pk: string) =>

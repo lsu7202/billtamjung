@@ -28,12 +28,13 @@ function GongsiTrend({ series, bands, foot }: {
     bands={bands} foot={foot} rate />;
 }
 /* 공시지가 표 — 연도별 단가(최신 위). 그래프/표 토글용. */
-function GongsiTable({ series }: { series: [number, number][] }) {
+function GongsiTable({ series, unit = "py" }: { series: [number, number][]; unit?: "py" | "m2" }) {
   if (!series || series.length < 2) return null;
+  const k = unit === "py" ? PY : 1;
   return (
     <table className="wf">
-      <thead><tr><th>연도</th><th className="num">공시지가 (만원/㎡)</th></tr></thead>
-      <tbody>{[...series].reverse().map(([y, v]) => (<tr key={y}><td>{y}</td><td className="num">{manPerM2(v)}</td></tr>))}</tbody>
+      <thead><tr><th>연도</th><th className="num">공시지가 (만원/{unit === "py" ? "평" : "㎡"})</th></tr></thead>
+      <tbody>{[...series].reverse().map(([y, v]) => (<tr key={y}><td>{y}</td><td className="num">{manPerM2(v * k)}</td></tr>))}</tbody>
     </table>
   );
 }
@@ -77,7 +78,7 @@ const legalNum = (v: unknown): number | null =>
 const PY = 3.305785;
 export function ParcelBlock({ pk, useZoneMix, unit = "m2", bcr, far }: {
   pk: string; useZoneMix?: unknown; unit?: "py" | "m2";
-  /** 현재 건폐율·용적률(건물 값) — 법정에서 빼서 「잔여」를 낸다(2026-08-28) */
+  /** 현재 건폐율·용적률(건물 값) — 법정과 견줘 「법정 대비」를 낸다. 현재 − 법정, 넘으면 + (2026-09-04) */
   bcr?: number | null; far?: number | null;
 }) {
   const [sel, setSel] = useState(0);
@@ -178,23 +179,24 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2", bcr, far }: {
           </span>
           <span className="okpad" />
         </div>
-        {/* 잔여 건폐 · 용적 — 법정에서 현재를 뺀 값. 개발 여지를 재는 자다(2026-08-28).
-            서울 상업 건물의 절반이 50%p 넘게 남아 있다(중앙 51%p).
+        {/* 법정 대비 건폐 · 용적 — 현재에서 법정을 뺀 값(2026-09-04). 법정을 넘어야 +, 빨강.
+            「잔여(법정 − 현재)」로 적던 것을 뒤집었다. 중개인이 먼저 묻는 것은 「법정치를 넘었나」다.
+            단위는 % 로만 적는다. %p 는 쓰지 않는다(규칙).
             ★ 현재 값이 없으면(대장 공란) 아예 안 그린다 — 0으로 보고 「전부 남았다」고 하면 안 된다. */}
         {(() => {
           const lb = legalNum(p.legal_bcr), lf = legalNum(p.legal_far);
-          const rb = lb != null && bcr != null ? lb - bcr : null;
-          const rf = lf != null && far != null ? lf - far : null;
-          if (rb == null && rf == null) return null;
-          const add = rf != null && rf > 0 && area ? (rf / 100) * area / PY : null;
-          const tone = (v: number | null) => (v == null ? "var(--muted)" : v > 0 ? "var(--blue)" : "var(--muted)");
+          const ob = lb != null && bcr != null ? bcr - lb : null;
+          const of = lf != null && far != null ? far - lf : null;
+          if (ob == null && of == null) return null;
+          const add = of != null && of < 0 && area ? (-of / 100) * area / PY : null;
+          const tone = (v: number | null) => (v == null ? "var(--muted)" : v > 0 ? "var(--red, #F04452)" : "var(--muted)");
           return (
-            <div className="orow lock"><span className="who g">잔여 건폐 · 용적</span>
+            <div className="orow lock"><span className="who g">법정 대비 건폐 · 용적</span>
               <span className="cap">{add != null ? `증축 ${Math.round(add).toLocaleString()}평` : ""}</span>
               <span className="ev" style={{ display: "inline-flex", gap: 5, alignItems: "baseline" }}>
-                <b style={{ color: tone(rb) }}>{rb != null ? `${rb > 0 ? "+" : ""}${rb.toFixed(0)}%p` : "—"}</b>
+                <b style={{ color: tone(ob) }}>{ob != null ? `${ob > 0 ? "+" : ""}${ob.toFixed(1)}%` : "—"}</b>
                 <span style={{ color: "var(--faint)" }}>·</span>
-                <b style={{ color: tone(rf) }}>{rf != null ? `${rf > 0 ? "+" : ""}${rf.toFixed(0)}%p` : "—"}</b>
+                <b style={{ color: tone(of) }}>{of != null ? `${of > 0 ? "+" : ""}${of.toFixed(1)}%` : "—"}</b>
               </span>
               <span className="okpad" />
             </div>
@@ -284,8 +286,10 @@ function GongsiMult({ total, sale, est, real }: {
   );
 }
 
-export function GongsiCard({ series, totalGongsi, landArea, sale, est, real }: {
+export function GongsiCard({ series, totalGongsi, landArea, sale, est, real, unit = "py" }: {
   series: [number, number][]; totalGongsi: number | null; landArea: number | null;
+  /** 평·㎡ — 화면 토글을 따른다. 기본은 평(2026-09-04 규칙). 단가 셋(㎡당·평당·표)이 전부 이걸 본다 */
+  unit?: "py" | "m2";
   /** 공시배율 — 값이 공시총액의 몇 배인가. 셋 다 같은 분모라 나란히 견줄 수 있다(2026-08-28).
    *  현장에서 「공시가의 몇 배에 팔린다」는 가장 빠른 가늠자다. */
   sale?: number | null; est?: number | null; real?: number | null;
@@ -307,8 +311,8 @@ export function GongsiCard({ series, totalGongsi, landArea, sale, est, real }: {
     ...(p5 != null ? [{ from: String(yN - 5), op: 0.07 }] : []),
   ];
   const foot = [
-    ...(p10 != null ? [{ label: `10년 ${fmtPct(p10)}`, color: "#8FAAD3" }] : []),
-    ...(p5 != null ? [{ label: `5년 ${fmtPct(p5)}`, color: "var(--c-gongsi)" }] : []),
+    ...(p10 != null ? [{ label: `10년 전 대비 ${fmtPct(p10)}`, color: "#8FAAD3" }] : []),
+    ...(p5 != null ? [{ label: `5년 전 대비 ${fmtPct(p5)}`, color: "var(--c-gongsi)" }] : []),
   ];
   return (
     <div className="panel">
@@ -324,13 +328,13 @@ export function GongsiCard({ series, totalGongsi, landArea, sale, est, real }: {
         <div style={{ flex: "1 1 360px", minWidth: 0, maxWidth: 620 }}>
           {mode === "c"
             ? <GongsiTrend series={series} bands={bands} foot={foot} />
-            : <GongsiTable series={series} />}
+            : <GongsiTable series={series} unit={unit} />}
         </div>
         <div style={{ flex: "0 1 200px", minWidth: 180 }}>
-          <div style={GL}>㎡당 공시지가</div>
-          <div className="num" style={{ ...GV, color: "var(--c-gongsi)" }}>{manPerM2(gongsiLatest)}<span style={GU}>/㎡</span></div>
+          <div style={GL}>{unit === "py" ? "평당" : "㎡당"} 공시지가</div>
+          <div className="num" style={{ ...GV, color: "var(--c-gongsi)" }}>{manPerM2(unit === "py" ? gongsiLatest * PY : gongsiLatest)}<span style={GU}>/{unit === "py" ? "평" : "㎡"}</span></div>
           <div style={{ marginTop: 9, fontSize: 12.5, fontWeight: 600, color: "var(--muted)" }}>
-            <span style={{ display: "inline-flex", alignItems: "center" }}>총액<InfoDot text="㎡당 공시지가 × 대지면적" /></span>{" "}
+            <span style={{ display: "inline-flex", alignItems: "center" }}>총액<InfoDot text={unit === "py" ? "평당 공시지가 × 대지면적" : "㎡당 공시지가 × 대지면적"} /></span>{" "}
             <b className="num" style={{ color: "var(--ink-2)", fontWeight: 800 }}>{wonShort(total) || "—"}</b>
             {landArea ? <>{" · "}대지 {(landArea / PY).toFixed(1)}평</> : null}
           </div>

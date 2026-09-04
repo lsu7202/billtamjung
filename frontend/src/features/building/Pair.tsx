@@ -11,7 +11,7 @@ export function Pair({ a, b, fmt, side, eps = 1e4, dFmt }: {
   side?: string | null;
   /** 이보다 작은 차이는 안 적는다 — 돈은 1만, 수익률은 0.01 */
   eps?: number;
-  /** 차이의 표기 — 수익률은 %가 아니라 %p 다 */
+  /** 차이의 표기 — 수익률 차이도 % 로 적는다. %p 는 쓰지 않는다(2026-09-04 규칙) */
   dFmt?: (v: number) => string;
 }) {
   const max = Math.max(a ?? 0, b ?? 0) * 1.06 || 1;

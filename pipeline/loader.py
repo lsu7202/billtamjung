@@ -322,7 +322,7 @@ async def main() -> int:
                jimok, parcel_area, land_use, use_zone, use_zone_mix,
                slope, shape, road_frontage, station_dist, subway_json, bus_json,
                gongsi_latest, last_sale_ym, last_sale_price,
-               build_area, far_area, elevator, parking, height, bcr_src, far_src)
+               build_area, far_area, elevator, elevator_ext, parking, height, bcr_src, far_src)
             SELECT building_pk, addr, jibun_norm,
                    -- 좌표가 빈 건물(지적도에 PNU 없음)은 geom NULL — 건물 자체는 살린다.
                    -- PostGIS 공간조건은 NULL 을 거짓으로 보므로 지도 검색에서 알아서 빠진다.
@@ -342,7 +342,8 @@ async def main() -> int:
                    NULLIF(station_dist,'')::int, NULLIF(subway_json,'')::jsonb, NULLIF(bus_json,'')::jsonb,
                    NULLIF(gongsi_latest,'')::bigint, NULLIF(last_sale_ym,''), NULLIF(last_sale_price,'')::bigint,
                    NULLIF(build_area,'')::numeric, NULLIF(far_area,'')::numeric,
-                   NULLIF(NULLIF(elevator,''),'0')::int, NULLIF(NULLIF(parking,''),'0')::int,
+                   NULLIF(NULLIF(elevator,''),'0')::int, NULLIF(NULLIF(elevator_ext,''),'0')::int,
+                   NULLIF(NULLIF(parking,''),'0')::int,
                    NULLIF(height,'')::numeric, NULLIF(bcr_src,''), NULLIF(far_src,'')
             FROM {tmp}""")
         await conn.execute(f"DROP TABLE {tmp}")

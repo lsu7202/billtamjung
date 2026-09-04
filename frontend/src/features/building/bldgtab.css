@@ -271,3 +271,24 @@
 .gm-r .v{font-size:12.5px; font-weight:800; width:40px; text-align:right;
   font-variant-numeric:tabular-nums; flex:0 0 auto}
 .gm-r .v.est{color:#3182F6}
+
+/* 참조값 — 대장이 본값이고 이건 옆에 작게(2026-09-04). 승강기공단 대수·계산 건폐/용적.
+   고친 줄의 「대장 …」 곁말과 같은 자리를 쓰되 색을 더 죽여 본값과 헷갈리지 않게 한다. */
+.refv{color:#B0B8C1; font-weight:600}
+
+/* 층별 임대 한 줄 편집(2026-09-04) — 상호명·면적·상태가 줄 위에 그대로 선다.
+   펼침을 없앴다: 한 호실짜리 층이 대부분이라 펼침이 늘 한 겹의 헛수고였다.
+   빈 칸에는 「—」 하나만 둔다. 칸 이름을 글자로 세우면 줄이 채우는 서식이 된다. */
+.orow .fedit{display:flex; align-items:center; gap:2px; flex:1; min-width:0}
+.orow .fedit .um-vp{text-align:left; overflow:hidden; border:0; background:none; padding:3px 6px;
+  border-radius:7px; cursor:text; font:inherit}
+.orow .fedit .um-vp:hover{background:#EEF3FA}
+.orow .fedit .um-vp b{font-size:13.5px; font-weight:600; color:#4E5968}
+.orow .fedit .um-vp.nm b{font-size:14px; font-weight:700; color:#191F28}
+.orow .fedit .um-vp b.off{color:#D0D6DC; font-weight:600}
+/* 상태 — 미지정이면 글자가 없다. 자리는 남겨 눌러서 켤 수 있게 */
+.orow .fedit .vac{border:0; background:none; font:inherit; font-size:11.5px; font-weight:700;
+  padding:3px 8px; border-radius:999px; cursor:pointer; min-width:46px; color:#8B95A1}
+.orow .fedit .vac:hover{background:#EEF3FA}
+.orow .fedit .vac.on{background:#FDECEC; color:#F04452}
+.orow .fedit .vac.in{background:#EBF3FE; color:#3182F6}

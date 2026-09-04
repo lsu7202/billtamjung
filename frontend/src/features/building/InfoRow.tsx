@@ -14,9 +14,12 @@ import type { Validate } from "./KV";
  */
 
 /** 치는 값 한 줄. cur=편집 시작값(표시값과 다를 수 있다: 평↔㎡·억↔원) */
-export function TextRow({ label, value, unit, cur, edited, master, parse, validate, onSave, onRevert, lock }: {
+export function TextRow({ label, value, unit, cur, edited, master, ref_, parse, validate, onSave, onRevert, lock }: {
   label: string; value: ReactNode; unit?: string;
   cur?: unknown; edited?: boolean; master?: ReactNode;
+  /** 참조값 — 대장이 본값이고 이건 옆에 작게만 선다(2026-09-04).
+   *  승강기공단 대수, 계산 건폐·용적처럼 출처가 다른 값. 고친 줄이면 대장 곁말이 이긴다. */
+  ref_?: ReactNode;
   parse?: (v: string) => string; validate?: Validate;
   onSave?: (v: string) => void; onRevert?: () => void;
   /** 정본이라 손댈 수 없는 줄(2026-08-28) — 국토부 원천과 100% 일치하는 값에 쓴다.
@@ -59,7 +62,7 @@ export function TextRow({ label, value, unit, cur, edited, master, parse, valida
       <span className="who g">{label}</span>
       {/* 고친 줄에만 대장 원본을 곁말로 — 「원래 얼마였더라」를 되돌려 보지 않아도 안다.
           대장이 비어 있던 칸이면 「대장 —」이라 적는다. 아무 말도 안 하면 우리가 채운 값인지 모른다 */}
-      <span className="cap">{edited ? <>대장 {master ?? "—"}</> : ""}</span>
+      <span className="cap">{edited ? <>대장 {master ?? "—"}</> : ref_ ? <span className="refv">{ref_}</span> : ""}</span>
       {edited && <span className="dot" />}
       <span className={`ev ${empty ? "off" : ""} ${edited ? "ed" : ""}`}
         style={onSave && !lock ? { cursor: "pointer" } : undefined}

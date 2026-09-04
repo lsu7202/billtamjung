@@ -316,8 +316,13 @@ export function SearchPage() {
     else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
     else if (e.key === "Enter") {
       e.preventDefault();
-      if (active >= 0 && items[active]) pickFromSuggest(items[active]);   // 선택 항목
-      else if (items[0]) pickFromSuggest(items[0]);                        // 미선택 시 첫 항목
+      if (active >= 0 && items[active]) { pickFromSuggest(items[active]); return; }   // 선택 항목
+      // 「마포구」를 치고 바로 엔터를 치면 자동완성(180ms 디바운스)이 아직 안 와 있어 아무 일도 안 났다(2026-09-04).
+      // 지금 친 글자로 그 자리에서 한 번 묻고 첫 항목으로 간다. 목록이 옛 글자의 것이어도 같은 길이다.
+      const typed = q.trim();
+      if (!typed) return;
+      if (dq === typed && items[0]) { pickFromSuggest(items[0]); return; }
+      searchApi.suggest(typed).then((list) => { if (list[0]) pickFromSuggest(list[0]); }).catch(() => {});
     }
     else if (e.key === "Escape") setQ("");
   }

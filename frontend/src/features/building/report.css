@@ -407,3 +407,8 @@
 .rv-more{margin-top:8px; border:0; background:none; padding:2px 0; cursor:pointer;
   font-family:inherit; font-size:12px; font-weight:800; color:#8B95A1}
 .rv-more:hover{color:#3182F6}
+
+/* 주변 시세 눈금은 3px 라 마우스를 못 얹는다 — 보이는 굵기는 그대로 두고 잡는 영역만 넓힌다 */
+.rv-fl .g u{cursor:help}
+.rv-fl .g u::after{content:""; position:absolute; left:-6px; right:-6px; top:0; bottom:0}
+.rv-fl .g{cursor:help}

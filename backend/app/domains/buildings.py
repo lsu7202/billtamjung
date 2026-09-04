@@ -49,6 +49,19 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
         building_pk)
     data["parcel_geom"] = json.loads(pgeom) if pgeom else None
 
+    # 참조값(2026-09-04) — **본값이 아니다.** 화면은 대장 값을 세우고 이것을 옆에 작게 띄운다.
+    # 대장이 비었을 때 중개인이 가늠할 거리를 남기되, 확인설명서·계약서로 나가는 자리에는 안 선다.
+    calc = await pool().fetchrow(
+        """SELECT bcr_calc, far_calc, bcr_src AS bcr_calc_src, far_src AS far_calc_src
+           FROM master.building_calc WHERE building_pk=$1""", building_pk)
+    data["_ref"] = {
+        "elevator_ext": data.get("elevator_ext"),
+        "bcr_calc": float(calc["bcr_calc"]) if calc and calc["bcr_calc"] is not None else None,
+        "far_calc": float(calc["far_calc"]) if calc and calc["far_calc"] is not None else None,
+        "bcr_calc_src": calc["bcr_calc_src"] if calc else None,
+        "far_calc_src": calc["far_calc_src"] if calc else None,
+    }
+
     # 유동인구 — 실측(서울 생활인구 250m 주간 평균). 오버레이 > 실측 > 접근성 대용(2026-08-26).
     # 격자는 건물 좌표를 나눗셈으로 접은 것이라 조회가 인덱스 한 번이다.
     pop = await pool().fetchrow(

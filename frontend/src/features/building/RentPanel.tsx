@@ -31,7 +31,8 @@ function floorKey(f: string): string {
   return n ? `${n}층` : s;
 }
 
-/** 층 순서 — 옥탑·고층에서 지하로. 문자열 그대로 정렬하면 「10층」이 「2층」 앞에 온다.
+/** 층 순서(2026-09-04) — **1층부터 위로, 그다음 옥탑, 맨 아래 지하.**
+ *  예) 1층 2층 3층 옥탑1층 지하1층. 작을수록 위에 선다. 층별 임대정보와 같은 순서다.
  *
  *  지하 판정은 **「지」로 시작하면 지하**다(2026-08-29). 「지하」 두 글자만 보면 안 된다 —
  *  대장 원본은 「지1층」·「지1」·「지층」 표기가 훨씬 많았고(37만건), 그걸 「지하」로만
@@ -39,10 +40,10 @@ function floorKey(f: string): string {
  *  팀이 손으로 치는 값(B1·지1)은 여전히 제각각이라 여기서 받아 준다. */
 function floorRank(f: string): number {
   const s = String(f).trim();
-  if (s.startsWith("옥탑")) return 1000;
   const n = Number(s.replace(/[^0-9]/g, "")) || 0;
-  const under = s.startsWith("지") || /^b/i.test(s);
-  return under ? -(n || 1) : n;
+  if (/^(옥탑|옥상|PH|RF?)/i.test(s)) return 1000 + n;
+  if (s.startsWith("지") || /^b/i.test(s)) return 2000 + (n || 1);
+  return n;
 }
 
 
@@ -138,15 +139,14 @@ function RentTrend({ pk }: { pk: string }) {
     ...(d.up5 != null ? [{ from: String(yN - 5), op: 0.07 }] : []),
   ];
   const foot = [
-    ...(d.up10 != null ? [{ label: `10년 ${pct(d.up10)}`, color: "#8FAAD3" }] : []),
-    ...(d.up5 != null ? [{ label: `5년 ${pct(d.up5)}`, color: "var(--blue)" }] : []),
+    ...(d.up10 != null ? [{ label: `10년 전 대비 ${pct(d.up10)}`, color: "#8FAAD3" }] : []),
+    ...(d.up5 != null ? [{ label: `5년 전 대비 ${pct(d.up5)}`, color: "var(--blue)" }] : []),
   ];
   const last = d.series[d.series.length - 1];
   return (
     <section className="rv-card" id="rt-trend">
       <div className="sec-head">
-        <span className="rv-k">임대 시세 추이
-          <em className="rv-est">{d.sanggwon} · {d.series_name} 요율로 역산</em></span>
+        <span className="rv-k">임대 시세 추이 <em className="rv-est">추정</em></span>
         <Segmented size="sm" style={{ marginLeft: "auto" }} value={mode} onChange={setMode}
           options={[{ value: "c", label: "그래프" }, { value: "t", label: "표" }]} />
       </div>
@@ -189,7 +189,7 @@ export function RentPanel({ pk, unit, items, total, refresh }: {
     o.cur += x.cur || 0; o.mkt += x.mkt || 0;
     o.cur_dep! += x.cur_dep || 0; o.mkt_dep! += x.mkt_dep || 0;
     return m;
-  }, {})).sort((a, b) => floorRank(b.floor) - floorRank(a.floor));
+  }, {})).sort((a, b) => floorRank(a.floor) - floorRank(b.floor));
 
   const py = totalArea ? totalArea / P : null;
   const landP = landArea ? landArea / P : null;
@@ -293,9 +293,9 @@ function FloorRent({ rows, id, total, side }: {
           return (
             <div className="rv-fl" key={f.floor}>
               <span className="n">{f.floor}</span>
-              <span className="g">
+              <span className="g" title={b > 0 ? `이 건물 ${man(a)} · 주변 시세 ${man(b)}` : `이 건물 ${man(a)}`}>
                 <i style={{ width: `${Math.max(2, a / max * 100)}%` }} />
-                {b > 0 && <u style={{ left: `${Math.min(99.4, b / max * 100)}%` }} />}
+                {b > 0 && <u title={`주변 시세 ${man(b)}`} style={{ left: `${Math.min(99.4, b / max * 100)}%` }} />}
               </span>
               <span className="v">{man(a)}
                 {d != null && Math.round(Math.abs(d) / 1e4) > 0 && (

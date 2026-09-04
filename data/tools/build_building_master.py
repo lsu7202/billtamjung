@@ -81,10 +81,14 @@ def load_kelisa():
                 k=norm_road(row.get('건물주소'))
                 if k: cnt[k]+=1
     return cnt
-def _elev(r, kel, multi):
-    """대장 승용승강기 우선. 없음(0)이면 승강기공단 보정(도로명 단일=대수, 복수=있음)."""
-    v=int(fnum(r[TTL['승용승강기']])) or None
-    if v: return v
+def _elev(r):
+    """**대장 승용승강기수만.** 화면 본값이라 다른 출처로 덮지 않는다(2026-09-04).
+    화면 값은 확인설명서·계약서로 그대로 이어진다 — 대장과 다르면 서류가 어긋난다."""
+    return int(fnum(r[TTL['승용승강기']])) or None
+
+def _elev_ext(r, kel, multi):
+    """승강기공단 설치현황 대수 — **참조용**(elevator_ext). 대장이 비었을 때 곁에 보여만 준다.
+    도로명이 한 건물이면 대수 그대로, 여러 건물이면 「있음」의 뜻으로 1."""
     k=norm_road(r[TTL['도로명주소']]); cnt=kel.get(k) if k else None
     if not cnt: return None
     return cnt if multi.get(k,0)<=1 else 1
@@ -251,7 +255,8 @@ def main():
             '구조':g_('구조'), '기타구조':g_('기타구조') or None, '지붕':g_('지붕') or None,
             '지상층수':int(fnum(g_('지상층수'))),'지하층수':int(fnum(g_('지하층수'))),
             '높이':_height(r),
-            '엘리베이터':_elev(r, kel, elmulti),
+            '엘리베이터':_elev(r),
+            '엘리베이터참조':_elev_ext(r, kel, elmulti),
             '비상용승강기':int(fnum(g_('비상용승강기'))) or None,
             '주차':int(fnum(g_('옥내기계'))+fnum(g_('옥외기계'))
                      +fnum(g_('옥내자주'))+fnum(g_('옥외자주'))) or None,

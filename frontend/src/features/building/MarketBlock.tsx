@@ -135,7 +135,7 @@ export function MarketBlock({ pk, lng, lat, area, comp, onComp, onComps, salesOn
       <table className="wf">
         <thead><tr><th>층</th><th className="num">평당 보증금</th><th className="num">평당 임대료</th></tr></thead>
         <tbody>
-          {subjectFloors.length === 0 && <tr><td colSpan={3} style={{ color: "var(--muted)", textAlign: "center", padding: 16 }}>본매물 층 정보가 없습니다 — 층별 임대정보를 먼저 입력하세요</td></tr>}
+          {subjectFloors.length === 0 && <tr><td colSpan={3} style={{ color: "var(--muted)", textAlign: "center", padding: 16 }}>층 정보 없음</td></tr>}
           {shownFloors.map((floor) => {
             const comps = compsByFloor[floor] ?? [];
             const sum = floorSummary(floor);

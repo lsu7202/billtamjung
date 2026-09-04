@@ -129,7 +129,7 @@ export function UnifiedBuyerModal({ b, tab0, onClose, onSaved, onGoListing, onEd
       <div className="brow"><span className="bk">시뮬</span>
         <span className="ev off">{
           eq == null ? "조건 탭에 자기자본을 적으면 계산합니다"
-            : !rent0 ? "임대료를 넣으면 계산합니다"
+            : !rent0 ? "—"
               : "값이 없습니다"}</span></div>
     );
     const fp = b.fee_pct ?? FEE_PCT_DEFAULT;

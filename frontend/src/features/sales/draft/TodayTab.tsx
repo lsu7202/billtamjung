@@ -235,7 +235,7 @@ function Board({ d, now, mine, setMine, picked, pick, done, moveToday, putOff, d
 
         {!all.length ? (
           <div className="td-none">오늘 할 일이 없습니다
-            <small>캘린더에서 오늘 칸을 누르면 여기 섭니다</small></div>
+            </div>
         ) : view === "order" ? (
           <Order rows={order} now={now} go={go} done={done} onDrag={setDragId} />
         ) : (

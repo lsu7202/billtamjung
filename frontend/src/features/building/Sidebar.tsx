@@ -261,7 +261,7 @@ function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unkno
         <div className="sb-r"><span className="l">매매가 대비 수익률</span>
           <span className={`r num ${roi != null ? "" : "dim"}`}>{roi != null
             ? `${roi.toFixed(2)}%`
-            : salePrice == null ? "매매가를 넣으면 섭니다" : "임대료를 넣으면 섭니다"}</span></div>
+            : "—"}</span></div>
         <div className="sb-r"><span className="l">대지 평단가</span>
           <span className={`r num ${ppLand != null ? "" : "dim"}`}>
             {ppLand != null ? wonToEok(ppLand) : "—"}</span></div>

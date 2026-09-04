@@ -135,6 +135,8 @@ def main() -> int:
                 gongsi.get(pnu, ""), sale[0], sale[1],
                 row[ci["건축면적"]] or "", row[ci["용적률산정연면적"]] or "",
                 row[ci["엘리베이터"]] if row[ci["엘리베이터"]] is not None else "",
+                # 참조값(0156) — 승강기공단. 본값(엘리베이터)은 대장뿐이다
+                row[ci["엘리베이터참조"]] if "엘리베이터참조" in ci and row[ci["엘리베이터참조"]] is not None else "",
                 row[ci["주차"]] if row[ci["주차"]] is not None else "",
                 row[ci["높이"]] if row[ci["높이"]] is not None else "",
                 row[ci["건폐율출처"]] or "",

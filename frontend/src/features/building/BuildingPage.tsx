@@ -154,6 +154,9 @@ export function BuildingPage() {
   // 백엔드가 `_edited`(고친 필드)와 `_master`(그 칸의 대장 원본)를 같이 준다.
   const editedSet = new Set<string>((b._edited as string[]) ?? []);
   const bMaster = (b._master ?? {}) as Record<string, unknown>;
+  /** 참조값(2026-09-04) — 본값이 아니다. 대장이 빈 칸일 때만 옆에 작게 띄운다.
+   *  승강기공단 대수·계산 건폐/용적. 확인설명서·계약서로 나가는 자리에는 안 선다. */
+  const ref = (b._ref ?? {}) as { elevator_ext?: number | null; bcr_calc?: number | null; far_calc?: number | null };
   const isEdited = (f: string) => editedSet.has(f);
   /** 줄 하나에 붙는 오버레이 상태 — 고쳤나 · 대장 원본 · 저장 · 되돌리기 */
   const ovState = (f: string, master: React.ReactNode) => ({
@@ -313,6 +316,8 @@ export function BuildingPage() {
                 {/* 늘 붙어 다니는 값이라 한 줄. 고칠 땐 용적률만 연다(건폐율은 대장을 거의 안 고친다) */}
                 <TextRow label="건폐율 · 용적률"
                   value={b.bcr != null || b.far != null ? `${b.bcr ?? "—"}% · ${b.far ?? "—"}%` : ""}
+                  ref_={b.bcr == null && b.far == null && (ref.bcr_calc != null || ref.far_calc != null)
+                    ? `계산 ${ref.bcr_calc != null ? `${Math.round(ref.bcr_calc)}%` : "—"} · ${ref.far_calc != null ? `${Math.round(ref.far_calc)}%` : "—"}` : null}
                   cur={b.far} validate={vNonNeg} {...ovState("far", bMaster.far != null ? `${bMaster.far}%` : null)} />
                 <TextRow lock label="사용승인일" value={ymdDisp(b.approval_ymd)} />
                 <TextRow lock label="대수선 및 리모델링" value={ymdDisp(b.remodel_ymd)} />
@@ -322,6 +327,7 @@ export function BuildingPage() {
                 <TextRow label="주차" value={b.parking ?? ""} unit="대" cur={b.parking} validate={vInt}
                   {...ovState("parking", bMaster.parking != null ? `${bMaster.parking}대` : null)} />
                 <TextRow label="엘리베이터" value={b.elevator ?? ""} unit="대" cur={b.elevator} validate={vInt}
+                  ref_={b.elevator == null && ref.elevator_ext != null ? `승강기공단 ${ref.elevator_ext}대` : null}
                   {...ovState("elevator", bMaster.elevator != null ? `${bMaster.elevator}대` : null)} />
               </div>
                 </div>
@@ -334,7 +340,7 @@ export function BuildingPage() {
 
           {/* 공시지가 = 건물·토지 탭(사실) */}
           <div id="bt-gongsi">
-            <GongsiCard series={(b.gongsi_series as [number, number][]) ?? []}
+            <GongsiCard unit={unit} series={(b.gongsi_series as [number, number][]) ?? []}
               totalGongsi={b.total_gongsi != null ? Number(b.total_gongsi) : null}
               landArea={b.land_area != null ? Number(b.land_area) : null}
               sale={b.sale_price != null ? Number(b.sale_price) : null}

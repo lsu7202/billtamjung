@@ -2,7 +2,6 @@ import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { rentsApi, type FloorRent } from "../../shared/api/endpoints";
 import { Icon } from "../../shared/ui/Icon";
-import { Chips } from "./EnumField";
 
 /** 층별 임대정보 — 여덟 열 표를 버리고 층마다 한 줄(2026-08-25).
  *
@@ -21,12 +20,39 @@ import { Chips } from "./EnumField";
 const P = 3.305785;
 const CAP = 5;   // 처음엔 다섯 층. 나머지는 눌러서 편다
 
-/** 서명층수 — 지상 양수·지하 음수. 문자열 정렬이면 「10층」이 「2층」 앞에 온다 */
+/** 서명층수 — 같은 층인지 가르는 데만 쓴다(정렬은 frank).
+ *  **옥탑은 따로 센다**(2026-09-04). 숫자만 뽑으면 「옥탑1층」이 「1층」과 같은 값이 되어
+ *  한 층으로 묶였다. 삼성동 78 의 1층이 「102호」로 뜬 것이 그 탓이다. */
 const sfloor = (fl?: string): number | null => {
   if (!fl) return null;
   const n = parseInt(fl.replace(/\D/g, ""), 10);
+  if (/^(옥탑|옥상|PH|RF?)/i.test(fl.trim())) return 900 + (isNaN(n) ? 1 : n);
   if (/지하|^\s*B/i.test(fl)) return isNaN(n) ? -1 : -n;
   return isNaN(n) ? null : n;
+};
+
+/** 화면 순서(2026-09-04) — **1층부터 위로, 그다음 옥탑, 맨 아래 지하.**
+ *  예) 1층 2층 3층 옥탑1층 지하1층. 작을수록 위에 선다. */
+const frank = (fl?: string): number => {
+  const t = String(fl ?? "").trim();
+  const n = Number(t.replace(/[^0-9]/g, "")) || 0;
+  if (/^(옥탑|옥상|PH|RF?)/i.test(t)) return 1000 + n;
+  if (/^(지하|지|B)/i.test(t)) return 2000 + n;
+  return n;
+};
+
+/** 호실 이름 — 「1호실」이 아니라 층을 앞에 붙인 「101호」(2026-09-04).
+ *  저장값(unit_no)은 그대로 두고 보이는 글자만 바꾼다. 팀이 「201-1」처럼 직접 적었으면 그대로 쓴다. */
+const unitLabel = (floor?: string, unitNo?: string): string => {
+  const u = String(unitNo ?? "").trim();
+  if (!u) return "";
+  if (!/^\d{1,2}$/.test(u)) return u;                       // 손으로 적은 이름은 건드리지 않는다
+  const t = String(floor ?? "").trim();
+  const n = Number(t.replace(/[^0-9]/g, "")) || 0;
+  const two = u.padStart(2, "0");
+  if (/^(옥탑|옥상|PH|RF?)/i.test(t)) return `옥탑${two}호`;
+  if (/^(지하|지|B)/i.test(t)) return `B${n || 1}${two}호`;
+  return n ? `${n}${two}호` : `${two}호`;
 };
 const eokMan = (v?: number | null) => {
   if (!v) return null;
@@ -48,7 +74,7 @@ function Money({ v, onSave }: { v?: number | null; onSave: (won: number) => void
   );
   const s = eokMan(v);
   return (
-    <span className={`cell ${s ? "" : "off"}`} title="누르면 고쳐집니다"
+    <span className={`cell ${s ? "" : "off"}`}
       onClick={(e) => { e.stopPropagation(); setT(v ? String(Math.round(v / 1e4)) : ""); setEd(true); }}>
       {s ?? "—"}
     </span>
@@ -60,8 +86,6 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
   unit: "py" | "m2"; refresh: () => void;
 }) {
   const [all, setAll] = useState(false);
-  const [open, setOpen] = useState<Set<string>>(new Set());     // 다호실 층 접고펴기
-  const [expand, setExpand] = useState<string | null>(null);    // 줄 아래 펼침(호실·용도·면적·상태)
   const [busy, setBusy] = useState(false);
   const outline = useQuery({ queryKey: ["floor-outline", pk], queryFn: () => rentsApi.outline(pk) });
 
@@ -96,7 +120,6 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
                             ...outlineOf(floor).map((_, i) => String(i + 1))]);
       let n = 1; while (used.has(String(n))) n++;
       await rentsApi.upsert(pk, { floor, unit_no: String(n), deposit: 0, rent: 0, maintenance: 0, is_vacant: null } as FloorRent);
-      setOpen((s) => new Set(s).add(floor));
       refresh();
     } finally { setBusy(false); }
   }
@@ -110,6 +133,7 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
       await rentsApi.upsert(pk, {
         floor: dr.r.floor, unit_no: dr.r.unit_no || "1",
         use: dr.r.use ?? null, contract_area: dr.r.contract_area ?? null,
+        tenant_name: dr.r.tenant_name ?? null,
         deposit: dr.r.deposit ?? 0, rent: dr.r.rent ?? 0, maintenance: dr.r.maintenance ?? 0,
         is_vacant: dr.r.is_vacant ?? null, ...patch,
       } as FloorRent);
@@ -129,31 +153,60 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
     ...items.map((r) => ({ r, key: (r.id ?? `${r.floor}-${r.unit_no}`).toString() })),
     // 대장 층별개요의 면적은 그 층의 바닥면적이라 계약면적 칸으로 들어간다(0035).
     // 금액(rent_est·deposit_est)은 옮기지 않는다 — 정본 칸에 추정을 앉히지 않는다.
-    // 대장은 호실 번호를 안 준다 — 그 층 안 순번을 붙인다(인수할 때 쓰는 번호와 같다).
-    // 안 붙이면 다호실 층을 폈을 때 호실 자리가 전부 「—」로 서서 어느 줄인지 못 가른다.
+    // **호실 번호는 안 붙인다**(2026-09-04). 대장은 호실을 안 준다. 그 층 안 순번을 지어
+    // 붙였더니 화면에 「102호」가 서서, 대장에 없는 값을 우리가 만든 꼴이 됐다.
+    // 미지정은 비워 둔다. 호실은 팀이 ＋호실로 나눌 때 그때 생긴다.
     ...prefill.map((o, i) => ({ isPrefill: true, key: `pf-${o.floor}-${i}`,
       r: { floor: o.floor ?? "",
-           unit_no: String(prefill.filter((x) => sfloor(x.floor ?? undefined) === sfloor(o.floor ?? undefined))
-             .findIndex((x) => x === o) + 1),
+           unit_no: "",
            use: o.use ?? undefined,
            contract_area: o.floor_area ?? undefined, deposit: 0, rent: 0, maintenance: 0, is_vacant: null } as FloorRent })),
   ];
   const groups = new Map<string, DRow[]>();
   allRows.forEach((dr) => { const f = dr.r.floor || "—"; (groups.get(f) ?? groups.set(f, []).get(f)!).push(dr); });
-  const sorted = [...groups.entries()].sort((a, b) => (sfloor(b[0]) ?? -999) - (sfloor(a[0]) ?? -999));
+  const sorted = [...groups.entries()].sort((a, b) => frank(a[0]) - frank(b[0]));
   const shown = all ? sorted : sorted.slice(0, CAP);
 
   const areaTxt = (m2?: number | null) =>
     m2 == null ? null : `${(unit === "py" ? m2 / P : m2).toFixed(1)}${unit === "py" ? "평" : "㎡"}`;
   const vLabel = (v?: boolean | null) => (v == null ? null : v ? "공실" : "임대중");
 
-  /** 곁말 — 용도는 진하게(층의 성격), 나머지는 회색 */
-  const cap = (use?: string | null, unitNo?: string, m2?: number | null, vac?: boolean | null, n?: number) => (
+  /** 한 줄 편집 — 상호명·호실·면적·상태가 줄 위에 그대로 선다(2026-09-04).
+   *  예전엔 줄을 눌러 펼쳐야 고칠 수 있었다. 한 호실짜리 층이 대부분이라 펼침이 늘 한 겹의 헛수고였다.
+   *  대장에서 온 줄은 호실이 비어 있다 — 대장은 호실을 안 준다. */
+  const editRow = (dr: DRow, showUnit: boolean) => (
+    <span className="fedit" onClick={(e) => e.stopPropagation()}>
+      {/* 상호명 — 이 줄의 주인공. 비면 글자가 없다(빈 칸에 낱말을 세우지 않는다) */}
+      <Txt v={dr.r.tenant_name ?? ""} w={150} cls="nm" onSave={(v) => put(dr, { tenant_name: v || null })} />
+      {showUnit && <Txt v={dr.r.unit_no ?? ""} w={54} onSave={(v) => put(dr, { unit_no: v })} />}
+      <Txt v={dr.r.contract_area != null
+        ? `${(unit === "py" ? dr.r.contract_area / P : dr.r.contract_area).toFixed(1)}${unit === "py" ? "평" : "㎡"}` : ""}
+        w={68}
+        onSave={(v) => {
+          const n = parseFloat(v.replace(/[^\d.]/g, ""));
+          put(dr, { contract_area: Number.isFinite(n) ? (unit === "py" ? n * P : n) : null });
+        }} />
+      {/* 상태 — 미지정이면 아무것도 안 뜬다. 누르면 임대중 → 공실 → 미지정 으로 돈다 */}
+      <button className={`vac ${dr.r.is_vacant === true ? "on" : dr.r.is_vacant === false ? "in" : "off"}`}
+        title="임대중 · 공실 · 미지정"
+        onClick={(e) => {
+          e.stopPropagation();
+          put(dr, { is_vacant: dr.r.is_vacant == null ? false : dr.r.is_vacant === false ? true : null });
+        }}>{dr.r.is_vacant === true ? "공실" : dr.r.is_vacant === false ? "임대중" : ""}</button>
+    </span>
+  );
+
+  /** 곁말 — 묶음 줄(층 머리)에만 쓴다. 낱줄은 editRow 가 대신한다. */
+  const cap = (tenant?: string | null, floor?: string, unitNo?: string, m2?: number | null, vac?: boolean | null, n?: number) => (
     <span className="cap">
-      <b>{use || "용도 미정"}</b>
-      {n && n > 1 ? <><span className="gap">·</span>{n}호실</> : unitNo ? <><span className="gap">·</span>{unitNo}</> : null}
-      {areaTxt(m2) && <><span className="gap">·</span>{areaTxt(m2)}</>}
-      {vLabel(vac) && <><span className="gap">·</span>{vLabel(vac)}</>}
+      {[
+        tenant || null,
+        n && n > 1 ? `${n}호실` : unitLabel(floor, unitNo) || null,
+        areaTxt(m2),
+        vLabel(vac),
+      ].filter(Boolean).map((t, i) => (
+        <span key={i}>{i > 0 && <span className="gap">·</span>}{i === 0 && tenant ? <b>{t}</b> : t}</span>
+      ))}
     </span>
   );
 
@@ -165,27 +218,6 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
     </span>
   );
 
-  /** 펼침 — 호실 · 용도 · 면적 · 상태. 자주 고치는 돈은 줄에서, 이건 한 겹 뒤로 */
-  const exp = (dr: DRow) => (
-    <div className="eexp" onClick={(e) => e.stopPropagation()}
-      style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-        <span className="bk">상태</span>
-        <Chips mode="inline" opts={[{ code: "임대중", label: "임대중" }, { code: "공실", label: "공실" }]}
-          cur={dr.r.is_vacant == null ? "미지정" : dr.r.is_vacant ? "공실" : "임대중"}
-          onSelect={(v) => put(dr, { is_vacant: v === "미지정" ? null : v === "공실" })} />
-      </div>
-      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <span className="bk">호실</span>
-        <Txt v={dr.r.unit_no} w={84} onSave={(v) => put(dr, { unit_no: v })} />
-        <span className="bk" style={{ marginLeft: 6 }}>용도</span>
-        <Txt v={dr.r.use ?? ""} w={110} onSave={(v) => put(dr, { use: v })} />
-        <span className="bk" style={{ marginLeft: 6 }}>면적</span>
-        <Txt v={dr.r.contract_area != null ? String((unit === "py" ? dr.r.contract_area / P : dr.r.contract_area).toFixed(1)) : ""}
-          w={74} onSave={(v) => put(dr, { contract_area: v ? (unit === "py" ? parseFloat(v) * P : parseFloat(v)) : null })} />
-      </div>
-    </div>
-  );
 
   return (
     <div className="bg-card">
@@ -194,8 +226,9 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
         {items.length > 0 && (
           <button className="rst"
             onClick={async () => {
-              if (!confirm("호실 나눔·용도·면적을 대장 구조로 되돌립니다. 넣은 금액도 함께 지워집니다. 계속할까요?")) return;
-              await Promise.all(items.filter((i) => i.id != null).map((i) => rentsApi.del(pk, i.id!)));
+              if (!confirm("호실 나눔·상호명·면적을 대장 구조로 되돌립니다. 넣은 금액도 함께 지워집니다. 계속할까요?")) return;
+              // 한 번에 지운다 — 행마다 DELETE 를 부르면 없앤 층 표시가 남아 「되돌렸는데 그대로」가 됐다
+              await rentsApi.revert(pk);
               refresh();
             }}>대장 구조로</button>
         )}
@@ -211,30 +244,34 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
       <div style={{ padding: "0 6px 6px" }}>
         {shown.map(([floor, rows]) => {
           const one = rows.length === 1;
-          const isOpen = open.has(floor);
           const sum = (k: "deposit" | "rent" | "maintenance") => rows.reduce((s, d) => s + (d.r[k] || 0), 0);
-          const uses = [...new Set(rows.map((d) => d.r.use).filter(Boolean))].join(" · ");
+          const uses = [...new Set(rows.map((d) => d.r.tenant_name).filter(Boolean))].join(" · ");
           const areaSum = rows.reduce((s, d) => s + (d.r.contract_area || 0), 0) || null;
           if (one) {
             const dr = rows[0];
-            const isExp = expand === dr.key;
             return (
-              <div key={floor} className={`eitem ${isExp ? "open" : ""}`}>
-                <div className="orow has" onClick={() => setExpand(isExp ? null : dr.key)}>
+              <div key={floor} className="eitem">
+                <div className="orow has">
                   <span className="who"><span className="fold" />{floor}</span>
-                  {cap(dr.r.use, dr.r.unit_no, dr.r.contract_area, dr.r.is_vacant)}
+                  {editRow(dr, false)}
                   {moneyCells(dr)}
-                  <span className="okpad" />
+                  <span className="okpad">
+                    <span className="act">
+                      <button className="mini" title="이 층에 호실 더하기"
+                        onClick={(e) => { e.stopPropagation(); addUnit(floor); }}>＋</button>
+                    </span>
+                  </span>
                 </div>
-                {isExp && exp(dr)}
               </div>
             );
           }
           return (
             <Fragment key={floor}>
-              <div className="orow has" onClick={() => setOpen((s) => { const n = new Set(s); n.has(floor) ? n.delete(floor) : n.add(floor); return n; })}>
-                <span className="who"><span className="fold">{isOpen ? "▾" : "▸"}</span>{floor}</span>
-                {cap(uses, undefined, areaSum, null, rows.length)}
+              {/* 접기를 없앴다(2026-09-04) — 호실이 여럿인 층도 항상 펴져 있다.
+                  접어 두면 몇 호실인지 보려고 매번 펴야 했고, 접힌 층에는 ＋ 호실도 안 보였다. */}
+              <div className="orow has grp">
+                <span className="who"><span className="fold" />{floor}</span>
+                {cap(uses, floor, undefined, areaSum, null, rows.length)}
                 <span className="fm">
                   <span>{eokMan(sum("deposit")) ?? "—"}</span>
                   <span>{eokMan(sum("rent")) ?? "—"}</span>
@@ -242,13 +279,12 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
                 </span>
                 <span className="okpad" />
               </div>
-              {isOpen && rows.map((dr) => {
-                const isExp = expand === dr.key;
+              {rows.map((dr) => {
                 return (
-                  <div key={dr.key} className={`eitem ${isExp ? "open" : ""}`}>
-                    <div className="orow unit has" onClick={() => setExpand(isExp ? null : dr.key)}>
-                      <span className="who">{dr.r.unit_no || "—"}</span>
-                      {cap(dr.r.use, undefined, dr.r.contract_area, dr.r.is_vacant)}
+                  <div key={dr.key} className="eitem">
+                    <div className="orow unit has">
+                      <span className="who">{unitLabel(dr.r.floor, dr.r.unit_no) || ""}</span>
+                      {editRow(dr, true)}
                       {moneyCells(dr)}
                       <span className="okpad">
                         {/* 호실은 팀이 나눈 것이라 지울 수 있다. 마지막 하나는 못 지운다 */}
@@ -261,11 +297,10 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
                         )}
                       </span>
                     </div>
-                    {isExp && exp(dr)}
                   </div>
                 );
               })}
-              {isOpen && <button className="addu" onClick={() => addUnit(floor)}>＋ 호실</button>}
+              <button className="addu" onClick={(e) => { e.stopPropagation(); addUnit(floor); }}>＋ 호실</button>
             </Fragment>
           );
         })}
@@ -297,18 +332,20 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
 }
 
 /** 글자 한 칸 — 눌러서 그 자리에서 */
-function Txt({ v, w, onSave }: { v: string; w: number; onSave: (v: string) => void }) {
+function Txt({ v, w, onSave, cls }: { v: string; w: number; onSave: (v: string) => void; cls?: string }) {
   const [ed, setEd] = useState(false);
   const [t, setT] = useState("");
   if (ed) return (
-    <input className="um-in" autoFocus value={t} style={{ width: w, padding: "5px 10px", fontSize: 13 }}
+    <input className="um-in" autoFocus value={t}
+      style={{ width: w, padding: "4px 8px", fontSize: 13 }}
       onChange={(e) => setT(e.target.value)}
       onBlur={() => { setEd(false); if (t !== v) onSave(t.trim()); }}
       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEd(false); }} />
   );
+  // 빈 칸은 「—」 하나. 칸 이름을 글자로 세우면 줄이 「읽는 곳」이 아니라 「채우는 서식」이 된다
   return (
-    <button className="um-vp" onClick={() => { setT(v); setEd(true); }}>
-      <b className={v ? "" : "off"} style={{ fontSize: 13.5 }}>{v || "—"}</b></button>
+    <button className={`um-vp ${cls ?? ""}`} style={{ width: w }} onClick={() => { setT(v); setEd(true); }}>
+      <b className={v ? "" : "off"}>{v || "—"}</b></button>
   );
 }
 
@@ -331,7 +368,7 @@ function NewFloor({ pk, refresh }: { pk: string; refresh: () => void }) {
           }}
           onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setT(""); setEd(false); } }} />
       ) : "＋ 층"}</span>
-      <span className="cap">{ed ? "" : "층 번호를 치면 새 층이 섭니다"}</span>
+      <span className="cap" />
       <span className="fm"><span className="off">—</span><span className="off">—</span><span className="off">—</span></span>
       <span className="okpad" />
     </div>

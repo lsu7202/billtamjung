@@ -163,7 +163,7 @@ export function PickModal({ mode, buyerId, buildingPk, title, onClose, onAdded }
         {/* 검색 pill 하나 — 비우면 추천순 목록, 치면 찾기(매물은 전 서울, 매수자는 명단 안) */}
         <div className="pk-find">
           <input className="pk-q" value={q} autoFocus placeholder={
-            mode === "listing" ? "주소로 찾기 — 비우면 추천순으로 섭니다" : "이름으로 찾기"}
+            mode === "listing" ? "주소로 찾기" : "이름으로 찾기"}
             onChange={(e) => setQ(e.target.value)} />
         </div>
 

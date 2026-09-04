@@ -23,17 +23,20 @@ class RentIn(BaseModel):
     rent: int = 0
     maintenance: int = 0
     is_vacant: bool | None = None    # 공실상태 3값: None=미지정(기본)·False=임대중·True=공실
+    tenant_name: str | None = None   # 상호명(0155) — 모르면 null. 용도 대신 화면에 선다
 
 
 @router.get("")
 async def list_rents(building_pk: str, user: CurrentUser = Depends(current_user)):
     rows = await pool().fetch(
         """SELECT id, floor, unit_no, use, contract_area,
-                  deposit, rent, maintenance, is_vacant
+                  deposit, rent, maintenance, is_vacant, tenant_name
            FROM app.floor_rents
            WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL
-           ORDER BY (CASE WHEN floor LIKE '지하%' OR floor ~* '^\\s*B' THEN -1 ELSE 1 END)
-                    * COALESCE(NULLIF(regexp_replace(floor, '\\D', '', 'g'), '')::int, 0) DESC, unit_no""",
+           -- 순서(2026-09-04): 1층부터 위로, 옥탑, 그 아래 지하. 예) 1층 2층 3층 옥탑1층 지하1층
+           ORDER BY (CASE WHEN floor LIKE '%옥탑%' OR floor ~* '^\\s*(PH|R)' THEN 1000
+                          WHEN floor LIKE '지하%' OR floor LIKE '지%' OR floor ~* '^\\s*B' THEN 2000 ELSE 0 END)
+                    + COALESCE(NULLIF(regexp_replace(floor, '\\D', '', 'g'), '')::int, 0) ASC, unit_no""",
         building_pk, user.team_id,
     )
     hidden = [r["floor"] for r in await pool().fetch(
@@ -52,11 +55,15 @@ async def list_rents(building_pk: str, user: CurrentUser = Depends(current_user)
            WHERE fo.building_pk=$1 AND fre.rent_est > 0 ORDER BY fo.seq""",
         building_pk,
     )
-    team_floors = {_signed_floor(r["floor"]) for r in items}
+    # **추정은 팀 입력에 흔들리지 않는다**(2026-09-04). 예전엔 팀이 값을 넣은 층을 추정에서
+    # 빼고 실측으로 갈아 끼웠는데(하이브리드), 그러면 한 층을 고칠 때마다 「추정 총액」이 같이
+    # 움직여서 무엇이 추정이고 무엇이 실측인지 화면에서 구분이 안 됐다.
+    # 이제 둘은 서로 다른 자리다: rent/deposit = 팀 실측 · rent_full/deposit_full = 전 층 추정.
+    # 없앤 층(floor_hidden)만 뺀다 — 그 층이 없다는 것은 추정에도 사실이다.
     est_rent_full = est_dep_full = 0
     for r in est_rows:
         f = _signed_floor(r["floor"])
-        if f in team_floors or f in hidden_sf:   # 팀이 관리하는 층 · 없앤 층은 추정 제외
+        if f in hidden_sf:
             continue
         est_rent_full += r["rent_est"] or 0
         est_dep_full += r["deposit_est"] or 0
@@ -67,12 +74,10 @@ async def list_rents(building_pk: str, user: CurrentUser = Depends(current_user)
         "rent_occupied": sum(r["rent"] or 0 for r in items if r["is_vacant"] is not True),   # 공실제외 수익률(F-14): 공실 행 제외
         "vacant_count": sum(1 for r in items if r["is_vacant"] is True),
         "status_count": sum(1 for r in items if r["is_vacant"] is not None),   # 총공실 3값: 0이면 미지정
-        # 전층 하이브리드(건물 총임대료/보증금 = 팀 실제 + 미입력층 추정)
-        "rent_full": team_rent + est_rent_full,
-        "deposit_full": team_deposit + est_dep_full,
-        # 공실제외도 같은 하이브리드로. 팀 행만 쓰면 한 층만 입력해도 수익률이 그 층으로 떨어진다
-        # (실측: 헤더가 만실 2.4% / 공실제외 0.4%로 갈렸다). 미입력층 추정은 공실이 아니므로 포함.
-        "rent_occupied_full": sum(r["rent"] or 0 for r in items if r["is_vacant"] is not True) + est_rent_full,
+        # 전 층 추정 — 팀 입력과 섞지 않는다. 이름 그대로 「추정」이다.
+        "rent_full": est_rent_full,
+        "deposit_full": est_dep_full,
+        "rent_occupied_full": est_rent_full,
     }
     return {"items": items, "total": total, "hidden_floors": hidden}
 
@@ -112,18 +117,34 @@ async def upsert_rent(building_pk: str, body: RentIn, user: CurrentUser = Depend
     await pool().execute(
         """INSERT INTO app.floor_rents
              (building_pk,team_id,floor,unit_no,use,contract_area,
-              deposit,rent,maintenance,is_vacant)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+              deposit,rent,maintenance,is_vacant,tenant_name)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
            ON CONFLICT (building_pk,team_id,floor,unit_no)
            DO UPDATE SET use=EXCLUDED.use,
              contract_area=EXCLUDED.contract_area, deposit=EXCLUDED.deposit,
              rent=EXCLUDED.rent, maintenance=EXCLUDED.maintenance,
-             is_vacant=EXCLUDED.is_vacant, deleted_at=NULL, updated_at=now()""",
+             is_vacant=EXCLUDED.is_vacant, tenant_name=EXCLUDED.tenant_name,
+             deleted_at=NULL, updated_at=now()""",
         building_pk, user.team_id, body.floor, body.unit_no, body.use,
         body.contract_area,
-        body.deposit, body.rent, body.maintenance, body.is_vacant,
+        body.deposit, body.rent, body.maintenance, body.is_vacant, body.tenant_name,
     )
     return {"ok": True}
+
+
+@router.delete("")
+async def revert_all(building_pk: str, user: CurrentUser = Depends(current_user)):
+    """대장 구조로 되돌리기 — 팀이 넣은 행과 없앤 층 표시를 한 번에 지운다(2026-09-04).
+    화면이 행마다 DELETE 를 부르면 없앤 층이 남아 「되돌렸는데 그대로」로 보였다."""
+    async with tx() as conn:
+        n = await conn.execute(
+            """UPDATE app.floor_rents SET deleted_at=now()
+               WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL""",
+            building_pk, user.team_id)
+        await conn.execute(
+            "DELETE FROM app.floor_hidden WHERE building_pk=$1 AND team_id=$2",
+            building_pk, user.team_id)
+    return {"ok": True, "cleared": n}
 
 
 @router.delete("/{rent_id}")
