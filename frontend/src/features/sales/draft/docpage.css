@@ -146,3 +146,38 @@
   .terms .tl{border-bottom:0}
   @page{ size:A4; margin:0 }
 }
+
+/* ── 상업용 계약서(원본 2026-08-31 최종본) · 확인설명서 4쪽(별지 20호의2) ── */
+.doc .subt{text-align:center; font-size:10.5pt; font-weight:700; margin:-4mm 0 5mm; letter-spacing:.04em}
+.doc div.artp{cursor:text; border-radius:2px}
+.doc div.artp:hover{background:#F7F8FA}
+.doc div.artp > p{text-align:justify}
+.doc p.artp{white-space:pre-line}
+/* 원본 표 — 머리줄 있음(구분·금액·지급일·지급방법), 숫자는 오른쪽 */
+.doc table.cx th{background:#F4F5F6; font-weight:700; text-align:center; padding:1.4mm 2mm}
+.doc table.cx td.r,.doc table.cx th.r{text-align:right; font-variant-numeric:tabular-nums}
+.doc table.cx .lab{width:22mm}
+.doc table.tn{font-size:8.8pt}
+.doc table.tn td,.doc table.tn th{padding:1.2mm 1.4mm}
+.doc table.sign.cx td{height:11mm; vertical-align:middle}
+/* 낱말 고르기 — 「포함·별도」 자리. 씨앗과 같은 파랑, 클릭하면 다음 것 */
+.dp .dv.pk{text-decoration:underline dotted; text-underline-offset:2px}
+/* 확인설명서 — 4쪽을 원본 크기에 맞춘다. 표가 촘촘해 글자를 한 단 줄인다 */
+/* 1쪽이 ①②③까지 한 장에 들어가야 한다(원본과 같은 쪽 나눔). 8.2pt·여백 1mm 로 원본 활자 크기에 맞춘다 */
+.doc.ds{font-size:8.6pt; line-height:1.45}
+.doc.ds h2.sm{font-size:13pt; margin:1mm 0 1.5mm}
+.doc.ds .sub{margin:0 0 3mm; font-size:8.6pt}
+.doc.ds .head{margin-bottom:1mm}
+.doc.ds table{font-size:8.2pt; margin-bottom:1.3mm}
+.doc.ds td,.doc.ds th{padding:.9mm 1.4mm; line-height:1.35}
+.doc.ds .lab{width:auto}
+.doc.ds .lab.n{width:16mm}
+.doc.ds .note{font-size:7.6pt; line-height:1.4}
+.doc.ds .sect{margin:2.4mm 0 1.2mm; font-size:10pt}
+.doc.ds .dc-sub2{font-size:7.4pt}
+.doc.ds .b{height:4mm}
+.doc.ds .own{height:10mm; vertical-align:top}
+.doc.guide{font-size:8.6pt; line-height:1.55}
+.doc.guide .gh{font-weight:800; margin:3mm 0 1mm}
+.doc.guide ol{margin:0 0 2mm; padding-left:6mm}
+.doc.guide li{margin-bottom:1.2mm; text-align:justify}

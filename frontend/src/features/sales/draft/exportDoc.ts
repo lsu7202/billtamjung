@@ -71,8 +71,15 @@ export async function exportDocx(fileBase: string) {
         const head = el.querySelector(".art"); const body = el.querySelector(".artp");
         if (head) kids.push(new Paragraph({ spacing: { before: 160, after: 40 },
           children: [new TextRun({ text: txt(head).replace(/[✎✕]/g, "").trim(), bold: true, size: 21 })] }));
-        if (body) kids.push(new Paragraph({ spacing: { after: 60 },
-          children: [new TextRun({ text: txt(body), size: 21 })] }));
+        // 본문이 문단·표 여럿이면(상업용 2·3조) 하나씩. 한 덩이면 줄바꿈(①②…)마다 문단으로
+        if (body && body.children.length && Array.from(body.children).some((c) => c.tagName === "P" || c.tagName === "TABLE")) {
+          Array.from(body.children).forEach(emit);
+        } else if (body) {
+          for (const line of (body.textContent ?? "").split("\n")) {
+            const tl = line.replace(/\s+/g, " ").trim();
+            if (tl) kids.push(new Paragraph({ spacing: { after: 60 }, children: [new TextRun({ text: tl, size: 21 })] }));
+          }
+        }
       } else if (tag === "DIV" && el.classList.length === 0 && el.children.length) {
         // 조항 묶음 같은 무명 래퍼 — 안쪽을 그대로 걷는다(돈 표가 여기 산다)
         Array.from(el.children).forEach(emit);
