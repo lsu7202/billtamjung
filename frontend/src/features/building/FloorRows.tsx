@@ -181,7 +181,7 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
       {showUnit && <Txt v={dr.r.unit_no ?? ""} w={54} onSave={(v) => put(dr, { unit_no: v })} />}
       <Txt v={dr.r.contract_area != null
         ? `${(unit === "py" ? dr.r.contract_area / P : dr.r.contract_area).toFixed(1)}${unit === "py" ? "평" : "㎡"}` : ""}
-        w={68}
+        w={76} cls="ar"
         onSave={(v) => {
           const n = parseFloat(v.replace(/[^\d.]/g, ""));
           put(dr, { contract_area: Number.isFinite(n) ? (unit === "py" ? n * P : n) : null });
@@ -344,7 +344,7 @@ function Txt({ v, w, onSave, cls }: { v: string; w: number; onSave: (v: string) 
   );
   // 빈 칸은 「—」 하나. 칸 이름을 글자로 세우면 줄이 「읽는 곳」이 아니라 「채우는 서식」이 된다
   return (
-    <button className={`um-vp ${cls ?? ""}`} style={{ width: w }} onClick={() => { setT(v); setEd(true); }}>
+    <button className={`um-vp ${cls ?? ""}`} style={{ maxWidth: w }} onClick={() => { setT(v); setEd(true); }}>
       <b className={v ? "" : "off"}>{v || "—"}</b></button>
   );
 }

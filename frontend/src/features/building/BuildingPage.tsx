@@ -313,12 +313,13 @@ export function BuildingPage() {
                 <FloorsRow2 above={b.floors_above} below={b.floors_below} onSave={onSave} />
                 <TextRow label="용적산정 연면적" value={area(b.far_area)} cur={areaSeed(b.far_area)} parse={areaParse}
                   validate={vPos} {...ovState("far_area", area(bMaster.far_area as number))} />
-                {/* 늘 붙어 다니는 값이라 한 줄. 고칠 땐 용적률만 연다(건폐율은 대장을 거의 안 고친다) */}
-                <TextRow label="건폐율 · 용적률"
-                  value={b.bcr != null || b.far != null ? `${b.bcr ?? "—"}% · ${b.far ?? "—"}%` : ""}
-                  ref_={b.bcr == null && b.far == null && (ref.bcr_calc != null || ref.far_calc != null)
-                    ? `계산 ${ref.bcr_calc != null ? `${Math.round(ref.bcr_calc)}%` : "—"} · ${ref.far_calc != null ? `${Math.round(ref.far_calc)}%` : "—"}` : null}
-                  cur={b.far} validate={vNonNeg} {...ovState("far", bMaster.far != null ? `${bMaster.far}%` : null)} />
+                {/* 한 줄에 붙여 두고 용적률만 열었더니 건폐율을 못 고쳤다(2026-09-05 지적). 줄 하나에 값 하나. */}
+                <TextRow label="건폐율" value={b.bcr ?? ""} unit="%" cur={b.bcr} validate={vNonNeg}
+                  ref_={b.bcr == null && ref.bcr_calc != null ? `계산 ${Math.round(ref.bcr_calc)}%` : null}
+                  {...ovState("bcr", bMaster.bcr != null ? `${bMaster.bcr}%` : null)} />
+                <TextRow label="용적률" value={b.far ?? ""} unit="%" cur={b.far} validate={vNonNeg}
+                  ref_={b.far == null && ref.far_calc != null ? `계산 ${Math.round(ref.far_calc)}%` : null}
+                  {...ovState("far", bMaster.far != null ? `${bMaster.far}%` : null)} />
                 <TextRow lock label="사용승인일" value={ymdDisp(b.approval_ymd)} />
                 <TextRow lock label="대수선 및 리모델링" value={ymdDisp(b.remodel_ymd)} />
                 <EnumRow lock label="주용도" enumKey="main_use" value={b.main_use as string} onSave={() => {}} />

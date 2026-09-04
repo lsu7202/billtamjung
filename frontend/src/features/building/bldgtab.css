@@ -22,13 +22,13 @@
 
 /* 층별 — 금액 세 칸 고정폭. 층끼리 자릿수가 맞아야 견줄 수 있다 */
 .fm{display:flex; align-items:baseline; flex:0 0 auto}
-.fm > *{width:104px; text-align:right; font-size:15px; font-weight:800; font-variant-numeric:tabular-nums;
+.fm > *{width:88px; text-align:right; font-size:15px; font-weight:800; font-variant-numeric:tabular-nums;
   color:#191F28}
 .fm .off{color:#C8CDD3; font-weight:600}
 .fmh{display:flex; align-items:baseline; flex:0 0 auto}
-.fmh span{width:104px; text-align:right; font-size:10.5px; font-weight:800; letter-spacing:.05em; color:#B0B8C1}
+.fmh span{width:88px; text-align:right; font-size:10.5px; font-weight:800; letter-spacing:.05em; color:#B0B8C1}
 .fl-head{display:flex; align-items:center; gap:12px; padding:2px 20px 6px}
-.fm .cell{cursor:pointer; border-radius:9px; padding:2px 4px; width:104px}
+.fm .cell{cursor:pointer; border-radius:9px; padding:2px 4px; width:88px}
 .fm .cell:hover{background:#F2F4F6}
 .fm input{border:0; background:#F2F4F6; border-radius:9px; padding:4px 8px; font:inherit; font-size:14px;
   font-weight:800; width:96px; outline:none; text-align:right; color:#191F28;
@@ -279,7 +279,12 @@
 /* 층별 임대 한 줄 편집(2026-09-04) — 상호명·면적·상태가 줄 위에 그대로 선다.
    펼침을 없앴다: 한 호실짜리 층이 대부분이라 펼침이 늘 한 겹의 헛수고였다.
    빈 칸에는 「—」 하나만 둔다. 칸 이름을 글자로 세우면 줄이 채우는 서식이 된다. */
+/* 한 줄 배치(2026-09-04)에서 금액 세 칸(3×104)이 편집 조각을 밀어내 면적이 두 줄로 꺾였다(09-05 지적).
+   금액 칸을 88 로 줄이고, 상호명만 늘어나고 면적·호실·상태는 제 폭만 갖는다. 글자는 안 꺾는다. */
 .orow .fedit{display:flex; align-items:center; gap:2px; flex:1; min-width:0}
+.orow .fedit .um-vp{flex:0 0 auto; min-width:0}
+.orow .fedit .um-vp.nm{flex:1 1 60px}
+.orow .fedit .um-vp b{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block}
 .orow .fedit .um-vp{text-align:left; overflow:hidden; border:0; background:none; padding:3px 6px;
   border-radius:7px; cursor:text; font:inherit}
 .orow .fedit .um-vp:hover{background:#EEF3FA}
