@@ -165,6 +165,9 @@ if step_ge load; then
   #    **화면·서류에는 안 나간다.** 활용 유형(building_score)과 검색 필터가 이 표를 읽으므로
   #    점수보다 먼저 와야 한다. buildings 를 다시 실으면 이것도 같이 다시 낸다.
   derive "building_calc (검색·분석 전용 용적률·건폐율)" scripts/build_building_calc.py
+  # 법정 건폐·용적을 건물마다 펴 둔다(2026-09-04). 검색이 use_zone 을 CASE 로 잘라
+  # 건물 상세와 다른 값을 내던 것을 고치려고 만들었다. 산식은 상세와 **같다**.
+  derive "building_legal (법정 건폐·용적)"       scripts/build_building_legal.py
 
   # ③ 임대 추정 — 층이 먼저, 건물 총액이 그 합
   #    산식은 v4(공시지가 주축). 계수는 scripts/rent_estimate/_rent_v4_coef.json 에 **박혀 있다** —

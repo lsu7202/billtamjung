@@ -208,6 +208,7 @@ async def main():
                          ("master.floor_rent_est", 500_000),
                          ("master.building_redevel", 50_000),
                          ("master.building_district_plan", 100_000),
+                         ("master.building_legal", 400_000),
                          ("master.road_segment", 30_000),
                          ("master.trade_area", 1_000),
                          ("master.sanggwon", 50)):

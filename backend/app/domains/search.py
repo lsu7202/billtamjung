@@ -584,21 +584,6 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
                   " WHEN '중로각지' THEN 69 WHEN '중로한면' THEN 54 WHEN '소로각지' THEN 51 WHEN '소로한면' THEN 32"
                   " WHEN '세로각지(가)' THEN 28 WHEN '세로한면(가)' THEN 17 WHEN '세로각지(불)' THEN 10"
                   " WHEN '세로한면(불)' THEN 3 WHEN '맹지' THEN 0 ELSE 0 END")
-    # 용도지역별 법정 건폐율/용적률(서울시 도시계획조례 표준) — 여유분 계산용.
-    legal_bcr = ("CASE b.use_zone WHEN '제1종전용주거지역' THEN 50 WHEN '제2종전용주거지역' THEN 40"
-                 " WHEN '제1종일반주거지역' THEN 60 WHEN '제2종일반주거지역' THEN 60 WHEN '제3종일반주거지역' THEN 50"
-                 " WHEN '일반주거지역' THEN 60 WHEN '주거지역' THEN 60"
-                 " WHEN '준주거지역' THEN 60 WHEN '중심상업지역' THEN 60 WHEN '일반상업지역' THEN 60"
-                 " WHEN '근린상업지역' THEN 60 WHEN '유통상업지역' THEN 60 WHEN '전용공업지역' THEN 60"
-                 " WHEN '일반공업지역' THEN 60 WHEN '준공업지역' THEN 60 WHEN '보전녹지지역' THEN 20"
-                 " WHEN '생산녹지지역' THEN 20 WHEN '자연녹지지역' THEN 20 ELSE NULL END")
-    legal_far = ("CASE b.use_zone WHEN '제1종전용주거지역' THEN 100 WHEN '제2종전용주거지역' THEN 120"
-                 " WHEN '제1종일반주거지역' THEN 150 WHEN '제2종일반주거지역' THEN 200 WHEN '제3종일반주거지역' THEN 250"
-                 " WHEN '일반주거지역' THEN 200 WHEN '주거지역' THEN 200"
-                 " WHEN '준주거지역' THEN 400 WHEN '중심상업지역' THEN 1000 WHEN '일반상업지역' THEN 800"
-                 " WHEN '근린상업지역' THEN 600 WHEN '유통상업지역' THEN 600 WHEN '전용공업지역' THEN 200"
-                 " WHEN '일반공업지역' THEN 200 WHEN '준공업지역' THEN 400 WHEN '보전녹지지역' THEN 80"
-                 " WHEN '생산녹지지역' THEN 100 WHEN '자연녹지지역' THEN 100 ELSE NULL END")
     station_score = ("CASE WHEN b.station_dist IS NULL THEN 0"
                      " WHEN GREATEST(0, b.station_dist-100) <= 10 THEN 100 WHEN GREATEST(0, b.station_dist-100) <= 80 THEN 90"
                      " WHEN GREATEST(0, b.station_dist-100) <= 160 THEN 85 WHEN GREATEST(0, b.station_dist-100) <= 240 THEN 78"
@@ -666,7 +651,10 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
                -- 화면엔 대장값(b.bcr·b.far)을 내고, 여유분 계산엔 계산값을 얹은 쪽을 쓴다.
                -- 여유분은 대장 전사가 아니라 우리 분석값이라 계약서로 넘어가지 않는다.
                COALESCE(b.bcr, bc.bcr_calc) AS bcr_any, COALESCE(b.far, bc.far_calc) AS far_any,
-               {legal_bcr} AS legal_bcr, {legal_far} AS legal_far,
+               -- 법정 건폐·용적은 **필지 원장**에서 온다(master.building_legal · 토지이음 산식 0153).
+               -- 2026-09-04 이전엔 여기서 use_zone 을 CASE 로 잘라 「일반상업지역이면 800%」로
+               -- 냈다. 같은 건물이 상세에서는 1,570%, 검색에서는 800% 였다 — 18,289동이 어긋났다.
+               bl.legal_bcr, bl.legal_far,
                {road_score} AS road_score, {station_score} AS station_score,
                {float_pop_case} AS float_pop_calc
         FROM master.buildings b
@@ -677,6 +665,7 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
         LEFT JOIN master.floor_est_total fet ON fet.building_pk = b.building_pk
         -- 유동인구 실측(0130) — 건물 좌표를 250m 격자로 접어 붙여 둔 표라 조인 한 번이다
         LEFT JOIN master.building_pop bp ON bp.building_pk = b.building_pk
+        LEFT JOIN master.building_legal bl ON bl.building_pk = b.building_pk
         LEFT JOIN est_drop ed ON ed.building_pk = b.building_pk
         -- 검색 전용 계산값(0143) — 필터만 읽는다. SELECT 에는 안 싣는다(화면=대장)
         LEFT JOIN master.building_calc bc ON bc.building_pk = b.building_pk
@@ -728,6 +717,10 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
                CASE WHEN p_prev > 0 THEN round((p_last - p_prev) / p_prev::numeric * 100, 2) END AS sale_pnl,
                float_pop_calc AS float_pop,
                legal_bcr, legal_far,
+               -- **여기 부호는 건물 상세와 반대다. 일부러 그렇다.**
+               -- 건물 상세는 「법정 대비」 = 현재 − 법정 을 낸다(넘었으면 +, 빨강).
+               -- 검색은 「얼마나 더 지을 수 있나」를 묻는 필터라 법정 − 현재 이고 0에서 끊는다.
+               -- 법정치는 이제 둘 다 같은 원장(building_legal)에서 온다 — 다른 것은 부호뿐이다.
                CASE WHEN legal_bcr IS NOT NULL AND bcr_any IS NOT NULL THEN GREATEST(0, legal_bcr - bcr_any) END AS bcr_slack,
                CASE WHEN legal_far IS NOT NULL AND far_any IS NOT NULL THEN GREATEST(0, legal_far - far_any) END AS far_slack
         FROM raw
