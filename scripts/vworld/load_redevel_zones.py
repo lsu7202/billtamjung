@@ -91,6 +91,10 @@ async def main():
             if not w:
                 continue
             name = (sr.record[i_rm] or sr.record[i_al] or "").strip() or None
+            # 원본 3건은 글자가 깨져 있다(「？몄?？ъ?鍮??吏?？援？」). 인코딩을 바꿔도 안 살아난다.
+            # **깨진 글자는 이름이 아니다** — 비워서 고시번호가 대신 서게 한다.
+            if name and any(c in name for c in "？�"):
+                name = None
             rows.append((label, name, str(sr.record[i_sgg]),
                          *_gosi(sr.record[i_mn], sr.record[i_nd]), w))
         await c.executemany(
