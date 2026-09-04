@@ -95,6 +95,15 @@ def land_trend_score(rate5_pct: float | None) -> int | None:
     return round(_clamp(rate5_pct / 40.0) * 100)             # ponytail: 40% 컷은 서울 분포로 캘리브레이션 예정
 
 
+def _ro(word: str) -> str:
+    """받침에 따라 「으로 / 로」. 정비구역＋으로 · 재정비촉진지구＋로."""
+    c = (word or "").strip()[-1:]
+    if not c or not ("\uac00" <= c <= "\ud7a3"):
+        return "으로"
+    jong = (ord(c) - 0xAC00) % 28
+    return "로" if jong in (0, 8) else "으로"      # 받침 없음·ㄹ 받침이면 「로」
+
+
 def future_value(far: float | None, legal_far: float | None, land_use: str | None,
                  cur_rent: float | None, mkt_rent: float | None,
                  land_rate5: float | None = None, redevel: dict | None = None) -> dict:
@@ -110,9 +119,14 @@ def future_value(far: float | None, legal_far: float | None, land_use: str | Non
     active = max(ups) if ups else None                   # 추가 여력(개발·임대 중 강한 쪽)
     label, reason = _future_type(land, active, dev, up)
     if redevel:                                          # 지정 구역은 유형·사유를 지정 사실로 상향
-        zone = f"{redevel.get('kind') or '정비구역'}" + (f"({redevel['name']})" if redevel.get("name") else "")
+        # 이름이 없으면 고시번호가 대신 온다(redevel_zone.label). 「(이름없음)」을 쓰지 않는다.
+        zone = redevel.get("name") or redevel.get("kind") or "정비구역"
+        d, yr = redevel.get("ntf_date"), redevel.get("gosi_year")
+        when = f"{d[:4]}년 {int(d[5:7])}월 " if isinstance(d, str) and len(d) >= 7 else (f"{yr}년 " if yr else "")
+        if when and when.split("년")[0] in zone:         # 이름이 고시번호면 연도가 이미 들어 있다
+            when = ""
         label = "상승 기대형"
-        reason = f"{zone}으로 지정되어 재건축·재개발 사업에 따른 개발 기대가 있습니다"
+        reason = f"{when}{zone}{_ro(zone)} 지정되어 재건축·재개발 사업에 따른 개발 기대가 있습니다"
     # 참고 지수: baseline(지가) 우세 blend — headline 아님(유형이 headline)
     parts = [(land, 0.5), (dev, 0.3), (up, 0.2)]
     avail = [(s, w) for s, w in parts if s is not None]

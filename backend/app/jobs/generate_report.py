@@ -461,8 +461,12 @@ async def _use_type(building_pk: str, b: dict) -> dict | None:
     result["_far"], result["_legal_far"] = _fnum(b.get("far_any")), _parse_far(lf)   # 미래가치 계산용
     result["_land_rate5"] = await _land_rate5(b)         # 지가 상승 추세(미래가치 3축)
     rz = await pool().fetchrow(                          # 정비구역·재정비촉진 지정 여부(F-21 개발여지)
-        "SELECT kind, name FROM master.building_redevel WHERE building_pk=$1 LIMIT 1", building_pk)
+        """SELECT kind, label AS name, gosi_year, gosi_no, ntf_date
+             FROM master.building_redevel WHERE building_pk=$1
+            ORDER BY ntf_date DESC NULLS LAST, gosi_year DESC NULLS LAST LIMIT 1""", building_pk)
     result["_redevel"] = dict(rz) if rz else None
+    if result["_redevel"] and result["_redevel"].get("ntf_date"):
+        result["_redevel"]["ntf_date"] = result["_redevel"]["ntf_date"].isoformat()  # 스냅샷이 json.dumps 로 나간다
     return result
 
 

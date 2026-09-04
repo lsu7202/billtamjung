@@ -152,6 +152,10 @@ if step_ge load; then
          "data/raw/서울시 역사마스터 정보.json"
   derive "building_redevel (정비구역·재정비)"    scripts/vworld/load_redevel_zones.py \
          "data/raw/LSMD_CONT_UD602_서울" gis
+  # 지구단위계획은 「포함 여부」가 아니라 **계획 이름**이 필요해서 따로 싣는다(2026-09-04).
+  # 필지 원장(KLIP)은 「지구단위계획구역 포함」까지만 말한다.
+  derive "district_plan (지구단위계획구역)"      scripts/vworld/load_district_plans.py \
+         "data/raw/C_UQ161" gis
   derive "land_adjust (지가변동률)"             "$RENT/build_land_adjust.py" \
          "data/raw/(연) 지역별 지가변동률.json"
   derive "sanggwon_rent_series (임대 시계열)"    "$RENT/build_series.py"

@@ -133,7 +133,7 @@ async def main() -> None:
                            sa.p_last_ym AS last_sale_ym,
                            CASE WHEN g5.price > 0
                                 THEN (b.gongsi_latest - g5.price) / g5.price::numeric * 100 END AS gongsi_up5,
-                           rd.name AS redevel
+                           rd.label AS redevel
                     FROM master.buildings b
                     LEFT JOIN master.building_calc bcx ON bcx.building_pk = b.building_pk
                     LEFT JOIN LATERAL (SELECT max(contract_ym) AS p_last_ym
@@ -142,7 +142,7 @@ async def main() -> None:
                     LEFT JOIN master.gongsi_series g5
                            ON g5.pnu = b.pnu AND g5.year = EXTRACT(YEAR FROM CURRENT_DATE)::int - 5
                     -- 한 건물이 정비구역 여러 건에 걸릴 수 있다 → 하나만(행 증식 방지)
-                    LEFT JOIN LATERAL (SELECT r.name FROM master.building_redevel r
+                    LEFT JOIN LATERAL (SELECT r.label FROM master.building_redevel r
                                         WHERE r.building_pk = b.building_pk LIMIT 1) rd ON TRUE
                     WHERE b.building_pk > $1
                     ORDER BY b.building_pk
