@@ -39,6 +39,14 @@
 .mo-top { display: flex; align-items: center; gap: 7px; padding: 9px 11px;
   border-bottom: 1px solid var(--line); flex: 0 0 auto; }
 .mo-top .sp { margin-left: auto; }
+/* 실거래 견주기 줄 — 총액·단가 · 분모 · 단위 · 거래 시기. 실거래가일 때만 선다. */
+.mo-real { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 7px 11px;
+  border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+.mo-real .yr { display: inline-flex; gap: 4px; margin-left: auto; }
+.mo-real .yr button { border: 0; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700;
+  padding: 4px 9px; border-radius: 999px; color: var(--ink-2); background: var(--surface-2); }
+.mo-real .yr button:hover { background: #E8EBEE; }
+.mo-real .yr button.on { background: var(--blue-bg); color: var(--blue); }
 .mo-lg { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700;
   color: var(--muted); white-space: nowrap; }
 .mo-lg b { width: 8px; height: 8px; border-radius: 50%; display: block; }

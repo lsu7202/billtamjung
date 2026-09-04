@@ -310,6 +310,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   return {
     pk, reportId, rq, sub, pv, b, loading, isError, rno, date, nonCommercial,
     fair, ask, rent, curRent, totalArea, landArea, totalP, avgPer, usedComps, comps, moreCount, avgPerNow,
+    avgPerLand,   // 대지 평단가(원). FairPrice 가 꺼내 쓰는데 여기서 안 내보내 undefined 였다
     gLatest, gTotal, gctx, nbhdGongsi, gmult, landPremium, compMin, compMax, floors,
     roiFair, rs, rFloors, rCurDep, perPyRent, upsidePct, nbhdRoi, topStrengths,
     ut, officeApt, fut, useZone, mainUse, grade, score, gradeCol, addr, shortAddr,

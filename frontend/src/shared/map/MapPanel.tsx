@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { loadNaver, PIN_COLORS } from "./naver";
-import { makeCanvasPinLayer, type CanvasLayer, type CanvasPin } from "./mapCanvasLayer";
+import { makeCanvasPinLayer, type CanvasLayer, type CanvasPin, type RealView } from "./mapCanvasLayer";
 import { meters, areaM2, geoToPaths, circleToGeoJSON, conePath } from "./geo";
 import { makeRuler, Ruler } from "./ruler";
 import { Icon, type IconName } from "../ui/Icon";
@@ -26,6 +26,9 @@ export interface MapPin {
   /** 순수 추정 수익률(추정임대 ÷ 추정가) — 실측 roi 와 섞지 않는다(0134) */
   roi_est?: number | null;
   land_area?: number | null;
+  total_area?: number | null;
+  /** 마지막 실거래 거래년월(YYYYMM) — 핀 아랫줄과 연도 거르기에 쓴다 */
+  last_sale_ym?: string | null;
   floors_above?: number | null;
   floors_below?: number | null;
 }
@@ -73,6 +76,7 @@ const fmtArea = (a: number) => `${a >= 10000 ? `${(a / 10000).toFixed(2)}ha` : `
 
 export function MapPanel({
   pins, onPick, onPolygon, polygons, polygonActive, selectedPk, selectedCol, onParcelClick, centerReq, priceMode = "fair",
+  realView,
 }: {
   pins: MapPin[];
   onPick: (pk: string) => void;
@@ -84,6 +88,7 @@ export function MapPanel({
   onParcelClick?: (building_pk: string | null, pnu: string) => void;  // 필지 클릭(부동산플래닛식)
   centerReq?: { lng: number; lat: number; zoom?: number } | null;  // 지도 중심 이동 요청(사이드바·지도위치 선택 시)
   priceMode?: "fair" | "real";               // 핀 태그 가격: 추정가/실거래가
+  realView?: RealView;                       // 실거래를 총액·단가 중 무엇으로 볼 것인가(기본 대지면적·평)
 }) {
   const divRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -140,6 +145,9 @@ export function MapPanel({
   }, [ready]);
   useEffect(() => { pinLayerRef.current?.setPins(pins as CanvasPin[]); }, [pins, ready]);
   useEffect(() => { pinLayerRef.current?.setPriceMode(priceMode); }, [priceMode, ready]);
+  useEffect(() => {
+    if (realView) pinLayerRef.current?.setRealView(realView);
+  }, [realView?.basis, realView?.unit, ready]);
   useEffect(() => { pinLayerRef.current?.setSelected(selectedPk ?? null); }, [selectedPk, ready]);
 
   // 선택 대상 좌표로 지도 이동. zoom을 주면 그 배율까지 확대한다.

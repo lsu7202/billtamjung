@@ -149,6 +149,10 @@ export function SearchPage() {
   const [q, setQ] = useState((saved.q as string) ?? "");
   const [active, setActive] = useState(-1);
   const [priceMode, setPriceMode] = useState<"fair" | "real">((saved.priceMode as "fair" | "real") ?? "fair");   // 핀 태그 가격
+  // 실거래를 지도에서 견주는 눈금(밸류맵식). **기본은 대지면적 · 평**이다 — 연면적이 아니다.
+  const [realBasis, setRealBasis] = useState<"total" | "land" | "bldg">((saved.realBasis as any) ?? "land");
+  const [realUnit, setRealUnit] = useState<"py" | "m2">((saved.realUnit as any) ?? "py");
+  const [saleYears, setSaleYears] = useState<number>((saved.saleYears as number) ?? 0);   // 0 = 전체
   // 그린 영역은 여러 개 쌓인다 — 예전엔 단일 객체라 새로 그리면 앞의 것이 사라졌다.
   // 서버로는 mergeGeo로 MultiPolygon 하나로 합쳐 보낸다(서버는 손댈 것이 없다).
   const [polygons, setPolygons] = useState<object[]>(
@@ -205,8 +209,8 @@ export function SearchPage() {
 
   // 조건 변경 시 스냅샷 저장(전환·새로고침 복원용)
   useEffect(() => {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ q, priceMode, polygons, sort, filters, fValues, fRegions, pages, hidden }));
-  }, [q, priceMode, polygons, sort, filters, fValues, fRegions, pages, hidden]);
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ q, priceMode, realBasis, realUnit, saleYears, polygons, sort, filters, fValues, fRegions, pages, hidden }));
+  }, [q, priceMode, realBasis, realUnit, saleYears, polygons, sort, filters, fValues, fRegions, pages, hidden]);
   const bjd = fRegions[0]?.bjd_code ?? "";                       // 단일지역(멀티는 백엔드 확장 예정)
   const filterCount = activeCount(fValues, fRegions);
   const resetPages = () => setPages({ mine: 1, normal: 1 });
@@ -247,6 +251,15 @@ export function SearchPage() {
   // 접어둔 것은 **여기서** 뺀다. 지도도 목록도 같은 목록을 보므로 한 곳에서 거른다.
   const hideSet = new Set(hidden);
   const mapPinList = (mapPins.data ?? []).filter((p) => !hideSet.has(p.building_pk));
+  // 거래 시기 거르기 — **목록에서 빼지 않는다.** 건물은 그대로 있고 견줄 실거래만 없는 것이라
+  // 값을 지워 회색 점으로 세운다. 목록에서 빼면 검색 결과가 지도 눈금 따라 흔들린다.
+  const ymCut = saleYears
+    ? (() => { const d = new Date(); d.setFullYear(d.getFullYear() - saleYears);
+               return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`; })()
+    : null;
+  const mapPinsShown = (priceMode === "real" && ymCut)
+    ? mapPinList.map((p) => (p.last_sale_ym && p.last_sale_ym >= ymCut ? p : { ...p, last_sale_price: null }))
+    : mapPinList;
   // 내 매물이 늘 먼저 선다 — 값순 안에서 담당 매물만 위로 올린다(2026-08-28 회귀 복구).
   const listPins = mineOnly ? mapPinList
     : [...mapPinList].sort((a, b) => Number(b.col === "mine") - Number(a.col === "mine"));
@@ -374,13 +387,14 @@ export function SearchPage() {
           <div className="map-canvas">
             {mapPins.isFetching && <LoadingOverlay label="불러오는 중" />}
             <MapPanel
-              pins={mapPinList}
+              pins={mapPinsShown}
               polygons={polygons}
               polygonActive={polygons.length > 0}
               selectedPk={picked?.building_pk ?? null}
               selectedCol={picked?.col ?? null}
               centerReq={centerReq}
               priceMode={priceMode}
+              realView={{ basis: realBasis, unit: realUnit }}
               onParcelClick={(pk) => { if (pk) selectBuilding(pk); }}
               onPick={(pk) => setPicked(mapPinList.find((p) => p.building_pk === pk) ?? null)}
               // 새 영역은 더한다(null = 전부 지우기). 여러 상권을 동시에 보는 게 현장 방식이다.
@@ -447,6 +461,29 @@ export function SearchPage() {
                 <span className="mo-lg"><b style={{ background: "var(--blue)" }} />내</span>
                 <span className="mo-lg"><b style={{ background: "var(--muted)" }} />일반</span>
               </div>
+
+              {/* 실거래 견주기 — 총액이냐 단가냐, 단가면 무엇으로 나누고 어느 단위로 낼 것이냐 */}
+              {priceMode === "real" && (
+                <div className="mo-real">
+                  <Segmented value={realBasis === "total" ? "total" : "unit"} size="sm"
+                    onChange={(v) => setRealBasis(v === "total" ? "total" : "land")}
+                    options={[{ value: "total", label: "총액" }, { value: "unit", label: "단가" }]} />
+                  {realBasis !== "total" && (
+                    <>
+                      <Segmented value={realBasis} onChange={setRealBasis} size="sm"
+                        options={[{ value: "land", label: "토지" }, { value: "bldg", label: "건물" }]} />
+                      <Segmented value={realUnit} onChange={setRealUnit} size="sm"
+                        options={[{ value: "py", label: "평" }, { value: "m2", label: "㎡" }]} />
+                    </>
+                  )}
+                  <span className="yr">
+                    {[[0, "전체"], [1, "1년"], [3, "3년"], [5, "5년"]].map(([v, t]) => (
+                      <button key={v as number} className={saleYears === v ? "on" : ""}
+                        onClick={() => setSaleYears(v as number)}>{t as string}</button>
+                    ))}
+                  </span>
+                </div>
+              )}
 
               {picked ? (
                 <div className="mo-body">

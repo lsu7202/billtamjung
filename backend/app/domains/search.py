@@ -796,7 +796,10 @@ async def pins(body: SearchIn, user: CurrentUser = Depends(current_user)):
     rows = await pool().fetch(
         base + f"""SELECT building_pk, addr, lng, lat, col, price, roi,
                          price_is_est, roi_est,   -- 추정 짝·실측 짝을 가르는 재료(0134)
-                         last_sale_price, sale_est
+                         last_sale_price, sale_est,
+                         -- 지도에서 실거래를 총액·단가로 견주는 데 쓴다(밸류맵식).
+                         -- 단가는 대지면적이 기본이고 연면적은 토글이라 둘 다 내려보낸다.
+                         last_sale_ym, land_area, total_area
                   FROM classified WHERE lng IS NOT NULL {outer_sql}
                   ORDER BY price DESC NULLS LAST, building_pk LIMIT 3000""",
         *args,

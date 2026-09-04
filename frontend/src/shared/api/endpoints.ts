@@ -104,6 +104,8 @@ export interface MapPinDTO {
   building_pk: string; addr: string; lng: number; lat: number;
   col: "ad" | "mine" | "normal"; price: number | null;
   roi: number | null; last_sale_price: number | null;
+  /** 지도에서 실거래를 총액·단가로 견주는 재료(밸류맵식). 단가 기본 분모는 대지면적이다 */
+  last_sale_ym?: string | null; land_area?: number | null; total_area?: number | null;
 }
 
 export const searchApi = {

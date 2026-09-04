@@ -6,12 +6,43 @@ import { PIN_COLORS, priceLabel } from "./naver";
 export interface CanvasPin {
   building_pk: string; addr?: string; lng: number; lat: number;
   col: "mine" | "normal"; price: number | null; last_sale_price?: number | null; sale_est?: number | null;
+  /** 실거래를 총액·단가로 견주는 재료. 단가 분모는 대지면적이 기본이다 */
+  last_sale_ym?: string | null; land_area?: number | null; total_area?: number | null;
 }
 export type PriceMode = "fair" | "real";   // 핀 태그 가격: 추정가 / 실거래가
+/** 실거래를 어떻게 볼 것인가 — 총액이냐 단가냐, 단가면 무엇으로 나누고 어느 단위로 낼 것이냐.
+ *  기본은 **대지면적 · 평**이다(연면적이 아니다). */
+export type RealView = { basis: "total" | "land" | "bldg"; unit: "py" | "m2" };
 type Member = { p: CanvasPin; cx: number; cy: number };
 type Item =
-  | { t: "pin"; cx: number; cy: number; p: CanvasPin }
+  | { t: "pin"; cx: number; cy: number; p: CanvasPin; box?: [number, number, number, number] }
   | { t: "cluster"; cx: number; cy: number; n: number; lat: number; lng: number; members: Member[] };
+
+const PY = 3.305785;      // 1평 = 3.305785㎡
+
+/** 단가 한 줄 — 억은 소수 둘째까지(평당 1.4억과 1.45억은 다른 물건이다), 그 아래는 만원. */
+function unitPrice(v: number): string {
+  if (v >= 1e8) return `${(v / 1e8).toFixed(2)}억`;
+  if (v >= 1e4) return `${Math.round(v / 1e4).toLocaleString()}만`;
+  return `${Math.round(v).toLocaleString()}원`;
+}
+
+/** 202403 → 24.03. 없으면 빈 줄(지어내지 않는다) */
+function ymLabel(ym?: string | null): string {
+  const t = String(ym ?? "");
+  return /^\d{6}$/.test(t) ? `${t.slice(2, 4)}.${t.slice(4)}` : "";
+}
+
+/** 핀에 세울 글자. 값이 없으면 null — 핀 대신 회색 점이 선다. */
+function realLabel(p: CanvasPin, v: RealView): { main: string; sub: string } | null {
+  const price = p.last_sale_price;
+  if (price == null) return null;
+  const sub = ymLabel(p.last_sale_ym);
+  if (v.basis === "total") return { main: priceLabel(price), sub };
+  const area = v.basis === "land" ? p.land_area : p.total_area;   // ㎡
+  if (!area || area <= 0) return null;                            // 분모가 없으면 단가를 못 낸다
+  return { main: unitPrice(v.unit === "py" ? (price * PY) / area : price / area), sub };
+}
 
 const CELL = 58;        // 클러스터 격자(px)
 const MARGIN = 160;     // 뷰포트 밖 여유(팬 시 가장자리 공백 완화). 캔버스 px = 컨테이너 px + MARGIN
@@ -21,6 +52,7 @@ export interface CanvasLayer {
   setPins(pins: CanvasPin[]): void;
   setSelected(pk: string | null): void;
   setPriceMode(mode: PriceMode): void;
+  setRealView(v: RealView): void;
   destroy(): void;
 }
 
@@ -28,6 +60,7 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
   let pins: CanvasPin[] = [];
   let selected: string | null = null;
   let mode: PriceMode = "fair";
+  let view: RealView = { basis: "land", unit: "py" };   // 밸류맵식 기본 — 대지면적 · 평
   let items: Item[] = [];
   let hoverIdx = -1;
   let raf = 0;
@@ -55,7 +88,8 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
     head.textContent = `이 지점 ${it.n}건 · 가까운 순`;
     pop.appendChild(head);
     for (const m of near) {
-      const pv = mode === "real" ? (m.p.last_sale_price ?? null) : (m.p.sale_est ?? m.p.price ?? null);
+      const lb = mode === "real" ? realLabel(m.p, view) : null;
+      const pv = mode === "real" ? null : (m.p.sale_est ?? m.p.price ?? null);
       const row = document.createElement("div");
       row.style.cssText = "padding:5px 8px;border-radius:6px;cursor:pointer;display:flex;gap:8px;align-items:center;justify-content:space-between;";
       row.onmouseenter = () => { row.style.background = "#f3f4f6"; };
@@ -65,7 +99,7 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
       a.textContent = (m.p.addr || m.p.building_pk).replace("서울특별시 ", "");
       const b = document.createElement("span");
       b.style.cssText = "flex:0 0 auto;color:#69748a;font-variant-numeric:tabular-nums;";
-      b.textContent = pv != null ? priceLabel(pv) : "—";
+      b.textContent = lb ? (lb.sub ? `${lb.main} · ${lb.sub}` : lb.main) : pv != null ? priceLabel(pv) : "—";
       row.appendChild(a); row.appendChild(b);
       row.onclick = () => { hidePop(); onPick(m.p.building_pk); };
       pop.appendChild(row);
@@ -132,14 +166,18 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
   }
 
   function drawItem(it: Item, hover: boolean) {
-    if (it.t === "cluster") drawCluster(it.cx, it.cy, it.n, hover);
-    else {
-      const sel = it.p.building_pk === selected;
-      // fair(추정가)=배치 sale_est(상업만 적재됨) 또는 팀 매매가 · 실거래=실제 거래가. 값 없으면 회색 점(주거·비대상).
-      const pv = mode === "real" ? (it.p.last_sale_price ?? null) : (it.p.sale_est ?? it.p.price ?? null);
-      if (pv == null) drawDot(it.cx, it.cy, hover, sel);
-      else drawPin(it.cx, it.cy, priceLabel(pv), PIN_COLORS[it.p.col], hover, sel);
+    if (it.t === "cluster") { drawCluster(it.cx, it.cy, it.n, hover); return; }
+    const sel = it.p.building_pk === selected;
+    // fair(추정가)=배치 sale_est(상업만 적재됨) 또는 팀 매매가 · 실거래=실제 거래가. 값 없으면 회색 점(주거·비대상).
+    if (mode === "real") {
+      const lb = realLabel(it.p, view);
+      if (!lb) { it.box = undefined; drawDot(it.cx, it.cy, hover, sel); return; }
+      it.box = drawPin(it.cx, it.cy, lb.main, PIN_COLORS[it.p.col], hover, sel, lb.sub);
+      return;
     }
+    const pv = it.p.sale_est ?? it.p.price ?? null;
+    if (pv == null) { it.box = undefined; drawDot(it.cx, it.cy, hover, sel); }
+    else it.box = drawPin(it.cx, it.cy, priceLabel(pv), PIN_COLORS[it.p.col], hover, sel);
   }
 
   // 추정가 산정 대상 아님(주거) · 값 없음 → 작은 회색 점(지도 정리 + 상업 매물 부각)
@@ -165,12 +203,16 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
     ctx.fillText(n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n), x, y);
   }
 
-  // 알약 태그 — 꼬리(좌하단)가 (x,y). 기존 DOM 마커 anchor(10,30)와 유사
-  function drawPin(x: number, y: number, text: string, color: string, hover: boolean, sel: boolean) {
-    const big = hover || sel, s = big ? 1.16 : 1;
+  /** 알약 태그 — 꼬리(좌하단)가 (x,y). 기존 DOM 마커 anchor(10,30)와 유사.
+   *  `sub` 를 주면 두 줄이 된다(값 위, 거래년월 아래). 그린 상자를 돌려줘 히트테스트가 그걸 쓴다. */
+  function drawPin(x: number, y: number, text: string, color: string, hover: boolean, sel: boolean,
+                   sub?: string): [number, number, number, number] {
+    const big = hover || sel, s = big ? 1.16 : 1, two = !!sub;
     ctx.font = `700 ${12 * s}px 'SF Mono',monospace`;
     const tw = ctx.measureText(text).width;
-    const padX = 10 * s, h = 22 * s, w = tw + padX * 2, r = 10 * s;
+    ctx.font = `600 ${10 * s}px 'SF Mono',monospace`;
+    const sw = two ? ctx.measureText(sub!).width : 0;
+    const padX = 10 * s, h = (two ? 33 : 22) * s, w = Math.max(tw, sw) + padX * 2, r = 10 * s;
     const left = x, top = y - h;
     ctx.save();
     ctx.shadowColor = "rgba(15,26,46,.35)"; ctx.shadowBlur = big ? 10 : 5; ctx.shadowOffsetY = big ? 4 : 2;
@@ -184,8 +226,16 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
     ctx.fillStyle = color; ctx.fill();
     if (sel) { ctx.shadowColor = "transparent"; ctx.lineWidth = 2.5; ctx.strokeStyle = "#fff"; ctx.stroke(); }
     ctx.restore();
-    ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(text, left + w / 2, top + h / 2);
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "#fff";
+    ctx.font = `700 ${12 * s}px 'SF Mono',monospace`;
+    ctx.fillText(text, left + w / 2, top + (two ? 12 * s : h / 2));
+    if (two) {
+      ctx.font = `600 ${10 * s}px 'SF Mono',monospace`;
+      ctx.fillStyle = "rgba(255,255,255,.82)";
+      ctx.fillText(sub!, left + w / 2, top + 24 * s);
+    }
+    return [left, top, w, h];
   }
 
   // 히트테스트 — e.offset(컨테이너 px) → 캔버스 px(+MARGIN)로 아이템과 비교
@@ -197,8 +247,11 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
         const r = 12 + Math.min(18, Math.log2(it.n + 1) * 5) + 5;
         const dx = mx - it.cx, dy = my - it.cy;
         if (dx * dx + dy * dy <= r * r) return i;
-      } else if (mx >= it.cx - 6 && mx <= it.cx + 98 && my >= it.cy - 26 && my <= it.cy + 6) {
-        return i;   // 알약 대략 박스(꼬리 좌하단 기준 오른쪽·위로)
+      } else if (it.box) {
+        const [bx, by, bw, bh] = it.box;   // 실제로 그린 알약 상자(두 줄이면 더 높다)
+        if (mx >= bx - 4 && mx <= bx + bw + 4 && my >= by - 4 && my <= by + bh + 4) return i;
+      } else if (mx >= it.cx - 7 && mx <= it.cx + 7 && my >= it.cy - 7 && my <= it.cy + 7) {
+        return i;   // 값이 없어 회색 점으로 선 핀
       }
     }
     return -1;
@@ -238,6 +291,7 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
     },
     setSelected(pk) { selected = pk; render(); },
     setPriceMode(m) { mode = m; render(); },
+    setRealView(v) { view = v; render(); },
     destroy() {
       if (raf) cancelAnimationFrame(raf);
       naver.maps.Event.removeListener(mv);
