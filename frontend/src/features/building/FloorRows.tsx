@@ -186,13 +186,9 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
           const n = parseFloat(v.replace(/[^\d.]/g, ""));
           put(dr, { contract_area: Number.isFinite(n) ? (unit === "py" ? n * P : n) : null });
         }} />
-      {/* 상태 — 미지정이면 아무것도 안 뜬다. 누르면 임대중 → 공실 → 미지정 으로 돈다 */}
-      <button className={`vac ${dr.r.is_vacant === true ? "on" : dr.r.is_vacant === false ? "in" : "off"}`}
-        title="임대중 · 공실 · 미지정"
-        onClick={(e) => {
-          e.stopPropagation();
-          put(dr, { is_vacant: dr.r.is_vacant == null ? false : dr.r.is_vacant === false ? true : null });
-        }}>{dr.r.is_vacant === true ? "공실" : dr.r.is_vacant === false ? "임대중" : ""}</button>
+        {/* 상태 — 미지정이어도 「—」로 자리를 보인다(2026-09-05: 버튼이 있는지도 모르겠다는 지적).
+            누르면 임대중·공실 칩 둘이 펼쳐지고, 고른 칩을 다시 누르면 미지정으로 돌아간다(줄 문법). */}
+        <Vac v={dr.r.is_vacant} onSave={(v) => put(dr, { is_vacant: v })} />
     </span>
   );
 
@@ -332,6 +328,24 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
 }
 
 /** 글자 한 칸 — 눌러서 그 자리에서 */
+/** 상태 칸 — 임대중(파랑) · 공실(빨강) · 미지정(「—」). 줄엔 현재 값만, 누르면 칩 둘이 펼쳐진다. */
+function Vac({ v, onSave }: { v: boolean | null | undefined; onSave: (v: boolean | null) => void }) {
+  const [open, setOpen] = useState(false);
+  if (open) return (
+    <span className="vacs" onMouseLeave={() => setOpen(false)}>
+      {([[false, "임대중", "in"], [true, "공실", "on"]] as const).map(([val, label, cls]) => (
+        <button key={label} className={`vac ${v === val ? cls : "pick"}`}
+          onClick={(e) => { e.stopPropagation(); onSave(v === val ? null : val); setOpen(false); }}>{label}</button>
+      ))}
+    </span>
+  );
+  return (
+    <button className={`vac ${v === true ? "on" : v === false ? "in" : "off"}`} title="임대중 · 공실 · 미지정"
+      onClick={(e) => { e.stopPropagation(); setOpen(true); }}>
+      {v === true ? "공실" : v === false ? "임대중" : "—"}</button>
+  );
+}
+
 function Txt({ v, w, onSave, cls }: { v: string; w: number; onSave: (v: string) => void; cls?: string }) {
   const [ed, setEd] = useState(false);
   const [t, setT] = useState("");

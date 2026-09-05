@@ -355,19 +355,17 @@ async def _nearby_rent_apply(building_pk: str, subject: dict, team_id: int) -> d
                 "per_deposit": statistics.mean(x["per_deposit"] for x in xs), "count": len(xs)}
            for fl, xs in by_floor.items()}
 
-    # 본매물 층별 = 마스터 대장(floor_outline+floor_rent_est) 기준, 팀 오버레이(app.floor_rents) 있으면 그 층 대체.
+    # 본매물 층별 = 마스터 추정(floor_outline+floor_rent_est) **만**.
+    # 예전엔 팀 줄(app.floor_rents)이 있는 층을 팀 값으로 갈아끼웠다(오버레이 우선). 그러면 층별 임대정보에서
+    # 상태 하나만 눌러도 임대료 0짜리 줄이 생기고, 그 층의 「추정」이 0으로 덮여 빈칸이 됐다
+    # (삼성동 78 1층 · 2026-09-05 지적). 이 카드는 「추정」 배지를 달고 있다 — 추정은 팀 입력에 흔들리지 않는다.
+    # 팀 실측은 층별 임대정보 카드가 따로 보여준다. 없앤 층(floor_hidden)만 뺀다 — 그 층이 없다는 것은 추정에도 사실이다.
     mrows = await pool().fetch(
         """SELECT fo.floor, sum(fo.floor_area)::float AS area,
                   sum(fre.rent_est)::float AS rent, sum(COALESCE(fre.deposit_est,0))::float AS deposit
            FROM master.floor_outline fo JOIN master.floor_rent_est fre USING (building_pk, seq)
            WHERE fo.building_pk=$1 AND fre.rent_est>0 GROUP BY fo.floor""", building_pk)
-    trows = await pool().fetch(
-        """SELECT floor, sum(contract_area)::float AS area, sum(rent)::float AS rent, sum(COALESCE(deposit,0))::float AS deposit
-           FROM app.floor_rents WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL AND is_vacant IS NOT TRUE
-           GROUP BY floor""", building_pk, team_id)
     sf: dict = {r["floor"]: {"area": r["area"] or 0.0, "rent": r["rent"] or 0, "deposit": r["deposit"] or 0} for r in mrows}
-    for r in trows:   # 팀 입력 층 = 대체(오버레이 우선)
-        sf[r["floor"]] = {"area": r["area"] or 0.0, "rent": r["rent"] or 0, "deposit": r["deposit"] or 0}
     # 팀이 없앤 층(0029)은 이 건물에 존재하지 않는 층 — 임대수익·주변시세 비교에서 뺀다.
     hidden = {r["floor"] for r in await pool().fetch(
         "SELECT floor FROM app.floor_hidden WHERE building_pk=$1 AND team_id=$2", building_pk, team_id)}

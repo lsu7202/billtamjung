@@ -297,3 +297,7 @@
 .orow .fedit .vac:hover{background:#EEF3FA}
 .orow .fedit .vac.on{background:#FDECEC; color:#F04452}
 .orow .fedit .vac.in{background:#EBF3FE; color:#3182F6}
+.orow .fedit .vac.off{color:#D0D6DC; font-weight:600}
+.orow .fedit .vacs{display:inline-flex; gap:3px}
+.orow .fedit .vac.pick{background:#F2F4F6; color:#6B7684}
+.orow .fedit .vac.pick:hover{background:#E5E8EB; color:#191F28}
