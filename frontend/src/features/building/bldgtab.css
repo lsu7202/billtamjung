@@ -22,13 +22,19 @@
 
 /* 층별 — 금액 세 칸 고정폭. 층끼리 자릿수가 맞아야 견줄 수 있다 */
 .fm{display:flex; align-items:baseline; flex:0 0 auto}
-.fm > *{width:88px; text-align:right; font-size:15px; font-weight:800; font-variant-numeric:tabular-nums;
+.fm > *{width:72px; text-align:right; font-size:15px; font-weight:800; font-variant-numeric:tabular-nums;
   color:#191F28}
 .fm .off{color:#C8CDD3; font-weight:600}
 .fmh{display:flex; align-items:baseline; flex:0 0 auto}
-.fmh span{width:88px; text-align:right; font-size:10.5px; font-weight:800; letter-spacing:.05em; color:#B0B8C1}
+.fmh span{width:72px; text-align:right; font-size:10.5px; font-weight:800; letter-spacing:.05em; color:#B0B8C1}
+/* 편집 열 머리 — 아래 줄(.fedit: 상호명 flex:1 · 면적 76 · 상태)과 같은 자리에 선다 */
+.fmh.fx{flex:1; min-width:0; gap:2px}
+.fmh.fx span{width:auto; text-align:left; padding-left:6px; white-space:nowrap; overflow:hidden}
+.fmh.fx .nm{flex:1; min-width:0}
+.fmh.fx .ar{width:66px; flex:0 0 auto}
+.fmh.fx .st{width:52px; flex:0 0 auto}
 .fl-head{display:flex; align-items:center; gap:12px; padding:2px 20px 6px}
-.fm .cell{cursor:pointer; border-radius:9px; padding:2px 4px; width:88px}
+.fm .cell{cursor:pointer; border-radius:9px; padding:2px 4px; width:72px}
 .fm .cell:hover{background:#F2F4F6}
 .fm input{border:0; background:#F2F4F6; border-radius:9px; padding:4px 8px; font:inherit; font-size:14px;
   font-weight:800; width:96px; outline:none; text-align:right; color:#191F28;

@@ -181,7 +181,7 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
       {showUnit && <Txt v={dr.r.unit_no ?? ""} w={54} onSave={(v) => put(dr, { unit_no: v })} />}
       <Txt v={dr.r.contract_area != null
         ? `${(unit === "py" ? dr.r.contract_area / P : dr.r.contract_area).toFixed(1)}${unit === "py" ? "평" : "㎡"}` : ""}
-        w={76} cls="ar"
+        w={66} cls="ar"
         onSave={(v) => {
           const n = parseFloat(v.replace(/[^\d.]/g, ""));
           put(dr, { contract_area: Number.isFinite(n) ? (unit === "py" ? n * P : n) : null });
@@ -230,9 +230,11 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
         )}
       </div>
 
-      {/* 라벨은 맨 위에 한 번만 — 칸마다 붙이면 열이 셋에서 여섯이 된다 */}
+      {/* 라벨은 맨 위에 한 번만. 편집 열(상호명·면적·임대상태)에도 머리를 단다 —
+          「—」만 늘어선 줄은 무엇을 적는 칸인지 알 수 없다(2026-09-05 지적: 상태 버튼이 있는지도 모르겠다). */}
       <div className="fl-head">
-        <span style={{ width: 96 }} /><span style={{ flex: 1 }} />
+        <span style={{ width: 96 }} />
+        <span className="fmh fx"><span className="nm">상호명</span><span className="ar">면적</span><span className="st">임대상태</span></span>
         <span className="fmh"><span>보증금</span><span>임대료</span><span>관리비</span></span>
         <span className="okpad" />
       </div>
