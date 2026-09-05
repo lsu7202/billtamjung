@@ -169,149 +169,103 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
 
   const areaTxt = (m2?: number | null) =>
     m2 == null ? null : `${(unit === "py" ? m2 / P : m2).toFixed(1)}${unit === "py" ? "평" : "㎡"}`;
-  const vLabel = (v?: boolean | null) => (v == null ? null : v ? "공실" : "임대중");
 
-  /** 한 줄 편집 — 상호명·호실·면적·상태가 줄 위에 그대로 선다(2026-09-04).
-   *  예전엔 줄을 눌러 펼쳐야 고칠 수 있었다. 한 호실짜리 층이 대부분이라 펼침이 늘 한 겹의 헛수고였다.
-   *  대장에서 온 줄은 호실이 비어 있다 — 대장은 호실을 안 준다. */
-  const editRow = (dr: DRow, showUnit: boolean) => (
-    <span className="fedit" onClick={(e) => e.stopPropagation()}>
-      {/* 상호명 — 이 줄의 주인공. 비면 글자가 없다(빈 칸에 낱말을 세우지 않는다) */}
-      <Txt v={dr.r.tenant_name ?? ""} w={150} cls="nm" onSave={(v) => put(dr, { tenant_name: v || null })} />
-      {showUnit && <Txt v={dr.r.unit_no ?? ""} w={54} onSave={(v) => put(dr, { unit_no: v })} />}
-      <Txt v={dr.r.contract_area != null
-        ? `${(unit === "py" ? dr.r.contract_area / P : dr.r.contract_area).toFixed(1)}${unit === "py" ? "평" : "㎡"}` : ""}
-        w={66} cls="ar"
-        onSave={(v) => {
-          const n = parseFloat(v.replace(/[^\d.]/g, ""));
-          put(dr, { contract_area: Number.isFinite(n) ? (unit === "py" ? n * P : n) : null });
-        }} />
-        {/* 상태 — 미지정이어도 「—」로 자리를 보인다(2026-09-05: 버튼이 있는지도 모르겠다는 지적).
-            누르면 임대중·공실 칩 둘이 펼쳐지고, 고른 칩을 다시 누르면 미지정으로 돌아간다(줄 문법). */}
-        <Vac v={dr.r.is_vacant} onSave={(v) => put(dr, { is_vacant: v })} />
-    </span>
+  // ── 안C: 왼쪽 층 목록, 오른쪽 고른 층 상세(2026-09-05 대표 선택) ─────────────
+  //  한 줄에 여섯 칸을 욱여넣으니 무엇이 열인지 눈이 세어야 했고, 상태 버튼은 있는지도 몰랐다.
+  //  목록은 훑는 곳(층·상호명·상태), 상세는 채우는 곳(면적·금액·호실). 한 번에 한 층만 고친다.
+  const [pick, setPick] = useState<string | null>(null);
+  const curFloor = pick && groups.has(pick) ? pick : (sorted[0]?.[0] ?? null);
+  const curRows = curFloor ? (groups.get(curFloor) ?? []) : [];
+  const floorArea = curRows.reduce((s, d) => s + (d.r.contract_area || 0), 0) || null;
+
+  /** 상세 한 칸 — 라벨과 값이 짝. 값은 눌러야 열린다(줄 문법) */
+  const field = (label: string, node: React.ReactNode) => (
+    <Fragment key={label}><span className="dk">{label}</span><span className="dv">{node}</span></Fragment>
   );
-
-  /** 곁말 — 묶음 줄(층 머리)에만 쓴다. 낱줄은 editRow 가 대신한다. */
-  const cap = (tenant?: string | null, floor?: string, unitNo?: string, m2?: number | null, vac?: boolean | null, n?: number) => (
-    <span className="cap">
-      {[
-        tenant || null,
-        n && n > 1 ? `${n}호실` : unitLabel(floor, unitNo) || null,
-        areaTxt(m2),
-        vLabel(vac),
-      ].filter(Boolean).map((t, i) => (
-        <span key={i}>{i > 0 && <span className="gap">·</span>}{i === 0 && tenant ? <b>{t}</b> : t}</span>
-      ))}
-    </span>
-  );
-
-  const moneyCells = (dr: DRow) => (
-    <span className="fm">
-      <Money v={dr.r.deposit} onSave={(w) => put(dr, { deposit: w })} />
-      <Money v={dr.r.rent} onSave={(w) => put(dr, { rent: w })} />
-      <Money v={dr.r.maintenance} onSave={(w) => put(dr, { maintenance: w })} />
-    </span>
-  );
-
 
   return (
     <div className="bg-card">
-      {/* 안내 문구는 건물정보에 한 번만 — 화면마다 되풀이하면 잔소리가 된다 */}
       <div className="bg-ttl">층별 임대정보
         {items.length > 0 && (
           <button className="rst"
             onClick={async () => {
               if (!confirm("호실 나눔·상호명·면적을 대장 구조로 되돌립니다. 넣은 금액도 함께 지워집니다. 계속할까요?")) return;
-              // 한 번에 지운다 — 행마다 DELETE 를 부르면 없앤 층 표시가 남아 「되돌렸는데 그대로」가 됐다
               await rentsApi.revert(pk);
               refresh();
             }}>대장 구조로</button>
         )}
       </div>
 
-      {/* 라벨은 맨 위에 한 번만. 편집 열(상호명·면적·임대상태)에도 머리를 단다 —
-          「—」만 늘어선 줄은 무엇을 적는 칸인지 알 수 없다(2026-09-05 지적: 상태 버튼이 있는지도 모르겠다). */}
-      <div className="fl-head">
-        <span style={{ width: 96 }} />
-        <span className="fmh fx"><span className="nm">상호명</span><span className="ar">면적</span><span className="st">임대상태</span></span>
-        <span className="fmh"><span>보증금</span><span>임대료</span><span>관리비</span></span>
-        <span className="okpad" />
-      </div>
-
-      <div style={{ padding: "0 6px 6px" }}>
-        {shown.map(([floor, rows]) => {
-          const one = rows.length === 1;
-          const sum = (k: "deposit" | "rent" | "maintenance") => rows.reduce((s, d) => s + (d.r[k] || 0), 0);
-          const uses = [...new Set(rows.map((d) => d.r.tenant_name).filter(Boolean))].join(" · ");
-          const areaSum = rows.reduce((s, d) => s + (d.r.contract_area || 0), 0) || null;
-          if (one) {
-            const dr = rows[0];
+      <div className="fl2">
+        {/* 왼쪽 — 훑는 곳. 층·상호명·임대상태만. 금액은 오른쪽에서 본다 */}
+        <div className="fl2-l">
+          <div className="fl2-lh"><span>층</span><span>상호명</span><span>임대상태</span></div>
+          {shown.map(([floor, rows]) => {
+            const names = [...new Set(rows.map((d) => d.r.tenant_name).filter(Boolean))].join(" · ");
+            const vac = rows.length === 1 ? rows[0].r.is_vacant
+              : rows.some((d) => d.r.is_vacant === true) ? true
+              : rows.every((d) => d.r.is_vacant === false) ? false : null;
             return (
-              <div key={floor} className="eitem">
-                <div className="orow has">
-                  <span className="who"><span className="fold" />{floor}</span>
-                  {editRow(dr, false)}
-                  {moneyCells(dr)}
-                  <span className="okpad">
-                    <span className="act">
-                      <button className="mini" title="이 층에 호실 더하기"
-                        onClick={(e) => { e.stopPropagation(); addUnit(floor); }}>＋</button>
-                    </span>
-                  </span>
-                </div>
-              </div>
+              <button key={floor} className={`fl2-i ${floor === curFloor ? "on" : ""}`} onClick={() => setPick(floor)}>
+                <b>{floor}</b>
+                <span className="nm">{names || (rows.length > 1 ? `${rows.length}호실` : <i className="off">—</i>)}</span>
+                <span className={`vac ${vac === true ? "on" : vac === false ? "in" : "off"}`}>
+                  {vac === true ? "공실" : vac === false ? "임대중" : "—"}</span>
+              </button>
             );
-          }
-          return (
-            <Fragment key={floor}>
-              {/* 접기를 없앴다(2026-09-04) — 호실이 여럿인 층도 항상 펴져 있다.
-                  접어 두면 몇 호실인지 보려고 매번 펴야 했고, 접힌 층에는 ＋ 호실도 안 보였다. */}
-              <div className="orow has grp">
-                <span className="who"><span className="fold" />{floor}</span>
-                {cap(uses, floor, undefined, areaSum, null, rows.length)}
-                <span className="fm">
-                  <span>{eokMan(sum("deposit")) ?? "—"}</span>
-                  <span>{eokMan(sum("rent")) ?? "—"}</span>
-                  <span>{eokMan(sum("maintenance")) ?? "—"}</span>
-                </span>
-                <span className="okpad" />
+          })}
+          {sorted.length > CAP && (
+            <button className="bg-more" onClick={() => setAll((v) => !v)}>
+              {all ? "접기" : `더보기 (${sorted.length - CAP}개 층)`}</button>
+          )}
+          <NewFloor pk={pk} refresh={refresh} onAdded={setPick} />
+        </div>
+
+        {/* 오른쪽 — 채우는 곳. 고른 층 하나만. 상태 칩 둘은 늘 보인다 */}
+        <div className="fl2-r">
+          {curFloor && (
+            <>
+              <div className="fl2-rh"><b>{curFloor}</b>
+                {floorArea != null && <span>{areaTxt(floorArea)}</span>}
+                {curRows.length > 1 && <span>{curRows.length}호실</span>}
               </div>
-              {rows.map((dr) => {
-                return (
-                  <div key={dr.key} className="eitem">
-                    <div className="orow unit has">
-                      <span className="who">{unitLabel(dr.r.floor, dr.r.unit_no) || ""}</span>
-                      {editRow(dr, true)}
-                      {moneyCells(dr)}
-                      <span className="okpad">
-                        {/* 호실은 팀이 나눈 것이라 지울 수 있다. 마지막 하나는 못 지운다 */}
-                        {rows.length > 1 && dr.r.id != null && (
-                          <span className="act">
-                            <button className="mini bad" title="이 호실 지움"
-                              onClick={(e) => { e.stopPropagation(); delUnit(dr); }}>
-                              <Icon name="trash" size={12} /></button>
-                          </span>
-                        )}
-                      </span>
+              {curRows.map((dr, i) => (
+                <div className="fl2-u" key={dr.key}>
+                  {curRows.length > 1 && (
+                    <div className="fl2-uh">
+                      <b>{unitLabel(dr.r.floor, dr.r.unit_no) || `${i + 1}번째`}</b>
+                      {dr.r.id != null && (
+                        <button className="mini bad" title="이 호실 지움" onClick={() => delUnit(dr)}>
+                          <Icon name="trash" size={12} /></button>
+                      )}
                     </div>
+                  )}
+                  <div className="fl2-g">
+                    {field("상호명", <Txt v={dr.r.tenant_name ?? ""} w={220} cls="nm" onSave={(v) => put(dr, { tenant_name: v || null })} />)}
+                    {curRows.length > 1 && field("호실", <Txt v={dr.r.unit_no ?? ""} w={90} onSave={(v) => put(dr, { unit_no: v })} />)}
+                    {field("면적", <Txt v={areaTxt(dr.r.contract_area) ?? ""} w={110}
+                      onSave={(v) => { const n = parseFloat(v.replace(/[^\d.]/g, ""));
+                        put(dr, { contract_area: Number.isFinite(n) ? (unit === "py" ? n * P : n) : null }); }} />)}
+                    {/* 임대상태 — 칩 둘이 늘 보인다. 고른 칩을 다시 누르면 미지정 */}
+                    {field("임대상태", (
+                      <span className="vacs">
+                        {([[false, "임대중", "in"], [true, "공실", "on"]] as const).map(([val, label, cls]) => (
+                          <button key={label} className={`vac ${dr.r.is_vacant === val ? cls : "pick"}`}
+                            onClick={() => put(dr, { is_vacant: dr.r.is_vacant === val ? null : val })}>{label}</button>
+                        ))}
+                      </span>
+                    ))}
+                    {field("보증금", <Money v={dr.r.deposit} onSave={(w) => put(dr, { deposit: w })} />)}
+                    {field("임대료", <Money v={dr.r.rent} onSave={(w) => put(dr, { rent: w })} />)}
+                    {field("관리비", <Money v={dr.r.maintenance} onSave={(w) => put(dr, { maintenance: w })} />)}
                   </div>
-                );
-              })}
-              <button className="addu" onClick={(e) => { e.stopPropagation(); addUnit(floor); }}>＋ 호실</button>
-            </Fragment>
-          );
-        })}
-
-        {/* 새 층 — 상시 버튼을 두면 눈에 걸린다. 판에 올렸을 때만 흐리게 뜬다 */}
-        <NewFloor pk={pk} refresh={refresh} />
+                </div>
+              ))}
+              <button className="addu" onClick={() => addUnit(curFloor)}>＋ 호실 나누기</button>
+            </>
+          )}
+        </div>
       </div>
-
-      {sorted.length > CAP && (
-        <button className="bg-more" onClick={() => setAll((v) => !v)}>
-          {all ? "접기" : `더보기 (${sorted.length - CAP}개 층)`}
-        </button>
-      )}
 
       {total && items.length > 0 && (
         <div className="fl-sum">
@@ -330,24 +284,6 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
 }
 
 /** 글자 한 칸 — 눌러서 그 자리에서 */
-/** 상태 칸 — 임대중(파랑) · 공실(빨강) · 미지정(「—」). 줄엔 현재 값만, 누르면 칩 둘이 펼쳐진다. */
-function Vac({ v, onSave }: { v: boolean | null | undefined; onSave: (v: boolean | null) => void }) {
-  const [open, setOpen] = useState(false);
-  if (open) return (
-    <span className="vacs" onMouseLeave={() => setOpen(false)}>
-      {([[false, "임대중", "in"], [true, "공실", "on"]] as const).map(([val, label, cls]) => (
-        <button key={label} className={`vac ${v === val ? cls : "pick"}`}
-          onClick={(e) => { e.stopPropagation(); onSave(v === val ? null : val); setOpen(false); }}>{label}</button>
-      ))}
-    </span>
-  );
-  return (
-    <button className={`vac ${v === true ? "on" : v === false ? "in" : "off"}`} title="임대중 · 공실 · 미지정"
-      onClick={(e) => { e.stopPropagation(); setOpen(true); }}>
-      {v === true ? "공실" : v === false ? "임대중" : "—"}</button>
-  );
-}
-
 function Txt({ v, w, onSave, cls }: { v: string; w: number; onSave: (v: string) => void; cls?: string }) {
   const [ed, setEd] = useState(false);
   const [t, setT] = useState("");
@@ -365,28 +301,26 @@ function Txt({ v, w, onSave, cls }: { v: string; w: number; onSave: (v: string) 
   );
 }
 
-/** ＋ 층 — 층 번호를 치면 그 층이 선다 */
-function NewFloor({ pk, refresh }: { pk: string; refresh: () => void }) {
+/** ＋ 층 — 층 번호를 치면 그 층이 서고, 그 층이 바로 골라진다.
+ *  왼쪽 목록의 마지막 줄이라 금액 칸을 그리지 않는다(금액은 오른쪽 상세에서 본다). */
+function NewFloor({ pk, refresh, onAdded }: { pk: string; refresh: () => void; onAdded?: (f: string) => void }) {
   const [ed, setEd] = useState(false);
   const [t, setT] = useState("");
-  return (
-    <div className="orow newrow" onClick={() => setEd(true)}>
-      <span className="who"><span className="fold" />{ed ? (
-        <input className="um-in" autoFocus value={t} style={{ width: 64, padding: "4px 9px", fontSize: 14 }}
-          placeholder="3F"
-          onChange={(e) => setT(e.target.value)}
-          onBlur={async () => {
-            setEd(false);
-            const f = t.trim(); setT("");
-            if (!f) return;
-            await rentsApi.upsert(pk, { floor: f, unit_no: "1", deposit: 0, rent: 0, maintenance: 0, is_vacant: null } as FloorRent);
-            refresh();
-          }}
-          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setT(""); setEd(false); } }} />
-      ) : "＋ 층"}</span>
-      <span className="cap" />
-      <span className="fm"><span className="off">—</span><span className="off">—</span><span className="off">—</span></span>
-      <span className="okpad" />
+  if (ed) return (
+    <div className="fl2-i new">
+      <input className="um-in" autoFocus value={t} style={{ width: 78, padding: "4px 9px", fontSize: 14 }}
+        placeholder="3F"
+        onChange={(e) => setT(e.target.value)}
+        onBlur={async () => {
+          setEd(false);
+          const f = t.trim(); setT("");
+          if (!f) return;
+          await rentsApi.upsert(pk, { floor: f, unit_no: "1", deposit: 0, rent: 0, maintenance: 0, is_vacant: null } as FloorRent);
+          onAdded?.(f);
+          refresh();
+        }}
+        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setT(""); setEd(false); } }} />
     </div>
   );
+  return <button className="fl2-i new" onClick={() => setEd(true)}>＋ 층</button>;
 }
