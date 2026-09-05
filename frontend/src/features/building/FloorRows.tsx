@@ -18,7 +18,9 @@ import { Icon } from "../../shared/ui/Icon";
  */
 
 const P = 3.305785;
-const CAP = 5;   // 처음엔 다섯 층. 나머지는 눌러서 편다
+// 접기·더보기를 없앴다(2026-09-05). 층은 스무 개가 넘는 건물이 흔한데 다섯만 보이고
+// 「더보기」를 눌러야 나머지가 섰다 — 층끼리 견주려고 보는 화면에서 그 한 번이 늘 헛수고였다.
+// 이제 전부 그리고 목록이 스크롤한다.
 
 /** 서명층수 — 같은 층인지 가르는 데만 쓴다(정렬은 frank).
  *  **옥탑은 따로 센다**(2026-09-04). 숫자만 뽑으면 「옥탑1층」이 「1층」과 같은 값이 되어
@@ -85,7 +87,6 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
   pk: string; items: FloorRent[]; total?: Record<string, number>;
   unit: "py" | "m2"; refresh: () => void;
 }) {
-  const [all, setAll] = useState(false);
   const [busy, setBusy] = useState(false);
   const outline = useQuery({ queryKey: ["floor-outline", pk], queryFn: () => rentsApi.outline(pk) });
 
@@ -165,7 +166,6 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
   const groups = new Map<string, DRow[]>();
   allRows.forEach((dr) => { const f = dr.r.floor || "—"; (groups.get(f) ?? groups.set(f, []).get(f)!).push(dr); });
   const sorted = [...groups.entries()].sort((a, b) => frank(a[0]) - frank(b[0]));
-  const shown = all ? sorted : sorted.slice(0, CAP);
 
   const areaTxt = (m2?: number | null) =>
     m2 == null ? null : `${(unit === "py" ? m2 / P : m2).toFixed(1)}${unit === "py" ? "평" : "㎡"}`;
@@ -200,7 +200,7 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
         {/* 왼쪽 — 훑는 곳. 층·상호명·임대상태만. 금액은 오른쪽에서 본다 */}
         <div className="fl2-l">
           <div className="fl2-lh"><span>층</span><span>상호명</span><span>임대상태</span></div>
-          {shown.map(([floor, rows]) => {
+          {sorted.map(([floor, rows]) => {
             const names = [...new Set(rows.map((d) => d.r.tenant_name).filter(Boolean))].join(" · ");
             const vac = rows.length === 1 ? rows[0].r.is_vacant
               : rows.some((d) => d.r.is_vacant === true) ? true
@@ -214,10 +214,6 @@ export function FloorRows({ pk, items, total, unit, refresh }: {
               </button>
             );
           })}
-          {sorted.length > CAP && (
-            <button className="bg-more" onClick={() => setAll((v) => !v)}>
-              {all ? "접기" : `더보기 (${sorted.length - CAP}개 층)`}</button>
-          )}
           <NewFloor pk={pk} refresh={refresh} onAdded={setPick} />
         </div>
 
