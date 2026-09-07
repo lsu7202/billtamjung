@@ -207,13 +207,13 @@
 .cd-p.owner{background:#F2F4F6 !important; color:#4E5968 !important; border-radius:8px; font-weight:700}
 .cd-p.guest{background:#F2F4F6 !important; color:#8B95A1 !important; border-radius:8px}
 .gm-seg button.on.c-계약, .gm-seg button.on.c-중도금, .gm-seg button.on.c-잔금,
-.gm-seg button.on.c-가계약, .gm-seg button.on.c-브리핑, .gm-seg button.on.c-일반{
+.gm-seg button.on.c-계약금일부, .gm-seg button.on.c-브리핑, .gm-seg button.on.c-일반{
   background:#EBF4FF !important; color:#3182F6 !important}
-/* 가계약도 캘린더에서 연파랑 — 계약만 찬 파랑이다 */
-.cal-ev.c-가계약{background:#EBF4FF !important}
-.cal-ev.c-가계약 b{color:#3182F6 !important}
-.cal-ev.c-가계약 .hm{color:#3182F6 !important; opacity:.7}
-.cd-item.c-가계약 .cd-title{color:#3182F6 !important}
+/* 계약금 일부도 캘린더에서 연파랑 — 계약만 찬 파랑이다(옛 「가계약」, 0158) */
+.cal-ev.c-계약금일부{background:#EBF4FF !important}
+.cal-ev.c-계약금일부 b{color:#3182F6 !important}
+.cal-ev.c-계약금일부 .hm{color:#3182F6 !important; opacity:.7}
+.cd-item.c-계약금일부 .cd-title{color:#3182F6 !important}
 /* 매물 고르기 목록 — 검색 전에도 최근 순으로 뜬다 */
 .gm-hits.wide{max-height:250px; overflow-y:auto; min-width:230px}
 

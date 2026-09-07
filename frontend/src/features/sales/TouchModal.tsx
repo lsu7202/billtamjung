@@ -188,7 +188,7 @@ export function TouchModal({ pk, addr, lastOn, touched, callResult,
             {(
               <div className="mm-stop">
                 <div className="gm-sep">정지 — 지금은 못 간다</div>
-                <StopFields stage="touch" full d={sd} onChange={setSd} />
+                <StopFields stage="touch" d={sd} onChange={setSd} />
               </div>
             )}
           </div>

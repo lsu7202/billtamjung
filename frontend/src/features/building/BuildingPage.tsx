@@ -1,5 +1,5 @@
 import { Loading } from "../../shared/ui/Spinner";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -15,6 +15,9 @@ import { BriefingModal } from "./BriefingModal";
 import { ParcelBlock, GongsiCard } from "./ParcelBlock";
 import { Toc } from "./Toc";
 import { LocationPanel } from "./LocationPanel";
+import { areaEventsQuery } from "./AreaEvents";
+import { eventIcon } from "../../shared/map/eventIcon";
+import { useAreaPick } from "../../shared/store/areaPick";
 import { RentPanel } from "./RentPanel";
 import { useFairPrice } from "./FairPrice";
 import { LandScene } from "./LandScene";
@@ -47,6 +50,7 @@ export function BuildingPage() {
   const { pk = "" } = useParams();
   const qc = useQueryClient();
   const [scope, setScope] = useState<Scope>("bldg");
+  const [selParcel, setSelParcel] = useState<unknown>(null);   // 토지정보에서 고른 필지 폴리곤 — 지도가 따라간다
   // 면적 단위는 사람의 취향이라 화면마다 두지 않고 앱 전체가 같은 값을 본다(useUnit)
   const { unit, setUnit } = useUnit();
   const [marketArea, setMarketArea] = useState<MarketArea>({ kind: "circle", radius_m: 500 });   // 주변상권(지도 그리기)
@@ -81,6 +85,17 @@ export function BuildingPage() {
       .catch(() => {});
   };
   const rents = useQuery({ queryKey: ["rents", pk], queryFn: () => rentsApi.list(pk) });
+  // 주변 소식 → 사이드바 지도 아이콘. 목록(입지 탭)과 같은 조회라 react-query 가 한 번만 받는다
+  const areaEv = useQuery(areaEventsQuery(pk));
+  const evYears = useAreaPick((s) => s.years);
+  const evPins = useMemo(() => {
+    const cut = evYears ? new Date().getFullYear() - evYears : 0;
+    return (areaEv.data?.items ?? [])
+      .filter((e) => e.lng != null && e.lat != null)
+      // 연도를 모르는 것은 거르지 않는다 — 목록과 같은 규칙
+      .filter((e) => !cut || ((e.on_date ? +e.on_date.slice(0, 4) : e.on_year) ?? 9999) >= cut)
+      .map((e) => ({ id: e.id, lng: e.lng!, lat: e.lat!, name: e.name ?? "", source_url: e.source_url, ...eventIcon(e) }));
+  }, [areaEv.data, evYears]);
   const series = useQuery({ queryKey: ["series", pk], queryFn: () => seriesApi.get(pk) });
   const listing = useQuery({ queryKey: ["listing", pk], queryFn: () => listingsApi.get(pk) });
 
@@ -270,7 +285,7 @@ export function BuildingPage() {
           {/* 임대 — 실측(팀 입력)과 추정을 한 자리에. 「우리 2,391만 / 주변 2,508만」은
               두 값이 나란히 서야 읽히는 문장이라 탭을 가르면 아무도 견주지 않는다 */}
           {show("rent") && (
-            <RentPanel pk={pk} unit={unit} items={rents.data?.items ?? []} total={total}
+            <RentPanel pk={pk} unit={unit} items={rents.data?.items ?? []} total={total} addr={b.road_addr || b.addr}
               refresh={() => { qc.invalidateQueries({ queryKey: ["rents", pk] }); qc.invalidateQueries({ queryKey: ["nearby"] }); }} />
           )}
 
@@ -328,7 +343,7 @@ export function BuildingPage() {
                 <TextRow label="주차" value={b.parking ?? ""} unit="대" cur={b.parking} validate={vInt}
                   {...ovState("parking", bMaster.parking != null ? `${bMaster.parking}대` : null)} />
                 <TextRow label="엘리베이터" value={b.elevator ?? ""} unit="대" cur={b.elevator} validate={vInt}
-                  ref_={b.elevator == null && ref.elevator_ext != null ? `승강기공단 ${ref.elevator_ext}대` : null}
+                  ref_={ref.elevator_ext != null ? `승강기공단 ${ref.elevator_ext}대` : null}   /* 대장이 있어도 늘 옆에(2026-09-07 대표) */
                   {...ovState("elevator", bMaster.elevator != null ? `${bMaster.elevator}대` : null)} />
               </div>
                 </div>
@@ -337,7 +352,8 @@ export function BuildingPage() {
 
           {/* 토지정보 · 규제 · 공시지가 = 필지 셀렉터(§3.6 · 다필지·규제 2레벨) — 풀폭 */}
           <div id="bt-land"><ParcelBlock pk={pk} useZoneMix={b.use_zone_mix} unit={unit}
-            bcr={b.bcr != null ? Number(b.bcr) : null} far={b.far != null ? Number(b.far) : null} /></div>
+            bcr={b.bcr != null ? Number(b.bcr) : null} far={b.far != null ? Number(b.far) : null}
+            onSelect={(p) => setSelParcel(p?.geom ?? null)} /></div>
 
           {/* 공시지가 = 건물·토지 탭(사실) */}
           <div id="bt-gongsi">
@@ -364,6 +380,7 @@ export function BuildingPage() {
               comp={compFilter} onComp={saveComp} onComps={setComps}
               mine={series.data?.real ?? []}
               totalArea={b.total_area != null ? Number(b.total_area) : null}
+              landArea={b.land_area != null ? Number(b.land_area) : null}
               saleEst={b.sale_est != null ? Number(b.sale_est) : null} />
           )}
 
@@ -375,7 +392,8 @@ export function BuildingPage() {
         {/* 우측 — 지도가 위, 그 아래 거래 사이드바. 둘 다 따라 붙는다(sticky) */}
         <div className="bt-side">
           {typeof b.lng === "number" && typeof b.lat === "number" && (
-            <PhotoPanel lng={b.lng} lat={b.lat} pk={pk} area={marketArea} onArea={saveArea} comps={comps} />
+            <PhotoPanel lng={b.lng} lat={b.lat} pk={pk} area={marketArea} onArea={saveArea} comps={comps} events={evPins}
+              parcelGeom={selParcel} />
           )}
           <Sidebar pk={pk} />
         </div>
@@ -392,6 +410,10 @@ export function BuildingPage() {
           onClick={() => { setBriefOpen(true); setGenState(null); }}>브리핑 자료</button>
         <button className="lnk dim2" style={{ marginLeft: 6, fontSize: 12.5 }} onClick={async () => {
           if (confirm("팀 오버레이 전체를 마스터 원본으로 되돌립니다. 계속할까요?")) {
+            // 층별 임대도 같이 되돌린다 — 가이드가 「전부는 화면 하단 전체 되돌리기」라고 안내하는데
+            // 여기는 건물 덮어쓰기만 지우고 있었다(2026-09-07 대표: 「되돌리기가 또 끊겼다」). 머리의 것과 같은 API
+            await rentsApi.revert(pk);
+            rents.refetch();
             const r = await overlaysApi.revertAll(pk);
             alert(`${r.reverted}개 수정값을 되돌렸습니다`);
             qc.invalidateQueries({ queryKey: ["building", pk] });

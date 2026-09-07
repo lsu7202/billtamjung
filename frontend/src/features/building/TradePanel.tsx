@@ -61,11 +61,13 @@ function EokCell({ v, ph, onSave }: { v: number | null; ph: string; onSave: (won
   );
 }
 
-export function TradePanel({ pk, lng, lat, area, comp, onComp, onComps, mine, totalArea, saleEst }: {
+export function TradePanel({ pk, lng, lat, area, comp, onComp, onComps, mine, totalArea, landArea, saleEst }: {
   pk: string; lng: number; lat: number; area: MarketArea;
   comp: CompFilter; onComp: (c: CompFilter) => void; onComps?: (pts: CompPoint[]) => void;
   /** 이 건물 실거래(마스터 + 팀 오버레이) — 총액이라 평당으로 환산해 얹는다 */
   mine: SeriesPt[]; totalArea?: number | null;
+  /** 대지면적(㎡) — 대지 평당을 같이 보여 주려고 받는다(2026-09-05) */
+  landArea?: number | null;
   /** 빌탐정 추정가(배치) — 비교 막대의 셋째 줄 */
   saleEst?: number | null;
 }) {
@@ -89,6 +91,7 @@ export function TradePanel({ pk, lng, lat, area, comp, onComp, onComps, mine, to
   useEffect(() => { onComps?.(points); }, [points, onComps]);
 
   const py = totalArea ? totalArea / P : null;
+  const landPy = landArea ? landArea / P : null;
   // 이 건물 거래 — 총액을 연면적 평당으로 환산해야 주변과 같은 자로 잰다
   const mineP: SalePt[] = py
     ? mine.map((m) => ({ x: m.x.includes("/") ? m.x : `${m.x}/06`, y: m.y / py, addr: "이 건물", price: m.y, mine: true, pk }))
@@ -147,9 +150,12 @@ export function TradePanel({ pk, lng, lat, area, comp, onComp, onComps, mine, to
         이 건물 거래가 없으면(서울의 85.7%) 막대가 통째로 사라져 화면이 두 얼굴이 됐다. */}
     <div id="tr-sum">
       <TradeCompare
-        near={{ price: medPrice, per: med }}
-        mine={{ price: lastMine?.price ?? null, per: lastMine?.y ?? null }}
-        est={{ price: saleEst ?? null, per: saleEst && py ? saleEst / py : null }} />
+        near={{ price: medPrice, per: med,
+                perLand: medPrice && landPy ? medPrice / landPy : null }}
+        mine={{ price: lastMine?.price ?? null, per: lastMine?.y ?? null,
+                perLand: lastMine?.price && landPy ? lastMine.price / landPy : null }}
+        est={{ price: saleEst ?? null, per: saleEst && py ? saleEst / py : null,
+               perLand: saleEst && landPy ? saleEst / landPy : null }} />
     </div>
     {/* ── 카드 1 · 이 건물 실거래 ─────────────────────────────────
         여러 해에 걸친 시계열이라 주변(한 덩어리 값)과 성격이 다르다. 나눠 두면

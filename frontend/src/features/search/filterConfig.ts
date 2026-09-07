@@ -238,6 +238,46 @@ const SERVER_FILTER_KEYS = new Set([
 ]);
 
 /** 저장해 둔 조건에서 지금 판에 없는 칸을 떨군다. */
+/** 서버 조건 칸 이름 → 사람 말. **`values` 없이 `filters` 만 저장된 조건**을 위한 것이다.
+ *
+ *  매수자 조건은 `values`(화면 낱말)와 `filters`(서버 조건)를 나란히 저장하는데,
+ *  옛 조건 중엔 `filters` 만 든 것이 있다. 그런 조건을 불러오면 **검색은 걸리는데
+ *  화면에 아무 표시가 없어** 「안 걸렸다」로 읽힌다(2026-09-05 지적).
+ *  걸린 것은 무엇이든 칩으로 세운다 — 조용히 거르지 않는다. */
+const FILTER_NAME: Record<string, string> = {
+  price: "매매가", sale_est: "추정가", roi: "수익률", roi_est: "추정 수익률",
+  rent_est: "추정 임대료", deposit_est: "추정 보증금", rent_total: "총 월 임대료",
+  deposit_total: "총 월 보증금", mgmt_total: "총 월 관리비",
+  land_area: "대지면적", total_area: "연면적", build_area: "건축면적", parcel_area: "필지면적",
+  floors_above: "지상층", floors_below: "지하층", bcr: "건폐율", far: "용적률",
+  legal_bcr: "법정 건폐율", legal_far: "법정 용적률",
+  elevator: "엘리베이터", parking: "주차", age: "연식", station_dist: "역과의 거리",
+  gongsi: "공시지가", gongsi_total: "공시 총액", last_sale_years: "최근 거래",
+  remodel_years: "대수선", pp_land: "대지 평단가", pp_total: "연면적 평단가",
+};
+const UNIT: Record<string, (v: number) => string> = {
+  price: (v) => `${Math.round(v / 1e8).toLocaleString()}억`,
+  sale_est: (v) => `${Math.round(v / 1e8).toLocaleString()}억`,
+  station_dist: (v) => `${v}m`,
+};
+
+/** `filters` 만 든 조건을 칩으로. `values` 로 이미 보이는 것은 부르는 쪽이 거른다. */
+export function filterChips(f: AttrFilters | undefined): { label: string; text: string }[] {
+  if (!f) return [];
+  const g: Record<string, { lo?: number; hi?: number }> = {};
+  for (const [k, v] of Object.entries(f)) {
+    const m = /^(.+)_(min|max)$/.exec(k);
+    if (!m || typeof v !== "number" || !FILTER_NAME[m[1]]) continue;
+    (g[m[1]] ??= {})[m[2] === "min" ? "lo" : "hi"] = v;
+  }
+  const fmt = (base: string, v: number) => (UNIT[base] ?? ((x: number) => x.toLocaleString()))(v);
+  return Object.entries(g).map(([base, r]) => ({
+    label: FILTER_NAME[base],
+    text: r.lo != null && r.hi != null ? `${fmt(base, r.lo)}~${fmt(base, r.hi)}`
+      : r.lo != null ? `${fmt(base, r.lo)} 이상` : `${fmt(base, r.hi!)} 이하`,
+  }));
+}
+
 export function pruneFilters(f: unknown): AttrFilters {
   if (!f || typeof f !== "object") return {};
   const out: Record<string, unknown> = {};

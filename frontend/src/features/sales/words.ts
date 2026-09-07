@@ -32,6 +32,25 @@ export function negoWord(p: {
   return (p.hope_price != null || (p.brief_how?.length ?? 0) > 0) ? "합의중" : "합의 전";
 }
 
+/** 결정 문장의 꼬리 — 「이서연과 125억에 ○○」의 ○○.
+ *
+ *  현황판 두 곳이 `nego === 4 ? "계약" : "계약 예정"` 으로 **손판정**하고 있었다(2026-09-05).
+ *  그래서 중도금(5)·거래종료(6)도, 합의중(2)도 전부 「계약 예정」으로 떴다 —
+ *  **계약을 끝낸 거래가 아직 안 한 것처럼 보였다.** 낱말은 여기 한 곳에서만 낸다.
+ */
+const DEAL_TAIL: Record<string, string> = {
+  "합의 전": "합의 전",
+  "합의중": "합의중",
+  "계약예정": "계약 예정",
+  "계약완료": "계약",
+  "중도금": "중도금 단계",
+  "거래종료": "거래종료",
+};
+
+export function dealTail(p: Parameters<typeof negoWord>[0]): string {
+  return DEAL_TAIL[negoWord(p)] ?? "계약 예정";
+}
+
 const LISTING: Record<string, Partial<Record<CellState, string>>> = {
   owner: { none: "소유자 미확보", open: "소유자명 확보", done: "연락처 확보" },
   touch: { none: "통화 전" },                       // 나머지는 값 그대로

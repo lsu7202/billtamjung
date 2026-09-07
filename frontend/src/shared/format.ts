@@ -11,6 +11,16 @@ export function won(n?: number | null): string {
   return neg ? `-${s}` : s;
 }
 
+/** **월 단위 금액**(월 임대료·월 관리비) — 억으로 안 끊는다.
+ *  월세는 억으로 끊는 돈이 아니다. `won()` 을 쓰면 월 임대료 1억 2,000만원짜리
+ *  건물이 「1억 2,000만」으로 찍혀 보증금처럼 읽힌다(2026-09-05 지적).
+ *  총계처럼 큰 값도 「12,000만」으로 둔다 — 자릿수가 길어도 단위가 하나면 견줄 수 있다. */
+export function wonMan(n?: number | null): string {
+  if (n == null || n === 0 || Number.isNaN(n)) return "";
+  const s = `${Math.round(Math.abs(n) / 1e4).toLocaleString()}만`;
+  return n < 0 ? `-${s}` : s;
+}
+
 /** 컴팩트 금액(차트·좁은 셀): "1.2억" · "3,000만". */
 export function wonShort(n?: number | null): string {
   if (n == null || n === 0 || Number.isNaN(n)) return "";

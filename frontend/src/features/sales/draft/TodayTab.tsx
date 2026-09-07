@@ -165,6 +165,12 @@ function Board({ d, now, mine, setMine, picked, pick, done, moveToday, putOff, d
     x.side === "buy" && x.buyer_id ? onBuyer(x.buyer_id) : onSeller(x.building_pk);
   // 밀린 약속을 「오늘 할일」 카드로 끌어다 놓기(2026-08-28)
   const [dragId, setDragId] = useState<number | null>(null);
+  /** 어느 카드에서 집었나. **놓은 곳이 집은 곳이면 아무것도 안 한다.**
+   *
+   *  두 카드가 각자 드롭 영역인데(오늘 할일=오늘로, 혹시 잊으셨나요=내일로),
+   *  「혹시 잊으셨나요」 안의 줄을 끌다가 그 카드 안에 놓으면 **약속이 조용히 내일로 밀렸다**
+   *  (2026-09-05 지적). 손이 빗나간 것을 미루기로 읽으면 안 된다. */
+  const [dragFrom, setDragFrom] = useState<"today" | "forgot" | null>(null);
   const [dropOn, setDropOn] = useState(false);     // 오늘 할일이 받을 때
   const [dropOff, setDropOff] = useState(false);   // 잊으셨나요가 받을 때(= 내일로)
 
@@ -220,10 +226,11 @@ function Board({ d, now, mine, setMine, picked, pick, done, moveToday, putOff, d
            밀린 약속을 여기로 끌어다 놓으면 날짜만 오늘로 민다(2026-08-28).
            「오늘로」 글자를 찾아 누르는 것보다 끌어다 놓는 쪽이 짧다. */}
       <div className={`td-card${dropOn ? " drop" : ""}`}
-        onDragOver={(e) => { if (dragId != null) { e.preventDefault(); setDropOn(true); } }}
+        onDragOver={(e) => { if (dragId != null && dragFrom !== "today") { e.preventDefault(); setDropOn(true); } }}
         onDragLeave={() => setDropOn(false)}
         onDrop={(e) => { e.preventDefault(); setDropOn(false);
-          if (dragId != null) { moveToday(dragId); setDragId(null); } }}>
+          if (dragId != null && dragFrom !== "today") moveToday(dragId);
+          setDragId(null); setDragFrom(null); }}>
         <div className="td-sw">
           <span className="td-h">오늘 할일</span>
           <span className="sp" />
@@ -237,25 +244,28 @@ function Board({ d, now, mine, setMine, picked, pick, done, moveToday, putOff, d
           <div className="td-none">오늘 할 일이 없습니다
             </div>
         ) : view === "order" ? (
-          <Order rows={order} now={now} go={go} done={done} onDrag={setDragId} />
+          <Order rows={order} now={now} go={go} done={done}
+                 onDrag={(id) => { setDragId(id); setDragFrom(id == null ? null : "today"); }} />
         ) : (
-          <Time timed={timed} untimed={untimed} now={now} cur={cur} go={go} done={done} onDrag={setDragId} />
+          <Time timed={timed} untimed={untimed} now={now} cur={cur} go={go} done={done}
+                onDrag={(id) => { setDragId(id); setDragFrom(id == null ? null : "today"); }} />
         )}
       </div>
 
       {/* ── 혹시 잊으셨나요 ── 밀린 약속과 방치된 영업 */}
       {forgot.length > 0 && (
         <div className={`td-card${dropOff ? " drop" : ""}`}
-          onDragOver={(e) => { if (dragId != null) { e.preventDefault(); setDropOff(true); } }}
+          onDragOver={(e) => { if (dragId != null && dragFrom !== "forgot") { e.preventDefault(); setDropOff(true); } }}
           onDragLeave={() => setDropOff(false)}
           onDrop={(e) => { e.preventDefault(); setDropOff(false);
-            if (dragId != null) { putOff(dragId); setDragId(null); } }}>
+            if (dragId != null && dragFrom !== "forgot") putOff(dragId);
+            setDragId(null); setDragFrom(null); }}>
           <div className="td-sw"><span className="td-h">혹시 잊으셨나요</span></div>
           {forgot.map((f, i) => (
             <button className="td-f" key={`f${i}`} onClick={f.go}
               draggable={!!f.row}
-              onDragStart={() => f.row && setDragId(f.row.id)}
-              onDragEnd={() => { setDragId(null); setDropOn(false); }}>
+              onDragStart={() => { if (f.row) { setDragId(f.row.id); setDragFrom("forgot"); } }}
+              onDragEnd={() => { setDragId(null); setDragFrom(null); setDropOn(false); }}>
               <span className={`td-tag${f.red ? " r" : ""}`}>{f.tag}</span>
               <span className="tx"><b className="t">{f.t}</b><span className="s">{f.s}</span></span>
               {f.row ? (

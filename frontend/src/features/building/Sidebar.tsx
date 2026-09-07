@@ -6,7 +6,7 @@ import { MemoLog } from "../sales/draft/MemoLog";
 import { PickModal } from "../sales/PickModal";
 import { Loading } from "../../shared/ui/Spinner";
 import { KV, wonToEok, vPos } from "./KV";
-import { won } from "../../shared/format";
+import { won, wonMan } from "../../shared/format";
 import { useRentTotals } from "./rentTotals";
 import { useNavigate } from "react-router-dom";
 import { useEnums } from "../../shared/hooks/useEnums";
@@ -143,13 +143,16 @@ function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unkno
   const { rent: totRent, deposit: totDep, mgmt: totMgmt, fromFloors, floorRows, yearRent } = useRentTotals(pk);
   const roi = salePrice && yearRent ? (yearRent / salePrice) * 100 : null;
   /** 총계 한 줄 — 층별이 있으면 파생이라 못 고친다(고치는 자리는 임대 탭 층별 표 하나) */
-  const totRow = (label: string, field: string, val: number | null) => fromFloors ? (
+  /** `man` 이면 억으로 안 끊는다 — 월 임대료·월 관리비(2026-09-05). */
+  const totRow = (label: string, field: string, val: number | null, man?: boolean) => {
+    const fmt = man ? wonMan : won;
+    return fromFloors ? (
     <div className="sb-r"><span className="l">{label}</span>
-      <span className="r num">{val ? won(val) : "—"}
+      <span className="r num">{val ? fmt(val) : "—"}
         <em className="sb-src">층별 {floorRows}개</em></span></div>
   ) : (
     // 억 고정 표기(wonToEok)는 총계에 안 맞다 — 월 임대료 1,000만이 「0.10억」으로 뭉개진다
-    <KV label={label} field={field} value={val ? won(val) : "—"}
+    <KV label={label} field={field} value={val ? fmt(val) : "—"}
       editable money current={val != null ? String(val) : ""} validate={vPos}
       onSave={async (_f, w) => {
         await listingsApi.patchBiz(pk, { [field]: w.trim() ? String(Math.round(parseFloat(w))) : "" });
@@ -160,6 +163,7 @@ function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unkno
         qc.invalidateQueries({ queryKey: ["listing", pk] });
       }} />
   );
+  };
   const landPy = bd?.land_area ? Number(bd.land_area) / 3.305785 : null;
   const ppLand = salePrice && landPy ? salePrice / landPy : null;
   const assignee = l.assignee_account_id != null ? Number(l.assignee_account_id) : null;
@@ -253,9 +257,9 @@ function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unkno
             층별 임대를 넣으면 파생으로 차고, 없으면 여기서 총액을 직접 적는다. */}
         {/* 「총」을 뗐다(2026-08-28) — 사이드바는 건물 단위가 기본이라 굳이 붙일 이유가 없다.
             층별은 층 이름이 붙어 있어 헷갈리지 않는다. */}
-        {totRow("보증금", "total_deposit", totDep)}
-        {totRow("임대료", "total_rent", totRent)}
-        {totRow("관리비", "total_mgmt", totMgmt)}
+        {totRow("월 보증금", "total_deposit", totDep)}
+        {totRow("월 임대료", "total_rent", totRent, true)}
+        {totRow("월 관리비", "total_mgmt", totMgmt, true)}
         {/* 이름에 분모를 박는다(2026-08-27) — 「수익률」 한 낱말이 화면마다 다른 값을 가리켰다.
             분자도 추정을 안 섞는다: 총임대료가 비면 수익률도 빈다. */}
         <div className="sb-r"><span className="l">매매가 대비 수익률</span>

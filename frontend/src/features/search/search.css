@@ -47,6 +47,14 @@
   padding: 4px 9px; border-radius: 999px; color: var(--ink-2); background: var(--surface-2); }
 .mo-real .yr button:hover { background: #E8EBEE; }
 .mo-real .yr button.on { background: var(--blue-bg); color: var(--blue); }
+/* 연도 고르기 팝오버 — 눌러야 열린다(1990~올해). 늘 펴 두면 이 줄이 화면을 먹는다 */
+.mo-real .yr { position: relative; }
+/* 넉 줄이면 패널(352px) 안에 들어온다 — 다섯 줄로 뒀더니 마지막 칸이 잘렸다 */
+.yr-pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 20;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; width: 188px;
+  max-height: 216px; overflow-y: auto; padding: 7px; border-radius: 12px;
+  background: var(--panel); box-shadow: 0 8px 28px rgba(0,19,43,.18); }
+.yr-pop button { font-variant-numeric: tabular-nums; padding: 4px 0; }
 .mo-lg { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700;
   color: var(--muted); white-space: nowrap; }
 .mo-lg b { width: 8px; height: 8px; border-radius: 50%; display: block; }

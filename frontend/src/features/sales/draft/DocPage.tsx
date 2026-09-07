@@ -229,8 +229,10 @@ export function DocPage() {
         if (ba?.length && ba.some((a) => a.k === "r1")) setArts(ba);
         else if (ba?.length) setArts([...STD_ARTS.map((a) => ({ ...a, text: null })), ...ba.filter((a) => a.k.startsWith("c"))]);
       }
-      // 옛 저장본의 은어 이관(2026-08-24) — 가계약금 → 본계약 전 합의금
-      if (k === "영수증" && body.rcpt) setRcpt(body.rcpt === "가계약금" ? "본계약 전 합의금" : body.rcpt);
+      // 옛 저장본의 은어 이관 — 「가계약금」·「본계약 전 합의금」 → **계약금 일부**(0158).
+      // 법에 없는 말이라 사람마다 뜻이 갈렸다. 실제로 일어나는 일은 계약금의 일부가 먼저 가는 것이다.
+      if (k === "영수증" && body.rcpt)
+        setRcpt(["가계약금", "본계약 전 합의금"].includes(body.rcpt) ? "계약금 일부" : body.rcpt);
     }
     if (Object.keys(merged).length) setV((p) => ({ ...merged, ...p }));
     if (tm.length) setTerms(tm);
@@ -383,7 +385,7 @@ export function DocPage() {
   const dstr = (k: string, seedIso?: string | null) => fmtD((dirty.has(k) && v[k]) ? v[k] : (seedIso ?? v[k] ?? null)) ?? "    년  월  일";
   const signSeed = schedOn("계약") ?? today;
   const balOn = schedOn("잔금");
-  const rAmt = rcpt === "본계약 전 합의금" ? pre : rcpt === "계약금" ? down : rcpt === "중도금" ? mid : bal;
+  const rAmt = rcpt === "계약금 일부" ? pre : rcpt === "계약금" ? down : rcpt === "중도금" ? mid : bal;
   const recAmt = num("r_amt", rAmt);
 
   /* 브라우저 인쇄 머리글은 문서 제목을 찍는다 — 사이트명 대신 문서 이름이 나가게 */
@@ -488,7 +490,7 @@ export function DocPage() {
       </tbody>
     </table>
   );
-  /* 2조 표 — 원본: 구분 | 금액 | 지급일 | 지급방법. 본계약 전 합의금은 값이 있을 때만(원본엔 없는 줄) */
+  /* 2조 표 — 원본: 구분 | 금액 | 지급일 | 지급방법. 계약금 일부는 값이 있을 때만(원본엔 없는 줄) */
   const tableR2 = (
     <table className="cx">
       <tbody>
@@ -921,7 +923,7 @@ export function DocPage() {
       {kind === "영수증" && (
         <div className="sheet"><div className="doc">
           <div className="dp-rk">
-            {["본계약 전 합의금", "계약금", "중도금", "잔금"].map((k) => (
+            {["계약금 일부", "계약금", "중도금", "잔금"].map((k) => (
               <button key={k} className={`dp-chip ${rcpt === k ? "on" : ""}`}
                 onClick={() => { setRcpt(k); setV((p) => { const q = { ...p }; delete q["r_amt"]; return q; }); }}>{k}</button>
             ))}

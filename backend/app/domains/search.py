@@ -22,6 +22,7 @@ class Suggestion(BaseModel):
     is_mine: bool = False              # 내(팀) 등록 매물 — 자동완성 우선·배지
     price: int | None = None           # 매매가(팀 수기 ?? 추정가) — 후보에 표시
     sub: str | None = None             # 부가표시(역=호선, 지역=매물수, 나대지=면적)
+    bjd_code: str | None = None        # 지역이면 법정동 코드 — 고르면 그 동이 지역 필터가 된다(2026-09-06)
     pnu: str | None = None             # 나대지는 building_pk 가 없다 — 필지 자체가 대상이다
 
 
@@ -99,7 +100,7 @@ async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(curr
         dong = r.get("dong")
         if dong and dong.startswith(norm):
             out.append(Suggestion(kind="region", addr=f"서울특별시 {r['gu']} {dong}",
-                                  lng=r["lng"], lat=r["lat"], sub=f"매물 {r['cnt']:,}동"))
+                                  lng=r["lng"], lat=r["lat"], sub=f"매물 {r['cnt']:,}동", bjd_code=r.get("bjd_code")))
         elif not dong and r["gu"].startswith(norm):
             out.append(Suggestion(kind="region", addr=f"서울특별시 {r['gu']}",
                                   lng=r["lng"], lat=r["lat"], sub=f"매물 {r['cnt']:,}동"))

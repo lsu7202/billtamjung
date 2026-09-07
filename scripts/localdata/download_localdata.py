@@ -31,14 +31,22 @@ BASE = "https://file.localdata.go.kr"
 SEOUL = "6110000_ALL"
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/128.0 Safari/537.36")
-# 업종 slug — 전체 목록은 /file/general_restaurants/info 페이지의 좌측 메뉴(href="/file/{slug}/info")에 있다.
-KINDS = {
-    "general_restaurants": "식품_일반음식점",
-    "rest_cafes": "식품_휴게음식점",
-    "clinics": "건강_의원",
-    "pharmacies": "건강_약국",
-    "animal_hospitals": "동물_동물병원",
-}
+# 업종 slug 는 **페이지에서 뽑는다** — 손으로 적어 두면 업종이 늘 때 조용히 빠진다.
+# 좌측 메뉴의 href="/file/{slug}/info" 가 전부다(2026-09-05 기준 208종).
+# 한글 이름은 CSV 안 `개방서비스명` 칸에 있으니 여기서 안 챙긴다.
+import re
+
+ANY = f"{BASE}/file/general_restaurants/info"
+
+
+def slugs() -> list[str]:
+    html = fetch(ANY, BASE + "/").decode("utf-8", "replace")
+    out, seen = [], set()
+    for s in re.findall(r'href="/file/([a-z0-9_]+)/info"', html):
+        if s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
 
 
 def fetch(url: str, referer: str) -> bytes:
@@ -50,25 +58,40 @@ def fetch(url: str, referer: str) -> bytes:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="data/raw/_localdata")
-    ap.add_argument("--only", help="업종 slug 쉼표 구분(비우면 KINDS 전부)")
+    ap.add_argument("--only", help="업종 slug 쉼표 구분(비우면 페이지에 있는 전부)")
     ap.add_argument("--org", default=SEOUL, help="시도 코드(기본 서울 6110000_ALL)")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
-    for slug in (a.only.split(",") if a.only else list(KINDS)):
+    todo = a.only.split(",") if a.only else slugs()
+    print(f"  업종 {len(todo)}종 · 서울({a.org})")
+    got = skip = fail = 0
+    for i, slug in enumerate(todo, 1):
+        p = os.path.join(a.out, f"localdata_{slug}_{a.org.split('_')[0]}.csv")
+        # 이미 받은 것은 다시 안 받는다 — 208종을 한 번에 받다 끊기면 처음부터가 된다
+        if os.path.exists(p) and os.path.getsize(p) > 100_000:
+            skip += 1
+            continue
         info = f"{BASE}/file/{slug}/info"
         try:
             fetch(info, BASE + "/")                    # 세션 한 번 태우고
             data = fetch(f"{BASE}/file/download/{slug}/info?orgCode={a.org}", info)
-        except Exception as e:
-            print(f"  [{slug}] {KINDS.get(slug,'')}: ✗ {e}")
+        except Exception as e:                                 # noqa: BLE001
+            print(f"  [{i}/{len(todo)}] {slug}: ✗ {e}", flush=True)
+            fail += 1
             continue
         # 받은 것이 진짜인지 본다 — 크롤러는 0바이트를 성공으로 넘기면 안 도는 것보다 나쁘다
-        if len(data) < 100_000 or b"," not in data[:4000]:
-            print(f"  [{slug}]: ✗ CSV 가 아니다({len(data):,}B)")
+        # 받은 것이 진짜인지 본다. 작은 업종은 몇 KB 라 크기로만 거르면 멀쩡한 걸 버린다 —
+        # 첫 줄에 쉼표가 있는지(=CSV 인지)를 본다
+        if b"," not in data[:4000]:
+            print(f"  [{i}/{len(todo)}] {slug}: ✗ CSV 가 아니다({len(data):,}B)", flush=True)
+            fail += 1
             continue
-        p = os.path.join(a.out, f"localdata_{slug}_{a.org.split('_')[0]}.csv")
         open(p, "wb").write(data)
-        print(f"  [{slug}] {KINDS.get(slug,'')}: ✓ {os.path.basename(p)} ({len(data)//1024:,}KB)")
+        got += 1
+        print(f"  [{i}/{len(todo)}] {slug}: ✓ {len(data)//1024:,}KB", flush=True)
+
+
+    print(f"\n  받음 {got} · 건너뜀 {skip} · 실패 {fail}")
 
 
 main()

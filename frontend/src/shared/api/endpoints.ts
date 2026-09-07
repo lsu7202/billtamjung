@@ -2,7 +2,10 @@ import { api } from "./client";
 
 export interface TokenOut { access_token: string; tier: string }
 // vacant = 건물이 없는 「대」 필지(나대지). building_pk 가 없고 pnu 로 가리킨다(2026-08-27)
-export interface Suggestion { kind: "building" | "region" | "station" | "vacant"; building_pk?: string | null; pnu?: string | null; addr: string; lng?: number | null; lat?: number | null; is_mine?: boolean; price?: number | null; sub?: string | null }
+export interface Suggestion { kind: "building" | "region" | "station" | "vacant"; building_pk?: string | null; pnu?: string | null; addr: string; lng?: number | null; lat?: number | null; is_mine?: boolean; price?: number | null; sub?: string | null
+  /** 지역이면 법정동 코드 — 고르면 그 동이 지역 필터가 된다 */
+  bjd_code?: string | null;
+}
 export interface Balance { total: number; monthly: number; earned: number; purchased: number }
 export interface FloorRent {
   id?: number; floor: string; unit_no: string; use?: string | null;
@@ -304,6 +307,76 @@ export interface PlaceItem {
   name: string; group: string; detail: string; phone: string | null;
   url: string | null; road_addr: string | null;
 }
+/** 주변 소식 한 줄 — 화면과 에이전트가 같은 것을 읽는다.
+ *  날짜는 `on_date`(정확)와 `on_year`(연도만)가 **따로다.** 합쳐서 쓰면
+ *  「2025년」이 2025-01-01 로 굳는다 — 고시일자가 있는 것은 일부뿐이다. */
+export interface AreaEvent {
+  id: number; kind: string; name: string | null;
+  on_date: string | null; on_year: number | null;
+  gosi_no: string | null; body: string | null;
+  source: string; source_url: string | null;
+  /** 해시태그 — 보도자료만 있다(주제·구·동·역·도로). 다른 원천은 빈 배열 */
+  tags: string[];
+  relation: "구역 안" | "반경 안"; distance_m: number;
+  /** 지도 아이콘 자리(면이면 면 안의 점) */
+  lng: number | null; lat: number | null;
+}
+/** 소식 한 줄 — 서울 전체. 주변 소식과 **같은 낱말**을 쓴다(갈래·날짜·출처).
+ *  다른 것은 `located` 하나뿐이다 — 자리를 아는 줄만 주변 소식에 선다. */
+export interface NewsItem extends Omit<AreaEvent, "id" | "relation" | "distance_m" | "lng" | "lat"> {
+  src_table: string; src_key: string | null;
+  /** 자리를 아는가. false 면 이 목록에만 서고 건물 반경엔 안 선다 */
+  located: boolean;
+}
+export const newsApi = {
+  list: (p?: { kind?: string; q?: string; year?: number; years?: number; tag?: string; limit?: number; cursor?: string }) => {
+    const s = new URLSearchParams();
+    if (p?.kind) s.set("kind", p.kind);
+    if (p?.q) s.set("q", p.q);
+    if (p?.year) s.set("year", String(p.year));
+    if (p?.years) s.set("years", String(p.years));
+    if (p?.tag) s.set("tag", p.tag);
+    if (p?.limit) s.set("limit", String(p.limit));
+    if (p?.cursor) s.set("cursor", p.cursor);
+    const qs = s.toString();
+    return api<{ items: NewsItem[]; next: string | null; kinds: string[] }>(
+      `/news${qs ? `?${qs}` : ""}`);
+  },
+};
+
+/** 검색 지도의 소식 핀 한 점 — 갈래·이름·출처로 화면이 아이콘을 정한다(eventIcon) */
+export interface NewsPin { id: number; kind: string; name: string | null; source: string; source_url: string | null; on_date: string | null; on_year: number | null; lng: number; lat: number }
+export const newsItemApi = {
+  /** 지도 핀(area_event id) 하나를 소식 탭 모양으로 */
+  get: (id: number) => api<{ item: NewsItem | null }>(`/news/item?id=${id}`),
+};
+export const newsPinsApi = {
+  inBox: (b: { minlng: number; minlat: number; maxlng: number; maxlat: number }, years = 1) =>
+    api<{ items: NewsPin[]; truncated: boolean }>(
+      `/news/pins?minlng=${b.minlng}&minlat=${b.minlat}&maxlng=${b.maxlng}&maxlat=${b.maxlat}&years=${years}`),
+};
+export const eventsApi = {
+  list: (pk: string, p?: { radius?: number; kind?: string; years?: number }) => {
+    const q = new URLSearchParams();
+    if (p?.radius) q.set("radius", String(p.radius));
+    if (p?.kind) q.set("kind", p.kind);
+    if (p?.years) q.set("years", String(p.years));
+    const s = q.toString();
+    return api<{ items: AreaEvent[]; kinds: Record<string, number>; radius: number }>(
+      `/buildings/${pk}/events${s ? `?${s}` : ""}`);
+  },
+};
+
+/** 업체 원장 한 줄(LOCALDATA 인허가 + 소상공인 상가정보 합본). 층을 모르면 floor=null */
+export interface Tenant {
+  name: string; floor: string | null; area: number | null;
+  biz: string | null; phone: string | null;
+  /** 카카오에서 온 것은 화면에서만 붙는다(저장 안 함) */
+  url?: string | null;
+}
+export const tenantsApi = {
+  list: (pk: string) => api<{ items: Tenant[] }>(`/buildings/${pk}/tenants`),
+};
 export const placesApi = {
   /** truncated=true 면 카카오가 주는 45곳에서 잘린 것이다(이게 전부가 아니다) */
   list: (pk: string) => api<{ items: PlaceItem[]; truncated: boolean; source: string }>(
@@ -312,8 +385,9 @@ export const placesApi = {
 
 export const rentsApi = {
   list: (pk: string) => api<{ items: FloorRent[]; total: Record<string, number>; hidden_floors: string[] }>(`/buildings/${pk}/floor-rents`),
+  /** id 가 있으면 그 줄을 고친다. 호실이 빈 줄은 한 층에 여럿이라 (층, 호실)로는 못 집는다(0160) */
   upsert: (pk: string, r: FloorRent) =>
-    api(`/buildings/${pk}/floor-rents`, { method: "PUT", body: JSON.stringify(r) }),
+    api<{ ok: boolean; id: number }>(`/buildings/${pk}/floor-rents`, { method: "PUT", body: JSON.stringify(r) }),
   del: (pk: string, id: number) =>
     api(`/buildings/${pk}/floor-rents/${id}`, { method: "DELETE" }),
   /** 대장 구조로 되돌리기 — 팀 행과 없앤 층 표시를 한 번에(2026-09-04) */
@@ -377,7 +451,7 @@ export interface RentFloor {
   cur_dep?: number; mkt_dep?: number;
 }
 export interface ReportPreview {
-  score: number; grade: string; fair_price: number | null;
+  fair_price: number | null;
   avg_per_pyeong: number | null;   // 연면적 평단가 — 사례 비교(04)의 축
   avg_per_land?: number | null;    // 대지 평단가 — 핵심요약의 '평단가'(F-09c)
   expected_roi: number | null; gap: number | null; ask_price: number | null; broker_price?: number | null;
@@ -391,7 +465,7 @@ export interface ReportPreview {
       cur_rent: number | null; mkt_rent: number | null; upside_pct: number | null; land_rate5: number | null; land_annual: number | null } } | null;
 }
 export interface CompsResponse {
-  subject: { addr: string; score: number; grade: string; items?: Record<string, number>;
+  subject: { addr: string;
     total_area: number | null; sale_price: number | null; total_rent: number | null;
     center: { lng: number; lat: number } | null; radius_m: number; polygon: boolean };
   preview: ReportPreview;
@@ -407,7 +481,7 @@ export const reportsApi = {
   list: () => api<Report[]>("/reports"),
   comps: (building_pk: string) => api<CompsResponse>(`/reports/comps/${building_pk}`),
   preview: (body: { building_pk: string; exclude: string[]; overrides: Record<string, CompFields>; include_market: boolean }) =>
-    api<{ preview: ReportPreview; comp_scores: Record<string, number> }>("/reports/preview", { method: "POST", body: JSON.stringify(body) }),
+    api<{ preview: ReportPreview }>("/reports/preview", { method: "POST", body: JSON.stringify(body) }),
 };
 
 export interface EnumOpt { code: string; label: string; tier: string | null }
@@ -541,7 +615,7 @@ export interface Proposal {
   deal_price: number | null;   /** 거래가(0069) — 계약으로 합의된 값 */
   /** 카드에서 값 판단을 하려면 기준이 같이 있어야 한다 — 배치(master.building_score·sale_est)에서 온다 */
   sale_est: number | null; vs_est_pct: number | null;
-  score: number | null; score_grade: string | null; use_type: string | null;
+  use_type: string | null;
   roi: number | null; photo_id: number | null;
   /** 연임대(마스터 추정·원) — 투자 시뮬의 수입 쪽(0133). roi 로 되돌려 곱하면 반올림이 섞인다 */
   annual_rent?: number | null;
@@ -604,7 +678,7 @@ export interface MatchingBuyer {
 export interface BuyerMatch {
   building_pk: string; addr: string; price: number | null; roi: number | null;
   land_area: number | null; total_area: number | null;
-  cond_name: string; grade: string | null; use_type: string | null;
+  cond_name: string; use_type: string | null;
 }
 
 /** 추천 한 줄의 근거 — 축마다 「원하는 값 / 이 매물 값」. 점수는 줄 세우는 데만 쓴다. */

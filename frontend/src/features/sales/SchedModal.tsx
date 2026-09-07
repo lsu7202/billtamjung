@@ -16,7 +16,7 @@ export interface Sched {
   place: string | null;
   hint: string;
   /** 일정 종류 — 창의 토글이 정본 */
-  category?: "일반" | "브리핑" | "임장" | "가계약" | "계약" | "중도금" | "잔금";
+  category?: "일반" | "브리핑" | "임장" | "계약금 일부" | "계약" | "중도금" | "잔금";
 }
 import "./sales.css";
 
@@ -35,8 +35,9 @@ export interface SchedFinal extends Sched {
   method?: string;
   /** 계약금·중도금·잔금(0112) — 돈이 오가는 약속이면 여기서 같이 받는다 */
   amount?: number;
-  /** 계약과 한자리에서 잡은 **딸린 약속**(2026-08-19) — 중도금·잔금. 부른 쪽이 같이 만든다 */
-  extras?: { category: "중도금" | "잔금"; on: string; at?: string | null }[];
+  /** 계약과 한자리에서 잡은 **딸린 약속**(2026-08-19) — 계약금 일부·중도금·잔금.
+   *  부른 쪽이 같이 만든다. 계약금 일부는 계약 **전**에 돈이 먼저 가는 날이다(옛 「가계약」, 0158). */
+  extras?: { category: "계약금 일부" | "중도금" | "잔금"; on: string; at?: string | null }[];
   people: { kind: "buyer" | "owner" | "guest"; ref_id?: number; label?: string }[];
   assignee_account_id?: number;
   /** 장부에 남길 문장 — 입력줄에 친 말이 그대로 들어오고, 여기서 고치면 그것이 기록된다 */
@@ -49,18 +50,23 @@ export interface SchedFinal extends Sched {
   building_pk?: string | null;
 }
 
-export type Cat = "일반" | "브리핑" | "임장" | "가계약" | "계약" | "중도금" | "잔금";
+export type Cat = "일반" | "브리핑" | "임장" | "계약금 일부" | "계약" | "중도금" | "잔금";
 // 브리핑·임장도 종류다(0108) — 거래 칸의 날짜가 캘린더에서 제 이름으로 선다
 // 고르는 종류는 넷이다(2026-08-19) — 중도금·잔금은 **계약 창에서 날짜로** 잡히므로
 // 처음부터 고를 일이 없다. 이미 그 종류로 선 약속을 열었을 때만 토글에 함께 뜬다.
 // 고르는 종류는 넷(2026-08-25) — **임장은 뺐다**. 현장에서 보는 것도 결국 만나는 일이라
-// 일반과 갈릴 이유가 없었다. 대신 **가계약**이 들어왔다 — 계약 전에 대금이 먼저 움직이는 날은
+// 일반과 갈릴 이유가 없었다. 대신 **계약금 일부**가 들어왔다 — 계약 전에 대금이 먼저 움직이는 날은
+// 「가계약」이라 부르던 것이다. 법에 없는 말이고 현장에서 뜻이 갈려 **일어나는 일 그대로** 부른다(2026-09-05).
 // 계약과 다른 날이고, 거래신고 30일이 그날부터 셀 수도 있다.
-const CATS: Cat[] = ["일반", "브리핑", "가계약", "계약"];
+// 「계약금 일부」는 **고르는 종류가 아니다**(2026-09-05) — 중도금·잔금과 같다.
+// 계약 창에서 날짜로 선다. 종류로도 두면 같은 것을 만드는 길이 둘이 되고,
+// 실제로 시스템을 움직이는 것은 **계약 하나뿐이다**(완료하면 picked_at 이 서서
+// nego_rank 4 = 계약완료가 된다). 나머지는 날짜일 뿐이라 종류로 세울 이유가 없다.
+const CATS: Cat[] = ["일반", "브리핑", "계약"];
 /** 제목으로 추정하는 기본값 — 서버 guess_category 와 같은 규칙 */
 const guessCat = (t: string): Cat =>
   t.startsWith("잔금") ? "잔금" : t.startsWith("중도금") ? "중도금"
-  : t.startsWith("가계약") ? "가계약"
+  : t.startsWith("계약금") ? "계약금 일부"
   : (t.startsWith("계약") && !t.includes("파기")) ? "계약" : "일반";
 
 /* 줄머리 아이콘 — 스프라이트의 듀오톤 아이콘은 색이 강해 폼에서 시끄럽다.
@@ -137,7 +143,7 @@ export function SchedModal({ init, base, addr, buildingPk, note, lockCat, initEx
   lockCat?: boolean;
   /** 이미 잡혀 있는 중도금·잔금(2026-08-19) — 창을 다시 열면 **그대로 들어와 있어야** 한다.
    *  비어 있으면 「없다」가 아니라 「아직 못 읽었다」로 보여, 저장하는 순간 날짜가 사라진다. */
-  initExtras?: Partial<Record<"중도금" | "잔금", { on: string; at: string | null } | null>>;
+  initExtras?: Partial<Record<"계약금 일부" | "중도금" | "잔금", { on: string; at: string | null } | null>>;
   onCancel: () => void;
   onSkip: () => void;                   // 약속 아님 — 기록만 남긴다
   onDone: (s: SchedFinal) => void;
@@ -224,8 +230,9 @@ export function SchedModal({ init, base, addr, buildingPk, note, lockCat, initEx
   // 계약 창에서 온 약속은 **계약가가 미리 들어온다**(2026-08-19) — 같은 값을 두 번 치지 않게.
   // 여기서 고친 금액이 그 쌍의 확정가가 된다(서버 거울).
   // 계약과 한자리에서 잡는 중도금·잔금(선택) — 비어 있으면 안 만든다
-  const [extra, setExtra] = useState<Record<"중도금" | "잔금", { on: string; at: string | null } | null>>(
-    { 중도금: initExtras?.["중도금"] ?? null, 잔금: initExtras?.["잔금"] ?? null });
+  const [extra, setExtra] = useState<Record<"계약금 일부" | "중도금" | "잔금", { on: string; at: string | null } | null>>(
+    { "계약금 일부": initExtras?.["계약금 일부"] ?? null,
+      중도금: initExtras?.["중도금"] ?? null, 잔금: initExtras?.["잔금"] ?? null });
   const members = team.data?.members ?? [];
 
   // 창은 **몸통에 띄운다** — 커밋 상자 안에 두면 그 상자의 겹침·잘림을 그대로 뒤집어쓴다
@@ -289,10 +296,11 @@ export function SchedModal({ init, base, addr, buildingPk, note, lockCat, initEx
           onAt={(v) => { setS({ ...s, at: v }); if (v === null) setOpen(null); }}
           onAsk={() => setOpen("at")} />
 
-        {cat === "계약" && (["중도금", "잔금"] as const).map((k) => {
+        {/* 계약금 일부는 계약 **전**에 서고, 중도금·잔금은 뒤에 선다 — 돈이 움직이는 차례 그대로 */}
+        {cat === "계약" && (["계약금 일부", "중도금", "잔금"] as const).map((k) => {
           const v = extra[k];
           return (
-            <DateLine key={k} label={`${k}일`}
+            <DateLine key={k} label={k === "계약금 일부" ? "계약금 일부" : `${k}일`}
               on={v?.on ?? null} at={v?.at ?? null}
               onAdd={() => setExtra((x) => ({ ...x, [k]: { on: s.on, at: null } }))}
               onOn={(d) => setExtra((x) => ({ ...x, [k]: { on: d, at: v?.at ?? null } }))}
@@ -445,7 +453,7 @@ export function SchedModal({ init, base, addr, buildingPk, note, lockCat, initEx
             method: cat === "브리핑" ? (s.method ?? "만나서") : s.method,
             category: cat, building_pk: buildingPk ?? bld?.pk ?? null,
             extras: cat !== "계약" ? undefined
-              : (["중도금", "잔금"] as const).flatMap((k) => {
+              : (["계약금 일부", "중도금", "잔금"] as const).flatMap((k) => {
                   const v = extra[k];
                   return v ? [{ category: k, on: v.on, at: v.at }] : [];
                 }),

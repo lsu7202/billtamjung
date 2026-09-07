@@ -27,6 +27,9 @@ export function Shell() {
         <nav className="gnb">
           <NavLink to="/search" className={({ isActive }) => (isActive ? "on" : "")}>건물 검색</NavLink>
           <NavLink to="/sales" className={({ isActive }) => (isActive ? "on" : "")}>업무</NavLink>
+          {/* 소식 — 서울 전체의 고시·공고·인허가·보도자료. 건물 상세의 「주변 소식」과 같은 자료를
+              자리로 안 자르고 늘어놓은 자리다(2026-09-06) */}
+          <NavLink to="/news" className={({ isActive }) => (isActive ? "on" : "")}>소식</NavLink>
         </nav>
         <span className="sp" />
         <span className="credit">크레딧<b>{credits.data?.total ?? "…"}</b></span>

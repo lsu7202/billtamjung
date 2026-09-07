@@ -29,8 +29,10 @@ VW_COOKIE = os.path.join(ROOT, "scripts", "vworld", "cookie.txt")
 
 # 주기 그룹 → (라벨, 실행함수키, 세부)
 GROUPS = {
-    "monthly":    ["실거래(RTMS)", "생활인구 250m(서울열린데이터)"],
-    "quarterly":  ["건축HUB 대장·대수선(⏳cURL)", "승강기(data.go.kr)"],
+    "weekly":     ["고시 본문(서울도시공간포털)", "보도자료(서울시)", "나라장터 공사 발주"],
+    "monthly":    ["실거래(RTMS)", "생활인구 250m(서울열린데이터)",
+                   "LOCALDATA 208업종", "도시계획시설 SHP 4종"],
+    "quarterly":  ["건축HUB 대장·인허가(⏳cURL)", "승강기(data.go.kr)", "소상공인 상가정보"],
     "semiannual": ["V-World LSMD 9종(규제·용도·개발제한·지적)", "도로명주소 도로구간", "교통", "상권분석서비스"],
     "annual":     ["V-World 공시지가·토지특성(NA)"],
 }
@@ -96,9 +98,40 @@ def living_pop(days=7):
     run([PY, "scripts/seoul_open/match_building_pop.py"])
 
 
+# ── 주변 동향(호재) 원천 — 2026-09-05 등록 ──────────────────────────────
+# 셋은 **증분**이라 자주 불러도 싸다. 나머지 둘은 매번 전체판이라 월·분기로 둔다.
+
+def urban_notice():
+    """서울도시공간포털 결정고시. `notices.jsonl` 에 이어 붙는다(이미 받은 코드는 건너뜀).
+    아직 **최신 쪽만 보고 멈추지 않는다** — 440쪽을 다 부른다(40분). 증분 전환은 남은 일."""
+    run([PY, "scripts/urban/fetch_notices.py"])
+
+
+def press():
+    """서울시 보도자료. **1쪽부터 보다 아는 글 번호가 나오면 멈춘다** — 하루 한 요청.
+    공공누리 4유형이라 본문은 저장하지 않는다(사실만 뽑는다)."""
+    run([PY, "scripts/press/fetch_press.py", "--pages", "5"])
+
+
+def g2b():
+    """나라장터 공사 입찰공고. 키는 scripts/.env.pipeline 의 G2B_KEY."""
+    run([PY, "scripts/g2b/fetch_bids.py", "--days", "30", "--seoul"])
+
+
+def localdata():
+    """LOCALDATA 208업종 서울판. 증분이 없어 매번 900MB 전체판이다."""
+    run([PY, "scripts/localdata/download_localdata.py"])
+
+
+def seoul_gis():
+    """도시계획시설 SHP 4종(도로·공간·교통·보건위생). 기반시설 갈래의 도형."""
+    run([PY, "scripts/seoul_gis/download_gis.py"])
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--group", default="all", choices=["all", "monthly", "quarterly", "semiannual", "annual"])
+    ap.add_argument("--group", default="all",
+                    choices=["all", "weekly", "monthly", "quarterly", "semiannual", "annual"])
     ap.add_argument("--out", default="data/raw/_dl")
     a = ap.parse_args()
     os.chdir(ROOT)
@@ -106,15 +139,22 @@ def main():
     g = a.group
     print(f"# 크롤링 오케스트레이터 (group={g}) → {a.out}\n")
 
+    if g in ("all", "weekly"):
+        print("[주간] 고시 본문(서울도시공간포털)"); urban_notice()
+        print("[주간] 보도자료(서울시)"); press()
+        print("[주간] 나라장터 공사 발주"); g2b()
     if g in ("all", "monthly"):
         print("[월간] 실거래(RTMS)"); rtms()
         # 생활인구는 매일 갱신이지만 우리는 한 주치 평균만 쓴다 — 월 1회로 충분하다.
         # 유동인구(float_pop)를 도로접면+역거리 proxy 에서 실측으로 바꾼 재료다(0129).
         print("[월간] 생활인구 250m(서울열린데이터)"); living_pop()
+        print("[월간] LOCALDATA 208업종"); localdata()
+        print("[월간] 도시계획시설 SHP 4종"); seoul_gis()
     if g in ("all", "quarterly"):
         print("[분기] 승강기(data.go.kr)"); datagokr(a.out, "15112638")
         print("[분기] 건축HUB 대장·인허가"); hub(a.out)
         print("[분기] 임대동향(R-ONE)"); rone(a.out)
+        print("[분기] 소상공인 상가정보"); datagokr(a.out, "15083033")
     if g in ("all", "semiannual"):
         print("[반기] V-World LSMD 9종"); vworld(a.out)
         print("[반기] V-World 지구단위계획(C_UQ161)"); vworld(a.out, "--misc")

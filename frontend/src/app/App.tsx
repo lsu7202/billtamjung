@@ -12,6 +12,7 @@ import { SurveyPage } from "../features/beta/SurveyPage";
 import { Beta1Survey } from "../features/beta/Beta1Survey";
 import { OnboardingPage } from "../features/landing/OnboardingPage";
 import { SearchPage } from "../features/search/SearchPage";
+import { NewsPage } from "../features/news/NewsPage";
 import { ParcelPage } from "../features/building/ParcelPage";
 import { BuildingPage } from "../features/building/BuildingPage";
 import { ReportPage } from "../features/building/ReportPage";
@@ -44,6 +45,7 @@ export function App() {
           <Route path="/welcome" element={<AuthGuard><OnboardingPage /></AuthGuard>} />
           <Route element={<AuthGuard><Shell /></AuthGuard>}>
             <Route path="/search" element={<ErrorBoundary><SearchPage /></ErrorBoundary>} />
+            <Route path="/news" element={<ErrorBoundary><NewsPage /></ErrorBoundary>} />
             <Route path="/buildings/:pk" element={<ErrorBoundary><BuildingPage /></ErrorBoundary>} />
             {/* 나대지 — 건물이 없는 필지. building_pk 가 없어 pnu 로 가리킨다(2026-08-27) */}
             <Route path="/parcels/:pnu" element={<ErrorBoundary><ParcelPage /></ErrorBoundary>} />

@@ -771,6 +771,9 @@
 .gm-date input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
 
 /* 빈 자리 = 할 일. 값이 없을 때 이게 곧 안내다(따로 설명글씨를 안 쓴다) */
+/* **줄이지 않는다**(2026-09-05). flex 항목이라 자리가 좁으면 글자가 접혔다 —
+   「시각 추가」가 42px 칸에서 한 글자씩 세로로 쌓였다. 조작 글자는 줄이 바뀌면 조작이 아니다. */
+.gm-add, .gm-clear, .gm-row .act { flex: 0 0 auto; white-space: nowrap; }
 .gm-add { border: 0; background: none; padding: 2px 5px; margin-left: -5px; border-radius: 5px;
   font: inherit; font-size: 14px; color: var(--muted); cursor: pointer; }
 .gm-add:hover { background: var(--surface-2); color: var(--ink-2); }
@@ -879,6 +882,11 @@
 /* 사람 등록 창 — 약속 창과 같은 뼈대(.gm). 칩만 여러 줄로 흐른다 */
 .np-chips { gap: 6px 10px; }
 .np-chips .chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+/* 칩 상자에 **폭을 준다**(2026-09-05).
+   펼침 칩(Chips mode="inline")의 겉 span 이 폭을 안 잡고 줄어들어, 240px 자리에서
+   89px 로 쪼그라들었다 — 사유 열한 개가 세로로 쌓이고 글자가 두 줄로 접혔다.
+   flex 항목의 shrink-to-fit 이 min-content(제일 긴 칩 한 개)로 떨어진 것이다. */
+.np-chips > span { flex: 1 1 auto; width: 100%; min-width: 0; }
 .gm-save:disabled { opacity: .35; cursor: default; }
 
 
@@ -1354,7 +1362,10 @@
 .gm-row.amt .gm-in.num { flex: 0 0 auto; width: 7ch; }
 .gm-unit { color: var(--muted); font-size: 13px; }
 /* 딸린 약속 줄머리 — 중도금·잔금 */
-.gm-lab2 { color: var(--muted); font-size: 13px; min-width: 34px; }
+/* 라벨과 뒤 글자가 붙어 「중도금일날짜 잡기」로 읽혔다 — `.gm-add` 의 -5px 왼쪽 여백이
+   `.gm-body` 의 gap 을 먹는다. 라벨 쪽에서 그만큼 벌린다(2026-09-05). */
+.gm-lab2 { color: var(--muted); font-size: 13px; min-width: 34px;
+  flex: 0 0 auto; white-space: nowrap; margin-right: 5px; }
 /* 소화한 약속 — 점이 초록으로 바뀐다(노란 점은 아직 안 한 일이라는 뜻) */
 .due.done::before { background: var(--ok); }
 .due.done b { color: var(--ink-2); }

@@ -8,7 +8,7 @@ import {
   type Seller,
 } from "../../shared/api/endpoints";
 import { PickModal } from "./PickModal";
-import { cellWord, negoWord, NEGO } from "./words";
+import { cellWord, negoWord, dealTail, NEGO } from "./words";
 import { Loading } from "../../shared/ui/Spinner";
 import { formatPhone } from "../building/KV";
 import { dongAddr, wonAcc } from "../../shared/format";
@@ -279,8 +279,8 @@ function ListingPane({ r, all, onDone, onBuyer, onGo }: {
         <button className="lt-addr" onClick={() => openDetail(pk)}>{shortAddr(r.addr)}</button>
         {lead?.picked_at && lead.deal_price != null ? (
           <div className="sent num" onClick={() => setUni("deal")}>
-            <b>{lead.buyer_name}</b>과 <b>{wonAcc(lead.deal_price)}</b>에
-            {((r as unknown as { nego?: number }).nego ?? 0) === 4 ? " 계약" : " 계약 예정"}</div>
+            <b>{lead.buyer_name}</b>과 <b>{wonAcc(lead.deal_price)}</b>에{" "}
+            {dealTail({ ...lead, nego: (r as unknown as { nego?: number }).nego })}</div>
         ) : alive.length ? (
           <div className="sent num" onClick={() => setUni("deal")}>
             매수자 <b>{alive.length}명</b>과 {nego ?? "합의 전"}</div>
@@ -525,8 +525,8 @@ function BuyerProfile({ b, onDone, startFlipped, goListing }: {
           {b.name}{b.is_corp ? " · 법인" : ""}</button>
         {bLead?.picked_at && bLead.deal_price != null ? (
           <div className="sent num" onClick={() => setEditing(true)}>
-            <b>{shortAddr(bLead.addr)}</b>를 <b>{wonAcc(bLead.deal_price)}</b>에
-            {(b.nego ?? 0) === 4 ? " 계약" : " 계약 예정"}</div>
+            <b>{shortAddr(bLead.addr)}</b>를 <b>{wonAcc(bLead.deal_price)}</b>에{" "}
+            {dealTail({ ...bLead, nego: b.nego })}</div>
         ) : alive.length ? (
           <div className="sent num" onClick={() => setEditing(true)}>
             매물 <b>{alive.length}건</b>과 {word === "—" ? "합의 전" : word}</div>

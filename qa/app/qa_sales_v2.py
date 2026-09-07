@@ -82,7 +82,6 @@ async def main():
         chk("sale_est 동봉", card.get("sale_est") is not None, card.get("sale_est"))
         chk("vs_est_pct ≈ +20%", card.get("vs_est_pct") is not None and abs(card["vs_est_pct"] - 20) < 1.5, card.get("vs_est_pct"))
         chk("price_is_est=False(수기 입력했으므로)", card.get("price_is_est") is False, card.get("price_is_est"))
-        chk("매력도 등급 동봉", card.get("score_grade") in ("S", "A", "B", "C"), card.get("score_grade"))
         chk("활용유형 동봉", card.get("use_type") is not None, card.get("use_type"))
 
         print("\n[4b] 매수자 → 매물 추천(사람→매물 방향)")

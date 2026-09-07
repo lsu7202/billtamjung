@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from .core import db, ratelimit
 from .core.config import settings
-from .domains import auth, social, search, buildings, overlays, credits, listings, floor_rents, market, reports, extras, photos, series, team, survey, buyers, stops, places
+from .domains import auth, social, search, buildings, overlays, credits, listings, floor_rents, market, reports, extras, photos, series, team, survey, buyers, stops, places, news, tenants
 
 
 @asynccontextmanager
@@ -47,7 +47,7 @@ app.add_middleware(
 
 # 라우터를 맨몸 + /api 프리픽스로 이중 등록 — 로컬(vite가 /api 스트립)과
 # Firebase Hosting(run 리라이트는 경로 그대로 전달) 양쪽 호환.
-for m in (auth, social, search, buildings, overlays, credits, listings, floor_rents, market, reports, extras, photos, series, team, survey, buyers, stops, places):
+for m in (auth, social, search, buildings, overlays, credits, listings, floor_rents, market, reports, extras, photos, series, team, survey, buyers, stops, places, news, tenants):
     app.include_router(m.router)
     app.include_router(m.router, prefix="/api")
 

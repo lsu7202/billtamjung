@@ -2,9 +2,14 @@ import { useRef, useState, useEffect } from "react";
 import { loadNaver } from "../../shared/map/naver";
 import { geoToPaths } from "../../shared/map/geo";
 
-/** 상권 존 색상 — 격자 지배 용도. 덱 07·스토리 공용. */
-export const ZONE_COLOR: Record<string, string> = { 업무: "#2B5AA8", 먹자: "#E8833A", 유흥: "#D64545", 판매: "#2E9E6B" };
-/** 유동인구 농도의 색 — 상권 넷 어느 것과도 겹치지 않는 앱 파랑. */
+/** 상권 존 색상 — 격자 지배 갈래. 덱 07·스토리·입지 공용.
+ *  일곱 갈래(2026-09-06, ref.biz_category). 색상환에서 서로 멀게 — 파랑·주황·빨강·초록·보라·겨자·청록.
+ *  차례는 사전의 차례가 아니라 범례 차례다(많이 나오는 것부터). */
+export const ZONE_COLOR: Record<string, string> = {
+  업무: "#2B5AA8", 먹자: "#E8833A", 판매: "#2E9E6B", 생활서비스: "#8B6BC8",
+  교육: "#D9A520", 유흥: "#D64545", 의료: "#2BB3C0",
+};
+/** 유동인구 농도의 색 — 상권 일곱 어느 것과도 겹치지 않는 앱 파랑. */
 export const POP_COLOR = "#3182F6";
 /** pop: 0~1 로 정규화된 유동인구. 있으면 채움이 이 값의 농도가 되고 상권은 테두리로 간다. */
 export type Zone = { geojson: unknown; cat: string; count: number; pop?: number | null };

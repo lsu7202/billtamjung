@@ -7,7 +7,7 @@ import { openDetail, mergeGeo } from "../../shared/map/geo";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
 import { TradeCompare } from "../building/TradeCompare";
 import { FilterModal, activeCount, conditionChips, type Values, type RegionPick } from "./FilterModal";
-import { pruneFilters } from "./filterConfig";
+import { pruneFilters, filterChips } from "./filterConfig";
 import { RoadviewMini } from "../../shared/map/Roadview";
 import "./search.css";
 import { Icon } from "../../shared/ui/Icon";
@@ -34,7 +34,7 @@ const pyl = (m2?: number | null) => (m2 == null ? "—" : `${py(m2)}평`);   // 
 /** 지도 선택 매물 요약 카드 — 배치·마스터 즉시값만. 사이드바는 대기 없이 떠야 한다.
  *  수익률은 classified가 총임대료(층별 실측 합계 ?? 직접 입력 총액) × 12 ÷ 값 으로 산출해
  *  핀에 실려옴(picked.roi). 추정 임대는 안 섞는다(0134).
- *  매력도·활용유형도 이제 배치다(0038) — 남은 라이브 계산값(미래가치·사옥적합도)만 리포트에서. */
+ *  활용유형도 이제 배치다(0038, 매력도는 2026-09-06 삭제) — 남은 라이브 계산값(미래가치·사옥적합도)만 리포트에서. */
 function SelCard({ picked, bldg, nearby, onDetail, onHide }: {
   picked: MapPin; bldg?: Record<string, unknown>; nearby?: NearbySales;
   onDetail: () => void;
@@ -56,6 +56,11 @@ function SelCard({ picked, bldg, nearby, onDetail, onHide }: {
   const realPer = picked.last_sale_price && total
     ? Math.round(picked.last_sale_price / (total / 3.305785)) : null;
   const estPer = fair && total ? Math.round(fair / (total / 3.305785)) : null;
+  // 대지 평당도 같이 — 상업용은 땅값으로 견주는 일이 많다(2026-09-05)
+  const landPy = land ? land / 3.305785 : null;
+  const realPerLand = picked.last_sale_price && landPy
+    ? Math.round(picked.last_sale_price / landPy) : null;
+  const estPerLand = fair && landPy ? Math.round(fair / landPy) : null;
 
   return (
     <div className="sel-card">
@@ -95,17 +100,15 @@ function SelCard({ picked, bldg, nearby, onDetail, onHide }: {
           <span className="pill"><i>연면적</i><b>{pyl(total)}</b></span>
           <span className="pill"><i>층수</i>
             <b>{fb ? `B${fb}/` : ""}{fa != null ? `${fa}F` : "—"}</b></span>
-          {num("score") != null && (
-            <span className="pill"><i>매력도</i>
-              <b>{Math.round(num("score")!)}{bldg?.grade ? ` ${bldg.grade}` : ""}</b></span>
-          )}
         </div>
         {/* 실거래 비교 — 건물 상세 실거래 탭과 **같은 부품**을 쓴다(2026-08-28).
             같은 컴포넌트라 두 화면의 값이 어긋날 수 없다. */}
-        <TradeCompare title="실거래" note="실거래가 · 평당"
-          near={{ price: nearby?.median_price ?? null, per: nearby?.median_per_area ?? null }}
-          mine={{ price: picked.last_sale_price ?? null, per: realPer }}
-          est={{ price: fair, per: estPer }} />
+        <TradeCompare title="실거래" note="연면적 평당 · 대지 평당 · 총액"
+          near={{ price: nearby?.median_price ?? null, per: nearby?.median_per_area ?? null,
+                  perLand: nearby?.median_price && landPy
+                    ? Math.round(nearby.median_price / landPy) : null }}
+          mine={{ price: picked.last_sale_price ?? null, per: realPer, perLand: realPerLand }}
+          est={{ price: fair, per: estPer, perLand: estPerLand }} />
         <div className="sel-acts">
           <button className="sel-detail" onClick={onDetail}>상세보기 →</button>
           <button className="sel-hide" title="이 조건에서 접어두기" onClick={onHide}>
@@ -153,6 +156,14 @@ export function SearchPage() {
   const [realBasis, setRealBasis] = useState<"total" | "land" | "bldg">((saved.realBasis as any) ?? "land");
   const [realUnit, setRealUnit] = useState<"py" | "m2">((saved.realUnit as any) ?? "py");
   const [saleYears, setSaleYears] = useState<number>((saved.saleYears as number) ?? 0);   // 0 = 전체
+  /** 시작 연도를 직접 고른 경우(밸류맵식). 고르면 `saleYears` 대신 이것이 이긴다.
+   *
+   *  **이건 「거르기」가 아니라 「보기 범위」다.** 검색 필터의 「실거래일」과 같은 값을 두
+   *  곳에서 고치게 두면 어느 쪽이 이겼는지 아무도 모른다. 그래서 성격을 갈랐다 —
+   *  필터는 **어떤 건물을 남길까**, 여기는 **어느 시기 거래를 볼까**(2026-09-05 확정).
+   *  목록에서 빼지 않고 값만 지워 회색 점으로 세우는 것도 그래서다. */
+  const [saleFrom, setSaleFrom] = useState<number | null>((saved.saleFrom as number) ?? null);
+  const [yrOpen, setYrOpen] = useState(false);
   // 그린 영역은 여러 개 쌓인다 — 예전엔 단일 객체라 새로 그리면 앞의 것이 사라졌다.
   // 서버로는 mergeGeo로 MultiPolygon 하나로 합쳐 보낸다(서버는 손댈 것이 없다).
   const [polygons, setPolygons] = useState<object[]>(
@@ -160,7 +171,7 @@ export function SearchPage() {
   const polygon = mergeGeo(polygons);
   const [picked, setPicked] = useState<MapPin | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);   // 지도만 보고 싶을 때 접는다
-  const [centerReq, setCenterReq] = useState<{ lng: number; lat: number; zoom?: number } | null>(null);  // 지도 중심 이동 요청
+  const [centerReq, setCenterReq] = useState<{ lng: number; lat: number; zoom?: number; bounds?: [number, number, number, number] } | null>(null);  // 지도 이동 요청
   // 정렬은 추정가순 하나다(2026-08-27) — 수익률순은 값이 있는 매물이 적어 줄이 거의 안 바뀌었다
   const [sort] = useState((saved.sort as string) ?? "price");
   // 매수자 조건을 싣고 왔으면 **그 조건만** 쓴다. 세션에 남아 있던 검색 조건이 섞이면
@@ -204,14 +215,19 @@ export function SearchPage() {
   const [hidden, setHidden] = useState<string[]>(
     pre ? ((pre as { hidden?: string[] }).hidden ?? []).map(String)
         : ((saved.hidden as string[]) ?? []).map(String));
+  /** 화면 낱말(`fValues`)로는 안 보이는데 서버로는 걸려 있는 조건.
+   *  옛 매수자 조건이 `filters` 만 들고 있어 검색은 좁혀지는데 화면이 그대로였다(2026-09-05). */
+  const shownLabels = new Set(conditionChips(fValues).map((c) => c.label));
+  const onlyFilterChips = filterChips(filters).filter((c) => !shownLabels.has(c.label));
   const [showFilter, setShowFilter] = useState(false);
   const [pages, setPages] = useState<{ mine: number; normal: number }>((saved.pages as { mine: number; normal: number }) ?? { mine: 1, normal: 1 });
 
   // 조건 변경 시 스냅샷 저장(전환·새로고침 복원용)
   useEffect(() => {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ q, priceMode, realBasis, realUnit, saleYears, polygons, sort, filters, fValues, fRegions, pages, hidden }));
-  }, [q, priceMode, realBasis, realUnit, saleYears, polygons, sort, filters, fValues, fRegions, pages, hidden]);
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ q, priceMode, realBasis, realUnit, saleYears, saleFrom, polygons, sort, filters, fValues, fRegions, pages, hidden }));
+  }, [q, priceMode, realBasis, realUnit, saleYears, saleFrom, polygons, sort, filters, fValues, fRegions, pages, hidden]);
   const bjd = fRegions[0]?.bjd_code ?? "";                       // 단일지역(멀티는 백엔드 확장 예정)
+  // 지역·영역이 바뀌어 매물 집합이 바뀌면 핀 레이어가 지도를 맞춘다(mapCanvasLayer.setPins) — 여기서 또 맞추지 않는다
   const filterCount = activeCount(fValues, fRegions);
   const resetPages = () => setPages({ mine: 1, normal: 1 });
 
@@ -253,7 +269,9 @@ export function SearchPage() {
   const mapPinList = (mapPins.data ?? []).filter((p) => !hideSet.has(p.building_pk));
   // 거래 시기 거르기 — **목록에서 빼지 않는다.** 건물은 그대로 있고 견줄 실거래만 없는 것이라
   // 값을 지워 회색 점으로 세운다. 목록에서 빼면 검색 결과가 지도 눈금 따라 흔들린다.
-  const ymCut = saleYears
+  const ymCut = saleFrom
+    ? `${saleFrom}01`                                    // 고른 해 1월부터
+    : saleYears
     ? (() => { const d = new Date(); d.setFullYear(d.getFullYear() - saleYears);
                return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`; })()
     : null;
@@ -268,12 +286,17 @@ export function SearchPage() {
   const go = (pk: string) => openDetail(pk);   // 리다이렉트=새탭(사이트 규칙)
 
   // 자동완성 선택 — 클릭 동작 통일(§3.1a 개편): 건물=지도 이동+선택 · 지역/역=지도 이동
-  function pickFromSuggest(s: { kind?: string; building_pk?: string | null; pnu?: string | null; addr?: string; lng?: number | null; lat?: number | null }) {
+  function pickFromSuggest(s: { kind?: string; building_pk?: string | null; pnu?: string | null; addr?: string; lng?: number | null; lat?: number | null; bjd_code?: string | null }) {
     setQ(""); setActive(-1);
     // 고른 대상 크기에 맞춰 확대한다 — 건물은 필지가 보여야 하고, 동·역은 주변이 보여야 한다.
     // 나대지는 필지 하나가 대상이라 건물과 같은 배율로 붙는다
     const zoom = s.kind === "region" ? 15 : s.kind === "station" ? 16 : 18;
     if (s.lng && s.lat) setCenterReq({ lng: s.lng, lat: s.lat, zoom });
+    // 지역을 골랐으면 **그 동이 지역 필터가 된다** — 지도만 옮기면 핀은 「내 매물」뿐이라 빈 동네가 섰다(2026-09-06 대표 지적).
+    if (s.kind === "region" && s.bjd_code) {
+      setFRegions([{ bjd_code: s.bjd_code, label: (s.addr ?? "").replace("서울특별시 ", "") }]);
+      resetPages();
+    }
     if (s.kind === "building" || (!s.kind && s.building_pk)) selectBuilding(s.building_pk!);   // 핀에 있으면 그 핀, 없으면 조회
     // 나대지도 건물과 같은 흐름이다(2026-08-27): 지도 이동 + 선택 카드, 상세는 카드에서.
     // 처음엔 바로 상세로 보냈는데, 건물만 두 단계고 땅만 한 단계면 같은 검색이 다르게 움직인다.
@@ -436,7 +459,8 @@ export function SearchPage() {
               </div>
 
               {/* 담은 조건 — 지역 · 그린 영역 · 필터 */}
-              {(fRegions.length > 0 || polygons.length > 0 || filterCount > 0) && (
+              {(fRegions.length > 0 || polygons.length > 0 || filterCount > 0
+                || onlyFilterChips.length > 0) && (
                 <div className="mo-chips">
                   {fRegions.map((r) => (
                     <span key={r.bjd_code} className="chip">{r.label}
@@ -449,6 +473,11 @@ export function SearchPage() {
                   {conditionChips(fValues).map((c) => (
                     <span key={c.label} className="chip">{c.label} {c.text}
                       <span className="x" onClick={() => setFValues((st) => { const n = { ...st }; delete n[c.label]; return n; })}>✕</span></span>
+                  ))}
+                  {/* `values` 없이 `filters` 만 실려 온 조건 — 안 그리면 「안 걸렸다」로 읽힌다 */}
+                  {onlyFilterChips.map((c) => (
+                    <span key={c.label} className="chip">{c.label} {c.text}
+                      <span className="x" onClick={() => { setFilters({}); resetPages(); }}>✕</span></span>
                   ))}
                 </div>
               )}
@@ -477,10 +506,23 @@ export function SearchPage() {
                     </>
                   )}
                   <span className="yr">
-                    {[[0, "전체"], [1, "1년"], [3, "3년"], [5, "5년"]].map(([v, t]) => (
-                      <button key={v as number} className={saleYears === v ? "on" : ""}
-                        onClick={() => setSaleYears(v as number)}>{t as string}</button>
+                    {[[0, "전체"], [3, "3년"], [5, "5년"], [10, "10년"]].map(([v, t]) => (
+                      <button key={v as number} className={!saleFrom && saleYears === v ? "on" : ""}
+                        onClick={() => { setSaleFrom(null); setSaleYears(v as number); }}>{t as string}</button>
                     ))}
+                    {/* 연도 직접 고르기 — 눌러야 열리는 팝오버. 서른일곱 해를 늘 펴 두면
+                        이 줄이 화면을 먹는다. 고른 해부터 지금까지를 본다 */}
+                    <button className={saleFrom ? "on" : ""} onClick={() => setYrOpen((v) => !v)}>
+                      {saleFrom ? `${saleFrom}년~` : "연도"}</button>
+                    {yrOpen && (
+                      <span className="yr-pop">
+                        {Array.from({ length: new Date().getFullYear() - 1989 },
+                          (_, i) => new Date().getFullYear() - i).map((y) => (
+                          <button key={y} className={saleFrom === y ? "on" : ""}
+                            onClick={() => { setSaleFrom(y); setSaleYears(0); setYrOpen(false); }}>{y}</button>
+                        ))}
+                      </span>
+                    )}
                   </span>
                 </div>
               )}

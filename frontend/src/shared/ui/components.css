@@ -245,3 +245,48 @@ body.map-full .bt-page > .panel { display: none !important }
    금 긋지 않고 여백만으로 가른다: 선을 하나 더 그으면 탭 줄에 선이 두 겹이 된다. */
 .subnav button.apart, .sales-nav button.apart { margin-left: 30px; }
 .subnav button.lead, .sales-nav button.lead { font-size: 15.5px; font-weight: 800; letter-spacing: -.02em; }
+
+/* 소식 지도 핀(2026-09-06) — 건물 상세 사이드바 지도와 건물 검색 지도가 같이 쓴다. — 흰 동그라미에 파란 선 아이콘. 기타(sm)는 작고 회색.
+   고른 것(on)은 파랗게 차고 파문이 돈다 — 목록↔지도가 같은 것을 가리킨다는 표시 */
+.ev-pin{width:22px;height:22px;border-radius:50%;background:#fff;border:1.5px solid #3182F6;color:#3182F6;
+  display:grid;place-items:center;box-shadow:0 1px 4px rgba(0,0,0,.28);cursor:pointer;position:relative;box-sizing:border-box}
+.ev-pin svg{width:13px;height:13px;display:block}
+.ev-pin.sm{width:16px;height:16px;border-color:#B0B8C1;color:#8B95A1}
+.ev-pin.sm svg{width:9px;height:9px}
+.ev-pin.on{background:#3182F6;color:#fff;border-color:#fff}
+.ev-pin.on::after{content:"";position:absolute;inset:-7px;border-radius:50%;border:2px solid #3182F6;
+  animation:ev-ripple 1.4s ease-out infinite}
+@keyframes ev-ripple{0%{transform:scale(.55);opacity:.9}100%{transform:scale(1.5);opacity:0}}
+@media (prefers-reduced-motion: reduce){.ev-pin.on::after{animation:none;opacity:.6}}
+.ev-all{border:0;font:inherit;font-size:11px;font-weight:700;color:#4E5968;background:rgba(255,255,255,.94);
+  padding:4px 10px;border-radius:999px;box-shadow:0 1px 4px rgba(0,0,0,.2);cursor:pointer}
+.ev-all:hover{color:#3182F6}
+
+/* 검색 지도 핀 말풍선 */
+.ev-pop{font:600 12px/1.4 Pretendard,-apple-system,sans-serif;color:#191F28;background:#fff;border-radius:10px;padding:8px 11px;
+  box-shadow:0 2px 10px rgba(0,19,43,.18);max-width:260px}
+.ev-pop b{display:block;font-weight:800;font-size:13px;margin-bottom:2px}
+.ev-pop span{color:#8B95A1;font-size:11px}
+.ev-pop a{display:inline-block;margin-top:4px;color:#3182F6;font-weight:700;text-decoration:none;font-size:11.5px}
+.ev-pop .ev-links{display:flex;justify-content:space-between;gap:14px;margin-top:2px}   /* 소식에서 보기 ← → 출처 */
+.ev-bar{display:flex;gap:4px}
+.ev-all.on{color:#3182F6;background:#EBF3FE}
+/* 지도 소식 판(2026-09-06 대표 확정) — 「소식」 버튼 위로 열린다. 고른 줄은 파랑 */
+.ev-pan{background:#fff;border-radius:14px;box-shadow:0 6px 24px rgba(0,19,43,.18);padding:10px 10px 8px;width:224px;box-sizing:border-box}
+.ev-pan.compact{width:196px;padding:8px 8px 6px}
+.ev-ph{font-size:13px;font-weight:800;color:#191F28;padding:0 4px 8px}
+.ev-yrs{display:flex;gap:4px;padding:0 0 8px;border-bottom:1px solid #F0F2F4;margin-bottom:6px}
+.ev-yrs button{border:0;font:inherit;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:#F2F4F6;color:#4E5968;cursor:pointer}
+.ev-yrs button.on{background:#EBF3FE;color:#3182F6}
+.ev-ty{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;font:inherit;font-size:12.5px;font-weight:700;
+  color:#B0B8C1;padding:4px 6px;border-radius:8px;cursor:pointer;text-align:left}
+.ev-ty .i{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#F2F4F6;color:#B0B8C1;flex:0 0 auto}
+.ev-ty .i svg{width:13px;height:13px}
+.ev-ty .l{flex:1 1 auto;white-space:nowrap}
+.ev-ty .n{font-family:ui-monospace,"SF Mono",monospace;font-size:11px;font-weight:700;color:#C6CBD1}
+.ev-ty:hover{background:#F7F8FA}
+.ev-ty.on{background:#EBF3FE;color:#3182F6}
+.ev-ty.on .i{background:#3182F6;color:#fff}
+.ev-ty.on .n{color:#3182F6}
+.ev-pan.compact .ev-ty{font-size:12px;padding:3px 5px}
+.ev-pan.compact .ev-ty .i{width:20px;height:20px}

@@ -29,7 +29,8 @@ scan() {
       | grep -v 'tb-in' \
       | grep -v 'memo-in' \
       | grep -v 'mp-pill' \
-      | grep -v '주소 또는 지명'
+      | grep -v '주소 또는 지명' \
+      | grep -v 'q-pill'   # 목록 상단 검색 pill(소식 탭). 규칙이 허용한 자리라 이름을 박아 뺀다(2026-09-06)
     # 모달 파일(*Modal.tsx)은 폼이 허용된 자리다 — 「폼은 모달 안에서만」이 규칙이다.
     # 인라인 화면에 네모칸이 새로 서는 것만 잡는 것이 이 검사의 목적이다.
   } 2>/dev/null | grep -v 'Modal\.tsx' | sed 's/:[0-9]*:/:/' | sed 's/^[[:space:]]*//' | sort -u

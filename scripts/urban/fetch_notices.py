@@ -23,6 +23,9 @@
   · 기본 User-Agent 로도 되지만 **Referer 가 있어야 안전하다**
   · 경로는 `/ntfc/getNtfcList.json` 이다. `/api/ntfc/…` 는 404
   · POST + JSON 본문. `pageSize` 100 까지 한 번에 온다(1.7MB)
+  · **서버에 깨진 줄이 섞여 있다.** 그 줄이 든 쪽을 부르면 200 인데 몸통이
+    `Unable to find kr.go.seoul.supis.domains.TcInstt with id 000` 이다(JSON 이 아니다).
+    쪽을 잘게 쪼개 그 줄만 건너뛴다 — 한 줄 때문에 4만 건을 버릴 수는 없다.
   · PDF 는 `UpisArchive/DATA/PM/pdf/{noticeCode}/{파일명}` — 대소문자를 지켜야 한다(`upisArchive` 는 404)
 
     data/.venv/bin/python scripts/urban/fetch_notices.py --pages 3
@@ -30,6 +33,7 @@
 import argparse
 import json
 import os
+import time
 import urllib.parse
 import urllib.request
 
@@ -42,12 +46,48 @@ KEEP = ("noticeCode", "noticeNo", "noticeDate", "title", "content",
         "siteCode", "site", "charger", "phone", "noticeClassify")
 
 
-def post(body: dict) -> dict:
+class Broken(Exception):
+    """서버가 못 만드는 줄이 그 쪽에 들었다 — 다시 불러도 똑같다. 쪼개서 피한다."""
+
+
+def post(body: dict, tries: int = 4) -> dict:
     req = urllib.request.Request(
         LIST, data=json.dumps(body).encode(),
         headers={"User-Agent": UA, "Referer": REF, "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=180) as r:
-        return json.load(r)
+    last = None
+    for i in range(tries):
+        try:
+            with urllib.request.urlopen(req, timeout=240) as r:
+                raw = r.read()
+            if raw.lstrip()[:1] in (b"{", b"["):
+                return json.loads(raw)
+            if b"Unable to find" in raw:
+                raise Broken(raw[:80].decode("utf-8", "replace"))
+            last = f"JSON 이 아니다({len(raw)}B)"
+        except Broken:
+            raise
+        except Exception as e:                                # noqa: BLE001
+            last = f"{type(e).__name__}: {e}"
+        time.sleep(2 * (i + 1))
+    raise RuntimeError(f"{body.get('pageNo')}쪽을 {tries}번 불러도 안 온다 — {last}")
+
+
+def fetch_span(base: dict, start: int, size: int) -> tuple[list, int]:
+    """[start, start+size) 을 가져온다. 깨진 줄이 있으면 쪼개 들어가 그 줄만 버린다."""
+    assert start % size == 0 or size == 1
+    try:
+        page = post({**base, "pageNo": start // size + 1, "pageSize": size})
+        return list(page.get("content") or []), 0
+    except Broken:
+        if size == 1:
+            return [], 1                                      # 이 한 줄을 버린다
+        step = max(size // 10, 1)
+        out, lost = [], 0
+        for s in range(start, start + size, step):
+            got, l = fetch_span(base, s, step)
+            out += got
+            lost += l
+        return out, lost
 
 
 def slim(x: dict) -> dict:
@@ -66,22 +106,44 @@ def main() -> None:
     ap.add_argument("--keyword")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
-    body = {"pageNo": 1, "pageSize": a.size, "useYn": "Y",
-            "keywordList": [a.keyword] if a.keyword else []}
-    first = post(body)
+    base = {"useYn": "Y", "keywordList": [a.keyword] if a.keyword else []}
+    first = post({**base, "pageNo": 1, "pageSize": a.size})
     total, pages = first.get("totalElements", 0), first.get("totalPages", 0)
     last = pages if not a.pages else min(a.pages, pages)
-    print(f"  총 {total:,}건 · {pages:,}쪽 중 {last:,}쪽을 받는다")
-    rows = [slim(x) for x in (first.get("content") or [])]
-    for p in range(2, last + 1):
-        rows += [slim(x) for x in (post({**body, "pageNo": p}).get("content") or [])]
-        if p % 20 == 0:
-            print(f"    {p}/{last}쪽 · {len(rows):,}건")
-    p = os.path.join(a.out, "notices.json")
-    json.dump(rows, open(p, "w", encoding="utf-8"), ensure_ascii=False)
+    print(f"  총 {total:,}건 · {pages:,}쪽 중 {last:,}쪽을 받는다", flush=True)
+
+    jl = os.path.join(a.out, "notices.jsonl")
+    done = set()
+    if os.path.exists(jl):
+        for line in open(jl, encoding="utf-8"):
+            try:
+                done.add(json.loads(line)["noticeCode"])
+            except Exception:                                 # noqa: BLE001, PERF203
+                pass
+        print(f"  이미 받은 것 {len(done):,}건 — 다시 안 적는다", flush=True)
+
+    n = lost = 0
+    with open(jl, "a", encoding="utf-8") as f:
+        for p in range(1, last + 1):
+            got, l = ((first.get("content") or []), 0) if p == 1 else \
+                fetch_span(base, (p - 1) * a.size, a.size)
+            lost += l
+            for x in got:
+                r = slim(x)
+                code = r.get("noticeCode")
+                if code in done:
+                    continue                                  # 이미 있는 줄만 넘긴다(쪽 전체가 아니다)
+                done.add(code)
+                n += 1
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
+            f.flush()
+            if p % 20 == 0 or p == last:
+                print(f"    {p}/{last}쪽 · 새로 {n:,} · 버린 줄 {lost}", flush=True)
+
+    rows = [json.loads(x) for x in open(jl, encoding="utf-8")]
     body_n = sum(1 for r in rows if (r.get("content") or "").strip())
     pdf_n = sum(1 for r in rows if r.get("pdf"))
-    print(f"  {p} · {len(rows):,}건 · 본문 {body_n:,} · PDF {pdf_n:,}")
+    print(f"\n  {jl} · {len(rows):,}건(새로 {n:,}) · 본문 {body_n:,} · PDF {pdf_n:,} · 버린 줄 {lost}")
 
 
 main()

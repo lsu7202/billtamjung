@@ -76,9 +76,9 @@ async def resolve_anchor(team_id: int, buyers: set[int], owners: set[int]
     pids = [r["id"] for r in prows if r["building_pk"] == bld]
     return bld, (pids[0] if len(pids) == 1 else None)
 
-# 가계약 신설(2026-08-25) — 계약 전에 대금 일부가 먼저 움직이는 날. 임장은 고르는 종류에서
+# 계약금 일부(옛 「가계약」, 0158) — 계약 전에 대금 일부가 먼저 움직이는 날. 임장은 고르는 종류에서
 # 빠졌지만(일반으로 본다) 이미 그 종류로 선 일정이 있어 목록에는 남는다.
-SCHED_CATEGORIES = ("일반", "브리핑", "임장", "가계약", "계약", "중도금", "잔금")
+SCHED_CATEGORIES = ("일반", "브리핑", "임장", "계약금 일부", "계약", "중도금", "잔금")
 
 
 def guess_category(title: str | None) -> str:

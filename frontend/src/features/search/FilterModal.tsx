@@ -530,7 +530,7 @@ export function FilterModal({
         <div className="modal" onClick={(e) => e.stopPropagation()}>
           {/* 헤더 */}
           <div className="modal-head">
-            <h2>상세검색</h2><span className="sub">S01 필터</span><span className="sp" />
+            <h2>상세검색</h2><span className="sp" />
             <Icon name="unit" size={15} style={{ verticalAlign: "-3px", marginRight: 4 }} />
             <Segmented value={unit} onChange={setUnit} size="sm" options={[{ value: "평", label: "평" }, { value: "㎡", label: "㎡" }]} />
             <button className="lnk" onClick={() => setShowLoad(true)}><Icon name="load" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />불러오기</button>

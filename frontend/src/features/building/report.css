@@ -326,22 +326,26 @@
   box-shadow: 0 24px 60px rgba(15,26,46,.24); }
 .gmodal.narrow { width: min(520px, 100%); }
 
-.gm-head { display: flex; align-items: baseline; gap: 10px; padding: 22px 22px 14px; }
-.gm-head h2 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -.03em; color: #191F28; }
-.gm-head .addr { font-size: 13px; color: #8B95A1; font-weight: 600; min-width: 0;
+/* **`.gmodal` 안으로 가둔다**(2026-09-05).
+   업무 탭의 일정·보류 모달도 `.gm-body`·`.gm-head` 를 쓴다(sales.css). 이름이 겹쳐서
+   나중에 실린 이 파일이 이겼고, 업무 모달의 `.gm-body` 가 flex 대신 **2열 grid** 가 됐다.
+   그래서 보류 사유 칩 열한 개가 240px 자리에서 89px 로 쪼그라들어 세로로 쌓였다. */
+.gmodal .gm-head { display: flex; align-items: baseline; gap: 10px; padding: 22px 22px 14px; }
+.gmodal .gm-head h2 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -.03em; color: #191F28; }
+.gmodal .gm-head .addr { font-size: 13px; color: #8B95A1; font-weight: 600; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gm-x { margin-left: auto; align-self: center; width: 30px; height: 30px; border: 0; border-radius: 9px;
+.gmodal .gm-x { margin-left: auto; align-self: center; width: 30px; height: 30px; border: 0; border-radius: 9px;
   background: none; color: #B0B8C1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
-.gm-x:hover { background: #F2F4F6; color: #4E5968; }
+.gmodal .gm-x:hover { background: #F2F4F6; color: #4E5968; }
 
-.gm-body { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; padding: 0 22px 6px; overflow: auto; }
-.gm-body.one { grid-template-columns: 1fr; }
-@media (max-width: 720px) { .gm-body { grid-template-columns: 1fr; } }
+.gmodal .gm-body { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; padding: 0 22px 6px; overflow: auto; }
+.gmodal .gm-body.one { grid-template-columns: 1fr; }
+@media (max-width: 720px) { .gmodal .gm-body { grid-template-columns: 1fr; } }
 
-.gm-map .zone-map { height: 216px; border-radius: 14px; }
-.gm-cap { display: flex; align-items: center; gap: 12px; padding: 9px 4px 0;
+.gmodal .gm-map .zone-map { height: 216px; border-radius: 14px; }
+.gmodal .gm-cap { display: flex; align-items: center; gap: 12px; padding: 9px 4px 0;
   font-size: 12px; color: #8B95A1; font-weight: 600; }
-.gm-cap b { color: #191F28; font-family: var(--mono); }
+.gmodal .gm-cap b { color: #191F28; font-family: var(--mono); }
 
 .gm-vals { display: grid; align-content: start; }
 .gm-vals .orow { min-height: 44px; gap: 10px; padding: 0 12px; }

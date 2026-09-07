@@ -227,6 +227,56 @@ async def main():
     chk(r["f"] >= 15_000, f"계산 용적률 {r['f']:,}동", "기준 15,000")
     chk(r["b"] >= 14_000, f"계산 건폐율 {r['b']:,}동", "기준 14,000")
 
+    # ── 주변 소식 — 조용한 실패를 잡는다 ─────────────────────────────
+    # 파이프라인이 「돌긴 도는데 0건으로 성공」하는 일이 실제로 세 번 있었다.
+    # 표가 비어도 화면은 뜬다 — 카드가 안 서고 끝이라 아무도 모른다.
+    print("\n[주변 소식] 표가 비었는가 · 갈래가 살아 있는가")
+    for tbl, floor in (("master.area_event", 1000), ("master.urban_notice", 40000),
+                       ("master.city_facility", 20000), ("master.building_permit", 500000),
+                       ("master.g2b_bid", 1000), ("master.sbiz_store", 500000),
+                       ("master.localdata_permit", 2000000)):
+        try:
+            n = await c.fetchval(f"SELECT count(*) FROM {tbl}")
+        except asyncpg.exceptions.UndefinedTableError:
+            chk(False, f"{tbl} 없음", "적재가 안 돌았다")
+            continue
+        chk(n >= floor, f"{tbl} {n:,}줄 (기준 {floor:,})", "적재가 덜 됐거나 원천이 바뀌었다")
+
+    kinds = {r["kind"]: r["n"] for r in await c.fetch(
+        "SELECT kind, count(*) n FROM master.area_event GROUP BY 1")}
+    # 「정책 발표」는 보도자료라 **본문이 없어야 한다**(공공누리 4유형). 아래에서 따로 본다.
+    for k in ("정비·개발", "기반시설", "건축 인허가", "정책 발표"):
+        chk(kinds.get(k, 0) > 0, f"갈래 「{k}」 {kinds.get(k, 0):,}줄",
+            "build_area_event 의 UNION 한 갈래가 죽었다")
+
+    # 본문 되붙임이 area_event 재빌드 **뒤에** 돌았는가. 순서가 어긋나면 여기서 0 이 된다.
+    r = await c.fetchrow("""SELECT count(*) t, count(body) b FROM master.area_event
+                             WHERE src_table IN ('district_plan','city_facility')""")
+    p_body = 100.0 * r["b"] / max(r["t"], 1)
+    chk(p_body >= 80.0, f"고시 본문 붙음 {p_body:.1f}% (기준 80%)",
+        "load_urban_notice.py 가 build_area_event.py **뒤에** 다시 돌아야 한다")
+
+    # 이름 자리에 자리표시가 서면 안 된다 — 「(기구축내용없음)」이 화면에 164줄 섰다(2026-09-06).
+    #   빈 이름·포털 빈 제목은 build_area_event 가 법정 표기로 바꿔 부른다.
+    n_ph = await c.fetchval(r"""SELECT count(*) FROM master.area_event
+                                  WHERE name IS NULL OR btrim(name) = '' OR name ~ '기구축|내용없음|^서울특별시 고시 제0000'""")
+    chk(n_ph == 0, f"이름 자리표시 없음 ({n_ph}줄)",
+        "build_area_event 의 이름 CASE 나 load_urban_notice 의 이름 갈기가 빠졌다")
+
+    # 보도자료에서 온 줄은 **본문이 비어 있어야 한다** — 채우면 저작권 위반이다
+    n_body = await c.fetchval(
+        "SELECT count(*) FROM master.area_event WHERE kind='정책 발표' AND body IS NOT NULL")
+    chk(n_body == 0, f"정책 발표 줄에 본문 없음 ({n_body}줄)",
+        "보도자료는 공공누리 4유형 — area_event.body 를 채우면 안 된다")
+
+    # 보도자료는 본문을 저장하지 않는다(공공누리 4유형). 칸이 생기면 사고다.
+    cols = {r["column_name"] for r in await c.fetch(
+        "SELECT column_name FROM information_schema.columns"
+        " WHERE table_schema='master' AND table_name='press_event'")}
+    chk("body" not in cols and "content" not in cols,
+        "press_event 에 본문 칸이 없다",
+        "보도자료는 공공누리 4유형 — 본문을 저장하면 안 된다")
+
     print("\n[마이그레이션 이력] 파일과 DB 기록이 맞는가")
     mig = await c.fetch("SELECT version FROM app.schema_migrations")
     have = {m["version"] for m in mig}

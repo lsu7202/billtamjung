@@ -58,6 +58,7 @@ export interface CanvasLayer {
 
 export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) => void): CanvasLayer {
   let pins: CanvasPin[] = [];
+  let fitKey = "";   // 마지막으로 맞춘 핀 집합
   let selected: string | null = null;
   let mode: PriceMode = "fair";
   let view: RealView = { basis: "land", unit: "py" };   // 밸류맵식 기본 — 대지면적 · 평
@@ -281,11 +282,16 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
   return {
     setPins(next) {
       pins = next;
-      if (pins.length) {
+      // **핀 구성이 바뀔 때만** 지도를 맞춘다(2026-09-06). 검색 페이지는 상태가 하나만 바뀌어도 핀 배열을 새로 만들어
+      // 여기로 보내는데, 그때마다 맞추면 역·주소로 옮긴 지도가 곧바로 핀 상자(강남 내 매물)로 되돌아간다 —
+      // 「종로5가역 엔터 → 움직이다 다시 돌아옴」이 그것이다. 같은 건물 집합이면 순서·가격이 바뀌어도 안 움직인다.
+      const key = pins.map((p) => p.building_pk).sort().join(",");
+      if (pins.length && key !== fitKey) {
         const bnd = new naver.maps.LatLngBounds();
         pins.forEach((p) => bnd.extend(new naver.maps.LatLng(p.lat, p.lng)));
         map.fitBounds(bnd, { top: 60, right: 60, bottom: 60, left: 60 });
       }
+      fitKey = key;
       const proj = overlay.getProjection();
       if (proj) { compute(proj); render(); }
     },

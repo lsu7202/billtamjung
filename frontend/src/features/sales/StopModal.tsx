@@ -16,6 +16,11 @@ import "./sales.css";
  *
  *  **깨울 날짜는 두지 않는다**(0140). 예전엔 「언제 다시 볼까」를 다섯 갈래로 같이 물었는데
  *  아무도 안 썼다. 다시 볼 일이 정해져 있으면 그건 일정이지 보류가 아니다.
+ *
+ *  **메모 칸도 없앴다**(0159). 「사유가 곧 상태」인데 옆에 자유 글칸을 두면 규칙이 둘이 된다.
+ *  칩으로 못 고를 것이 있으면 그건 **사유 목록이 모자란 것**이다 — 그래서 갈래마다 「기타」를 뒀다.
+ *  무엇이 자주 걸리는지는 값으로 세면 되고, 「기타」가 쌓이면 그때 사유를 새로 만든다.
+ *  자유 글은 셀 수 없다. (칸 `app.stops.note` 는 남긴다 — 이미 적힌 글을 지우지 않는다.)
  */
 // 줄머리는 라벨로 통일했다(2026-08-18 — 아이콘만으론 무슨 칸인지 안 읽혔다)
 
@@ -28,6 +33,7 @@ export const STAGE_LABEL: Record<StopStage, string> = {
 /** 보류 초안 — 부모가 들고 있다가 저장 때 stopsApi.open 으로 보낸다 */
 export interface StopDraft {
   reason: string | null;
+  /** 옛 값만 실어 나른다 — 새로 적는 자리는 없다(0159) */
   note: string;
 }
 export const emptyStopDraft = (cur?: Stop | null): StopDraft => ({
@@ -43,10 +49,8 @@ export const saveStop = (target: { type: Stop["target_type"]; id: string },
 
 /** 보류 몸통 — **어디서 쓰든 같은 줄들**(사유 · 메모).
  *  StopModal(모달)과 소유자 찾기 창(인라인)이 이 한 벌을 공유한다 — 보류 UI 는 하나다. */
-export function StopFields({ stage, d, onChange, full }: {
+export function StopFields({ stage, d, onChange }: {
   stage: StopStage; d: StopDraft; onChange: (d: StopDraft) => void;
-  /** true 면 사유를 고르기 전에도 메모가 보인다 — 명시적 실패 칩이 이미 선언을 했으니 */
-  full?: boolean;
 }) {
   const { options } = useEnums();
   const set = (p: Partial<StopDraft>) => onChange({ ...d, ...p });
@@ -61,15 +65,6 @@ export function StopFields({ stage, d, onChange, full }: {
           cur={d.reason ?? "미지정"} onSelect={(v) => set({ reason: v === "미지정" ? null : v })} />
       </div>
     </div>
-    {(full || d.reason) && (
-      <div className="gm-row lab">
-        <span className="gm-lab">메모</span>
-        <div className="gm-body">
-          <input className="gm-in" value={d.note}
-            onChange={(e) => set({ note: e.target.value })} />
-        </div>
-      </div>
-    )}
   </>);
 }
 

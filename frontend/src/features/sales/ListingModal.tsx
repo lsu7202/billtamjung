@@ -247,7 +247,7 @@ export function ListingModal({ init, onClose, onSaved, stop, lastOn }: {
               {(
                 <div className="mm-stop">
                   <div className="gm-sep">정지 — 지금은 못 간다</div>
-                  <StopFields stage="owner" full d={sd} onChange={setSd} />
+                  <StopFields stage="owner" d={sd} onChange={setSd} />
                 </div>
               )}
             </>
