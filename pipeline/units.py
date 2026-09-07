@@ -390,15 +390,15 @@ UNITS: dict[str, dict] = {
              "select count(*)>=300, to_char(count(*),'999,999') from master.land_adjust"),
         ],
     ),
-    # 상권 구획도(부동산원 15086933) — **원본을 못 받는다**(2026-09-07 실측: 포털이 0바이트를 준다.
-    # 같은 경로로 승강기 15112638 은 33MB 가 정상으로 온다 → 우리 코드가 아니라 그쪽 파일 문제).
-    # 지금 정본은 DB 에서 떠 둔 `data/exports/sanggwon/sanggwon.csv.gz` — **자기 백업이 원천**이다.
-    # 그래서 단위를 두되 받기는 없고, 검증이 72칸을 지킨다. 원본이 다시 열리면 crawl 을 붙인다.
+    # 상권 구획도(부동산원) — **원본을 되찾았다**(2026-09-07 대표가 손으로 받아 raw 에 둠).
+    # 자동 받기는 안 된다: 포털(15086933)이 0바이트를 준다. 같은 경로로 승강기는 33MB 가
+    # 정상으로 오니 그쪽 파일 문제다. 새 판이 나오면 포털이 바꿔 줄 테니 그때 손으로 받는다.
+    # 실측: 2024 판과 지금 표가 **겹침률 100%** — 경계가 안 바뀌었다. 갱신이 급한 원천이 아니다.
     "sanggwon": dict(
-        cadence="yearly", label="상권 구획도(부동산원 · 원본 유실 · 백업이 정본)",
-        load=[S(["scripts/sanggwon/load_sanggwon_csv.py"], "gis",
-                "data/exports/sanggwon/sanggwon.csv.gz")],
-        inputs=["data/exports/sanggwon/sanggwon.csv.gz"], table="master.sanggwon",
+        cadence="yearly", label="상권 구획도(부동산원 · 받기는 손으로)",
+        load=[S(["scripts/sanggwon/load_sanggwon.py"], "gis",
+                "data/raw/상권구획도(업로드용)")],
+        inputs=["data/raw/상권구획도(업로드용)/*.shp"], table="master.sanggwon",
         verify=[
             ("서울 상권 72칸",
              "select count(*)=72, count(*)::text||'칸' from master.sanggwon"),
