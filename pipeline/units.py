@@ -173,7 +173,10 @@ UNITS: dict[str, dict] = {
     # 시계열은 공간 조인이 필요 없어 D150 dbf 에서 바로 뽑는다 — build_gongsi_series.py.
     "gongsi": dict(
         cadence="yearly", label="개별공시지가(V-World D150 + 옛 CSV)",
-        crawl=[S(["scripts/vworld/download_vworld.py", "--only", "6"], "gis")],
+        # 공시지가·토지특성은 NA 카탈로그다 — `--na` 없이 부르면 데이터셋을 못 찾는다(2026-09-07 실측)
+        crawl=[S(["scripts/vworld/download_vworld.py", "--na", "--only", "6",
+                  "--out", "data/raw/_dl"], "gis"),
+               S(["scripts/activate.py"], "gis")],
         build=[S(["scripts/build_gongsi_series.py",
                   "--out", "data/exports/_load/gongsi_series.csv"], "gis")],
         load=[S(["pipeline/loader.py", "--source", "gongsi_series",
