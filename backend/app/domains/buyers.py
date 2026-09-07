@@ -318,7 +318,7 @@ async def list_proposals(buyer_id: int | None = None, building_pk: str | None = 
                   COALESCE(so.v::numeric, se.sale_est) AS price,
                   (so.v IS NULL) AS price_is_est,
                   -- 카드에 값 판단 재료를 같이 낸다. "3.2억"만 있으면 비싼지 싼지 모른다.
-                  se.sale_est, sc.score, sc.grade AS score_grade, sc.use_type,
+                  se.sale_est, sc.use_type,
                   CASE WHEN se.sale_est > 0 AND so.v IS NOT NULL
                        THEN round((so.v::numeric / se.sale_est - 1) * 100, 1) END AS vs_est_pct,
                   -- 수익률 = **총임대료 × 12** ÷ 값(0134). 검색·상세와 같은 분자다.
@@ -864,7 +864,7 @@ async def building_timeline(building_pk: str, user: CurrentUser = Depends(curren
 
 
 class DealPatch(BaseModel):
-    """③사다리의 단계 근거 필드(0093) — 브리핑·임장·가계약·수수료·거래신고.
+    """③사다리의 단계 근거 필드(0093) — 브리핑·임장·계약금 일부·수수료·거래신고.
     부분 patch(COALESCE). 저장은 auto 장부줄 한 줄로 묶여 남는다(S04b §7.5)."""
     briefed_on: str | None = None
     visited_on: str | None = None
@@ -891,7 +891,7 @@ _CLEARABLE = {"briefed_on", "brief_how", "brief_note", "visited_on", "visit_note
               "report_filed_on", "terms", "vat_mode", "down_payment"}
 # 장부는 사람 낱말로 — 영문 컬럼명이 줄에 서면 안 읽힌다
 _CLEAR_KO = {"briefed_on": "브리핑", "brief_how": "브리핑 방식", "brief_note": "브리핑 내용", "visited_on": "임장", "visit_note": "임장 결과",
-             "pre_contract_on": "가계약", "pre_contract_amount": "계약금",
+             "pre_contract_on": "계약금 일부", "pre_contract_amount": "계약금",
              "commission_amount": "수수료", "commission_split": "배분",
              "report_filed_on": "거래신고", "terms": "조건"}
 
@@ -1292,15 +1292,13 @@ async def buyer_matches(bid: int, limit: int = 6, user: CurrentUser = Depends(cu
                 break
         if len(out) >= limit:
             break
-    # 배치 점수(매력도·활용유형)를 붙인다 — 카드에서 판단 재료가 되게
+    # 배치 활용유형을 붙인다 — 카드에서 판단 재료가 되게(매력도 등급은 2026-09-06 에 없앴다)
     if out:
         scs = {r["building_pk"]: dict(r) for r in await pool().fetch(
-            """SELECT building_pk, grade, use_type FROM master.building_score
+            """SELECT building_pk, use_type FROM master.building_score
                WHERE building_pk = ANY($1::text[])""", [o["building_pk"] for o in out])}
         for o in out:
-            sc = scs.get(o["building_pk"], {})
-            o["grade"] = sc.get("grade")
-            o["use_type"] = sc.get("use_type")
+            o["use_type"] = scs.get(o["building_pk"], {}).get("use_type")
     return out
 
 

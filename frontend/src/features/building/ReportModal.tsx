@@ -96,10 +96,6 @@ export function ReportModal({ pk, credits, onClose, onDone }: Props) {
                 <span className="ev hero">{eok(preview?.fair_price)}</span>
               </div>
               <div className="orow">
-                <span className="who g">가치점수</span><span className="cap" />
-                <span className="ev">{preview?.score ?? "—"}<i className="gr">{preview?.grade ?? ""}</i></span>
-              </div>
-              <div className="orow">
                 <span className="who g">매도희망가</span><span className="cap" />
                 <span className="ev">{eok(preview?.ask_price)}</span>
               </div>

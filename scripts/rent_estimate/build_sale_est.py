@@ -158,7 +158,7 @@ async def main():
         subj = {"total_area": s['ta'], "land_area": s['la'], "gongsi_latest": s['g'],
                 "approval_ymd": s['ay'], "remodel_ymd": s['ry'],
                 "road_frontage": s['rf'], "day_pop": s['dp'], "night_pop": s['np']}
-        ap = report_calc.appraise(0, subj, cd, params, time_adjust)   # ← 라이브와 동일 함수
+        ap = report_calc.appraise(subj, cd, params, time_adjust)   # ← 라이브와 동일 함수
         fair = ap.get("fair_price")
         if not fair:
             continue

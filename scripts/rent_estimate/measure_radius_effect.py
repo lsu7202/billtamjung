@@ -101,7 +101,7 @@ async def main():
             subj = {"total_area": s["ta"], "land_area": s["la"], "gongsi_latest": s["g"],
                     "approval_ymd": s["ay"], "remodel_ymd": s["ry"],
                     "road_frontage": s["rf"], "day_pop": s["dp"], "night_pop": s["np"]}
-            ap = report_calc.appraise(0, subj, comps, params, time_adjust)
+            ap = report_calc.appraise(subj, comps, params, time_adjust)
             if ap.get("fair_price"):
                 vals[rad] = float(ap["fair_price"])
         if 500 not in vals or len(vals) < 2:

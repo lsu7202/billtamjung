@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""매력도(F-16) · 활용유형(F-20) · 매도가능성을 배치로 산출 → master.building_score.
+"""활용유형(F-20) · 매도가능성을 배치로 산출 → master.building_score. 매력도(F-16)는 2026-09-06 에 없앴다(0161).
 
 왜:
   이 값들은 지금 리포트를 만들 때만 계산된다(30크레딧). 순수 계산 함수라 미리 돌려두면
@@ -157,8 +157,6 @@ async def main() -> None:
                 d["age_years"] = _years(d["approval_ymd"], today)
                 d["remodel_years"] = _years(d["remodel_ymd"], today)
 
-                vs = value_score.compute(d, params)
-                items = vs["items"]
                 lfar = _legal_far(d["legal_far"])
                 la_py = (float(d["land_area"]) / P) if d["land_area"] else None
                 ut = use_type.classify({
@@ -167,28 +165,28 @@ async def main() -> None:
                     "floors_above": d["floors_above"], "age_years": d["age_years"],
                     "remodel_years": d["remodel_years"], "land_area_py": la_py,
                     "shape": d["shape"], "road_frontage": d["road_frontage"],
-                    "road_score": items.get("road_access", 0),
-                    "station_score": items.get("station_dist", 0),
+                    "road_score": value_score.ROAD_SCORES.get(d.get("road_frontage") or "", 0),
+                    "station_score": value_score.station_score(
+                        float(d["station_dist"]) if d.get("station_dist") is not None else None),
                     "use_zone": d["use_zone"], "market": {},   # 상권 프로필은 리포트에서만
                 })
                 sell, axes = _sell(d, today)
-                out.append((d["building_pk"], vs["score"], vs["grade"], json.dumps(items),
+                out.append((d["building_pk"],
                             ut.get("primary"), json.dumps(ut.get("scores")),
                             ut.get("util"), sell, json.dumps(axes, ensure_ascii=False)))
 
             async with c.transaction():
                 await c.execute("""CREATE TEMP TABLE _s(
-                        building_pk text, score numeric, grade text, items jsonb,
+                        building_pk text,
                         use_type text, use_scores jsonb, util_ratio numeric,
                         sell_score numeric, sell_axes jsonb) ON COMMIT DROP""")
                 await c.copy_records_to_table("_s", records=out)
                 await c.execute("""
                     INSERT INTO master.building_score
-                      (building_pk, score, grade, items, use_type, use_scores, util_ratio, sell_score, sell_axes, updated)
-                    SELECT building_pk, score, grade, items, use_type, use_scores, util_ratio,
+                      (building_pk, use_type, use_scores, util_ratio, sell_score, sell_axes, updated)
+                    SELECT building_pk, use_type, use_scores, util_ratio,
                            sell_score, sell_axes, now() FROM _s
                     ON CONFLICT (building_pk) DO UPDATE SET
-                      score=EXCLUDED.score, grade=EXCLUDED.grade, items=EXCLUDED.items,
                       use_type=EXCLUDED.use_type, use_scores=EXCLUDED.use_scores,
                       util_ratio=EXCLUDED.util_ratio, sell_score=EXCLUDED.sell_score,
                       sell_axes=EXCLUDED.sell_axes, updated=now()""")
@@ -199,7 +197,7 @@ async def main() -> None:
                 break
 
         print(await c.fetchval(
-            """SELECT '완료 '||count(*)||'동 · 매력도 '||count(score)||' · 활용유형 '||count(use_type)
+            """SELECT '완료 '||count(*)||'동 · 활용유형 '||count(use_type)
                       ||' · 매도가능성 '||count(sell_score) FROM master.building_score"""), flush=True)
     finally:
         await c.close()

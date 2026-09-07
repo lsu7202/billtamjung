@@ -148,7 +148,7 @@ def _geomean_iqr(pairs: list[tuple[float, float]]) -> float | None:
     return math.exp(sum(w * math.log(v) for v, w in kept) / sw) if sw else None
 
 
-def appraise(subject_score: float, subject: dict, comps: list[dict],
+def appraise(subject: dict, comps: list[dict],
              params_num: dict, time_adjust: dict) -> dict:
     """F-17 v2 적정매매가. subject={total_area,land_area,gongsi_latest(원/㎡)}. 유효 comp 부족 시 None."""
     subj_ta = _num(subject.get("total_area"))
@@ -222,7 +222,7 @@ def appraise(subject_score: float, subject: dict, comps: list[dict],
         used.append({"building_pk": c.get("building_pk"), "addr": c.get("addr"),
                      "contract_ym": c.get("contract_ym"), "price": price,
                      "area_py": round(ta / M2_PER_PYEONG, 2) if ta else None,
-                     "score": c.get("score"), "per_now": round(padj / ta * M2_PER_PYEONG) if ta else None,
+                     "per_now": round(padj / ta * M2_PER_PYEONG) if ta else None,
                      "time_adj": adj, "weight": round(w, 6)})
 
     gr, gp, gta = _geomean_iqr(R), _geomean_iqr(P), _geomean_iqr(T)
@@ -292,23 +292,23 @@ if __name__ == "__main__":  # ponytail: self-check
     subj = {"total_area": 330.5785, "land_area": 100.0, "gongsi_latest": 1e7, "approval_ymd": "2010-01-01"}
     comp = {"price": 2e9, "total_area": 330.5785, "land_area": 100.0, "gongsi_total": 1e9,
             "contract_ym": "202506", "dist_m": 0, "building_pk": "x", "addr": "a", "approval_ymd": "2010-01-01"}
-    r = appraise(80, subj, [comp], NOCOST, {})
+    r = appraise(subj, [comp], NOCOST, {})
     assert r["fair_price"] == round(2e9), r
     # v3 방향성: 본매물 신축 vs comp 노후 → 상향 / 반대 → 하향 (기본 파라미터)
-    up = appraise(80, {**subj, "approval_ymd": str(_THIS_YEAR)},
+    up = appraise({**subj, "approval_ymd": str(_THIS_YEAR)},
                   [{**comp, "approval_ymd": str(_THIS_YEAR - 20)}], {}, {})["fair_price"]
-    dn = appraise(80, {**subj, "approval_ymd": str(_THIS_YEAR - 40)},
+    dn = appraise({**subj, "approval_ymd": str(_THIS_YEAR - 40)},
                   [{**comp, "approval_ymd": str(_THIS_YEAR)}], {}, {})["fair_price"]
     assert up > 2e9 > dn, (up, dn)
     # 리모델링: 40년 건물이라도 리모델 최근이면 유효연식 단축 → 순수 노후보다 상향
-    rem = appraise(80, {**subj, "approval_ymd": str(_THIS_YEAR - 40), "remodel_ymd": str(_THIS_YEAR - 2)},
+    rem = appraise({**subj, "approval_ymd": str(_THIS_YEAR - 40), "remodel_ymd": str(_THIS_YEAR - 2)},
                    [{**comp, "approval_ymd": str(_THIS_YEAR)}], {}, {})["fair_price"]
     assert rem > dn, (rem, dn)
-    assert appraise(80, subj, [], {}, {})["fair_price"] is None
+    assert appraise(subj, [], {}, {})["fair_price"] is None
     # 대형(고용적): 동일 제원이면 α 무관 항등
     big = {"total_area": 14000.0, "land_area": 1000.0, "gongsi_latest": 1e7, "approval_ymd": "2010-01-01"}
     bc = {"price": 5e10, "total_area": 14000.0, "land_area": 1000.0, "gongsi_total": 1e10,
           "contract_ym": "202506", "dist_m": 0, "approval_ymd": "2010-01-01"}
-    rb = appraise(80, big, [bc], NOCOST, {})
+    rb = appraise(big, [bc], NOCOST, {})
     assert rb["fair_price"] == round(5e10), rb
     print("report_calc v3 self-check ok")

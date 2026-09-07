@@ -1,16 +1,16 @@
 import { Loading } from "../../shared/ui/Spinner";
 import { useState, useEffect, useRef, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ScoreRadar, CompareBar } from "./ReportPrimitives";
-import { Logo, Seal, Icon, ScoreRing, BuildingArt, CountUp } from "./ReportAssets";
-import { ReportMap } from "./ReportMap";
+import { CompareBar } from "./ReportPrimitives";
+import { Logo, Seal, BuildingArt, CountUp } from "./ReportAssets";
+import { ReportMap, ZONE_COLOR } from "./ReportMap";
 import { BuildingPhoto } from "./BuildingPhoto";
-import { useReportModel, AXIS, num, man, eokman, eokManParts, py, word, type Seg } from "./reportModel";
+import { useReportModel, num, man, eokman, eokManParts, py, type Seg } from "./reportModel";
 import "./reportslide.css";
 import { Icon as ActionIcon } from "../../shared/ui/Icon";
 
 /** 분석 보고서 — R_example.pptx 8슬라이드를 웹으로(네이비 코퍼레이트·16:9·cqw 스케일). 내용은 reportModel 단일 소스.
- * 표지 → 핵심요약 → 기본정보 → 매력도 → 실거래가 → 공시지가 → 임대수익 → 투자유형 → 미래가치 → 종합결론. */
+ * 표지 → 핵심요약 → 기본정보 → 실거래가 → 공시지가 → 임대수익 → 투자유형 → 미래가치 → 종합결론(매력도는 2026-09-06 삭제). */
 
 function Slide({ n, foot, title, desc, children, rno, date }:
   { n: string; foot: string; title: string; desc: string; children: React.ReactNode; rno: string; date: string }) {
@@ -62,10 +62,9 @@ export function ReportPage() {
     fair, rent, curRent, totalArea, avgPer, comps, moreCount, avgPerNow,
     gLatest, gTotal, nbhdGongsi, gmult, compMin, compMax,
     roiFair, nbhdRoi,
-    ut, officeApt, fut, useZone, mainUse, grade, score, gradeCol, shortAddr, opinions, conclusion,
+    ut, officeApt, fut, useZone, mainUse, shortAddr, conclusion,
     SLIDES: SLIDE_META, summaryRows, summaryTail, basicInfo, gongsiMetrics, gongsiProse, rentMetrics, rentProse, futureAxes,
   } = m;
-  const gc = (s: number) => s >= 70 ? "var(--blue)" : "var(--rmuted)";
   const SM = Object.fromEntries(SLIDE_META.map((s) => [s.key, s])) as Record<string, typeof SLIDE_META[number]>;
 
   if (loading && !sub) return <Loading label="보고서 계산 중" minHeight="60vh" />;
@@ -108,10 +107,9 @@ export function ReportPage() {
           <div className="rs-fade" style={{ flex: "0 0 33%", borderRadius: "1.2cqw", overflow: "hidden", background: "linear-gradient(135deg,#dfe4ec,#c3cbd8)" }}><BuildingPhoto pk={pk} /></div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "1.8cqw" }}>
             <div className="rs-fade" style={{ display: "flex", alignItems: "center", gap: "2.6cqw" }}>
-              <ScoreRing score={score} grade={grade} gradeColor={gradeCol} size={13.5} />
               <div style={{ flex: 1 }}>
                 {summaryRows.map((r, i) => (
-                  <div key={r.k} className="rs-fade" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: ".9cqw .2cqw", borderBottom: i < 2 ? "1px solid var(--rl)" : "none", ["--d" as string]: `${(i + 1) * 90}ms` }}>
+                  <div key={r.k} className="rs-fade" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: ".9cqw .2cqw", borderBottom: i < summaryRows.length - 1 ? "1px solid var(--rl)" : "none", ["--d" as string]: `${(i + 1) * 90}ms` }}>
                     <div><div style={{ fontSize: "1.55cqw", fontWeight: 700, color: "var(--navy)" }}>{r.k}</div><div style={{ fontSize: ".9cqw", color: "var(--rmuted)" }}>{r.s}</div></div>
                     <div className="num" style={{ fontSize: "2.8cqw", fontWeight: 800, color: r.c, lineHeight: 1 }}>{r.v}</div>
                   </div>
@@ -138,31 +136,6 @@ export function ReportPage() {
             </tbody></table>
           </div>
           <ReportMap lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom} />
-        </div>
-      </Slide>,
-      <Slide key={2} n={SM.appeal.n} foot={SM.appeal.foot} rno={rno} date={date}
-        title={SM.appeal.title} desc={SM.appeal.desc}>
-        <div style={{ display: "flex", gap: "2.5cqw", width: "100%" }}>
-          <table className="rs-tbl" style={{ flex: "0 0 52%", alignSelf: "flex-start" }}>
-            <thead><tr><th>평가 항목</th><th>평가 결과</th><th>분석 의견</th></tr></thead>
-            <tbody>
-              {opinions.map((o, i) => (
-                <tr key={o.key}>
-                  <td className="b"><span style={{ display: "inline-flex", alignItems: "center", gap: ".7cqw" }}><Icon name={o.icon} size={1.9} color="var(--navy)" />{`①②③④⑤⑥⑦⑧⑨`[i]} {o.label}</span></td>
-                  <td style={{ color: gc(o.score), fontWeight: 700 }}>{o.word}</td>
-                  <td style={{ color: "var(--rmuted)", fontSize: "1cqw", lineHeight: 1.35 }}>{o.text}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "1cqw" }}>
-            <div className="rs-sc blue" style={{ display: "flex", alignItems: "center" }}>
-              <div><div className="k">매력도 점수</div><div className="v">{score}<u>/100점</u></div></div>
-              <span className="rs-pill blue" style={{ marginLeft: "auto", fontSize: "1.6cqw", padding: ".7cqw 1.3cqw" }}>{grade}등급</span>
-            </div>
-            {sub?.items && <ScoreRadar axes={AXIS.map(([k, l]) => ({ label: l, score: sub.items![k] ?? 0 }))} color="var(--navy)" size={210} showValues />}
-            <div style={{ fontSize: ".98cqw", color: "var(--rmuted)", textAlign: "center" }}>등급 기준 · S 90↑ / A 75~89 / B 60~74 / C 60↓ → 본 매물 {grade}등급({word(score)})</div>
-          </div>
         </div>
       </Slide>,
       <Slide key={3} n={SM.deal.n} foot={SM.deal.foot} rno={rno} date={date}
@@ -308,12 +281,12 @@ export function ReportPage() {
               </div>
               {/* 우: 큰 상권 지도(높이 채움) */}
               <div style={{ flex: 1.5, display: "flex", flexDirection: "column", gap: ".5cqw", minHeight: 0 }}>
-                <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)" }}>주변 상권 지도 <span style={{ color: "var(--rmuted)", fontWeight: 400, fontSize: ".85cqw" }}>(반경 300m · 격자 지배 용도)</span></div>
+                <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)" }}>주변 상권 지도 <span style={{ color: "var(--rmuted)", fontWeight: 400, fontSize: ".85cqw" }}>(반경 300m · 격자 지배 업종)</span></div>
                 {ut.zones && ut.zones.length
                   ? <ReportMap lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom} zones={ut.zones as any} />
                   : <div style={{ color: "var(--rmuted)", fontSize: "1.05cqw", padding: "2cqw 0" }}>주변 상권 데이터가 부족합니다.</div>}
                 <div style={{ display: "flex", gap: "1cqw", flexWrap: "wrap", fontSize: ".85cqw", color: "var(--rmuted)" }}>
-                  {[["업무", "#3182F6"], ["먹자", "#E8833A"], ["유흥", "#D64545"], ["판매", "#2E9E6B"]].map(([k, c]) => (
+                  {Object.entries(ZONE_COLOR).map(([k, c]) => (
                     <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: ".3cqw" }}><span style={{ width: ".9cqw", height: ".9cqw", background: c, borderRadius: ".2cqw", display: "inline-block" }} />{k}</span>
                   ))}
                 </div>
@@ -402,9 +375,8 @@ export function ReportPage() {
             {([
               ["예상수익률", <CountUp key="r" end={roiFair ?? 0} dur={1000} delay={1200} fmt={(v) => v.toFixed(2)} />, "%", nbhdRoi ? `주변 평균 ${nbhdRoi}%` : "추정가 기준"],
               ["예상 월임대수익", rent ? `${man(rent)}만원` : "—", "", "주변 임대시세 적용"],
-              ["매력도", grade, "등급", `가치점수 ${score}점`],
             ] as [string, React.ReactNode, string, string][]).map(([k, v, u, d], i) => (
-              <div key={k} className="rs-fade" style={{ textAlign: "center", padding: "0 2.8cqw", borderRight: i < 2 ? "1px solid var(--rl)" : "none", ["--d" as string]: `${1100 + i * 200}ms` }}>
+              <div key={k} className="rs-fade" style={{ textAlign: "center", padding: "0 2.8cqw", borderRight: i < 1 ? "1px solid var(--rl)" : "none", ["--d" as string]: `${1100 + i * 200}ms` }}>
                 <div style={{ fontSize: "1cqw", color: "var(--rmuted)", fontWeight: 700 }}>{k}</div>
                 <div style={{ fontSize: "2.7cqw", fontWeight: 800, color: "var(--blue)", lineHeight: 1.05 }}>{v}<span style={{ fontSize: "1.35cqw" }}>{u}</span></div>
                 <div style={{ fontSize: ".82cqw", color: "var(--rmuted)" }}>{d}</div>

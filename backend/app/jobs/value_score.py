@@ -142,20 +142,5 @@ def _num(v: Any) -> float | None:
         return None
 
 
-def compute(building: dict[str, Any], params: dict[str, float]) -> dict[str, Any]:
-    """params = {'weight.road_access':18, ..., 'grade_cut.S':90, ...} (ref.formula_params)."""
-    scores = item_scores(building)
-    total = sum(
-        scores[k] * params.get(f"weight.{k}", 0) / 100.0
-        for k in scores
-    )
-    total = round(total, 1)
-    if total >= params.get("grade_cut.S", 90):
-        grade = "S"
-    elif total >= params.get("grade_cut.A", 75):
-        grade = "A"
-    elif total >= params.get("grade_cut.B", 60):
-        grade = "B"
-    else:
-        grade = "C"
-    return {"score": total, "grade": grade, "items": scores}
+# compute()(F-16 매력도 총점·등급)는 2026-09-06 에 없앴다 — 대표 결정 「매력도 기능은 아예 없앤다」.
+# 남은 것은 활용유형(use_type)·임대 실험이 쓰는 항목 점수뿐이다.

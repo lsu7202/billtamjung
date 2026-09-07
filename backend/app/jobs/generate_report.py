@@ -12,6 +12,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from ..core.db import tx, pool
 from ..core.config import settings
+from ..core.market import STORES
 from . import value_score, report_calc, use_type
 
 router = APIRouter(prefix="/jobs", tags=["worker"])
@@ -246,7 +247,6 @@ async def _fetch_comps(building_pk: str, subject: dict, params: dict,
         if ov:
             _apply_override(cb, ov)
         _f16_from_ymd(cb)
-        cvs = value_score.compute(cb, params)
         per_area = round(cb["price"] / float(cb["total_area"]) * report_calc.M2_PER_PYEONG)
         c_la = float(cb["land_area"]) if cb["land_area"] else None
         c_gt = (float(cb["gongsi_latest"]) * c_la) if (cb["gongsi_latest"] and c_la) else None
@@ -260,7 +260,6 @@ async def _fetch_comps(building_pk: str, subject: dict, params: dict,
                       # road_frontage 는 cb 에서 읽는다 — 오버레이로 고친 값이 반영된 뒤다.
                       "road_frontage": cb["road_frontage"],
                       "day_pop": cb["day_pop"], "night_pop": cb["night_pop"],
-                      "score": cvs["score"],
                       "per_area": per_area, "dist_m": cb["dist_m"], "land_use": cb["land_use"],
                       "type_factor": _ADJ_FACTOR if cb["land_use"] in adj else 1.0,
                       "lng": cb["lng"], "lat": cb["lat"],
@@ -406,19 +405,16 @@ def _parse_far(v) -> float | None:
 
 
 async def _market_zones(building_pk: str) -> list[dict]:
-    """상권 존(격자 ~100m) — 셀별 지배 용도(업무/먹자/유흥/판매) 폴리곤. 지도 오버레이용."""
+    """상권 존(격자 ~100m) — 셀별 지배 갈래 폴리곤. 지도 오버레이용.
+    갈래는 실제 업체로 센다(core/market.py · 2026-09-06). 셀에 업체 셋은 있어야 색을 준다."""
     rows = await pool().fetch(
-        """WITH s AS (SELECT geom, ST_X(geom) lng, ST_Y(geom) lat FROM master.buildings WHERE building_pk=$1),
+        f"""WITH s AS (SELECT geom, ST_X(geom) lng, ST_Y(geom) lat FROM master.buildings WHERE building_pk=$1),
              cells AS (
-               SELECT ST_SnapToGrid(b.geom, s.lng, s.lat, 0.0011, 0.0009) cell,
-                 CASE WHEN fo.use ~ '사무소|업무시설' THEN '업무'
-                      WHEN fo.use ~ '음식점' THEN '먹자'
-                      WHEN fo.use ~ '유흥|단란|노래연습장|주점' THEN '유흥'
-                      WHEN fo.use ~ '소매점|백화점' THEN '판매' ELSE '기타' END cat
-               FROM master.buildings b JOIN master.floor_outline fo USING(building_pk), s
-               WHERE ST_DWithin(b.geom::geography, s.geom::geography, 300)
-                 AND fo.use !~ '주택|아파트|오피스텔|주차|부대'),
-             agg AS (SELECT cell, cat, count(*) c FROM cells WHERE cat<>'기타' GROUP BY cell, cat),
+               SELECT ST_SnapToGrid(st.geom, s.lng, s.lat, 0.0011, 0.0009) cell, st.cat
+               FROM ({STORES}) st, s
+               WHERE st.geom && ST_Expand(s.geom, 300 / 80000.0)   -- 상자 선필터. 없으면 55만 점 전수(1.5s)
+                 AND ST_DWithin(st.geom::geography, s.geom::geography, 300)),
+             agg AS (SELECT cell, cat, count(*) c FROM cells GROUP BY cell, cat),
              dom AS (SELECT DISTINCT ON (cell) cell, cat, c FROM agg ORDER BY cell, c DESC)
            SELECT ST_AsGeoJSON(ST_Envelope(ST_Expand(cell, 0.00055, 0.00045))) geojson, cat, c
            FROM dom WHERE c >= 3 ORDER BY c""",
@@ -505,14 +501,14 @@ def _attach_future(ut: dict | None, rent_summary: dict | None) -> None:
 # 이제 값을 만드는 곳이 하나뿐이라 어긋날 자리가 없다.
 
 
-def synthesize(subject: dict, subject_score: float, comps: list[dict],
+def synthesize(subject: dict, comps: list[dict],
                params: dict, time_adjust: dict, rent_apply: dict | None = None,
                apply_market: bool = False, fair_override: float | None = None) -> dict:
     """F-17 적정매매가 + F-18 예상수익률 + 협의금액. preview·생성 공용.
     rent_apply=주변임대 '데이터'(비교표·주변수익률 표시용, 항상 전달 가능).
     apply_market=True(토글 ON)일 때만 그 값이 수익률·적용임대료를 움직임 —
     기본(False)은 팀 실입력→마스터 추정 폴백으로 배치(search.classified roi)와 동일."""
-    ap = report_calc.appraise(subject_score, subject, comps, params, time_adjust)
+    ap = report_calc.appraise(subject, comps, params, time_adjust)
     # ★ 적정가는 **하나**다 — master.building_sale_est 가 정본(2026-09-02).
     #
     # 예전엔 배치와 리포트가 각자 계산해 화면마다 값이 갈렸다(2026-08-28 삼성동 78 검색
@@ -746,7 +742,6 @@ async def run_generate(report_id: int, team_id: int) -> dict:
 
         fs_version, params, time_adjust = await _load_formula_params()
         b = await _assemble(rep["building_pk"], team_id)
-        vs = value_score.compute(b, params) if rep["kind"] == "analysis" else None
 
         syn = None
         if rep["kind"] == "analysis":   # F-17 적정매매가 · F-18 예상수익률
@@ -764,22 +759,21 @@ async def run_generate(report_id: int, team_id: int) -> dict:
                 fair_master = await pool().fetchval(
                     "SELECT sale_est FROM master.building_sale_est WHERE building_pk=$1",
                     rep["building_pk"])
-            syn = synthesize(b, vs["score"], comps, params, time_adjust, rent_apply,
+            syn = synthesize(b, comps, params, time_adjust, rent_apply,
                              apply_market=opt.get("include_market", False),
                              fair_override=float(fair_master) if fair_master else None)
 
         # 웹 보고서(/reports/:id) 렌더용 synthesis 스냅샷 — 생성 시점 값 고정(analysis만).
         # PPT도 이 스냅샷에서 굽는다(웹 덱과 같은 입력 → 두 산출물의 값이 어긋날 수 없음).
         snapshot = None
-        if rep["kind"] == "analysis" and vs and syn:
+        if rep["kind"] == "analysis" and syn:
             ut = await _use_type(rep["building_pk"], b)   # F-20 투자 유형
             _attach_future(ut, syn.get("rent_summary"))   # F-21 미래가치
             snapshot = {
-                "subject": {"addr": b.get("addr"), "score": vs["score"], "grade": vs["grade"],
-                            "items": vs["items"], "total_area": _fnum(b.get("total_area")),
+                "subject": {"addr": b.get("addr"), "total_area": _fnum(b.get("total_area")),
                             "land_area": _fnum(b.get("land_area")), "sale_price": _fnum(b.get("sale_price")),
                             "total_rent": _fnum(b.get("total_rent"))},
-                "preview": {"score": vs["score"], "grade": vs["grade"], "fair_price": syn["fair_price"],
+                "preview": {"fair_price": syn["fair_price"],
                             "avg_per_pyeong": syn["avg_per_pyeong"], "avg_per_land": syn.get("avg_per_land"),
                             "expected_roi": syn["expected_roi"],
                             "gap": syn["gap"], "ask_price": syn["ask_price"], "broker_price": syn.get("broker_price"),

@@ -33,19 +33,7 @@ export const eokManParts = (won: number | null | undefined): [number, number] =>
   if (mn >= 10000) { e += 1; mn -= 10000; }
   return [neg ? -e : e, mn];
 };
-export const word = (s: number) => s >= 90 ? "매우 우수" : s >= 80 ? "우수" : s >= 70 ? "양호" : s >= 60 ? "보통" : "미흡";
-
-export const AXIS: [string, string][] = [
-  ["road_access", "도로접면"], ["station_dist", "역과의거리"], ["use_zone", "용도지역"],
-  ["shape", "지형형상"], ["approval_date", "사용승인일"], ["elevator", "엘리베이터"],
-  ["remodel", "대수선·리모델링"], ["slope", "경사도"], ["float_pop", "유동인구"],
-];
-export const AXIS_ICON: Record<string, string> = {
-  road_access: "road", station_dist: "train", use_zone: "zone", shape: "mountain",
-  approval_date: "calendar", elevator: "elevator", remodel: "tools", slope: "slope", float_pop: "people",
-};
-
-/** 가치 항목별 '사실 기반' 의견 — 실제 필드값 + 점수대 평가. */
+// 매력도(F-16)의 9축·등급 낱말·항목별 의견은 2026-09-06 에 없앴다 — 대표 결정 「매력도 기능은 아예 없앤다」.
 /** 용도지역 이름 — 걸치면 **다 적는다**(비중 큰 순).
  *
  * `buildings.use_zone` 은 비중이 가장 큰 하나뿐이다. 그것만 적으면 삼성동 78 이
@@ -63,33 +51,6 @@ export function zoneLabel(b: Record<string, any>): string | null {
   return (b?.use_zone as string) || null;
 }
 
-export function opinion(k: string, s: number, b: Record<string, any>): string {
-  const A = s >= 90 ? "매우 우수합니다" : s >= 80 ? "우수합니다" : s >= 70 ? "양호합니다" : s >= 60 ? "무난합니다" : "다소 아쉽습니다";
-  const yr = b.approval_ymd ? Number(String(b.approval_ymd).slice(0, 4)) : null;
-  const age = yr ? new Date().getFullYear() - yr : null;
-  switch (k) {
-    case "road_access":
-      return b.road_frontage ? `${b.road_frontage}에 접해 접근성과 건물 활용도가 ${A}` : `도로 접면 여건상 접근성이 ${A}`;
-    case "station_dist":
-      return b.station_dist != null ? `가장 가까운 역까지 약 ${Math.round(b.station_dist)}m로, 대중교통 접근성이 ${A}` : `역 접근성이 ${A}`;
-    case "use_zone":
-      return zoneLabel(b) ? `${zoneLabel(b)}에 속해 상업·업무 활용 잠재력이 ${A}` : `용도지역상 활용 잠재력이 ${A}`;
-    case "shape":
-      return b.shape ? `대지 형상이 ${b.shape}이라 토지 이용 효율이 ${A}` : `대지 형상상 이용 효율이 ${A}`;
-    case "approval_date":
-      return yr ? `${yr}년 준공(약 ${age}년차)으로, 건물 연식 여건이 ${A}` : `건물 연식 여건이 ${A}`;
-    case "elevator":
-      return (Number(b.elevator) || 0) > 0 ? `엘리베이터 ${b.elevator}대가 있어 상층부 접근성이 ${A}` : "엘리베이터가 없어 상층부 접근성이 다소 아쉽습니다";
-    case "remodel":
-      return b.remodel_ymd ? `${String(b.remodel_ymd).slice(0, 4)}년 대수선 이력이 있어 건물 관리 상태가 ${A}` : "대수선 이력이 없어 노후 관리 측면이 다소 아쉽습니다";
-    case "slope":
-      return b.slope ? `대지 경사가 ${b.slope}이라 건축·이용 여건이 ${A}` : `대지 경사 여건이 ${A}`;
-    case "float_pop":
-      return b.float_pop ? `유동인구가 ${b.float_pop} 수준으로, 상권 활력이 ${A}` : `상권 활력이 ${A}`;
-    default:
-      return `평가 결과 ${word(s)} 수준`;
-  }
-}
 
 export type Seg = { t: string; b?: boolean };   // 서술 세그먼트(b=강조). 색·크기는 화면이 결정, 문구는 공용.
 
@@ -158,25 +119,16 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   const perPyRent = curRent && totalArea ? curRent / (totalArea / P) : null;
   const upsidePct = (rent != null && curRent) ? ((rent - curRent) / curRent) * 100 : null;
   const nbhdRoi = rs?.nearby_roi ?? null;
-  const topStrengths = AXIS.map(([k, l]) => ({ l, s: (sub?.items?.[k] ?? 0) as number }))
-    .sort((a, c) => c.s - a.s).filter((x) => x.s >= 75).slice(0, 3).map((x) => x.l);
+  const addr = sub?.addr ?? "—";
+  const shortAddr = addr.replace(/^서울특별시\s*/, "").replace(/\s*번지$/, "");
+
+
   const ut = pv?.use_type ?? null;
   const officeApt = (ut?.office_fit ?? 0) >= 65;
   const fut = ut?.future ?? null;
 
   const useZone = zoneLabel(b) ?? "—";
   const mainUse = (b.main_use_name as string) || (b.main_use as string) || (b.etc_use as string) || "—";
-  const grade = sub?.grade ?? "—";
-  const score = sub?.score ?? 0;
-  const gradeCol = grade === "S" ? "#B8912E" : grade === "A" ? "#2B5AA8" : grade === "B" ? "#1C8C63" : "#828A99";
-  const addr = sub?.addr ?? "—";
-  const shortAddr = addr.replace(/^서울특별시\s*/, "").replace(/\s*번지$/, "");
-
-  // ── 분석 의견(9축) — 문구 단일 소스 ──
-  const opinions = AXIS.map(([k, l]) => {
-    const s = (sub?.items?.[k] ?? 0) as number;
-    return { key: k, label: l, icon: AXIS_ICON[k], score: s, word: word(s), text: opinion(k, s, b) };
-  });
 
   // ── 종합 의견 — 서술 세그먼트(문구 단일 소스, 강조 위치 공용) ──
   const conclusion: Seg[] = [
@@ -185,9 +137,6 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     ...(landPremium != null && landPremium >= 10
       ? [{ t: ` 이 땅의 공시지가가 주변 평균보다 ` }, { t: `약 ${landPremium.toFixed(0)}% 높아`, b: true }, { t: ` 입지 경쟁력이 뚜렷하고,` }]
       : []),
-    ...(topStrengths.length
-      ? [{ t: ` ` }, { t: `${topStrengths.join("·")}`, b: true }, { t: ` 등에서 우수해 매력도 ` }, { t: `${grade}등급`, b: true }, { t: `으로 평가됩니다.` }]
-      : [{ t: ` 매력도는 ` }, { t: `${grade}등급`, b: true }, { t: `입니다.` }]),
     { t: ` 예상수익률은 ` }, { t: `${roiFair != null ? roiFair.toFixed(2) : "—"}%`, b: true },
     ...(nbhdRoi != null
       ? [{ t: `로 주변 평균(${nbhdRoi}%)보다 ` }, { t: `${roiFair != null && roiFair >= nbhdRoi ? "높은" : "낮은"}`, b: true }, { t: ` 수준이며,` }]
@@ -208,22 +157,20 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
 
   // ── 슬라이드 메타(제목·설명) — 단일 소스. 덱·애니메이션 동일 문구 ──
   const SLIDES = [
-    { key: "summary", n: "01", foot: "핵심 요약", title: "핵심 요약", desc: "본 매물의 빌탐정 적정가·수익성과 매력도를 한눈에 확인하세요." },
+    { key: "summary", n: "01", foot: "핵심 요약", title: "핵심 요약", desc: "본 매물의 빌탐정 적정가와 수익성을 한눈에 확인하세요." },
     { key: "basic", n: "02", foot: "매물 기본정보", title: "매물 기본정보", desc: "해당 건물의 기본정보 및 입지 정보 (토지이용계획확인원 및 건축물대장 기준)" },
-    { key: "appeal", n: "03", foot: "매력도 분석", title: "매력도 분석", desc: "입지·교통·건물 상태 등을 종합 평가한 이 건물의 매력도(장단점) 지표입니다. 적정가 산정과는 별개입니다." },
-    { key: "deal", n: "04", foot: "실거래가 분석", title: "실거래가 분석", desc: `${shortAddr} 인근의 유사 실거래를 바탕으로 본 매물의 적정매매가를 분석했습니다.` },
-    { key: "gongsi", n: "05", foot: "공시지가", title: "공시지가 분석", desc: `${shortAddr}의 공시지가 추이와, 실거래가 공시가 대비 형성되는 수준(공시배율)을 반영합니다.` },
-    { key: "rent", n: "06", foot: "임대수익 분석", title: "임대수익 분석", desc: "주변 임대시세로 임대수익을 추정하고, 이를 수익가치(수익환원)로 적정가에 반영합니다." },
-    { key: "usetype", n: "07", foot: "투자 유형", title: "투자 유형 분석", desc: "용적률·상권·연식 등으로 이 건물의 최적 활용(신축·리모델·수익·사옥)을 판별했습니다." },
-    { key: "future", n: "08", foot: "미래가치", title: "미래가치 분석", desc: "지가 상승 추세(기본)에 개발여지·임대 상향 여력(추가)을 더해 본 매물의 향후 가치 성장을 평가했습니다." },
-    { key: "conclusion", n: "09", foot: "종합 결론", title: "종합 결론", desc: "적정가와 수익성을 종합한 본 매물의 최종 결론입니다." },
+    { key: "deal", n: "03", foot: "실거래가 분석", title: "실거래가 분석", desc: `${shortAddr} 인근의 유사 실거래를 바탕으로 본 매물의 적정매매가를 분석했습니다.` },
+    { key: "gongsi", n: "04", foot: "공시지가", title: "공시지가 분석", desc: `${shortAddr}의 공시지가 추이와, 실거래가 공시가 대비 형성되는 수준(공시배율)을 반영합니다.` },
+    { key: "rent", n: "05", foot: "임대수익 분석", title: "임대수익 분석", desc: "주변 임대시세로 임대수익을 추정하고, 이를 수익가치(수익환원)로 적정가에 반영합니다." },
+    { key: "usetype", n: "06", foot: "투자 유형", title: "투자 유형 분석", desc: "용적률·상권·연식 등으로 이 건물의 최적 활용(신축·리모델·수익·사옥)을 판별했습니다." },
+    { key: "future", n: "07", foot: "미래가치", title: "미래가치 분석", desc: "지가 상승 추세(기본)에 개발여지·임대 상향 여력(추가)을 더해 본 매물의 향후 가치 성장을 평가했습니다." },
+    { key: "conclusion", n: "08", foot: "종합 결론", title: "종합 결론", desc: "적정가와 수익성을 종합한 본 매물의 최종 결론입니다." },
   ];
 
   // ── 01 핵심요약 ──
   const summaryRows = [
     { k: "빌탐정 적정가", s: "시스템 산정", v: fair ? eokman(fair) : "—", c: "var(--navy)" },
     { k: "예상수익률", s: "매매가 기준 · 연 임대수익 (매매가 미입력 시 적정가)", v: roiFair != null ? `${roiFair.toFixed(2)}%` : "—", c: "var(--purple)" },
-    { k: "매력도 등급", s: "입지·건물 매력도 (적정가와 별개)", v: `${grade}등급`, c: "var(--blue)" },
   ];
   const summaryTail = { primary: ut?.primary ?? null, officeApt,
     avgPerMan: avgPerLand ? `${Math.round(avgPerLand / 1e4).toLocaleString()}만원` : "—",   // 대지 기준
@@ -312,9 +259,9 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     fair, ask, rent, curRent, totalArea, landArea, totalP, avgPer, usedComps, comps, moreCount, avgPerNow,
     avgPerLand,   // 대지 평단가(원). FairPrice 가 꺼내 쓰는데 여기서 안 내보내 undefined 였다
     gLatest, gTotal, gctx, nbhdGongsi, gmult, landPremium, compMin, compMax, floors,
-    roiFair, rs, rFloors, rCurDep, perPyRent, upsidePct, nbhdRoi, topStrengths,
-    ut, officeApt, fut, useZone, mainUse, grade, score, gradeCol, addr, shortAddr,
-    opinions, conclusion, SLIDES, summaryRows, summaryTail, basicInfo,
+    roiFair, rs, rFloors, rCurDep, perPyRent, upsidePct, nbhdRoi,
+    ut, officeApt, fut, useZone, mainUse, addr, shortAddr,
+    conclusion, SLIDES, summaryRows, summaryTail, basicInfo,
     gongsiMetrics, gongsiProse, rentMetrics, rentProse, futureAxes,
   };
 }

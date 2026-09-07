@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { CountUp, BuildingArt } from "./ReportAssets";
-import { ScoreRadar, CompareBar } from "./ReportPrimitives";
+import { CompareBar } from "./ReportPrimitives";
 import { ReportMap, ZONE_COLOR } from "./ReportMap";
 import { BuildingPhoto } from "./BuildingPhoto";
-import { useReportModel, AXIS, num, man, eokman, eokManParts, py, type Seg } from "./reportModel";
+import { useReportModel, num, man, eokman, eokManParts, py, type Seg } from "./reportModel";
 
 /** 몰입형 스크롤 보고서 — 덱(/report)과 동일한 reportModel(값·문구·슬라이드 내용 단일 소스)을 쓰고 디자인만 다르게.
  * 내용(제목·설명·표시 항목·의견·서술)은 덱과 100% 동일, 표현(다크 북엔드·스크롤·모션)만 다름. */
-const RAIL = ["표지", "핵심요약", "기본정보", "매력도", "실거래", "공시지가", "임대수익", "투자유형", "미래가치", "종합결론"];
+const RAIL = ["표지", "핵심요약", "기본정보", "실거래", "공시지가", "임대수익", "투자유형", "미래가치", "종합결론"];
 
 /** 스토리 세그먼트 서술 렌더(강조=민트/네이비). */
 function Prose({ segs, bold }: { segs: Seg[]; bold: string }) {
@@ -26,9 +26,9 @@ export function ReportStory() {
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, [pk]);
   const {
-    sub, b, fair, rent, curRent, totalArea, avgPer, comps, compMin, compMax,
+    b, fair, rent, curRent, totalArea, avgPer, comps, compMin, compMax,
     gLatest, nbhdGongsi, gTotal, roiFair, nbhdRoi, ut, officeApt, fut, useZone, mainUse,
-    grade, score, gradeCol, shortAddr, opinions, conclusion,
+    shortAddr, conclusion,
     SLIDES, summaryTail, basicInfo, gongsiMetrics, gongsiProse, rentMetrics, rentProse, futureAxes, moreCount, avgPerNow,
   } = m;
   const SM = Object.fromEntries(SLIDES.map((s) => [s.key, s])) as Record<string, typeof SLIDES[number]>;
@@ -100,7 +100,7 @@ export function ReportStory() {
         </div>
       </section>
 
-      {/* 1 ── 핵심 요약(다크) — 실 건물 사진 + 추정가·수익률·매력도 + 투자유형 ── */}
+      {/* 1 ── 핵심 요약(다크) — 실 건물 사진 + 추정가·수익률 + 투자유형 ── */}
       <section data-i={1} ref={setRef(1)} className={cls(1, true)}>
         <div style={{ display: "flex", gap: "4vw", alignItems: "center", width: "100%" }}>
           <div style={{ flex: 1 }}>
@@ -110,7 +110,7 @@ export function ReportStory() {
               {shown[1] && fair ? <CountUp end={eokManParts(fair)[0]} dur={1400} fmt={(v) => Math.round(v).toLocaleString()} /> : eokManParts(fair)[0].toLocaleString()}<span className="unit">억{eokManParts(fair)[1] ? ` ${eokManParts(fair)[1].toLocaleString()}만원` : "원"}</span>
             </div>
             <p className="story-sub">
-              매력도 <b style={{ color: "#7FB0FF" }}>{grade}등급 · {score}점</b> · 추정가 기준 예상수익률 <b style={{ color: "#7FB0FF" }}>{roiFair != null ? roiFair.toFixed(2) : "—"}%</b> · 대지 평당 추정가 {summaryTail.avgPerMan} · 연면적 {summaryTail.totalPy}
+              추정가 기준 예상수익률 <b style={{ color: "#7FB0FF" }}>{roiFair != null ? roiFair.toFixed(2) : "—"}%</b> · 대지 평당 추정가 {summaryTail.avgPerMan} · 연면적 {summaryTail.totalPy}
             </p>
             <KeywordBand items={summaryTail.primary ? [{ lab: "투자 유형", val: summaryTail.primary, extra: officeApt ? "사옥 적합" : null, c: "#7FB0FF" }] : []} />
           </div>
@@ -132,30 +132,8 @@ export function ReportStory() {
         </div>
       </section>
 
-      {/* 3 ── 매력도 (의견 = 덱과 동일) ── */}
-      <section data-i={3} ref={setRef(3)} className={cls(3)}>
-        <div className="story-kicker">{SM.appeal.title}</div>
-        <h2 className="story-h">입지·건물 종합 매력도 <b style={{ color: gradeCol }}>{grade}등급 · {score}점</b></h2>
-        <div className="st-cols" style={{ marginTop: "1.5vh" }}>
-          <div>
-            {opinions.map((o) => (
-              <div key={o.key} style={{ padding: "0.75vh 0", borderTop: "1px solid #ececef" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 14 }}>
-                  <span style={{ color: "#191F28", fontWeight: 600, fontSize: "clamp(13px,1.3vw,16px)" }}>{o.label}</span>
-                  <span style={{ color: o.score >= 70 ? "#3182F6" : "#8B95A1", fontWeight: 700, whiteSpace: "nowrap", fontSize: "clamp(13px,1.3vw,16px)" }}>{o.word} · {Math.round(o.score)}</span>
-                </div>
-                <div style={{ fontSize: "clamp(11.5px,1.15vw,14px)", color: "#8B95A1", marginTop: 2, lineHeight: 1.35 }}>{o.text}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ display: "flex", justifyContent: "center", alignSelf: "center" }}>
-            {shown[3] && sub?.items && <ScoreRadar axes={AXIS.map(([kk, l]) => ({ label: l, score: (sub.items![kk] ?? 0) as number }))} color={gradeCol} size={240} showValues />}
-          </div>
-        </div>
-      </section>
-
       {/* 4 ── 실거래가 (덱과 동일: 표+시점보정 + 평단가 비교 + 서술) ── */}
-      <section data-i={4} ref={setRef(4)} className={cls(4)}>
+      <section data-i={3} ref={setRef(3)} className={cls(3)}>
         <div className="story-kicker">{SM.deal.title}</div>
         <h2 className="story-h" style={{ marginBottom: "1.5vh" }}>{addr} 인근의 유사 실거래로 본 <b>적정매매가</b></h2>
         <table className="story-tbl">
@@ -193,7 +171,7 @@ export function ReportStory() {
       </section>
 
       {/* 5 ── 공시지가 (덱과 동일: 2지표 + 비교 + 공시총액 + 서술) ── */}
-      <section data-i={5} ref={setRef(5)} className={cls(5)}>
+      <section data-i={4} ref={setRef(4)} className={cls(4)}>
         <div className="story-kicker">{SM.gongsi.title}</div>
         <div className="story-row" style={{ marginTop: "2vh" }}>
           {gongsiMetrics.map((g) => (
@@ -221,7 +199,7 @@ export function ReportStory() {
       </section>
 
       {/* 6 ── 임대수익 (층별 나열 X — 요약 5지표 + 비교 + 서술) ── */}
-      <section data-i={6} ref={setRef(6)} className={cls(6)}>
+      <section data-i={5} ref={setRef(5)} className={cls(5)}>
         <div className="story-kicker">{SM.rent.title}</div>
         <div style={{ display: "flex", gap: "2vw", marginTop: "2vh" }}>
           {rentMetrics.map(([k, v]) => (
@@ -255,13 +233,13 @@ export function ReportStory() {
       </section>
 
       {/* 7 ── 투자 유형 + 상권 지도 ── */}
-      <section data-i={7} ref={setRef(7)} className={cls(7)}>
+      <section data-i={6} ref={setRef(6)} className={cls(6)}>
         <div className="story-kicker">{SM.usetype.title}</div>
         <h2 className="story-h">가장 적합한 활용 <b style={{ color: "#3182F6" }}>{ut?.primary ?? "—"}</b>{officeApt ? " · 사옥 적합" : ""}</h2>
         {ut ? <div className="st-cols">
           <div>
             <p className="story-sub" style={{ marginTop: 0 }}>{ut.reason}</p>
-            {shown[7] && <div style={{ marginTop: "2.5vh", maxWidth: 460 }}>
+            {shown[6] && <div style={{ marginTop: "2.5vh", maxWidth: 460 }}>
               <CompareBar height={150} fmt={(v) => `${Math.round(v)}`}
                 items={[{ label: "신축", value: Math.max(ut.scores["신축용"] ?? 0, 1), color: "#191F28" },
                         { label: "리모델", value: Math.max(ut.scores["리모델링용"] ?? 0, 1), color: "#191F28" },
@@ -283,7 +261,7 @@ export function ReportStory() {
       </section>
 
       {/* 8 ── 미래가치 ── */}
-      <section data-i={8} ref={setRef(8)} className={cls(8)}>
+      <section data-i={7} ref={setRef(7)} className={cls(7)}>
         <div className="story-kicker">{SM.future.title}</div>
         <h2 className="story-h">미래가치 <b style={{ color: "#6E56CF" }}>{fut?.label ?? "—"}</b></h2>
         {fut ? <>
@@ -304,20 +282,19 @@ export function ReportStory() {
       </section>
 
       {/* 9 ── 종합 결론(다크) ── */}
-      <section data-i={9} ref={setRef(9)} className={cls(9, true)}>
+      <section data-i={8} ref={setRef(8)} className={cls(8, true)}>
         <div className="story-kicker">{SM.conclusion.title}</div>
         <h2 className="story-h">실거래·공시지가·임대수익을 종합한 <b>빌탐정 추정가</b></h2>
         <div style={{ position: "relative" }}>
           <div className="cv-glow" />
           <div className="story-big" style={{ position: "relative" }}>
-            {shown[9] && fair ? <CountUp end={eokManParts(fair)[0]} dur={1500} fmt={(v) => Math.round(v).toLocaleString()} /> : eokManParts(fair)[0].toLocaleString()}<span className="unit">억{eokManParts(fair)[1] ? ` ${eokManParts(fair)[1].toLocaleString()}만원` : "원"}</span>
+            {shown[8] && fair ? <CountUp end={eokManParts(fair)[0]} dur={1500} fmt={(v) => Math.round(v).toLocaleString()} /> : eokManParts(fair)[0].toLocaleString()}<span className="unit">억{eokManParts(fair)[1] ? ` ${eokManParts(fair)[1].toLocaleString()}만원` : "원"}</span>
           </div>
         </div>
         <div className="story-row">
           {[["예상수익률", roiFair != null ? `${roiFair.toFixed(2)}%` : "—", nbhdRoi != null ? `주변 평균 ${nbhdRoi}%` : "추정가 기준"],
-            ["예상 월임대수익", rent ? `${man(rent)}만원` : "—", "주변 임대시세 적용"],
-            ["매력도", `${grade}등급`, `가치점수 ${score}점`]].map(([k, v, s], i) => (
-            <div key={i} className={`story-cell${i === 0 ? " cv-l" : i === 2 ? " cv-r" : ""}`}>
+            ["예상 월임대수익", rent ? `${man(rent)}만원` : "—", "주변 임대시세 적용"]].map(([k, v, s], i) => (
+            <div key={i} className={`story-cell${i === 0 ? " cv-l" : i === 1 ? " cv-r" : ""}`}>
               <div className="k" style={{ color: "#9fb0cc" }}>{k}</div>
               <div className="v" style={{ color: "#eaf0fa" }}>{v}</div>
               <div style={{ fontSize: 12.5, color: "#7f92b5", marginTop: 4 }}>{s}</div>

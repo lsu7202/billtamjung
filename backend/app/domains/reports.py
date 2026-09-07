@@ -8,7 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from ..core.db import pool
 from ..core.deps import current_user, CurrentUser
-from ..jobs import generate_report as g, value_score
+from ..jobs import generate_report as g
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -20,15 +20,14 @@ class CreateIn(BaseModel):
 
 
 async def _subject_ctx(building_pk: str, team_id: int):
-    """본매물 조립 + F-16 + 시점보정표(preview·comps 공용)."""
+    """본매물 조립 + 시점보정표(preview·comps 공용). 매력도(F-16)는 2026-09-06 에 없앴다."""
     _, params, time_adjust = await g._load_formula_params()
     b = await g._assemble(building_pk, team_id)
-    vs = value_score.compute(b, params)
-    return b, vs, params, time_adjust
+    return b, params, time_adjust
 
 
-def _preview_dict(vs: dict, syn: dict) -> dict:
-    return {"score": vs["score"], "grade": vs["grade"], "fair_price": syn["fair_price"],
+def _preview_dict(syn: dict) -> dict:
+    return {"fair_price": syn["fair_price"],
             "avg_per_pyeong": syn["avg_per_pyeong"], "avg_per_land": syn.get("avg_per_land"),
             "expected_roi": syn["expected_roi"],
             "gap": syn["gap"], "ask_price": syn["ask_price"], "broker_price": syn.get("broker_price"),
@@ -53,10 +52,10 @@ async def _master_fair(building_pk: str) -> float | None:
 @router.get("/comps/{building_pk}")
 async def comps(building_pk: str, user: CurrentUser = Depends(current_user)):
     """S02b 초기 로드: 본매물 요약 + comp 목록(편집 필드 포함) + 지도 핀 + 초기 미리보기."""
-    b, vs, params, ta = await _subject_ctx(building_pk, user.team_id)
+    b, params, ta = await _subject_ctx(building_pk, user.team_id)
     comps = await g._fetch_comps(building_pk, b, params)
     rent_apply = await g._nearby_rent_apply(building_pk, b, user.team_id)   # 주변 임대 comp 적용(리포트 임대료 비교·applied_rent)
-    syn = g.synthesize(b, vs["score"], g.baseline_comps(comps), params, ta, rent_apply,
+    syn = g.synthesize(b, g.baseline_comps(comps), params, ta, rent_apply,
                        apply_market=False,           # 초기=배치 동일(추정가·수익률 모두)
                        fair_override=await _master_fair(building_pk))
     ut = await g._use_type(building_pk, b)   # F-20 투자 유형
@@ -74,12 +73,10 @@ async def comps(building_pk: str, user: CurrentUser = Depends(current_user)):
         json.dumps(poly) if poly else None,
     )
     return {
-        "subject": {"addr": b.get("addr"), "score": vs["score"], "grade": vs["grade"],
-                    "items": vs["items"],   # F-16 8축(리포트 레이더용)
-                    "total_area": g._fnum(b.get("total_area")), "sale_price": g._fnum(b.get("sale_price")),
+        "subject": {"addr": b.get("addr"), "total_area": g._fnum(b.get("total_area")), "sale_price": g._fnum(b.get("sale_price")),
                     "total_rent": g._fnum(b.get("total_rent")), "center": ctr,
                     "radius_m": radius, "polygon": bool(poly)},
-        "preview": {**_preview_dict(vs, syn), "use_type": ut},
+        "preview": {**_preview_dict(syn), "use_type": ut},
         "comps": comps,
         "rent_pins": [dict(r) for r in rent_rows],
         "counts": {"sale": len(comps), "rent": len(rent_rows)},
@@ -101,17 +98,16 @@ async def preview(body: PreviewIn, user: CurrentUser = Depends(current_user)):
     baseline(이상치 제외)을 쓰고, 빈 집합이면 이상치까지 전부 넣는다. 생성은 None 으로
     가는데 미리보기만 빈 집합으로 가면 「미리보기에서 본 값」과 「나온 값」이 달라진다.
     검토 창에서 주변사례 고르기를 걷어내면서 드러난 어긋남이다."""
-    b, vs, params, ta = await _subject_ctx(body.building_pk, user.team_id)
+    b, params, ta = await _subject_ctx(body.building_pk, user.team_id)
     comps = await g._load_comps(body.building_pk, b, params,
                                 set(body.exclude) if body.exclude else None, body.overrides)
     rent_apply = await g._nearby_rent_apply(body.building_pk, b, user.team_id)
     # 오버레이가 없으면 마스터 값 그대로 — 미리보기와 실제 생성이 어긋나지 않는다.
     _fair = None if (body.exclude or body.overrides) else await _master_fair(body.building_pk)
-    syn = g.synthesize(b, vs["score"], comps, params, ta, rent_apply,
+    syn = g.synthesize(b, comps, params, ta, rent_apply,
                        apply_market=body.include_market, fair_override=_fair)
-    return {"preview": _preview_dict(vs, syn),
-            "rent_floors": syn.get("rent_floors"),
-            "comp_scores": {c["building_pk"]: c["score"] for c in comps}}
+    return {"preview": _preview_dict(syn),
+            "rent_floors": syn.get("rent_floors")}
 
 
 @router.post("", status_code=202)
