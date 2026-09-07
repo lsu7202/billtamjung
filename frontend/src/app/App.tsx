@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AssistantPage } from "../features/assistant/AssistantPage";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { DocPage } from "../features/sales/draft/DocPage";
 import { AuthGuard } from "./AuthGuard";
@@ -45,6 +46,8 @@ export function App() {
           <Route path="/welcome" element={<AuthGuard><OnboardingPage /></AuthGuard>} />
           <Route element={<AuthGuard><Shell /></AuthGuard>}>
             <Route path="/search" element={<ErrorBoundary><SearchPage /></ErrorBoundary>} />
+            {/* AI 어시스턴트 — 10-AI-어시스턴트 1단계 */}
+            <Route path="/assistant" element={<ErrorBoundary><AssistantPage /></ErrorBoundary>} />
             <Route path="/news" element={<ErrorBoundary><NewsPage /></ErrorBoundary>} />
             <Route path="/buildings/:pk" element={<ErrorBoundary><BuildingPage /></ErrorBoundary>} />
             {/* 나대지 — 건물이 없는 필지. building_pk 가 없어 pnu 로 가리킨다(2026-08-27) */}

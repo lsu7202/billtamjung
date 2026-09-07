@@ -219,10 +219,13 @@ GROUPS: list[tuple[str, list]] = [
   ]),
 
   ("[정합] 층별 임대정보 — 업체 원장(인허가·상가정보)을 읽는다", [
-    # 2026-09-06 항목 L. 삼성동 78: 2층 「더원」·6층 「청담모네의원」, 층을 모르는 「아리아스」는 층 「—」 줄로 같은 목록
+    # 2026-09-06 항목 L. 삼성동 78: 2층 「더원」·6층 「청담모네의원」.
+    # 2026-09-08 대표 지적으로 바뀜: 층을 모르는 업체가 **열여섯**이라 하나씩 세우니
+    # 실제 층이 화면 밖으로 밀렸다. 이제 「—」 한 줄로 묶고, 그 줄을 눌러야 오른쪽에 다 선다.
+    # 그래서 첫 업체는 보이고(묶음 줄이 그렸다) 나머지는 안 보여야 한다(안 펴졌다).
     ("/buildings/1024123619", "층별 임대 · 원장 상호명", "건물정보",
-     ["층별 임대정보", "더원", "청담모네의원", "아리아스", "+ 층 추가하기"],
-     "원장 업체가 업체마다 한 줄로 서야 한다(층 모르는 것도 같은 목록)",
+     ["층별 임대정보", "더원", "청담모네의원", "(주)아이티라인", "!아리아스", "+ 층 추가하기"],
+     "층 아는 업체는 줄로 서고, 층 모르는 열여섯은 한 줄로 묶여야 한다",
      "임대"),
   ]),
 
@@ -345,8 +348,14 @@ async def main() -> int:
                 continue
 
             fails = []
+            # 「!」로 시작하면 **없어야 한다**(2026-09-08). 접어 놓은 것이 안 펴졌는지를
+            # 재려면 있는 것만으로는 모자란다 — 열여섯 줄이 한 줄로 묶였는지는
+            # 「나머지 열다섯이 안 보인다」로만 증명된다.
             for frag in must:
-                if frag not in text:
+                if frag.startswith("!"):
+                    if frag[1:] in text:
+                        fails.append(f"「{frag[1:]}」가 보인다(안 보여야 한다)")
+                elif frag not in text:
                     fails.append(f"「{frag}」가 없다")
             for why_broken, around in find_broken(text):
                 fails.append(f"{why_broken}  …{around}…")
@@ -360,7 +369,8 @@ async def main() -> int:
                     print(f"      {f}")
             else:
                 ok += 1
-                print(f"  ✓ {name}  {' · '.join(must)}")
+                shown = [f"{f[1:]} 없음" if f.startswith("!") else f for f in must]
+                print(f"  ✓ {name}  {' · '.join(shown)}")
 
         await br.close()
 

@@ -17,6 +17,16 @@ class Settings(BaseSettings):
     cost_analysis: int = 30
     cost_briefing: int = 10   # 브리핑=사실 나열(계산 없음). 스펙 확정가
 
+    # ── AI 어시스턴트 (10-AI-어시스턴트) ──────────────────────────────
+    # 키가 비어 있으면 /ai/* 는 AI_NOT_CONFIGURED 로 답한다(소셜 키와 같은 어법).
+    # **절대 프론트로 안 간다.** 모델 호출은 전부 서버에서만 난다.
+    anthropic_api_key: str = ""
+    ai_model: str = "claude-sonnet-5"                    # 대화 본체·문서·SQL
+    ai_model_fast: str = "claude-haiku-4-5-20251001"     # 제목·기억 뽑기·분류
+    ai_max_tokens: int = 4096
+    # 대화가 길어지면 앞쪽을 요약해 접는다. 그 전까지는 통째로 다시 보낸다
+    ai_history_turns: int = 40
+
     cors_origins: str = "http://localhost:5173"
 
     # 신규 가입 개방 여부. false면 이메일 가입·소셜 신규가입이 모두 막히고
