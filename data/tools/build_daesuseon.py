@@ -84,20 +84,22 @@ def dig(s):
         # 앞 6자리만 취하면 1990327 이 「199032 = 32월」이 되어 통째로 버려진다(2026-09-01).
         mdd = s[:4] + "0" + s[4:]                     # YYYYMDD → YYYY0MDD
         s = mdd if ("01" <= mdd[4:6] <= "12" and "01" <= mdd[6:] <= "31") else s[:6]
+    # **정밀도를 값과 함께 돌려준다**(2026-09-07). 연도만 알면서 「1월 1일」을 붙여 두면
+    # 그것이 실제 날짜처럼 화면·서류에 나간다 — 아는 것보다 더 말하는 셈이다.
     if len(s) == 8:
-        return s if "19000101" <= s <= "20301231" else None
-    if len(s) == 6:            # 연월만 — 그 달 1일로
-        return s + "01" if ("190001" <= s <= "203012" and "01" <= s[4:] <= "12") else None
-    if len(s) == 4:            # 연도만 — 그 해 1월 1일로
-        return s + "0101" if "1900" <= s <= "2030" else None
-    return None
+        return (s, "일") if "19000101" <= s <= "20301231" else (None, None)
+    if len(s) == 6:            # 연월만 — 자리는 그 달 1일, 정밀도는 「월」
+        return (s + "01", "월") if ("190001" <= s <= "203012" and "01" <= s[4:] <= "12") else (None, None)
+    if len(s) == 4:            # 연도만 — 자리는 그 해 1월 1일, 정밀도는 「연」
+        return (s + "0101", "연") if "1900" <= s <= "2030" else (None, None)
+    return None, None
 
 
 def main():
     # 처리결과 문서 — 인허가 기본개요 55만 줄을 읽는데 2026-09-01 까지 장부가 없었다.
     # 신축·용도변경 등 안 쓰는 구분을 걸러 내는 단계라 「몇 줄이 왜 빠졌나」가 특히 중요하다.
     rep = Report("build_daesuseon", src=("인허가", "기본개요"), used=NEED + ["건축구분명"])
-    acc = collections.defaultdict(lambda: collections.defaultdict(lambda: {"최근": None, "건수": 0}))
+    acc = collections.defaultdict(lambda: collections.defaultdict(lambda: {"최근": None, "건수": 0, "정밀도": None}))
     src = collections.Counter()
     n = no_date = no_pnu = 0
     skipped = collections.Counter()
@@ -114,11 +116,11 @@ def main():
             no_pnu += 1
             rep.drop("PNU 조립 불가", r["시군구코드"] + r["법정동코드"])
             continue
-        d = dig(r["사용승인일"])
+        d, prec = dig(r["사용승인일"])
         if d:
             src["사용승인일"] += 1
         else:
-            d = dig(r["건축허가일"])
+            d, prec = dig(r["건축허가일"])
             if d:
                 src["건축허가일"] += 1
         if not d:
@@ -131,12 +133,13 @@ def main():
         e["건수"] += 1
         if not e["최근"] or d > e["최근"]:
             e["최근"] = d
+            e["정밀도"] = prec
 
     out = {}
     for pnu, by in acc.items():
         rec = {g: dict(v) for g, v in by.items()}
         top = max(by.items(), key=lambda kv: kv[1]["최근"])
-        rec["_최근"] = {"일자": top[1]["최근"], "구분": top[0]}
+        rec["_최근"] = {"일자": top[1]["최근"], "구분": top[0], "정밀도": top[1].get("정밀도")}
         rec["_건수"] = sum(v["건수"] for v in by.values())
         out[pnu] = rec
     json.dump(out, open(OUT, "w"), ensure_ascii=False)

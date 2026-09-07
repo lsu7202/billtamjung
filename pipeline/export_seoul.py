@@ -52,10 +52,21 @@ def load_centroids() -> dict:
 
 
 def norm_ymd(v: str | None) -> str:
-    """'19710217' → '1971-02-17'. 불량/빈값 → ''."""
-    if not v or len(str(v)) != 8 or not str(v).isdigit():
+    """'19710217' → '1971-02-17'. 불량/빈값 → ''.
+
+    **4·6자리도 살린다**(2026-09-07). 대장에 준공일이 `1959`·`199901` 로만 적힌 건물이
+    459동 있고 빌더가 정밀도와 함께 살려 두는데, 여기서 8자리만 받아 통째로 버렸다.
+    자리는 01 로 채우되 **정밀도 칸이 「연·월」이라고 말한다** — 화면은 그걸 보고 표기한다.
+    """
+    if not v or not str(v).isdigit():
         return ""
     s = str(v)
+    if len(s) == 4:
+        return f"{s}-01-01" if "1800" <= s <= "2099" else ""
+    if len(s) == 6:
+        return f"{s[:4]}-{s[4:]}-01" if (s[:2] in ("18", "19", "20") and "01" <= s[4:] <= "12") else ""
+    if len(s) != 8:
+        return ""
     if s[:2] not in ("18", "19", "20") or not ("01" <= s[4:6] <= "12"):
         return ""
     return f"{s[:4]}-{s[4:6]}-{s[6:]}"
@@ -130,7 +141,8 @@ def main() -> int:
                 row[ci["건폐율"]] or "", row[ci["용적률"]] or "",
                 row[ci["주용도코드"]] or "", row[ci["주용도"]] or "",
                 row[ci["기타용도"]] or "", row[ci["구조"]] or "",
-                norm_ymd(row[ci["사용승인일"]]), norm_ymd(row[ci["최근대수선일"]]),
+                norm_ymd(row[ci["사용승인일"]]), row[ci["사용승인일_정밀도"]] or "",
+                norm_ymd(row[ci["최근대수선일"]]), row[ci["최근대수선일_정밀도"]] or "",
                 row[ci["지목"]] or "", row[ci["토지면적"]] or "",
                 row[ci["토지이용상황"]] or "", row[ci["용도지역"]] or "",
                 row[ci["용도지역_걸침"]] or "",

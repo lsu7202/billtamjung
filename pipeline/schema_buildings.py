@@ -11,7 +11,9 @@ COLUMNS = [
     "road_addr", "pnu", "sgg_code", "bjd_code",
     "land_area", "total_area", "floors_above", "floors_below", "bcr", "far",
     "main_use", "main_use_name", "etc_use", "structure",
-    "approval_ymd", "remodel_ymd",
+    # 정밀도 둘 — 「1959년(월·일 모름)」을 날짜 하나로 뭉개지 않기 위해(2026-09-07).
+    # 값은 자리를 01 로 채우고, 이 칸이 「연·월·일」 중 무엇까지 아는지 말한다.
+    "approval_ymd", "approval_ymd_prec", "remodel_ymd", "remodel_ymd_prec",
     "jimok", "parcel_area", "land_use", "use_zone", "use_zone_mix",
     "slope", "shape", "road_frontage", "station_dist", "subway_json", "bus_json",
     "gongsi_latest", "last_sale_ym", "last_sale_price",
