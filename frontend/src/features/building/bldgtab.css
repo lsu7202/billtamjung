@@ -288,25 +288,29 @@
 /* 한 줄 배치(2026-09-04)에서 금액 세 칸(3×104)이 편집 조각을 밀어내 면적이 두 줄로 꺾였다(09-05 지적).
    금액 칸을 88 로 줄이고, 상호명만 늘어나고 면적·호실·상태는 제 폭만 갖는다. 글자는 안 꺾는다. */
 .orow .fedit{display:flex; align-items:center; gap:2px; flex:1; min-width:0}
-.orow .fedit .um-vp{flex:0 0 auto; min-width:0}
-.orow .fedit .um-vp.nm{flex:1 1 60px}
-.orow .fedit .um-vp b{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block}
-.orow .fedit .um-vp{text-align:left; overflow:hidden; border:0; background:none; padding:3px 6px;
+.um-vp{flex:0 0 auto; min-width:0}
+.um-vp.nm{flex:1 1 60px}
+.um-vp b{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block}
+.um-vp{text-align:left; overflow:hidden; border:0; background:none; padding:3px 6px;
   border-radius:7px; cursor:text; font:inherit}
-.orow .fedit .um-vp:hover{background:#EEF3FA}
-.orow .fedit .um-vp b{font-size:13.5px; font-weight:600; color:#4E5968}
-.orow .fedit .um-vp.nm b{font-size:14px; font-weight:700; color:#191F28}
-.orow .fedit .um-vp b.off{color:#D0D6DC; font-weight:600}
-/* 상태 — 미지정이면 글자가 없다. 자리는 남겨 눌러서 켤 수 있게 */
-.orow .fedit .vac{border:0; background:none; font:inherit; font-size:11.5px; font-weight:700;
-  padding:3px 8px; border-radius:999px; cursor:pointer; min-width:46px; color:#8B95A1}
-.orow .fedit .vac:hover{background:#EEF3FA}
-.orow .fedit .vac.on{background:#FDECEC; color:#F04452}
-.orow .fedit .vac.in{background:#EBF3FE; color:#3182F6}
-.orow .fedit .vac.off{color:#D0D6DC; font-weight:600}
-.orow .fedit .vacs{display:inline-flex; gap:3px}
-.orow .fedit .vac.pick{background:#F2F4F6; color:#6B7684}
-.orow .fedit .vac.pick:hover{background:#E5E8EB; color:#191F28}
+.um-vp:hover{background:#EEF3FA}
+.um-vp b{font-size:13.5px; font-weight:600; color:#4E5968}
+.um-vp.nm b{font-size:14px; font-weight:700; color:#191F28}
+.um-vp b.off{color:#D0D6DC; font-weight:600}
+/* 상태 칩 — **조상을 안 탄다**(2026-09-05).
+   예전엔 `.orow .fedit .vac` 로 묶여 있었는데, 층별 임대를 안C(목록＋상세)로 바꾸면서
+   `.fl2-r` 안으로 옮겨 갔다. 조상이 없으니 규칙이 통째로 안 먹어 **브라우저 기본 버튼**이 됐다.
+   클래스 이름이 이미 충분히 좁으므로 조상 없이 건다. */
+.vac{border:0; background:none; font:inherit; font-size:11.5px; font-weight:700;
+  padding:3px 8px; border-radius:999px; cursor:pointer; min-width:46px; color:#8B95A1;
+  white-space:nowrap}
+.vac:hover{background:#EEF3FA}
+.vac.on{background:#FDECEC; color:#F04452}
+.vac.in{background:#EBF3FE; color:#3182F6}
+.vac.off{color:#D0D6DC; font-weight:600}
+.vacs{display:inline-flex; gap:3px}
+.vac.pick{background:#F2F4F6; color:#6B7684}
+.vac.pick:hover{background:#E5E8EB; color:#191F28}
 
 
 /* ── 층별 임대정보 안C(2026-09-05) — 왼쪽 훑고 오른쪽 채운다 ───────────────
@@ -343,7 +347,13 @@
 .fl2-rh span{font-size:12px; font-weight:600; color:#8B95A1}
 .fl2-u + .fl2-u{margin-top:10px; padding-top:10px; border-top:1px solid #F0F2F4}
 .fl2-uh{display:flex; align-items:center; gap:6px; font-size:12px; font-weight:800; color:#6B7684; padding-bottom:4px}
-.fl2-uh .mini{margin-left:auto}
+/* 삭제 — 같은 탭의 .eexp .mini 와 같은 꼴(동그란 회색 아이콘). 여기엔 그 꼴이 안 걸려 브라우저 기본 버튼으로 서 있었다(2026-09-07 대표 지적).
+   고른 카드에서만 보인다 — 조작은 고른 줄에서만(CLAUDE.md). 지우기는 빨강. */
+.fl2-uh .mini{margin-left:auto; width:24px; height:24px; border-radius:999px; border:0; background:#F2F4F6; color:#8B95A1;
+  display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; opacity:0; transition:opacity .12s, background .12s, color .12s}
+.fl2-u.on .fl2-uh .mini, .fl2-u:hover .fl2-uh .mini{opacity:1}
+.fl2-uh .mini.bad:hover{background:#F04452; color:#fff}
+.fl2-uh .tel + .mini{margin-left:6px}
 .fl2-g{display:grid; grid-template-columns:auto 1fr; gap:2px 16px; align-items:center}
 .fl2-g .dk{font-size:11.5px; font-weight:700; color:#8B95A1; padding:4px 0}
 .fl2-g .dv{min-width:0}
@@ -357,3 +367,77 @@
 .fl2-g .dv .cell.off{color:#D0D6DC; font-weight:600}
 .fl2-g .dv input{border:0; background:#F2F4F6; border-radius:8px; padding:4px 8px; font:inherit; font-size:14px; width:110px}
 .fl2-r .addu{padding:9px 10px; margin-top:10px; border-radius:11px; text-align:left}
+
+
+/* ── 주변 소식(2026-09-05) — 왼쪽 훑고 오른쪽 읽는다. 층별 임대와 같은 어법 ── */
+.ae{display:grid; grid-template-columns:296px 1fr; gap:0; margin-top:10px}
+@media(max-width:900px){.ae{grid-template-columns:1fr}}
+.ae-l{border-right:1px solid #E5E8EB; padding-right:11px; max-height:min(52vh,380px); overflow-y:auto; overscroll-behavior:contain}
+.ae-l::-webkit-scrollbar{width:5px}.ae-l::-webkit-scrollbar-thumb{background:#D6DBE0; border-radius:3px}
+@media(max-width:900px){.ae-l{border-right:0; border-bottom:1px solid #E5E8EB; padding:0 0 10px}}
+.ae-gh{position:sticky; top:0; background:#fff; display:flex; gap:6px; align-items:baseline;
+  font-size:10.5px; font-weight:800; letter-spacing:.04em; color:#8B95A1; padding:6px 8px 3px}
+.ae-gh i{font-style:normal; font-family:ui-monospace,'SF Mono',monospace; color:#B0B8C1}
+.ae-i{display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:baseline; width:100%;   /* 아이콘 · 이름 · 날짜(2026-09-06) */
+  text-align:left; border:0; background:none; font:inherit; cursor:pointer; padding:6px 8px; border-radius:9px}
+.ae-i:hover{background:#F2F4F6}
+.ae-i.on{background:#EBF3FE}
+.ae-i .nm{font-size:13px; font-weight:700; color:#191F28; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ae-i.on .nm{color:#3182F6}
+.ae-i .d{font-family:ui-monospace,'SF Mono',monospace; font-size:11px; font-weight:700; color:#8B95A1;
+  font-variant-numeric:tabular-nums}
+.ae-r{padding-left:17px; max-height:min(52vh,380px); overflow-y:auto; min-width:0}
+@media(max-width:900px){.ae-r{padding:12px 0 0}}
+.ae-nm{font-size:14.5px; font-weight:800; line-height:1.4}
+.ae-dl{display:grid; grid-template-columns:auto 1fr; gap:4px 14px; margin:11px 0 0; font-size:12.5px}
+.ae-dl dt{font-size:11px; font-weight:700; color:#8B95A1}
+.ae-dl dd{margin:0; font-family:ui-monospace,'SF Mono',monospace; font-size:12px; color:#4E5968}
+.ae-dl dd.ae-body{font-family:inherit; font-size:12.5px; line-height:1.7; white-space:pre-wrap}
+.ae-url{display:inline-block; margin-top:10px; font-size:12px; font-weight:700; color:#3182F6; text-decoration:none}
+.ae-url:hover{text-decoration:underline}
+.rv-ch .ae-chips{margin-left:auto; display:flex; gap:4px}
+.rv-ch .ae-chips button{border:0; font:inherit; font-size:11px; font-weight:700; padding:3px 10px;
+  border-radius:999px; background:#F0F2F4; color:#4E5968; cursor:pointer}
+.rv-ch .ae-chips button.on{background:#EBF3FE; color:#3182F6}
+
+.ae-tags{display:flex;flex-wrap:wrap;gap:3px 8px;margin-top:6px}
+.ae-tags a{font-size:12px;font-weight:700;color:#3182F6;text-decoration:none}
+.ae-tags a:hover{text-decoration:underline}
+
+/* 층별 임대정보 · 업체 원장(2026-09-06 항목 L) — 「층 미상」 줄과 상세의 업체 줄 */
+.fl2-t{margin-top:10px; padding-top:8px; border-top:1px solid #F0F2F4; display:flex; flex-direction:column; gap:2px}
+.fl2-ti{display:grid; grid-template-columns:minmax(0,auto) 1fr auto; gap:10px; align-items:baseline; padding:4px 8px; border-radius:8px}
+.fl2-ti:hover{background:#F7F8FA}
+.fl2-ti b,.fl2-ti > a:first-child{font-size:13px; font-weight:700; color:#191F28; text-decoration:none;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.fl2-ti > a:first-child:hover{color:#3182F6}
+.fl2-ti span{font-size:11.5px; font-weight:600; color:#8B95A1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.fl2-ti .tel{font-family:ui-monospace,"SF Mono",monospace; font-size:12px; font-weight:700; color:#3182F6; text-decoration:none; white-space:nowrap}
+.fl2-uh .fl2-ux{font-size:11px; font-weight:600; color:#8B95A1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.fl2-uh .tel{font-family:ui-monospace,"SF Mono",monospace; font-size:11.5px; font-weight:700; color:#3182F6; text-decoration:none; white-space:nowrap}
+.fl2-ti .mini{margin-left:2px}
+.fl2-ti{grid-template-columns:minmax(0,auto) 1fr auto auto}
+/* 층별 임대(2026-09-06 확정판) — 업체마다 한 줄. 층 모르는 업체는 층 칸이 「—」 */
+.fl2-i b.off{color:#D0D6DC}
+.fl2-i .bz{font-size:11px; font-weight:600; color:#8B95A1; white-space:nowrap; max-width:96px; overflow:hidden; text-overflow:ellipsis}
+.fl2-u.on{background:#F7FAFF; margin:0 -8px; padding-left:8px; padding-right:8px; border-radius:10px}
+.fl2-u.on + .fl2-u{border-top-color:transparent}
+.fl2-uh .fl2-ux{font-size:11px; font-weight:600; color:#8B95A1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.fl2-uh .tel{font-family:ui-monospace,"SF Mono",monospace; font-size:11.5px; font-weight:700; color:#3182F6; text-decoration:none; white-space:nowrap; margin-left:auto}
+.fl2-uh .mini.on{color:#3182F6; background:#EBF3FE}
+.fl2-rh .tel{font-family:ui-monospace,"SF Mono",monospace; font-size:12px; font-weight:700; color:#3182F6; text-decoration:none; margin-left:auto}
+.fl2-fl{display:flex; flex-wrap:wrap; gap:5px; padding:4px 0 8px}
+.fl2-fl button{border:0; font:inherit; font-size:12px; font-weight:700; padding:4px 11px; border-radius:999px; background:#F2F4F6; color:#4E5968; cursor:pointer}
+.fl2-fl button:hover{background:#EBF3FE; color:#3182F6}
+.bg-ttl .rst.add{margin-left:10px}
+.ae-i .ic{color:#8B95A1; display:inline-flex; align-self:center} .ae-i.on .ic{color:#3182F6}
+.fl2-uh b.off{color:#D0D6DC}
+
+/* 카카오맵 업체 목록 링크 — 층별 임대정보 머리 오른쪽 끝, 「출처」 링크와 같은 결(작고 파랗게).
+   「전체 되돌리기」가 있으면 그 오른쪽 옆에, 없으면 혼자 오른쪽 끝. (2026-09-07 대표) */
+.bg-ttl .fl2-kakao{margin-left:auto; font-size:12px; font-weight:700; color:#3182F6; text-decoration:none; padding:2px 6px; border-radius:6px}
+.bg-ttl .fl2-kakao:hover{background:#EBF3FE}
+.bg-ttl .rst:not(.add) + .fl2-kakao{margin-left:10px}   /* 「+ 층 추가하기」도 .rst 라 :not(.add) 로 가른다 */
+
+/* 층 모르는 업체 — 오른쪽 판의 층 칩 위 라벨. 칸 라벨(.dk)과 같은 결 */
+.fl2-fll{font-size:11.5px; font-weight:700; color:#8B95A1; padding:6px 0 2px}

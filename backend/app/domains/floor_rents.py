@@ -14,8 +14,9 @@ router = APIRouter(prefix="/buildings/{building_pk}/floor-rents", tags=["floor-r
 
 
 class RentIn(BaseModel):
+    id: int | None = None     # 있으면 그 줄을 고친다(0160). 호실이 빈 줄은 여럿이라 (층, 호실)로는 못 찾는다
     floor: str
-    unit_no: str
+    unit_no: str = ""         # 모르면 빈칸 — 순번을 지어 넣지 않는다
     use: str | None = None
     contract_area: float | None = None     # ㎡ 저장(§5.3) — 프론트가 평↔㎡ 변환해 항상 ㎡로 전송
                                            # 면적은 이것 하나뿐(0035) — 전용면적은 우리 데이터에 없다
@@ -114,22 +115,37 @@ async def upsert_rent(building_pk: str, body: RentIn, user: CurrentUser = Depend
     층 표기는 대장과 같은 규칙으로 정규화한다(0031) — '3F'로 치고 대장이 '3층'이면 다른 층이 돼
     추정이 안 빠지고 이중 계산된다."""
     body.floor = _norm_floor(body.floor)[0] or body.floor
-    await pool().execute(
+    body.unit_no = (body.unit_no or "").strip()
+    if body.id is not None:
+        # 줄을 id 로 고친다(0160). 호실이 빈 줄이 한 층에 여럿이라 (층, 호실)로는 그 줄을 못 집는다
+        rid = await pool().fetchval(
+            """UPDATE app.floor_rents
+                  SET floor=$3, unit_no=$4, use=$5, contract_area=$6, deposit=$7, rent=$8,
+                      maintenance=$9, is_vacant=$10, tenant_name=$11, deleted_at=NULL, updated_at=now()
+                WHERE id=$12 AND building_pk=$1 AND team_id=$2
+            RETURNING id""",
+            building_pk, user.team_id, body.floor, body.unit_no, body.use, body.contract_area,
+            body.deposit, body.rent, body.maintenance, body.is_vacant, body.tenant_name, body.id)
+        if rid is not None:
+            return {"ok": True, "id": rid}
+    # 호실을 적은 줄은 (층, 호실)로 upsert — 같은 호실을 두 번 만들지 않는다. 빈 호실은 그냥 새 줄이다
+    rid = await pool().fetchval(
         """INSERT INTO app.floor_rents
              (building_pk,team_id,floor,unit_no,use,contract_area,
               deposit,rent,maintenance,is_vacant,tenant_name)
            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-           ON CONFLICT (building_pk,team_id,floor,unit_no)
+           ON CONFLICT (building_pk,team_id,floor,unit_no) WHERE unit_no <> ''
            DO UPDATE SET use=EXCLUDED.use,
              contract_area=EXCLUDED.contract_area, deposit=EXCLUDED.deposit,
              rent=EXCLUDED.rent, maintenance=EXCLUDED.maintenance,
              is_vacant=EXCLUDED.is_vacant, tenant_name=EXCLUDED.tenant_name,
-             deleted_at=NULL, updated_at=now()""",
+             deleted_at=NULL, updated_at=now()
+           RETURNING id""",
         building_pk, user.team_id, body.floor, body.unit_no, body.use,
         body.contract_area,
         body.deposit, body.rent, body.maintenance, body.is_vacant, body.tenant_name,
     )
-    return {"ok": True}
+    return {"ok": True, "id": rid}
 
 
 @router.delete("")
