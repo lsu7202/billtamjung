@@ -19,6 +19,8 @@ BASE = "https://www.data.go.kr"
 _OPENER = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 DATASETS = {
     "15112638": "승강기 설치현황",
+    # 소상공인시장진흥공단 상가(상권)정보 — 분기. 전국 zip 안에 시도별 CSV. activate 가 서울만 _sbiz 로 옮긴다(2026-09-07)
+    "15083033": "소상공인 상가(상권)정보",
     "15103145": "상업용부동산 임대동향조사 통계표",
     "15086933": "상권 구획도(전국 17개시도)",
 }

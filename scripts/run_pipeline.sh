@@ -105,6 +105,25 @@ if step_ge load; then
     echo "  ⏭ floor_outline: data/tools/_floor_outline.csv 없음, 건너뜀"
   fi
 
+  # ── 대장 CSV 에 없어 적재 뒤에만 붙는 값 넷(2026-09-07) ──────────────
+  # 여기가 셋뿐이라, 이 셸로 대장을 실으면 아래 넷이 안 붙은 채 새 세대가 살아났다.
+  # 단위 실행기(pipeline/units.py 의 ledger)는 일곱을 다 건다 — 두 길이 같아야 한다.
+  echo "  → building_parcels 구멍 메우기 (총괄표제부 없는 건물의 대지 지번)"
+  BT_DATABASE_URL="$DATABASE_URL" "$LOADER_PY" scripts/fill_building_parcels.py
+
+  if [ -f "data/raw/한국승강기안전공단_승강기 설치 현황_2016년 이후.csv" ]; then
+    echo "  → elevator_ext (승강기공단 참조값)"
+    BT_DATABASE_URL="$DATABASE_URL" "$LOADER_PY" scripts/load_elevator_ext.py
+  else
+    echo "  ⏭ elevator_ext: 승강기공단 CSV 없음, 건너뜀"
+  fi
+
+  echo "  → gongsi_latest (건물·필지의 최신 공시지가를 시계열 정본으로)"
+  BT_DATABASE_URL="$DATABASE_URL" "$LOADER_PY" scripts/fill_gongsi_latest.py
+
+  echo "  → last_sale (건물의 마지막 매각 — 실거래 정본으로)"
+  BT_DATABASE_URL="$DATABASE_URL" "$LOADER_PY" scripts/fill_sale_latest.py
+
  else
   echo "[4/4] 적재·되붙이기 건너뜀(STEP=derive) — 파생 배치부터 돕니다"
  fi
@@ -158,6 +177,35 @@ if step_ge load; then
          "data/raw/C_UQ161" gis
   derive "land_adjust (지가변동률)"             "$RENT/build_land_adjust.py" \
          "data/raw/(연) 지역별 지가변동률.json"
+
+  # ①-2 주변 동향(호재) 원천 — 2026-09-05 배선.
+  #   **순서가 중요하다.** urban_notice(고시 본문) → city_facility·building_permit(도형·인허가)
+  #   → area_event(합침) → load_urban_notice 재실행(본문 되붙임) 차례다.
+  #   area_event 는 DROP 후 다시 만들므로 **본문을 마지막에 다시 붙여야 한다** —
+  #   순서가 어긋나면 화면은 뜨는데 「내용」 칸만 통째로 빈다(조용한 실패).
+  derive "urban_notice (고시 본문 4.4만)"        scripts/load_urban_notice.py \
+         "data/raw/_urban_notice/notices.jsonl"
+  # 고시문 PDF·HWP 글자(`scripts/fetch_notice_pdf.py`)는 **파이프라인에서 뺐다**(2026-09-06 대표) — 읽는 화면·API 가 없다.
+  #   필요해지면 손으로: BT_PDF_LIMIT=400 data/.venv/bin/python scripts/fetch_notice_pdf.py
+  derive "city_facility (도시계획시설 SHP 4종)"  scripts/load_city_facility.py \
+         "data/raw/_seoul_gis" gis
+  # **문지기를 압축본으로 둔다.** 파이프라인 끝의 archive_seoul 이 원본 폴더를 치우므로
+  # 원본 경로를 보면 두 번째 실행부터 늘 「없음, 건너뜀」이 된다(2026-09-05 실측).
+  # 적재 스크립트가 압축본에서 알아서 펴고 쓴 뒤 도로 치운다.
+  derive "building_permit (건축 인허가·철거)"    scripts/load_building_permit.py \
+         "data/raw/_archive/hub_seoul/인허가_기본개요.tar.zst"
+  derive "g2b_bid (나라장터 공사 발주)"          scripts/load_g2b.py \
+         "data/raw/_g2b/bids_cnstwk.json"
+  derive "area_event (주변 동향 합침)"           scripts/build_area_event.py
+  # 위에서 area_event 를 새로 만들었으니 본문을 **다시** 붙인다
+  derive "area_event 본문 되붙임"                scripts/load_urban_notice.py \
+         "data/raw/_urban_notice/notices.jsonl"
+
+  # ①-3 업체 명부 — 층별 임대 상호명·면적과 상권 7갈래의 재료
+  derive "sbiz_store (소상공인 상가정보)"        scripts/load_sbiz.py "data/raw/_sbiz"
+  # pyproj(5174→4326)를 쓴다 — gis 인터프리터라야 한다
+  derive "localdata_permit (LOCALDATA 208업종)"  scripts/load_localdata.py \
+         "data/raw/_localdata" gis
   derive "sanggwon_rent_series (임대 시계열)"    "$RENT/build_series.py"
   derive "sale_price_index (분기 가격지수)"      "$RENT/build_price_index.py"
 
@@ -184,9 +232,9 @@ if step_ge load; then
   # ④ 적정가 — 임대(수익환원)와 참조표를 둘 다 읽는다
   derive "building_sale_est (적정가)"           "$RENT/build_sale_est.py"
 
-  # ⑤ 점수 — 매력도·활용유형·매도가능성. 읽는 것은 **계산 용적률(building_calc)**·정비구역·
+  # ⑤ 점수 — 활용유형·매도가능성(매력도는 2026-09-06 삭제). 읽는 것은 **계산 용적률(building_calc)**·정비구역·
   #    공시 추세·최근 거래연월이다. 적정가·임대는 안 읽는다(예전 주석이 틀렸다).
-  derive "building_score (매력도·활용유형·매도가능성)" scripts/build_building_score.py
+  derive "building_score (활용유형·매도가능성)" scripts/build_building_score.py
 
   # ── 6) 검증 ───────────────────────────────────────────────────
   # 돌고 나서 **데이터가 성한지** 본다. 층 표기가 뒤집혔는지·파생 배치가 비었는지·

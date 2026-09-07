@@ -33,13 +33,11 @@ SOURCES = {
     "parcels": {         # 필지 속성·규제·폴리곤(0009)
         "columns": ["pnu", "building_pk", "is_rep", "wkt", "area",
                     "jimok", "land_use", "slope", "shape", "road_frontage",
-                    "use_zone", "legal_bcr", "legal_far", "gongsi_latest",
-                    "reg_godo", "reg_district", "reg_jeongbi", "reg_gyeong", "reg_banghwa", "reg_munhwa"],
+                    "use_zone", "legal_bcr", "legal_far", "gongsi_latest"],
         "table": "parcels",
         "insert": """INSERT INTO {new}
                        (pnu, building_pk, is_rep, geom, area, jimok, land_use, slope, shape,
-                        road_frontage, use_zone, legal_bcr, legal_far, gongsi_latest,
-                        reg_godo, reg_district, reg_jeongbi, reg_gyeong, reg_banghwa, reg_munhwa, uqa)
+                        road_frontage, use_zone, legal_bcr, legal_far, gongsi_latest)
                      SELECT pnu, NULLIF(building_pk,''), is_rep::boolean,
                             ST_Multi(ST_MakeValid(ST_GeomFromText(wkt, 4326))),
                             NULLIF(area,'')::numeric, NULLIF(NULLIF(jimok,''),'지정되지않음'),
@@ -51,10 +49,7 @@ SOURCES = {
                             -- load_parcel_luris 가 적재 뒤에 되붙인다). 0153 에서
                             -- integer[] 가 됐으므로 빈 문자열이 아니라 NULL 을 넣는다.
                             NULL::integer[], NULL::integer[],
-                            NULLIF(gongsi_latest,'')::bigint,
-                            NULLIF(reg_godo,''), NULLIF(reg_district,''), NULLIF(reg_jeongbi,''),
-                            NULLIF(reg_gyeong,''), NULLIF(reg_banghwa,''), NULLIF(reg_munhwa,''),
-                            NULLIF(use_zone,'')
+                            NULLIF(gongsi_latest,'')::bigint
                      FROM {tmp} WHERE pnu <> ''
                      ON CONFLICT (pnu) DO NOTHING""",
         "checks": ["pk_rows"],
@@ -254,6 +249,39 @@ GEOM_FLOOR = 0.90        # 좌표 보유 하한 — 지적도에 PNU 가 없어 
                          # 4.5% 있다. 「하나도 없으면 안 된다」가 아니라 「대부분 있어야 한다」.
 
 
+async def swap_view(conn, view: str, new_tbl: str) -> None:
+    """뷰를 새 세대 표로 갈아끼운다.
+
+    `CREATE OR REPLACE VIEW` 는 열 이름·순서가 같을 때만 된다. 새 세대에 칸이 **중간에** 끼면
+    (2026-09-06 `elevator_ext` 가 그랬다) 여기서 엎어지고, 한 시간 빌드가 스왑 한 줄에서 죽는다.
+    그럴 땐 뷰에 딸린 것(구체화 뷰·뷰)의 정의와 색인을 먼저 받아 두고 CASCADE 로 지운 뒤 다시 세운다.
+    딸린 것은 region_index(자동완성)·vacant_parcels(나대지) 둘 — 어느 쪽도 못 잃는다.
+    """
+    try:
+        async with conn.transaction():          # 저장점 — 실패해도 바깥 트랜잭션은 산다
+            await conn.execute(f"CREATE OR REPLACE VIEW {view} AS SELECT * FROM {new_tbl}")
+        return
+    except asyncpg.PostgresError as e:
+        print(f"  · 뷰 열이 달라 다시 세운다: {str(e).splitlines()[0]}")
+    deps = await conn.fetch(
+        """SELECT DISTINCT c.oid::regclass::text AS name, c.relkind::text AS relkind, pg_get_viewdef(c.oid, true) AS def
+             FROM pg_depend d JOIN pg_rewrite r ON d.objid = r.oid JOIN pg_class c ON r.ev_class = c.oid
+            WHERE d.refobjid = $1::regclass AND c.oid <> $1::regclass""", view)
+    idx: dict[str, list[str]] = {}
+    for d in deps:
+        sch, nm = d["name"].split(".", 1)
+        idx[d["name"]] = [r["indexdef"] for r in await conn.fetch(
+            "SELECT indexdef FROM pg_indexes WHERE schemaname = $1 AND tablename = $2", sch, nm)]
+    await conn.execute(f"DROP VIEW {view} CASCADE")
+    await conn.execute(f"CREATE VIEW {view} AS SELECT * FROM {new_tbl}")
+    for d in deps:
+        kind = "MATERIALIZED VIEW" if d["relkind"] == "m" else "VIEW"
+        await conn.execute(f"CREATE {kind} {d['name']} AS {d['def']}")
+        for ix in idx[d["name"]]:
+            await conn.execute(ix)
+        print(f"  · 딸린 {kind.lower()} 다시 세움: {d['name']} (색인 {len(idx[d['name']])})")
+
+
 async def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", required=True, choices=SOURCES.keys())
@@ -364,9 +392,20 @@ async def main() -> int:
         # 3) 검증 게이트(§2.5)
         rows_live = await conn.fetchval(f"SELECT count(*) FROM {live_tbl}")
         rows_new = await conn.fetchval(f"SELECT count(*) FROM {new_tbl}")
+        # **문턱은 「지난번 적재분」과 견준다.** 살아 있는 표에는 적재 뒤에 덧대는 줄이 있다
+        # (building_parcels 의 fill_building_parcels 47,975줄). 그걸 기준으로 삼으면 빌드가
+        # 정상인데도 0.93 배로 보여 스왑이 막힌다 — 2026-09-06 대장 적재가 여기서 멈췄다.
+        # 줄이 줄어드는 사고는 여전히 잡아야 하므로 **둘 중 작은 쪽**을 기준으로 쓴다.
+        rows_prev = await conn.fetchval(
+            """SELECT rows_out FROM master.master_loads
+                WHERE source = $1 AND status = 'success' AND rows_out IS NOT NULL
+                ORDER BY finished_at DESC LIMIT 1""", args.source)
+        base = min(rows_live, rows_prev) if rows_prev else rows_live
+        if rows_prev and base != rows_live:
+            print(f"  · 행수 기준 {base:,}(지난 적재분) — 살아 있는 표 {rows_live:,} 는 적재 뒤 덧댄 줄을 포함한다")
         if "checks" in src:   # 시계열 등 단순 소스: 행수 하한 + 비어있지 않음
             checks = {
-                "row_floor": rows_new >= rows_live * ROW_FLOOR_RATIO,
+                "row_floor": rows_new >= base * ROW_FLOOR_RATIO,
                 "not_empty": rows_new > 0,
             }
         else:                  # buildings 전체 검증
@@ -376,7 +415,7 @@ async def main() -> int:
                 if await conn.fetchval(f"SELECT count(*) FILTER (WHERE {c} IS NOT NULL)=0 FROM {new_tbl}")
             ]
             checks = {
-                "row_floor": rows_new >= rows_live * ROW_FLOOR_RATIO,
+                "row_floor": rows_new >= base * ROW_FLOOR_RATIO,
                 # PK 는 하나도 비면 안 된다. **좌표는 다르다** — 지적도에 PNU 가 없는 건물을
                 # geom NULL 로 일부러 살려 두는데(위 COPY 주석), 예전 게이트가 그걸 이유로
                 # 적재를 거부했다. 26,295동(4.5%)이 있어 실데이터로는 반드시 실패하는
@@ -415,7 +454,7 @@ async def main() -> int:
 
         # 4) 원자 스왑(뷰 재지정) + version++ (§2.6·2.8, 단일 트랜잭션)
         async with conn.transaction():
-            await conn.execute(f"CREATE OR REPLACE VIEW master.{table} AS SELECT * FROM {new_tbl}")
+            await swap_view(conn, f"master.{table}", new_tbl)
             await conn.execute(
                 "UPDATE master.master_version SET version=$1, loaded_at=now(), source=$2",
                 next_v, args.source,

@@ -48,14 +48,18 @@ DB = "data/빌탐정.db"
 
 PARCEL_COLS = ["pnu", "building_pk", "is_rep", "wkt", "area",
                "jimok", "land_use", "slope", "shape", "road_frontage",
-               "use_zone", "legal_bcr", "legal_far", "gongsi_latest",
-               "reg_godo", "reg_district", "reg_jeongbi", "reg_gyeong", "reg_banghwa", "reg_munhwa"]
+               "use_zone", "legal_bcr", "legal_far", "gongsi_latest"]
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--parcels", required=True)
     ap.add_argument("--annex", required=True)
+    # 필지 단위(반기)가 대장 빌드 없이 혼자 돌 때는 SQLite(빌탐정.db)가 없다.
+    # 그때는 살아 있는 master.buildings 에서 PK 를 가져온다(2026-09-07). 대장 빌드 안에서는
+    # 새 건물이 아직 DB 에 없으므로 SQLite 가 맞다 — 기본값은 그대로 둔다.
+    ap.add_argument("--pk-from-db", action="store_true",
+                    help="building_pk 를 SQLite 대신 살아 있는 master.buildings 에서")
     args = ap.parse_args()
 
     print("1) 속성 로드…")
@@ -80,12 +84,22 @@ def main() -> int:
     annex = json.load(open(ANNEX))
     print(f"  spatial {len(spatial):,} · annex {len(annex):,}")
 
-    # 대표 PNU → building_pk (빌탐정.db) + annex 부속 매핑
-    import sqlite3
-    con = sqlite3.connect(DB)
+    # 대표 PNU → building_pk + annex 부속 매핑
     rep_to_pk = {}
-    for pk, pnu in con.execute("SELECT pk, pnu FROM buildings WHERE pnu IS NOT NULL"):
-        rep_to_pk[pnu] = pk
+    if args.pk_from_db:
+        import psycopg
+        dsn = os.environ.get("BT_DATABASE_URL") or os.environ.get(
+            "DATABASE_URL", "postgresql://postgres:test@localhost:55432/billtamjung")
+        with psycopg.connect(dsn) as pc, pc.cursor() as cur:
+            cur.execute("SELECT building_pk, pnu FROM master.buildings WHERE pnu IS NOT NULL")
+            for pk, pnu in cur:
+                rep_to_pk[pnu] = pk
+        print(f"  building_pk ← master.buildings {len(rep_to_pk):,}")
+    else:
+        import sqlite3
+        con = sqlite3.connect(DB)
+        for pk, pnu in con.execute("SELECT pk, pnu FROM buildings WHERE pnu IS NOT NULL"):
+            rep_to_pk[pnu] = pk
     pnu_to_bldg: dict[str, tuple[str, str]] = {}   # pnu → (building_pk, role)
     for pnu, pk in rep_to_pk.items():
         pnu_to_bldg[pnu] = (pk, "대표")
@@ -133,15 +147,14 @@ def main() -> int:
                 doc.drop("필지 도형을 못 읽음", pnu); continue
             la = land.get(pnu) or (None,) * 7
             bld = pnu_to_bldg.get(pnu) or (None, None)
-            # 용도지역·법정건폐/용적·규제 여섯 칸은 **빈칸으로 둔다** — 위 머리말 참고.
-            # 원장(load_parcel_luris.py)이 채운다. 여기서 계산해 넣으면 원장이 모르는
-            # 필지에 지어낸 값이 남는다.
+            # 용도지역·법정건폐/용적은 **빈칸으로 둔다** — 원장(load_parcel_luris.py)이 적재 뒤에 채운다.
+            # 여기서 계산해 넣으면 원장이 모르는 필지에 지어낸 값이 남는다.
+            # 규제 여섯 칸(reg_*)과 uqa 는 2026-09-07 에 걷어냈다 — 정본은 parcels.regulations 하나다.
             w.writerow([
                 pnu, bld[0] or "", "true" if bld[1] == "대표" else "false", wkt,
                 la[1] or "", la[0] or "", la[2] or "", la[3] or "", la[4] or "", la[5] or "",
                 "", "", "",
                 la[6] or "",
-                "", "", "", "", "", "",
             ])
             n_out += 1
             doc.write()

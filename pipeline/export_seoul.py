@@ -136,7 +136,9 @@ def main() -> int:
                 row[ci["건축면적"]] or "", row[ci["용적률산정연면적"]] or "",
                 row[ci["엘리베이터"]] if row[ci["엘리베이터"]] is not None else "",
                 # 참조값(0156) — 승강기공단. 본값(엘리베이터)은 대장뿐이다
-                row[ci["엘리베이터참조"]] if "엘리베이터참조" in ci and row[ci["엘리베이터참조"]] is not None else "",
+                # 「칸이 없으면 빈칸」으로 봐주지 않는다. 실제로 SQLite 스키마에 칸이 빠져 있어
+                # 585,731동 전부가 조용히 빈칸으로 나갔다(2026-09-06). 없으면 그 자리에서 멈춘다.
+                row[ci["엘리베이터참조"]] if row[ci["엘리베이터참조"]] is not None else "",
                 row[ci["주차"]] if row[ci["주차"]] is not None else "",
                 row[ci["높이"]] if row[ci["높이"]] is not None else "",
                 row[ci["건폐율출처"]] or "",

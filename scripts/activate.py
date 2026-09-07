@@ -140,6 +140,25 @@ def classify_and_route(path, djy_txts):
             _unzip_to(path, dest)
             _rename_stem(dest, "TL_SPRD_MANAGE", "TL_SPRD_MANAGE.Seoul")
             note(f"도로구간 {name} → {os.path.relpath(dest, ROOT)}/")
+        elif "상가(상권)정보" in name or "상가_상권_정보" in name:   # data.go.kr 15083033 = 전국 zip, 시도별 CSV
+            # 서울 것만 꺼내 data/raw/_sbiz/ 에 둔다. 옛 판은 치운다 — load_sbiz 가 폴더의 *.csv 를 전부 읽는다
+            dest = os.path.join(RAW, "_sbiz")
+            os.makedirs(dest, exist_ok=True)
+            with zipfile.ZipFile(path) as z:
+                seoul = [n for n in z.namelist() if n.lower().endswith(".csv") and "서울" in n]
+                if not seoul:                            # 이름이 CP949 로 깨졌을 수 있다
+                    seoul = [n for n in z.namelist() if n.lower().endswith(".csv")
+                             and "서울" in n.encode("cp437", "ignore").decode("cp949", "ignore")]
+                if seoul:
+                    for old_f in glob.glob(os.path.join(dest, "*.csv")):
+                        os.remove(old_f)
+                    for n in seoul:
+                        fixed = n.encode("cp437", "ignore").decode("cp949", "ignore") if "서울" not in n else n
+                        with z.open(n) as src, open(os.path.join(dest, os.path.basename(fixed)), "wb") as out:
+                            shutil.copyfileobj(src, out)
+                        note(f"상가정보 {os.path.basename(fixed)} → data/raw/_sbiz/")
+                else:
+                    note(f"상가정보 {name}: zip 안에 서울 CSV 가 없다 — {z.namelist()[:3]}")
         elif "상권분석서비스" in name:   # zip 안 이름이 CP949 로 깨져 나온다 → sanggwon.*
             dest = os.path.join(RAW, "서울시 상권분석서비스(영역-상권)")
             _unzip_to(path, dest)
