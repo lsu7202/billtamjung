@@ -21,6 +21,9 @@ DATASETS = {
     "15112638": "승강기 설치현황",
     # 소상공인시장진흥공단 상가(상권)정보 — 분기. 전국 zip 안에 시도별 CSV. activate 가 서울만 _sbiz 로 옮긴다(2026-09-07)
     "15083033": "소상공인 상가(상권)정보",
+    # 부동산원 상권 구획도 — 임대추정의 건물↔상권 매칭(72칸). 원본 폴더가 유실돼 백업이 원천이던 것을
+    # 되돌린다(2026-09-07). 페이지가 폼 필드 꼴이라 resolve() 를 양쪽 다 읽게 고쳤다
+    "15086933": "상권 구획도(부동산원)",
     "15103145": "상업용부동산 임대동향조사 통계표",
     "15086933": "상권 구획도(전국 17개시도)",
 }
@@ -35,10 +38,17 @@ def _open(url, data=None):
 def resolve(pk):
     """페이지 → publicDataPk/DetailPk → ajax → (atchFileId, fileDetailSn)."""
     html = _open(f"{BASE}/data/{pk}/fileData.do").read().decode("utf-8", "replace")
+    # 두 가지 꼴이 있다: 함수 호출 fn_fileDataDown('15112638','uddi:…') 과
+    # 폼 필드 <input name="publicDataPk" value="15086933"> (상권 구획도 15086933 이 후자다 · 2026-09-07)
     m = re.search(r"fn_fileDataDown\('(\d+)',\s*'([^']+)'", html)
-    if not m:
-        return None
-    dpk, ddpk = m.groups()
+    if m:
+        dpk, ddpk = m.groups()
+    else:
+        a = re.search(r'name="publicDataPk"\s+value="([^"]+)"', html)
+        b = re.search(r'name="publicDataDetailPk"\s+value="([^"]+)"', html)
+        if not (a and b):
+            return None
+        dpk, ddpk = a.group(1), b.group(1)
     j = json.loads(_open(f"{BASE}/tcs/dss/selectFileDataDownload.do?recommendDataYn=Y",
                          {"publicDataPk": dpk, "publicDataDetailPk": ddpk}).read().decode("utf-8", "replace"))
     if not j.get("atchFileId"):

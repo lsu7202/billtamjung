@@ -390,6 +390,27 @@ UNITS: dict[str, dict] = {
              "select count(*)>=300, to_char(count(*),'999,999') from master.land_adjust"),
         ],
     ),
+    # 상권 구획도(부동산원 15086933) — **원본을 못 받는다**(2026-09-07 실측: 포털이 0바이트를 준다.
+    # 같은 경로로 승강기 15112638 은 33MB 가 정상으로 온다 → 우리 코드가 아니라 그쪽 파일 문제).
+    # 지금 정본은 DB 에서 떠 둔 `data/exports/sanggwon/sanggwon.csv.gz` — **자기 백업이 원천**이다.
+    # 그래서 단위를 두되 받기는 없고, 검증이 72칸을 지킨다. 원본이 다시 열리면 crawl 을 붙인다.
+    "sanggwon": dict(
+        cadence="yearly", label="상권 구획도(부동산원 · 원본 유실 · 백업이 정본)",
+        load=[S(["scripts/sanggwon/load_sanggwon_csv.py"], "gis",
+                "data/exports/sanggwon/sanggwon.csv.gz")],
+        inputs=["data/exports/sanggwon/sanggwon.csv.gz"], table="master.sanggwon",
+        verify=[
+            ("서울 상권 72칸",
+             "select count(*)=72, count(*)::text||'칸' from master.sanggwon"),
+            ("도형이 다 있을 것",
+             "select count(*)=count(geom), count(geom)::text||'/'||count(*)::text from master.sanggwon"),
+            # 임대추정이 이름으로 임대동향 시계열과 짝짓는다 — 겹침이 줄면 매핑이 깨진다
+            ("임대동향과 이름 겹침 65 이상",
+             "select count(distinct s.nm)>=65, count(distinct s.nm)::text||'/72'"
+             " from master.sanggwon s join master.sanggwon_rent_series r on r.sanggwon = s.nm"),
+        ],
+    ),
+
     "rent_index": dict(
         cadence="quarterly", label="상업용 임대동향(R-ONE)",
         crawl=[S(["scripts/rone/download_rone.py", "--out", "data/raw/_dl"], "gis")],
