@@ -78,7 +78,7 @@ export function UnifiedBuyerModal({ b, tab0, onClose, onSaved, onGoListing, onEd
     pEdit === key ? (
       <input className="um-in num" autoFocus value={pTxt}
         onChange={(e) => setPTxt(e.target.value)}
-        onBlur={() => { setPEdit(null); if (pTxt.trim()) onDone2(pTxt.trim()); }}
+        onBlur={() => { setPEdit(null); onDone2(pTxt.trim()); }}   // 빈 값도 넘긴다 = 지우기(2026-09-06)
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
     ) : (
       <button className="um-vp" onClick={() => { setPEdit(key); setPTxt(val ?? ""); }}>
@@ -196,12 +196,12 @@ export function UnifiedBuyerModal({ b, tab0, onClose, onSaved, onGoListing, onEd
               <div className="um-pane">
                 <div className="tc">
                   <div className="um-row"><span className="k">이름</span>
-                    {editable("name", b.name ?? null, (v) => put({ name: v }))}</div>
+                    {editable("name", b.name ?? null, (v) => put({ name: v || null }))}</div>
                   <div className="um-row"><span className="k">전화</span>
                     {b.phone_masked
                       ? <span className="dim">담당자 본인·대표만 볼 수 있습니다</span>
                       : editable("phone", b.phone ? formatPhone(b.phone) : null,
-                        (v) => put({ phone: v.replace(/[^0-9]/g, "") }))}
+                        (v) => put({ phone: v.replace(/[^0-9]/g, "") || null }))}
                   </div>
                 </div>
                 <div className="tc um-offer">

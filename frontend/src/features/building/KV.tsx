@@ -17,7 +17,7 @@ export function NumCell({ v, onSave, digitsOnly, suffix, width = 48 }: { v: unkn
   if (ed) return (
     <input className="input" style={{ width, padding: "2px 6px", textAlign: "right" }} autoFocus value={val}
       onChange={(e) => setVal(digitsOnly ? e.target.value.replace(/[^\d]/g, "") : e.target.value.replace(/[^\d.]/g, ""))}
-      onBlur={() => { setEd(false); if (val !== "" && val !== String(v ?? "")) onSave(val); }}
+      onBlur={() => { setEd(false); if (val !== String(v ?? "")) onSave(val); }}   // 빈 값도 저장한다 = 지우기
       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEd(false); }} />
   );
   return <b style={{ cursor: "pointer" }} title="클릭 = 수정" onClick={() => { setVal(String(v ?? "")); setEd(true); }}>{(v ?? "—") as React.ReactNode}{v != null && suffix}</b>;
@@ -111,7 +111,11 @@ export function KV({ label, field, value, unit: u, editable, validate, current, 
     const e = validate && raw ? validate(raw) : null;
     if (e) { setErr(e); return; }                   // 오류 → 저장 안 함, 편집 유지
     setErr(null); setEditing(false);
-    if (raw && field) onSave?.(field, money ? raw : (parse ? parse(raw) : raw));
+    if (!field) return;
+    // 빈 칸으로 나가면 **지운 것**이다(2026-09-06 대표). 예전엔 저장을 건너뛰어 지우기 전 값으로 되돌아갔다.
+    // 되돌리기(onRevert)가 있는 칸은 그것이 곧 지우기(대장값으로), 없으면 빈 값을 저장한다
+    if (!raw.trim()) { if (onRevert) onRevert(field); else onSave?.(field, ""); return; }
+    onSave?.(field, money ? raw : (parse ? parse(raw) : raw));
   }
   if (editable && field && editing) {
     return (

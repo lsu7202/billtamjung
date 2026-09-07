@@ -33,7 +33,8 @@ export function TextRow({ label, value, unit, cur, edited, master, ref_, parse, 
 
   function commit() {
     const raw = val.trim();
-    if (!raw) { setEd(false); setErr(null); return; }        // 빈 입력은 저장 안 함(값을 삼키지 않는다)
+    // 빈 칸으로 나가면 지운 것이다(2026-09-06 대표) — 되돌리기가 있으면 그것(대장값으로), 없으면 빈 값 저장
+    if (!raw) { setEd(false); setErr(null); if (onRevert) onRevert(); else onSave?.(""); return; }
     const e = validate?.(raw) ?? null;
     if (e) { setErr(e); return; }                            // 오류 → 편집 유지
     setErr(null); setEd(false);

@@ -2,7 +2,7 @@
  *
  *  탭 5: 소유자 · 접촉 · 정보 · 계약 · 할일 + 우측 메모창.
  *  소유자·접촉·정보·계약(채택·거래금액·매도희망·매매가)은 기존 API로 실동작.
- *  계약금·잔금·가계약·중도금·할일 신설 체크는 **로컬 상태**(저장 없음 — 새로고침이면 초기화).
+ *  계약금·잔금·계약금 일부·중도금·할일 신설 체크는 **로컬 상태**(저장 없음 — 새로고침이면 초기화).
  *  계약 탭 = 결정 문장(채택되면 나타남) + 호가 줄(캡션에 마지막 움직임, 클릭하면 이력 펼침).
  *  기존 모달 파일은 건드리지 않는다 — 확정되면 본 수정에서 교체.
  */
@@ -38,7 +38,7 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
   const lead = buyers.find((x) => x.picked_at) ?? buyers[0] ?? null;
   const rr = r as unknown as Record<string, string | null>;
 
-  /* 로컬 상태 — 가계약 줄을 폈나(저장 없음). 값 자체는 서버가 들고 있다 */
+  /* 로컬 상태 — 계약금 일부 줄을 폈나(저장 없음). 값 자체는 서버가 들고 있다 */
   const [local, setLocal] = useState<Record<string, boolean>>({});
   const put = async (patch: Record<string, string | null>) => {
     await listingsApi.patchBiz(pk, patch); onSaved();
@@ -178,7 +178,7 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
     pEdit === key ? (
       <input className="um-in num" autoFocus value={pTxt}
         onChange={(e) => setPTxt(e.target.value)}
-        onBlur={() => { setPEdit(null); if (pTxt.trim()) onDone2(pTxt.trim()); }}
+        onBlur={() => { setPEdit(null); onDone2(pTxt.trim()); }}   // 빈 값도 넘긴다 = 지우기(2026-09-06)
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
     ) : (
       <button className="um-vp" onClick={() => { setPEdit(key); setPTxt(val ?? ""); }}>
@@ -192,7 +192,7 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
       <span className="um-chip" key={key}><i>{label}</i>
         <input className="ci num" autoFocus value={pTxt}
           onChange={(e) => setPTxt(e.target.value)}
-          onBlur={() => { setPEdit(null); if (pTxt.trim()) onSet(pTxt.trim()); }}
+          onBlur={() => { setPEdit(null); onSet(pTxt.trim()); }}   // 빈 값도 넘긴다 = 지우기
           onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /></span>
     ) : (
       <span className={`um-chip num ${onSet ? "" : "still"} ${onClear ? "clr" : ""}`} key={key}
@@ -275,12 +275,12 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
               <div className="um-pane">
                 <div className="tc">
                   <div className="um-row"><span className="k">이름</span>
-                    {editable("owner_name", r.owner_name ?? null, (v2) => put({ owner_name: v2 }))}</div>
+                    {editable("owner_name", r.owner_name ?? null, (v2) => put({ owner_name: v2 || null }))}</div>
                   <div className="um-row"><span className="k">전화</span>
                     {r.phone_masked
                       ? <span className="dim">담당자 본인·대표만 볼 수 있습니다</span>
                       : editable("owner_phone", r.owner_phone ? formatPhone(r.owner_phone) : null,
-                        (v2) => put({ owner_phone: v2.replace(/[^0-9]/g, "") }))}
+                        (v2) => put({ owner_phone: v2.replace(/[^0-9]/g, "") || null }))}
                   </div>
                 </div>
                 <div className="tc um-offer">
@@ -395,7 +395,7 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
                       )}에 계약
                     </div>
                     <div className="um-sub">
-                      {(preNow != null || !!local["pre_on"]) && mchip("가계약", "pre_amt",
+                      {(preNow != null || !!local["pre_on"]) && mchip("계약금 일부", "pre_amt",
                         preNow != null ? wonAcc(preNow) : null,
                         async (t) => { const n = parseAmount(t);
                           if (n != null) { await dealApi.patch(lead.id, { pre_contract_amount: n }); onSaved(); } },
@@ -413,7 +413,7 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
                         async () => { await schedulesApi.remove(midSched.id); onSaved(); })}
                       {mchip("잔금", "bal", balanceSeed != null ? wonAcc(balanceSeed) : null)}
                       {preNow == null && !local["pre_on"] && (
-                        <button className="um-ghost" onClick={() => setLocal((p) => ({ ...p, pre_on: true }))}>＋ 가계약</button>)}
+                        <button className="um-ghost" onClick={() => setLocal((p) => ({ ...p, pre_on: true }))}>＋ 계약금 일부</button>)}
                       {!midSched && (
                         <button className="um-ghost" onClick={() => setSchedAt({ cat: "중도금" })}>＋ 중도금</button>)}
                     </div>
