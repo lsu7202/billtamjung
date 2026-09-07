@@ -11,6 +11,7 @@ import datetime as dt
 from fastapi import APIRouter
 from pydantic import BaseModel
 from ..core.db import tx, pool
+from ..core import market as market_sql
 from ..core.config import settings
 from ..core.market import STORES
 from . import value_score, report_calc, use_type
@@ -430,17 +431,19 @@ async def _use_type(building_pk: str, b: dict) -> dict | None:
                   JOIN master.parcels pr ON pr.pnu = bp.pnu
                  WHERE bp.building_pk = $1 AND array_length(pr.legal_far, 1) = 1
                  ORDER BY pr.legal_far[1] DESC LIMIT 1)""", building_pk)
-    mk = await pool().fetchrow(
-        """WITH s AS (SELECT geom FROM master.buildings WHERE building_pk=$1),
-             f AS (SELECT fo.use FROM master.floor_outline fo JOIN master.buildings b USING(building_pk), s
-                   WHERE ST_DWithin(b.geom::geography, s.geom::geography, 300)
-                     AND fo.use !~ '주택|아파트|오피스텔|주차|부대|고시원')
-           SELECT count(*) AS n,
-             avg((use ~ '사무소|업무시설')::int)::float AS office, avg((use ~ '음식점')::int)::float AS food,
-             avg((use ~ '유흥|단란|노래연습장|주점')::int)::float AS ent, avg((use ~ '소매점|백화점')::int)::float AS retail
-           FROM f""", building_pk)
-    market = ({"office": mk["office"] or 0, "food": mk["food"] or 0, "ent": mk["ent"] or 0, "retail": mk["retail"] or 0}
-              if mk and mk["n"] else {})
+    # 상권 프로필 — **실제 업체**로 센다(2026-09-07). 예전엔 대장 층별용도를 정규식으로 갈랐는데
+    # 「기타」가 50.8% 라 분모에 섞여 업무 비중이 눌렸고, 화면의 「상권 구성」과 다른 숫자를 냈다.
+    # 이제 화면(/pop 의 mix)과 같은 원천·같은 사전(ref.biz_category 일곱 갈래)을 쓴다.
+    # bbox 로 먼저 거른다 — 지리 캐스트만 쓰면 색인을 안 타 한 건에 1.5초가 걸린다.
+    mk = await pool().fetch(
+        f"""WITH s AS (SELECT geom FROM master.buildings WHERE building_pk=$1)
+            SELECT c.cat, count(*)::float AS n
+              FROM ({market_sql.STORES}) c, s
+             WHERE c.geom && ST_Expand(s.geom, 300/88000.0)
+               AND ST_DWithin(c.geom::geography, s.geom::geography, 300)
+             GROUP BY c.cat""", building_pk)
+    tot = sum(r["n"] for r in mk) or 0
+    market = {r["cat"]: r["n"] / tot for r in mk} if tot else {}
     la = _fnum(b.get("land_area"))
     result = use_type.classify({
         "far": _fnum(b.get("far_any")), "legal_far": _parse_far(lf), "land_use": b.get("land_use"),

@@ -370,8 +370,10 @@ async def main() -> int:
                    NULLIF(station_dist,'')::int, NULLIF(subway_json,'')::jsonb, NULLIF(bus_json,'')::jsonb,
                    NULLIF(gongsi_latest,'')::bigint, NULLIF(last_sale_ym,''), NULLIF(last_sale_price,'')::bigint,
                    NULLIF(build_area,'')::numeric, NULLIF(far_area,'')::numeric,
-                   NULLIF(NULLIF(elevator,''),'0')::int, NULLIF(NULLIF(elevator_ext,''),'0')::int,
-                   NULLIF(NULLIF(parking,''),'0')::int,
+                   -- 0 을 NULL 로 죽이던 것을 벗겼다(2026-09-07). 지금은 상류가 0 을 안 내지만
+                   -- 언젠가 내기 시작하면 「승강기 0대」가 조용히 「모름」이 된다.
+                   NULLIF(elevator,'')::int, NULLIF(elevator_ext,'')::int,
+                   NULLIF(parking,'')::int,
                    NULLIF(height,'')::numeric, NULLIF(bcr_src,''), NULLIF(far_src,'')
             FROM {tmp}""")
         await conn.execute(f"DROP TABLE {tmp}")

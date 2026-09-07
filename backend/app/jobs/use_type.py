@@ -65,8 +65,12 @@ def income_score(new_s: int, remodel_s: int) -> int:
 
 def office_fit_score(market: dict, station_score: float, use_zone: str | None) -> int:
     """사옥 적합도 0~100 (유형 아닌 별도 지표) — 업무상권+역세권+업무/상업지역. 매수 의도는 유저 지정."""
-    biz = _clamp(market.get("office", 0.0))                  # 업무 상권 비중
-    quiet = _clamp(1 - (market.get("ent", 0.0) + market.get("food", 0.0) * 0.5))  # 유흥·먹자 회피
+    # 갈래 이름은 ref.biz_category 의 일곱을 쓴다(2026-09-07). 옛 키(office·ent·food)도 받아
+    # 준다 — 옛 스냅샷을 다시 그릴 때 0 으로 읽히면 사옥적합이 통째로 틀린다.
+    biz = _clamp(market.get("업무", market.get("office", 0.0)))          # 업무 상권 비중
+    ent = market.get("유흥", market.get("ent", 0.0))
+    food = market.get("먹자", market.get("food", 0.0))
+    quiet = _clamp(1 - (ent + food * 0.5))                              # 유흥·먹자 회피
     transit = station_score / 100.0
     zone = 1.0 if (use_zone and any(z in use_zone for z in ("상업", "업무", "준주거"))) else 0.5
     return round(100 * (0.35 * biz + 0.25 * quiet + 0.25 * transit + 0.15 * zone))

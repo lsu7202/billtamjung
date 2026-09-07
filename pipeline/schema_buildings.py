@@ -22,7 +22,8 @@ COLUMNS = [
 ]
 
 # 광범위 확보돼야 하는 컬럼 — 전 건물 100% NULL = 파이프라인 어딘가에서 필드가 조용히 누락된 것.
-# (bcr·far·floors_below·build_area 등은 집합/다동 원천결측으로 30~90% NULL은 정상이라 '100%만' 실패시킴)
+# (bcr·far·build_area 등은 집합/다동 원천결측으로 30~90% NULL은 정상이라 '100%만' 실패시킴)
+# floors_below 는 2026-09-07 부터 0(지하 없음)을 0 으로 싣는다 — NULL 은 진짜 모르는 것뿐이다
 EXPECT_DATA = [
     "land_area", "total_area", "build_area", "far_area",
     "floors_above", "bcr", "far", "main_use", "main_use_name", "structure",
