@@ -87,8 +87,21 @@ def main() -> None:
         cur = nxt
         time.sleep(0.15)
     p = os.path.join(a.out, "bids_cnstwk.json")
-    json.dump(rows, open(p, "w", encoding="utf-8"), ensure_ascii=False)
-    print(f"  {p} · 훑은 것 {n:,} · 담은 것 {len(rows):,}")
+    # **있던 것과 합쳐 쓴다**(2026-09-06 증분 전환). 주간엔 --days 30 만 받는데, 그대로 덮어쓰면
+    #   적재(load_g2b 는 파일 통째로 다시 만든다)가 표를 30일치로 줄인다. 공고번호가 열쇠다.
+    old_rows = []
+    if os.path.exists(p):
+        try:
+            old_rows = json.load(open(p, encoding="utf-8"))
+        except ValueError:
+            old_rows = []
+    merged = {x.get("bidNtceNo"): x for x in old_rows if x.get("bidNtceNo")}
+    new = sum(1 for x in rows if x.get("bidNtceNo") not in merged)
+    for x in rows:
+        if x.get("bidNtceNo"):
+            merged[x["bidNtceNo"]] = x
+    json.dump(list(merged.values()), open(p, "w", encoding="utf-8"), ensure_ascii=False)
+    print(f"  {p} · 훑은 것 {n:,} · 이번에 담은 것 {len(rows):,} · 새로 {new:,} · 파일 {len(merged):,}")
 
 
 main()

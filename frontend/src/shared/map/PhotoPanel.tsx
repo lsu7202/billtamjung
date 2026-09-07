@@ -6,6 +6,8 @@ import { loadNaver } from "./naver";
 import { photosApi, searchApi, PHOTO_KINDS, type Photo, type PhotoKind } from "../api/endpoints";
 import { PhotoFitEditor, fitStyle, DEFAULT_FIT, type Fit } from "../ui/PhotoFit";
 import { useAuth } from "../store/auth";
+import { useAreaPick } from "../store/areaPick";
+import { NewsFilterPanel } from "./NewsFilterPanel";
 import { MarketArea, CompPoint, meters, areaM2, geoToPaths, fmtArea, fmtDist, openDetail, conePath } from "./geo";
 import { makeRuler, Ruler } from "./ruler";
 
@@ -33,9 +35,17 @@ function eastPoint(naver: any, c: any, radius_m: number) {
   return new naver.maps.LatLng(c.lat(), c.lng() + lngR);
 }
 
-export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
+/** 지도에 찍는 소식 하나 — 갈래·이름은 목록이 쥐고, 지도는 자리·아이콘·빅 이벤트 여부만 안다 */
+export interface EventPin { id: number; lng: number; lat: number; icon: string; big: boolean; name: string; source_url?: string | null }
+
+export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGeom }: {
   lng: number; lat: number; pk?: string; area?: MarketArea; onArea?: (a: MarketArea) => void; comps?: CompPoint[];
+  events?: EventPin[];
+  /** 토지정보에서 고른 필지 하나의 폴리곤(GeoJSON). 있으면 합집합 대신 이것을 칠한다(2026-09-07) */
+  parcelGeom?: unknown;
 }) {
+  const { pick: evPick, setPick: setEvPick, types: evTypes, setTypes: setEvTypes, years: evYears, setYears: setEvYears } = useAreaPick();
+  const [evOpen, setEvOpen] = useState(false);   // 「소식」 버튼 하나 — 누르면 판이 열린다
   // 지도/업로드 탭은 폐지했다(2026-08-27) — 지도는 늘 지도다. 우측 400px 칸에서
   // 사진·서류 여섯 슬롯을 관리하는 건 무리라, 보는 건 지도 아래 스트립·관리는 모달로 갈랐다.
   const [photoOpen, setPhotoOpen] = useState(false);
@@ -152,15 +162,18 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
     if (!mapReady || !pk) return;
     const naver = window.naver;
     let dead = false, parcel: any = null;
-    searchApi.parcelFor(pk).then(({ polygon }) => {
+    const draw = (polygon: any) => {
       if (dead || !polygon) return;
       parcel = new naver.maps.Polygon({
         map: mapObj.current, paths: geoToPaths(naver, polygon), clickable: false,
         fillColor: "#262320", fillOpacity: 0.28, strokeColor: "#262320", strokeWeight: 2, zIndex: 60,
       });
-    }).catch(() => {});
+    };
+    // 토지정보에서 필지를 골랐으면 그 필지만. 아니면 대표+부속 합집합
+    if (parcelGeom) draw(parcelGeom);
+    else searchApi.parcelFor(pk).then(({ polygon }) => draw(polygon)).catch(() => {});
     return () => { dead = true; parcel?.setMap(null); };
-  }, [mapReady, pk]);
+  }, [mapReady, pk, parcelGeom]);
 
   // 발견된 주변 매물 마커 — 실거래/임대 색 구분. 클릭=새 탭 상세.
   useEffect(() => {
@@ -177,6 +190,42 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
     });
     return () => markers.forEach((m) => m.setMap(null));
   }, [mapReady, comps]);
+
+  // 주변 소식 아이콘(2026-09-06) — 기본은 빅 이벤트만. 기타까지 다 찍으면 지도가 더러워진다.
+  //   목록에서 고른 것은 파랗게 차고 파문이 돈다. 아이콘을 누르면 목록이 그 줄로 간다.
+  useEffect(() => {
+    if (!mapReady || defining) return;
+    const naver = window.naver;
+    const shown = (events ?? []).filter((e) => evTypes.includes(e.icon as never) || e.id === evPick);
+    // 마우스만 대도 이름이 뜬다(2026-09-06 대표) — 누르면 목록이 그 줄로
+    const info = new naver.maps.InfoWindow({ content: "", borderWidth: 0, backgroundColor: "transparent", disableAnchor: true, pixelOffset: new naver.maps.Point(0, -14) });
+    const markers = shown.map((e) => {
+      const on = e.id === evPick;
+      const sm = !e.big;
+      const m = new naver.maps.Marker({
+        position: new naver.maps.LatLng(e.lat, e.lng), map: mapObj.current, zIndex: on ? 120 : sm ? 85 : 90,
+        title: e.name,
+        icon: { content: `<div class="ev-pin${sm ? " sm" : ""}${on ? " on" : ""}"><svg><use href="#bt-${e.icon}"/></svg></div>`,
+                anchor: new naver.maps.Point(sm ? 8 : 11, sm ? 8 : 11) },
+      });
+      naver.maps.Event.addListener(m, "click", () => setEvPick(e.id));
+      const bind = () => {   // HTML 아이콘 마커는 네이버 mouseover 가 안 와서 요소에 직접 건다
+        const el: HTMLElement | null = m.getElement?.() ?? null;
+        if (!el) { requestAnimationFrame(bind); return; }
+        const html = () => {
+          const src = e.source_url ? `<a href="${e.source_url.replace(/"/g, "&quot;")}" target="_blank" rel="noreferrer">출처</a>` : "";
+          return `<div class="ev-pop"><b>${(e.name ?? "").replace(/</g, "&lt;")}</b><div class="ev-links"><a href="/news?pick=${e.id}" target="_blank" rel="noreferrer">소식에서 보기</a>${src}</div></div>`;
+        };
+        let pinned = false;
+        el.addEventListener("mouseenter", () => { if (!pinned) { info.setContent(html()); info.open(mapObj.current, m); } });
+        el.addEventListener("mouseleave", () => { if (!pinned) info.close(); });
+        el.addEventListener("click", () => { pinned = true; info.setContent(html()); info.open(mapObj.current, m); });
+      };
+      bind();
+      return m;
+    });
+    return () => { markers.forEach((m) => m.setMap(null)); info.close(); };
+  }, [mapReady, defining, events, evTypes, evPick, setEvPick]);
 
   // 정의 모드(전체화면) 전환 → 컨테이너 크기 변경 후 지도 리레이아웃
   useEffect(() => {
@@ -393,6 +442,19 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps }: {
                 : "● 중심 = 이동 · ○ 가장자리 = 크기조절 · 지도는 자유롭게 이동"}
             </div>
           </>
+        )}
+        {/* 소식 종류 칩 — 좌하단. 켜진 종류만 찍힌다(기본 주요 일곱) */}
+        {!defining && !roadBig && (events?.length ?? 0) > 0 && (
+          <div style={{ position: "absolute", left: 8, bottom: 8, zIndex: 40 }}>   {/* 반경 배지·⊙ 위로 */}
+            {evOpen && (
+              <div style={{ position: "absolute", left: 0, bottom: 34 }}>
+                {/* 이 건물 반경 안에 있는 종류만 세운다. 기간은 아래 주변 소식 칩과 같은 값 */}
+                <NewsFilterPanel compact years={evYears} onYears={setEvYears} types={evTypes} onTypes={setEvTypes}
+                  only={[...new Set((events ?? []).map((e) => e.icon))] as never} />
+              </div>
+            )}
+            <button className={`ev-all ${evOpen ? "on" : ""}`} onClick={() => setEvOpen((v) => !v)}>소식</button>
+          </div>
         )}
         {/* 반경/면적 — 좌상단. 하단 가운데에 두면 좁은 지도(400px)에서 범례·본매물 버튼과 겹친다.
             상권을 그리는 중(defining)엔 전체화면이라 예전처럼 하단 가운데가 넓고 잘 보인다. */}

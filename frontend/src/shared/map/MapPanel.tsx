@@ -6,7 +6,9 @@ import { makeRuler, Ruler } from "./ruler";
 import { Icon, type IconName } from "../ui/Icon";
 import { Segmented } from "../ui/Segmented";
 import { SourceTag } from "../ui/Notice";
-import { searchApi } from "../api/endpoints";
+import { searchApi, newsPinsApi, type NewsPin } from "../api/endpoints";
+import { eventIcon, MAJOR_TYPES } from "./eventIcon";
+import { NewsFilterPanel } from "./NewsFilterPanel";
 
 /** S01 지도 뷰 — 분류색 핀 · 레이어(일반/위성/지적도) · 영역 그리기(자유곡선/다각형).
  * specs S01 §3.6·3.6a·3.6c, 네이버지도-연동 §1.2·3.1.
@@ -86,7 +88,8 @@ export function MapPanel({
   selectedPk?: string | null;                 // 선택 건물(필지 분류색 오버레이)
   selectedCol?: "mine" | "normal" | null;
   onParcelClick?: (building_pk: string | null, pnu: string) => void;  // 필지 클릭(부동산플래닛식)
-  centerReq?: { lng: number; lat: number; zoom?: number } | null;  // 지도 중심 이동 요청(사이드바·지도위치 선택 시)
+  /** 지도 이동 요청. bounds 가 있으면 그 상자가 다 보이게(지역의 매물 전부), 없으면 한 점으로 */
+  centerReq?: { lng: number; lat: number; zoom?: number; bounds?: [number, number, number, number] } | null;
   priceMode?: "fair" | "real";               // 핀 태그 가격: 추정가/실거래가
   realView?: RealView;                       // 실거래를 총액·단가 중 무엇으로 볼 것인가(기본 대지면적·평)
 }) {
@@ -127,6 +130,7 @@ export function MapPanel({
           ? new naver.maps.LatLng(pins[0].lat, pins[0].lng)
           : new naver.maps.LatLng(37.5006, 127.0362);
         mapRef.current = new naver.maps.Map(divRef.current, { center, zoom: 15 });
+        (window as any).__btMap = mapRef.current;   // 화면 검사용 — 지도 중심·배율을 밖에서 읽는다
         cadastralRef.current = new naver.maps.CadastralLayer();
         setReady(true);
       })
@@ -134,6 +138,64 @@ export function MapPanel({
     return () => { dead = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── 소식 핀(2026-09-06 대표 「소식 아이콘은 검색 지도에도」) — 화면 상자 안 최근 1년, 기본은 빅 이벤트만.
+  //    줌 13 아래선 안 찍는다(구 단위에서 수백 개가 서면 건물 핀을 덮는다). 아이콘 규칙은 eventIcon 한 곳.
+  const [newsTypes, setNewsTypes] = useState<IconName[]>(MAJOR_TYPES);   // 켜진 종류. 기본 주요 일곱
+  const [newsOpen, setNewsOpen] = useState(false);       // 「소식」 버튼 하나 — 누르면 판이 열린다(대표 확정)
+  const [newsYears, setNewsYears] = useState(1);        // 1·3·5 · 0=전체 (기본 1년)
+  const [newsPins, setNewsPins] = useState<NewsPin[]>([]);
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    const naver = window.naver; const map = mapRef.current;
+    let t: ReturnType<typeof setTimeout> | null = null; let dead = false; let seq = 0;
+    const load = () => {
+      if (map.getZoom() < 13) { setNewsPins([]); return; }
+      const b = map.getBounds(); const my = ++seq;
+      newsPinsApi.inBox({ minlng: b.getMin().x, minlat: b.getMin().y, maxlng: b.getMax().x, maxlat: b.getMax().y }, newsYears)
+        .then((r) => { if (!dead && my === seq) setNewsPins(r.items); })
+        .catch(() => {});
+    };
+    const onIdle = () => { if (t) clearTimeout(t); t = setTimeout(load, 350); };
+    const l = naver.maps.Event.addListener(map, "idle", onIdle);
+    load();
+    return () => { dead = true; if (t) clearTimeout(t); naver.maps.Event.removeListener(l); };
+  }, [ready, newsYears]);
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    const naver = window.naver; const map = mapRef.current;
+    const info = new naver.maps.InfoWindow({ content: "", borderWidth: 0, backgroundColor: "transparent", disableAnchor: true, pixelOffset: new naver.maps.Point(0, -14) });
+    const markers = newsPins.map((p) => {
+      const { icon, big } = eventIcon({ kind: p.kind, name: p.name, source: p.source });
+      if (!newsTypes.includes(icon)) return null;
+      const m = new naver.maps.Marker({
+        position: new naver.maps.LatLng(p.lat, p.lng), map, zIndex: big ? 60 : 55, title: p.name ?? "",
+        icon: { content: `<div class="ev-pin${big ? "" : " sm"}"><svg><use href="#bt-${icon}"/></svg></div>`,
+                anchor: new naver.maps.Point(big ? 11 : 8, big ? 11 : 8) },
+      });
+      const html = () => {
+        const d = p.on_date ? `${p.on_date.slice(0, 4)}.${p.on_date.slice(5, 7)}` : p.on_year ? `${p.on_year}년` : "";
+        const nm = (p.name ?? "").replace(/</g, "&lt;");
+        const src = p.source_url ? `<a href="${p.source_url.replace(/"/g, "&quot;")}" target="_blank" rel="noreferrer">출처</a>` : "";
+        // 링크 줄: 「소식에서 보기」는 왼쪽, 「출처」는 오른쪽 끝(대표)
+        return `<div class="ev-pop"><b>${nm}</b><span>${p.kind}${d ? " · " + d : ""} · ${p.source}</span><div class="ev-links"><a href="/news?pick=${p.id}" target="_blank" rel="noreferrer">소식에서 보기</a>${src}</div></div>`;
+      };
+      // 마우스만 대도 뜬다(2026-09-06 대표). 누르면 고정(다른 데를 누를 때까지).
+      // 네이버 마커의 mouseover 는 HTML 아이콘에서 안 온다 — 마커 요소에 DOM 리스너를 직접 건다
+      let pinned = false;
+      const bind = () => {
+        const el: HTMLElement | null = m.getElement?.() ?? null;
+        if (!el) { requestAnimationFrame(bind); return; }
+        el.addEventListener("mouseenter", () => { if (!pinned) { info.setContent(html()); info.open(map, m); } });
+        el.addEventListener("mouseleave", () => { if (!pinned) info.close(); });
+      };
+      bind();
+      naver.maps.Event.addListener(m, "click", () => { pinned = true; info.setContent(html()); info.open(map, m); });
+      return m;
+    }).filter(Boolean);
+    const closeL = naver.maps.Event.addListener(map, "click", () => { info.close(); setNewsOpen(false); });
+    return () => { markers.forEach((m) => m!.setMap(null)); info.close(); naver.maps.Event.removeListener(closeL); };
+  }, [ready, newsPins, newsTypes]);
 
   // 핀 = 캔버스 레이어(DOM 마커 X) — 캔버스 1개에 클러스터+가격태그 그림. 수만 개도 부드러움.
   const onPickRef = useRef(onPick); onPickRef.current = onPick;
@@ -156,6 +218,13 @@ export function MapPanel({
   useEffect(() => {
     if (!ready || !centerReq) return;
     const naver = window.naver;
+    if (centerReq.bounds) {
+      // 지역을 골랐을 때 — 그 동의 매물이 다 들어오게. 왼쪽엔 떠 있는 패널(≈350px)이 있어 그만큼 비운다
+      const [a, b, c, d] = centerReq.bounds;
+      mapRef.current.fitBounds(new naver.maps.LatLngBounds(new naver.maps.LatLng(b, a), new naver.maps.LatLng(d, c)),
+                               { top: 40, right: 40, bottom: 60, left: 380 });
+      return;
+    }
     const at = new naver.maps.LatLng(centerReq.lat, centerReq.lng);
     const want = centerReq.zoom;
     if (want && mapRef.current.getZoom() < want) mapRef.current.morph(at, want);
@@ -559,6 +628,18 @@ export function MapPanel({
         {/* 데이터 출처 — 구석에 최소 노출, 호버로 펼침 */}
         {/* 출처 — 오른쪽 아래는 도구 줄 자리라 왼쪽으로 비킨다 */}
         <div style={{ position: "absolute", left: 10, bottom: 10, zIndex: 5 }}><SourceTag /></div>
+        {/* 소식 — 버튼 하나(도구 줄 위). 누르면 위로 판: 기간 칩 · 종류 아홉 줄(화면 안 개수). 고른 줄은 파랑 */}
+        {!rvOpen && mapRef.current && (mapRef.current.getZoom?.() ?? 0) >= 13 && (
+          <div style={{ position: "absolute", right: 12, bottom: 62, zIndex: 5 }}>
+            {newsOpen && (
+              <div style={{ position: "absolute", right: 0, bottom: 38 }}>
+                <NewsFilterPanel years={newsYears} onYears={setNewsYears} types={newsTypes} onTypes={setNewsTypes}
+                  counts={newsPins.reduce((m, p) => { const k = eventIcon({ kind: p.kind, name: p.name, source: p.source }).icon; m[k] = (m[k] ?? 0) + 1; return m; }, {} as Partial<Record<IconName, number>>)} />
+              </div>
+            )}
+            <button className={`ev-all ${newsOpen ? "on" : ""}`} onClick={() => setNewsOpen((v) => !v)}>소식</button>
+          </div>
+        )}
 
         {/* 로드뷰 위치 마크 — 지도 정중앙 고정 */}
         {rvOpen && (

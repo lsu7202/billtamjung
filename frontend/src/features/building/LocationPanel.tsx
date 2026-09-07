@@ -4,6 +4,7 @@ import { buildingsApi, type BuildingPop } from "../../shared/api/endpoints";
 import { ReportMap, ZONE_COLOR } from "./ReportMap";
 import { num } from "./reportModel";
 import { Toc } from "./Toc";
+import { AreaEvents, areaEventsQuery } from "./AreaEvents";
 import { Segmented } from "../../shared/ui/Segmented";
 import "./report.css";
 
@@ -18,14 +19,21 @@ export function LocationPanel({ pk, b, fetchPop }: {
    *  응답 모양이 같으므로 그림은 이 컴포넌트 하나가 그대로 그린다. */
   fetchPop?: (id: string) => Promise<BuildingPop>;
 }) {
+  // 주변 소식이 없는 자리도 있다(정비구역·지구단위계획 밖). 그때는 목차에도 안 세운다 —
+  // 눌러도 아무 데도 안 가는 목차 줄이 생긴다
+  const ev = useQuery(areaEventsQuery(pk));
+  const hasEv = !!ev.data?.items.length;
   return (
     <div className="rv">
       <div className="rv-wrap">
-        <Toc items={[{ id: "lc-pop", label: "유동인구" }, { id: "lc-tr", label: "교통" }]} />
+        <Toc items={[{ id: "lc-pop", label: "유동인구" },
+          { id: "lc-tr", label: "교통" },
+          ...(hasEv ? [{ id: "lc-ev", label: "주변 소식" }] : [])]} />   {/* 주변 소식은 맨 아래(2026-09-07 대표) */}
         <div className="rv-body">
           <FloatPop pk={pk} lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom}
             fetchPop={fetchPop} id="lc-pop" />
           <Transit b={b} id="lc-tr" />
+          <AreaEvents pk={pk} id="lc-ev" />
         </div>
       </div>
     </div>

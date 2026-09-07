@@ -1,0 +1,65 @@
+/* 소식 — 주변 소식과 같은 어법(왼쪽 훑고 오른쪽 읽기). 다만 이쪽은 화면 전부를 쓴다 */
+.nw { padding: 22px 28px 32px; max-width: 1400px; }
+.nw-head { display: flex; align-items: baseline; gap: 16px; }
+.nw-head h1 { font-size: 22px; font-weight: 800; letter-spacing: -.03em; margin: 0; color: #191F28; }
+.nw-q { margin-left: auto; }
+.nw-q input { border: 0; background: #F2F4F6; border-radius: 999px; padding: 7px 15px;
+  font: inherit; font-size: 13px; width: 220px; outline: none; color: #191F28; }
+.nw-q input:focus { background: #EBF3FE; }
+
+.nw-chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 14px 0 12px; }
+.nw-chips button { border: 0; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+  padding: 5px 12px; border-radius: 999px; background: #F2F4F6; color: #4E5968; white-space: nowrap; }
+.nw-chips button:hover { background: #E8EBEE; }
+.nw-chips button.on { background: #EBF3FE; color: #3182F6; }
+.nw-chips button.tg { font-family: ui-monospace, "SF Mono", monospace; }
+.nw-years { margin-left: auto; display: flex; gap: 4px; }
+.nw-years button { font-size: 11px; padding: 4px 10px; }
+
+/* 해시태그 — 상세 이름 아래 한 줄. 누르면 그 태그로 거른다 */
+.nw-tags { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 8px; }
+.nw-tags button { border: 0; background: none; font: inherit; font-size: 12px; font-weight: 700;
+  color: #3182F6; cursor: pointer; padding: 0; }
+.nw-tags button:hover { text-decoration: underline; }
+.nw-tags button.on { background: #EBF3FE; border-radius: 999px; padding: 1px 8px; }
+
+.nw-body { display: grid; grid-template-columns: 440px 1fr; gap: 0; }
+@media (max-width: 900px) { .nw-body { grid-template-columns: 1fr; } }
+.nw-l { border-right: 1px solid #E5E8EB; padding-right: 12px;
+  max-height: calc(100vh - 220px); overflow-y: auto; overscroll-behavior: contain; }
+.nw-l::-webkit-scrollbar { width: 5px }
+.nw-l::-webkit-scrollbar-thumb { background: #D6DBE0; border-radius: 3px }
+@media (max-width: 900px) { .nw-l { border-right: 0; border-bottom: 1px solid #E5E8EB;
+  padding: 0 0 12px; max-height: 40vh; } }
+
+.nw-i { display: grid; grid-template-columns: 14px auto 1fr auto; gap: 8px; align-items: baseline;
+  width: 100%; text-align: left; border: 0; background: none; font: inherit; cursor: pointer;
+  padding: 7px 9px; border-radius: 9px; }
+.nw-i:hover { background: #F2F4F6 }
+.nw-i.on { background: #EBF3FE }
+.nw-i .k { font-size: 10.5px; font-weight: 800; color: #8B95A1; white-space: nowrap;
+  min-width: 62px; letter-spacing: .02em; }
+.nw-i.on .k { color: #3182F6 }
+.nw-i .nm { font-size: 13px; font-weight: 700; color: #191F28;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nw-i.on .nm { color: #3182F6 }
+.nw-i .d { font-family: ui-monospace, "SF Mono", monospace; font-size: 11px; font-weight: 700;
+  color: #8B95A1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.nw-more { display: block; width: 100%; border: 0; background: none; font: inherit;
+  font-size: 12.5px; font-weight: 700; color: #8B95A1; cursor: pointer; padding: 12px 0; }
+.nw-more:hover { color: #3182F6 }
+.nw-none { padding: 24px 9px; font-size: 13px; color: #B0B8C1; font-weight: 600; }
+
+.nw-r { padding-left: 22px; max-height: calc(100vh - 220px); overflow-y: auto; min-width: 0; }
+@media (max-width: 900px) { .nw-r { padding: 14px 0 0; max-height: none; } }
+.nw-nm { font-size: 16px; font-weight: 800; line-height: 1.42; color: #191F28; }
+.nw-dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 15px; margin: 13px 0 0; font-size: 12.5px; }
+.nw-dl dt { font-size: 11px; font-weight: 700; color: #8B95A1; white-space: nowrap; }
+.nw-dl dd { margin: 0; font-family: ui-monospace, "SF Mono", monospace; font-size: 12px; color: #4E5968; }
+.nw-dl dd.nw-body-tx { font-family: inherit; font-size: 12.5px; line-height: 1.75; white-space: pre-wrap; }
+.nw-url { display: inline-block; margin-top: 12px; font-size: 12px; font-weight: 700;
+  color: #3182F6; text-decoration: none; }
+.nw-url:hover { text-decoration: underline }
+.nw-i > span:first-child { color: #8B95A1; align-self: center; display: inline-flex }
+.nw-i.on > span:first-child { color: #3182F6 }
