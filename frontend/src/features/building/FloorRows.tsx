@@ -68,7 +68,7 @@ const manOnly = (v?: number | null) =>
 
 type DRow = { r: FloorRent; isPrefill?: boolean; key: string };
 /** 고른 줄 — 층(그 층의 어느 줄) 또는 층을 모르는 업체 하나(u) */
-type Pick = { floor?: string; key?: string; u?: string };
+type Pick = { floor?: string; key?: string; un?: true };
 
 /** 이름 견줌용 — 「(주)더원」·「더원 삼성점」·「더원」이 하나. 백엔드 tenants.norm_name 과 같은 규칙 */
 const nname = (s?: string | null) => {
@@ -277,8 +277,13 @@ export function FloorRows({ pk, items, total, unit, refresh, addr }: {
   //  2026-09-06 밤(대표 확정판): 왼쪽은 밸류맵처럼 **업체마다 한 줄**(같은 층이면 「1층 1층 1층」), 층을 모르는 업체는
   //  층 칸이 「—」인 줄로 같은 목록 맨 위. 상태 열은 없다. 「층 미상」이라는 말은 안 쓴다.
   const [pick, setPick] = useState<Pick | null>(null);
-  const curU = pick?.u ? unknown.find((t) => t.name === pick.u) ?? null : null;
-  const curFloor = curU ? null : (pick?.floor && groups.has(pick.floor) ? pick.floor : (sorted[0]?.[0] ?? null));
+  /** 층을 모르는 업체는 **왼쪽에서 한 줄로 묶는다**(2026-09-07 대표).
+   *  하나씩 세우니 스무 곳이면 스무 줄이 목록 맨 위를 차지해 **실제 층이 화면 밖으로 밀렸다.**
+   *  왼쪽은 훑는 곳이라 층이 먼저 보여야 한다. 묶은 줄을 누르면 오른쪽에 업체가 다 서고,
+   *  거기서 **업체마다 층을 고른다** — 한 번 고를 때마다 그 업체가 목록에서 빠진다.
+   *  다 빠지면 묶음 줄도 사라지므로, 빈 묶음을 고른 상태로 두지 않는다. */
+  const curUn = !!pick?.un && unknown.length > 0;
+  const curFloor = curUn ? null : (pick?.floor && groups.has(pick.floor) ? pick.floor : (sorted[0]?.[0] ?? null));
   const curRows = curFloor ? (groups.get(curFloor) ?? []) : [];
   const curKey = pick?.floor === curFloor ? pick?.key ?? null : null;
   useEffect(() => {
@@ -326,14 +331,14 @@ export function FloorRows({ pk, items, total, unit, refresh, addr }: {
         {/* 왼쪽 — 훑는 곳. 업체마다 한 줄: 층 · 업체 · 업종. 금액·상태는 오른쪽에서 본다 */}
         <div className="fl2-l">
           <div className="fl2-lh"><span>층</span><span>업체</span><span>업종</span></div>
-          {/* 층을 모르는 업체 — 층 칸이 「—」. 누르면 오른쪽에서 층을 정한다 */}
-          {unknown.map((t) => (
-            <button key={`u-${t.name}`} className={`fl2-i ${curU?.name === t.name ? "on" : ""}`} onClick={() => setPick({ u: t.name })}>
+          {/* 층을 모르는 업체 — 여럿이어도 「—」 한 줄. 누르면 오른쪽에서 업체마다 층을 정한다 */}
+          {unknown.length > 0 && (
+            <button className={`fl2-i ${curUn ? "on" : ""}`} onClick={() => setPick({ un: true })}>
               <b className="off">—</b>
-              <span className="nm">{t.name}</span>
-              <span className="bz">{t.biz ?? ""}</span>
+              <span className="nm">{unknown[0].name}{unknown.length > 1 ? ` 외 ${unknown.length - 1}` : ""}</span>
+              <span className="bz">{unknown.length === 1 ? unknown[0].biz ?? "" : `${unknown.length}곳`}</span>
             </button>
-          ))}
+          )}
           {sorted.flatMap(([floor, rows]) => [
             ...rows.map((d, i) => {
               const nm = d.r.tenant_name || unitLabel(d.r.floor, d.r.unit_no);
@@ -360,19 +365,25 @@ export function FloorRows({ pk, items, total, unit, refresh, addr }: {
 
         {/* 오른쪽 — 채우는 곳. 고른 층 하나만. 상태 칩 둘은 늘 보인다 */}
         <div className="fl2-r">
-          {curU && (
+          {curUn && (
             <>
-              <div className="fl2-rh"><b>{curU.name}</b>
-                {curU.biz && <span>{curU.biz}</span>}
-                {curU.phone && <a className="tel" href={`tel:${curU.phone}`}>{curU.phone}</a>}
-              </div>
-              {/* 층 칩 — 누르면 그 업체가 그 층의 줄이 된다. 라벨 하나로 무엇 하는 자리인지 말한다(2026-09-07 대표) */}
+              <div className="fl2-rh"><b className="off">—</b><span>{unknown.length}곳</span></div>
+              {/* 층 칩 — 누르면 그 업체가 그 층의 줄이 된다. 라벨은 묶음에 하나만(2026-09-07 대표) */}
               <div className="fl2-fll">층 선택하기</div>
-              <div className="fl2-fl">
-                {sorted.map(([floor]) => (
-                  <button key={floor} disabled={busy} onClick={async () => { await addTenantUnit(floor, curU); setPick({ floor }); }}>{floor}</button>
-                ))}
-              </div>
+              {unknown.map((t) => (
+                <div className="fl2-u" key={`un-${t.name}`}>
+                  <div className="fl2-uh"><b>{t.name}</b>
+                    {t.biz && <span className="fl2-ux">{t.biz}</span>}
+                    {t.phone && <a className="tel" href={`tel:${t.phone}`}>{t.phone}</a>}
+                  </div>
+                  {/* 고른 뒤에도 묶음에 남는다 — 스무 곳을 붙이는데 매번 화면이 튀면 손이 끊긴다 */}
+                  <div className="fl2-fl">
+                    {sorted.map(([floor]) => (
+                      <button key={floor} disabled={busy} onClick={() => addTenantUnit(floor, t)}>{floor}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </>
           )}
           {curFloor && (

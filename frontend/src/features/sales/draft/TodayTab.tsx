@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { contactsApi, salesApi, schedulesApi,
+import { salesApi, schedulesApi,
   type TodayFeed, type TodaySched } from "../../../shared/api/endpoints";
 import { SchedModal, type SchedFinal } from "../SchedModal";
 import { SchedCalWhere, calTone } from "./SchedCal";
@@ -26,8 +26,6 @@ interface Forgot {
   tag: string; red?: boolean; t: string; s: string;
   sid?: number;                       // 이미 일정이면 소화·삭제가 붙고, 누르면 일정 창이 열린다
   row?: TodaySched;
-  /** 아직 일정이 아니면 — 일정 창을 열 씨앗(사람이 창에서 정한다) */
-  seed?: { title: string; pk?: string; buyer_id?: number; label?: string };
   go: () => void;
 }
 
@@ -38,9 +36,6 @@ const TAG: Record<string, string> = {
   재통화: "연락", 첫전화: "연락",
   검토중: "신호", 매도신호: "신호",
 };
-/** 아직 일정이 아닌 것의 기본 제목 — 사람이 창에서 고친다 */
-const SEED_TITLE: Record<string, string> = { "답 없음": "전화", 연락: "전화", 막힘: "확인", 신호: "전화" };
-
 const hm = (t: string) => t.slice(0, 5);
 const isoDay = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -91,30 +86,6 @@ export function TodayTab({ onBuyer, onSeller }: {
     await schedulesApi.patch(sid, { on_date: isoDay(new Date()) });
     qc.invalidateQueries({ queryKey: ["sales-today"] });
   };
-  /** 반대 방향 — 오늘 할일을 「잊으셨나요」로 끌면 내일로 민다(2026-08-28).
-   *  끌어 올릴 수만 있고 내릴 수 없으면 손이 한쪽으로만 움직인다. */
-  const putOff = async (sid: number) => {
-    const t = new Date(); t.setDate(t.getDate() + 1);
-    await schedulesApi.patch(sid, { on_date: isoDay(t) });
-    qc.invalidateQueries({ queryKey: ["sales-today"] });
-  };
-  /** 아직 일정이 아닌 것 — 창에서 사람이 정한 값으로 만든다(장부 문장은 안 지어낸다) */
-  const [seed, setSeed] = useState<Forgot["seed"] | null>(null);
-  const create = async (sf: SchedFinal) => {
-    const t = seed;
-    setSeed(null);
-    if (!t) return;
-    const target = t.buyer_id != null
-      ? { target_type: "buyer", target_id: String(t.buyer_id) }
-      : { target_type: "listing", target_id: String(t.pk) };
-    await contactsApi.create({
-      ...target,
-      schedule: { title: sf.title || t.title, on: sf.on, at: sf.at ?? null,
-        place: sf.place ?? null, people: sf.people, category: sf.category,
-        assignee_account_id: sf.assignee_account_id, method: sf.method },
-    });
-    qc.invalidateQueries({ queryKey: ["sales-today"] });
-  };
 
   if (q.isLoading) return <Loading label="불러오는 중" minHeight="40vh" />;
   const d = q.data;
@@ -123,8 +94,8 @@ export function TodayTab({ onBuyer, onSeller }: {
   return (
     <>
       <Board d={d} now={now} mine={mine} setMine={setMine}
-        picked={picked} pick={pick} done={done} moveToday={moveToday} putOff={putOff} drop={drop}
-        onOpenRow={setOpenRow} onSeed={setSeed} onBuyer={onBuyer} onSeller={onSeller} />
+        picked={picked} pick={pick} done={done} moveToday={moveToday} drop={drop}
+        onOpenRow={setOpenRow} onBuyer={onBuyer} onSeller={onSeller} />
       {openRow && (
         <SchedModal
           init={{ title: openRow.title, on: openRow.on_date.slice(0, 10),
@@ -136,43 +107,30 @@ export function TodayTab({ onBuyer, onSeller }: {
           onFinish={() => { const x = openRow; setOpenRow(null); if (x) done(x.id); }}
           onRemove={() => { const x = openRow; setOpenRow(null); if (x) drop(x); }} />
       )}
-      {seed && (
-        <SchedModal
-          init={{ title: seed.title, on: isoDay(new Date()), at: null, place: null, hint: "",
-                  category: "일반" } as never}
-          base={seed.buyer_id != null
-            ? { kind: "buyer", ref_id: seed.buyer_id, label: seed.label ?? "" } : null}
-          addr={null} buildingPk={seed.pk ?? null}
-          onCancel={() => setSeed(null)} onSkip={() => setSeed(null)} onDone={create} />
-      )}
     </>
   );
 }
 
-function Board({ d, now, mine, setMine, picked, pick, done, moveToday, putOff, drop, onOpenRow,
-                onSeed, onBuyer, onSeller }: {
+function Board({ d, now, mine, setMine, picked, pick, done, moveToday, drop, onOpenRow,
+                onBuyer, onSeller }: {
   d: TodayFeed; now: Date; mine: boolean; setMine: (b: boolean) => void;
   picked: View | null; pick: (v: View) => void;
   done: (sid: number) => void;
   moveToday: (sid: number) => void;
-  putOff: (sid: number) => void;
   drop: (x: TodaySched) => void;
   onOpenRow: (x: TodaySched) => void;
-  onSeed: (s: Forgot["seed"]) => void;
   onBuyer: (id: number) => void; onSeller: (pk: string) => void;
 }) {
   const go = (x: TodaySched) =>
     x.side === "buy" && x.buyer_id ? onBuyer(x.buyer_id) : onSeller(x.building_pk);
-  // 밀린 약속을 「오늘 할일」 카드로 끌어다 놓기(2026-08-28)
-  const [dragId, setDragId] = useState<number | null>(null);
-  /** 어느 카드에서 집었나. **놓은 곳이 집은 곳이면 아무것도 안 한다.**
+  /** 끌기는 **한 방향뿐이다** — 「혹시 잊으셨나요」의 밀린 약속을 「오늘 할일」로(2026-09-07).
    *
-   *  두 카드가 각자 드롭 영역인데(오늘 할일=오늘로, 혹시 잊으셨나요=내일로),
-   *  「혹시 잊으셨나요」 안의 줄을 끌다가 그 카드 안에 놓으면 **약속이 조용히 내일로 밀렸다**
-   *  (2026-09-05 지적). 손이 빗나간 것을 미루기로 읽으면 안 된다. */
-  const [dragFrom, setDragFrom] = useState<"today" | "forgot" | null>(null);
+   *  반대 방향(오늘 할일을 잊으셨나요에 놓으면 내일로 밀기)이 있었다. 카드 글자는 「잊었다」인데
+   *  실제 동작은 「미루기」라 말과 동작이 어긋났고, 그래서 자기 카드 안에 잘못 놓으면 약속이 조용히
+   *  내일로 밀리는 사고가 났다(2026-09-05). 「어디서 집었나」 가드는 그 증상만 막던 것이라,
+   *  방향을 지우니 가드도 같이 없어졌다 — 받는 카드가 하나뿐이면 빗나갈 곳이 없다. */
+  const [dragId, setDragId] = useState<number | null>(null);
   const [dropOn, setDropOn] = useState(false);     // 오늘 할일이 받을 때
-  const [dropOff, setDropOff] = useState(false);   // 잊으셨나요가 받을 때(= 내일로)
 
   const cur = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   // 체크하면 사라진다 — 끝낸 것을 회색으로 남겨 두지 않는다(2026-08-25)
@@ -201,8 +159,6 @@ function Board({ d, now, mine, setMine, picked, pick, done, moveToday, putOff, d
       tag: TAG[x.kind] ?? x.kind,
       t: x.why,
       s: [x.buyer_name ?? x.owner_name, x.addr ? dongAddr(x.addr) : ""].filter(Boolean).join(" · ") || "—",
-      seed: { title: SEED_TITLE[TAG[x.kind] ?? ""] ?? "확인", pk: x.building_pk,
-              buyer_id: x.buyer_id, label: x.buyer_name ?? x.owner_name ?? "" },
       go: () => (x.buyer_id ? onBuyer(x.buyer_id) : x.building_pk && onSeller(x.building_pk)),
     })),
   ].slice(0, 6);
@@ -226,11 +182,11 @@ function Board({ d, now, mine, setMine, picked, pick, done, moveToday, putOff, d
            밀린 약속을 여기로 끌어다 놓으면 날짜만 오늘로 민다(2026-08-28).
            「오늘로」 글자를 찾아 누르는 것보다 끌어다 놓는 쪽이 짧다. */}
       <div className={`td-card${dropOn ? " drop" : ""}`}
-        onDragOver={(e) => { if (dragId != null && dragFrom !== "today") { e.preventDefault(); setDropOn(true); } }}
+        onDragOver={(e) => { if (dragId != null) { e.preventDefault(); setDropOn(true); } }}
         onDragLeave={() => setDropOn(false)}
         onDrop={(e) => { e.preventDefault(); setDropOn(false);
-          if (dragId != null && dragFrom !== "today") moveToday(dragId);
-          setDragId(null); setDragFrom(null); }}>
+          if (dragId != null) moveToday(dragId);
+          setDragId(null); }}>
         <div className="td-sw">
           <span className="td-h">오늘 할일</span>
           <span className="sp" />
@@ -245,27 +201,22 @@ function Board({ d, now, mine, setMine, picked, pick, done, moveToday, putOff, d
             </div>
         ) : view === "order" ? (
           <Order rows={order} now={now} go={go} done={done}
-                 onDrag={(id) => { setDragId(id); setDragFrom(id == null ? null : "today"); }} />
+ />
         ) : (
           <Time timed={timed} untimed={untimed} now={now} cur={cur} go={go} done={done}
-                onDrag={(id) => { setDragId(id); setDragFrom(id == null ? null : "today"); }} />
+ />
         )}
       </div>
 
       {/* ── 혹시 잊으셨나요 ── 밀린 약속과 방치된 영업 */}
       {forgot.length > 0 && (
-        <div className={`td-card${dropOff ? " drop" : ""}`}
-          onDragOver={(e) => { if (dragId != null && dragFrom !== "forgot") { e.preventDefault(); setDropOff(true); } }}
-          onDragLeave={() => setDropOff(false)}
-          onDrop={(e) => { e.preventDefault(); setDropOff(false);
-            if (dragId != null && dragFrom !== "forgot") putOff(dragId);
-            setDragId(null); setDragFrom(null); }}>
+        <div className="td-card">
           <div className="td-sw"><span className="td-h">혹시 잊으셨나요</span></div>
           {forgot.map((f, i) => (
             <button className="td-f" key={`f${i}`} onClick={f.go}
               draggable={!!f.row}
-              onDragStart={() => { if (f.row) { setDragId(f.row.id); setDragFrom("forgot"); } }}
-              onDragEnd={() => { setDragId(null); setDragFrom(null); setDropOn(false); }}>
+              onDragStart={() => { if (f.row) setDragId(f.row.id); }}
+              onDragEnd={() => { setDragId(null); setDropOn(false); }}>
               <span className={`td-tag${f.red ? " r" : ""}`}>{f.tag}</span>
               <span className="tx"><b className="t">{f.t}</b><span className="s">{f.s}</span></span>
               {f.row ? (
@@ -274,9 +225,6 @@ function Board({ d, now, mine, setMine, picked, pick, done, moveToday, putOff, d
                   <button className="td-ck" title="끝냄" onClick={() => done(f.row!.id)}><Check /></button>
                   <button className="td-ck del" title="삭제" onClick={() => drop(f.row!)}><Trash /></button>
                 </span>
-              ) : f.seed && (f.seed.pk || f.seed.buyer_id != null) ? (
-                <span className="td-add" role="button"
-                  onClick={(e) => { e.stopPropagation(); onSeed(f.seed); }}>일정 잡기 ＋</span>
               ) : null}
             </button>
           ))}
@@ -303,10 +251,8 @@ function Board({ d, now, mine, setMine, picked, pick, done, moveToday, putOff, d
 }
 
 /* ── 순서 보기 ── 시각은 아예 안 쓴다. 하루에서 제일 큰 글자가 「지금 할 일」 하나 */
-function Order({ rows, now, go, done, onDrag }: {
+function Order({ rows, now, go, done }: {
   rows: TodaySched[]; now: Date; go: (x: TodaySched) => void; done: (sid: number) => void;
-  /** 「잊으셨나요」로 끌어 내리면 내일로 민다(2026-08-28) */
-  onDrag?: (id: number | null) => void;
 }) {
   const head = rows[0] ?? null;
   const rest = rows.slice(1);
@@ -327,8 +273,7 @@ function Order({ rows, now, go, done, onDrag }: {
         <span className="td-k">지금 할 일</span>
         {head && (
           <div className="td-nowrap">
-            <button className="td-now" onClick={() => go(head)}
-              draggable onDragStart={() => onDrag?.(head.id)} onDragEnd={() => onDrag?.(null)}>
+            <button className="td-now" onClick={() => go(head)}>
               <span className="huge">{head.title}</span>
               <span className="where">{sub(head) || "—"}</span>
               {w && <span className={`why${w.late ? " late" : ""}`}>{w.s}</span>}
@@ -343,8 +288,7 @@ function Order({ rows, now, go, done, onDrag }: {
           <div className="td-rest">
             {rest.map((x, i) => (
               <div className="td-r" key={x.id}>
-                <button className="tr" onClick={() => go(x)}
-                  draggable onDragStart={() => onDrag?.(x.id)} onDragEnd={() => onDrag?.(null)}>
+                <button className="tr" onClick={() => go(x)}>
                   <span className="n">{i + 2}</span>
                   <span className="tx"><b className="t">{x.title}</b>
                     <span className="s">{sub(x) || "—"}</span></span>
@@ -361,10 +305,9 @@ function Order({ rows, now, go, done, onDrag }: {
 
 /* ── 시간 보기 ── 축 위에 놓인다. 「지금」은 빨간 가로선 하나 */
 const SLOT = 54;
-function Time({ timed, untimed, now, cur, go, done, onDrag }: {
+function Time({ timed, untimed, now, cur, go, done }: {
   timed: TodaySched[]; untimed: TodaySched[]; now: Date; cur: string;
   go: (x: TodaySched) => void; done: (sid: number) => void;
-  onDrag?: (id: number | null) => void;
 }) {
   // 축 범위는 약속에 맞춰 자란다 — 빈 시간대를 열 줄씩 세워 두지 않는다
   const hs = timed.map((x) => Number(x.at_time!.slice(0, 2)));
@@ -387,8 +330,7 @@ function Time({ timed, untimed, now, cur, go, done, onDrag }: {
         <div className="td-ovl">
           {timed.map((x) => (
             <button className={`td-ev${hm(x.at_time!) >= cur ? " on" : ""}`} key={x.id}
-              style={{ top: top(x.at_time!) + 3, height: SLOT - 8 }} onClick={() => go(x)}
-              draggable onDragStart={() => onDrag?.(x.id)} onDragEnd={() => onDrag?.(null)}>
+              style={{ top: top(x.at_time!) + 3, height: SLOT - 8 }} onClick={() => go(x)}>
               <b>{x.title}</b><small>{sub(x) || "—"}</small>
             </button>
           ))}
@@ -400,8 +342,7 @@ function Time({ timed, untimed, now, cur, go, done, onDrag }: {
         <div className="td-any">
           <span className="td-k">시각 없이 오늘 안에</span>
           {untimed.map((x) => (
-            <button className="td-f" key={x.id} onClick={() => go(x)}
-              draggable onDragStart={() => onDrag?.(x.id)} onDragEnd={() => onDrag?.(null)}>
+            <button className="td-f" key={x.id} onClick={() => go(x)}>
               <span className="td-ck" role="button" title="끝냄"
                 onClick={(e) => { e.stopPropagation(); done(x.id); }}><Check /></span>
               <span className="tx"><b className="t">{x.title}</b>

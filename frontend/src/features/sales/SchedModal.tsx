@@ -86,8 +86,13 @@ const NOTE = "M5 7h14M5 12h14M5 17h9";
 const STAMP = "M12 3v6M8 9h8l1 4H7l1-4ZM5 21h14v-3a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3Z";
 
 /** 날짜 줄 하나 — 계약일·중도금일·잔금일이 **똑같이** 쓴다(2026-08-19).
- *  날짜가 없으면(중도금·잔금 처음) 「날짜 잡기」만 서고, 잡으면 계약일과 같은 모양이 된다. */
-function DateLine({ label, on, at, autoAt, onOn, onAt, onAsk, onAdd, onClear }: {
+ *  날짜가 없으면(중도금·잔금 처음) 「날짜 잡기」만 서고, 잡으면 계약일과 같은 모양이 된다.
+ *
+ *  **2026-09-07 고침.** 그 「날짜 잡기」가 `onAdd` 를 받을 때만 움직이는 맨 버튼이었다.
+ *  주 날짜 줄은 `onAdd` 를 안 넘겨서, 날짜 없이 열린 창(매수자 브리핑은 `on: ""` 로 연다)에선
+ *  **눌러도 아무 일이 안 났다.** 이제 빈 자리도 날짜가 든 자리와 같은 `<input type="date">` 다 —
+ *  한 번 누르면 달력이 열리고, 고르면 곧바로 그 날짜가 된다. 부모가 씨앗 날짜를 넣을 필요가 없다. */
+function DateLine({ label, on, at, autoAt, onOn, onAt, onAsk, onClear }: {
   label: string | null;
   on: string | null;
   at: string | null;
@@ -95,10 +100,9 @@ function DateLine({ label, on, at, autoAt, onOn, onAt, onAsk, onAdd, onClear }: 
   onOn: (v: string) => void;
   onAt: (v: string | null) => void;
   onAsk?: () => void;
-  onAdd?: () => void;
   onClear?: () => void;
 }) {
-  const d = on ? new Date(on) : null;
+  const d = on && !Number.isNaN(new Date(on).getTime()) ? new Date(on) : null;
   return (
     <div className="gm-row">
       <Ico d={CLOCK} />
@@ -118,7 +122,9 @@ function DateLine({ label, on, at, autoAt, onOn, onAt, onAsk, onAdd, onClear }: 
           {at != null && <button className="gm-clear" onClick={() => onAt(null)}>시각 지우기</button>}
           {onClear && <button className="gm-clear" onClick={onClear}>지우기</button>}
         </>) : (
-          <button className="gm-add" onClick={onAdd}>날짜 잡기</button>
+          <label className="gm-add gm-date">날짜 잡기
+            <input type="date" value="" onChange={(e) => e.target.value && onOn(e.target.value)} />
+          </label>
         )}
       </div>
     </div>
@@ -302,7 +308,6 @@ export function SchedModal({ init, base, addr, buildingPk, note, lockCat, initEx
           return (
             <DateLine key={k} label={k === "계약금 일부" ? "계약금 일부" : `${k}일`}
               on={v?.on ?? null} at={v?.at ?? null}
-              onAdd={() => setExtra((x) => ({ ...x, [k]: { on: s.on, at: null } }))}
               onOn={(d) => setExtra((x) => ({ ...x, [k]: { on: d, at: v?.at ?? null } }))}
               onAt={(a) => setExtra((x) => ({ ...x, [k]: { on: v!.on, at: a } }))}
               onClear={() => setExtra((x) => ({ ...x, [k]: null }))} />
@@ -448,7 +453,7 @@ export function SchedModal({ init, base, addr, buildingPk, note, lockCat, initEx
           <button className="gm-ghost quiet" onClick={onCancel}>취소</button>
           {/* 「기록만」 = 문장만 남기고 약속은 안 만든다 — 남길 문장이 없으면 뜻이 없다 */}
           {note && <button className="gm-ghost" onClick={onSkip}>기록만</button>}
-          <button className="gm-save" onClick={() => onDone({
+          <button className="gm-save" disabled={!s.on} onClick={() => onDone({
             ...s,
             method: cat === "브리핑" ? (s.method ?? "만나서") : s.method,
             category: cat, building_pk: buildingPk ?? bld?.pk ?? null,
