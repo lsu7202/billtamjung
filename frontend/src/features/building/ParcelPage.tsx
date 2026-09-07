@@ -147,8 +147,7 @@ export function ParcelPage() {
                   <div className="bg-ttl">규제 · 특례</div>
                   {/* 국토부 원본(0136)을 그대로 세운다 — 정본과 100% 일치하므로 손대지 않는다.
                       「포함」이 먼저, 「저촉」(경계에 걸침)이 뒤. 여덟 개까지 펴고 나머지는 접는다. */}
-                  <RegCard regAll={(d.reg_all ?? []) as [string, string, string][]}
-                    other={[]} summary={{}} />
+                  <RegCard regAll={(d.reg_all ?? []) as [string, string, string][]} />
                 </div>
 
                 <div id="pc-gongsi">

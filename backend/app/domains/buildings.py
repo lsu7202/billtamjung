@@ -6,6 +6,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException
 from ..core.db import pool
 from ..core.deps import current_user, CurrentUser
+from ..core.market import STORES
 from ..jobs import value_score as vs
 
 router = APIRouter(prefix="/buildings", tags=["buildings"])
@@ -100,10 +101,10 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
         "SELECT sale_est FROM master.building_sale_est WHERE building_pk=$1", building_pk)
     data["sale_est"] = int(se) if se is not None else None
 
-    # 매력도(F-16)·활용유형(F-20)·매도가능성 — 배치(master.building_score, 0038).
+    # 활용유형(F-20)·매도가능성 — 배치(master.building_score, 0038). 매력도(F-16)는 2026-09-06 에 없앴다(0161).
     # 예전엔 리포트를 만들어야만(30크레딧) 존재하던 값이라 상세·영업 어디서도 못 썼다.
     sc = await pool().fetchrow(
-        """SELECT score, grade, use_type, util_ratio, sell_score, sell_axes
+        """SELECT use_type, util_ratio, sell_score, sell_axes
            FROM master.building_score WHERE building_pk=$1""", building_pk)
     if sc:
         d = dict(sc)
@@ -158,10 +159,6 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
 
 
 _POP_R = 600      # 유동인구 지도 반경(m) — 250m 격자로 대여섯 칸. 300m면 두 칸이라 그림이 안 된다
-_CAT = """CASE WHEN fo.use ~ '사무소|업무시설' THEN '업무'
-               WHEN fo.use ~ '음식점' THEN '먹자'
-               WHEN fo.use ~ '유흥|단란|노래연습장|주점' THEN '유흥'
-               WHEN fo.use ~ '소매점|백화점' THEN '판매' ELSE '기타' END"""
 
 
 @router.get("/{building_pk}/pop")
@@ -171,9 +168,9 @@ async def building_pop(building_pk: str, _: CurrentUser = Depends(current_user))
     상권과 유동인구는 겹치는 정보가 아니라 다른 차원이다: 무슨 동네냐(색=지배 용도)와
     얼마나 붐비냐(진하기=주간 인구). 한 격자에 둘을 같이 주면 레이어 둘이 아니라 한 장이다.
 
-    지배 용도 집계에 공간 조인을 쓰지 않는다 — master.building_pop 이 이미 건물↔격자
-    매핑을 쥐고 있어서 grid 로 묶기만 하면 된다(리포트의 _market_zones 는 100m 격자를
-    ST_SnapToGrid 로 매번 만든다).
+    색은 **실제 업체**로 센다(2026-09-06, core/market.py). 업체 55만 점을 반경으로 자를 땐
+    `geom && ST_Expand(...)` 상자를 먼저 건다 — geography 캐스트만으론 색인을 못 타 1.5초, 상자를 걸면 0.1초. 대장 층별 용도로 세던 때는
+    절반이 「기타」라 칸이 비었다. 격자 칸(250m 상자)에 든 업체 점을 갈래별로 세고 1등이 색이다.
     """
     me = await pool().fetchrow(
         """SELECT b.geom, p.grid, p.day_avg, p.night_avg, p.peak, p.peak_hour, l.hourly, l.days
@@ -186,31 +183,24 @@ async def building_pop(building_pk: str, _: CurrentUser = Depends(current_user))
 
     cells = await pool().fetch(
         f"""WITH s AS (SELECT geom FROM master.buildings WHERE building_pk = $1),
-             g AS (SELECT l.grid, l.geom, l.day_avg FROM master.living_pop l, s
+             g AS (SELECT l.grid, l.day_avg,
+                          ST_Transform(ST_Envelope(ST_Expand(ST_Transform(l.geom, 5179), 125)), 4326) AS cell
+                     FROM master.living_pop l, s
                     WHERE ST_DWithin(l.geom::geography, s.geom::geography, $2)),
-             c AS (SELECT bp.grid, {_CAT} AS cat, count(*) AS n
-                     FROM master.building_pop bp
-                     JOIN g ON g.grid = bp.grid
-                     JOIN master.floor_outline fo ON fo.building_pk = bp.building_pk
-                    WHERE fo.use !~ '주택|아파트|오피스텔|주차|부대'
+             c AS (SELECT g.grid, st.cat, count(*) AS n
+                     FROM g JOIN ({STORES}) st ON ST_Contains(g.cell, st.geom)
                     GROUP BY 1, 2),
-             dom AS (SELECT DISTINCT ON (grid) grid, cat, n FROM c
-                      WHERE cat <> '기타' ORDER BY grid, n DESC)
-           SELECT g.grid, g.day_avg, dom.cat, dom.n,
-                  ST_AsGeoJSON(ST_Transform(ST_Envelope(
-                    ST_Expand(ST_Transform(g.geom, 5179), 125)), 4326)) AS geojson
+             dom AS (SELECT DISTINCT ON (grid) grid, cat, n FROM c ORDER BY grid, n DESC)
+           SELECT g.grid, g.day_avg, dom.cat, dom.n, ST_AsGeoJSON(g.cell) AS geojson
              FROM g LEFT JOIN dom ON dom.grid = g.grid""",
         building_pk, _POP_R)
 
     mix = await pool().fetch(
-        f"""WITH s AS (SELECT geom FROM master.buildings WHERE building_pk = $1),
-             g AS (SELECT l.grid FROM master.living_pop l, s
-                    WHERE ST_DWithin(l.geom::geography, s.geom::geography, $2))
-           SELECT {_CAT} AS cat, count(*) AS n
-             FROM master.building_pop bp
-             JOIN g ON g.grid = bp.grid
-             JOIN master.floor_outline fo ON fo.building_pk = bp.building_pk
-            WHERE fo.use !~ '주택|아파트|오피스텔|주차|부대'
+        f"""WITH s AS (SELECT geom FROM master.buildings WHERE building_pk = $1)
+           SELECT st.cat, count(*) AS n
+             FROM ({STORES}) st, s
+            WHERE st.geom && ST_Expand(s.geom, $2 / 80000.0)
+              AND ST_DWithin(st.geom::geography, s.geom::geography, $2)
             GROUP BY 1""",
         building_pk, _POP_R)
 
@@ -282,34 +272,104 @@ async def floor_outline(building_pk: str, _: CurrentUser = Depends(current_user)
             for r in rows]
 
 
-REG_LABELS = {
-    "reg_godo": "고도지구", "reg_district": "지구단위계획", "reg_jeongbi": "정비구역",
-    "reg_gyeong": "경관지구", "reg_banghwa": "방화지구", "reg_munhwa": "문화재보존",
-}
+# 규제 여섯 칸(reg_godo…reg_munhwa)은 **걷어냈다**(2026-09-07). 원문에서 이름이 맞는 것만
+# 골라 담다가 건수로 93.4%가 빠졌고(토지거래허가구역·대공방어협조구역·상대보호구역이 화면에 안 떴다),
+# 0136 에서 원문 전부를 담는 `parcels.regulations` 로 갈아탔다. 그런데 옛 칸을 안 지워서
+# 빌드 단계가 빠진 2026-09-01 부터 0행인 채로 쿼리·화면에 남아 있었다.
+
+
+@router.get("/{building_pk}/events")
+async def area_events(building_pk: str, radius: int = 700, kind: str | None = None,
+                      years: int | None = None, _: CurrentUser = Depends(current_user)):
+    """주변 소식 — master.area_event 에서 이 건물 둘레의 사건을 날짜순으로.
+
+    표에는 사건만 담고 **건물과의 관계는 여기서 낸다**(건물×사건을 미리 곱하면 천만 줄이 넘는다).
+    화면과 에이전트가 같은 것을 읽는다 — 화면에 있는 값만 여기 있고, 여기 없는 값은 화면에도 없다.
+
+    `on_date`(정확)와 `on_year`(연도만)를 **가른 채로 내보낸다.** 한 칸으로 합쳐 주면
+    읽는 쪽이 「2025년」을 2025-01-01 로 읽는다 — 정비구역 839개 중 고시일자가 있는 것은 273개뿐이다.
+    거리(`distance_m`)는 지도가 쓰라고 내보내되 **목록에 열로 세우지 않는다**(S02 주변 소식).
+
+    **반경은 갈래마다 다르다.** 정비구역·지구단위계획은 구역째로 동네를 바꾸니 넓게 보고,
+    옆 땅 신축은 가까워야 내 건물 값에 닿는다. 다 700m 로 잡았더니 삼성동 78 한 건물에
+    120줄이 서고 목록 스크롤이 열 화면이 됐다(건축 인허가만 88줄). 250m 로 좁히면 5줄이다.
+    """
+    radius = max(100, min(radius, 3000))
+    # 갈래별 반경 상한 — 요청 반경보다 좁은 쪽을 쓴다
+    NEAR = {"건축 인허가": 250}
+    args: list = [building_pk, radius]
+    where = ""
+    if kind:
+        args.append(kind)
+        where += f" AND e.kind = ${len(args)}"
+    if years:
+        args.append(years)
+        where += (f" AND COALESCE(e.on_date, make_date(COALESCE(e.on_year,1900),1,1))"
+                  f" >= (CURRENT_DATE - make_interval(years => ${len(args)}))")
+    near = " ".join(f"WHEN '{k}' THEN {v}" for k, v in NEAR.items())
+    rows = await pool().fetch(f"""
+        WITH me AS (SELECT geom FROM master.buildings WHERE building_pk=$1)
+        SELECT e.id, e.kind, e.name, e.on_date, e.on_year, e.gosi_no, e.body,
+               e.source, e.source_url, p.tags,
+               ST_Contains(e.geom, me.geom) AS inside,
+               round(ST_Distance(e.geom::geography, me.geom::geography))::int AS distance_m,
+               -- 지도 아이콘 자리. 면(정비구역)은 면 안의 점 — 무게중심은 초승달꼴에서 밖으로 나간다
+               ST_X(ST_PointOnSurface(e.geom)) AS lng, ST_Y(ST_PointOnSurface(e.geom)) AS lat
+          FROM master.area_event e
+          LEFT JOIN master.press_event p ON e.src_table = 'press_event' AND p.id::text = e.src_key,
+               me
+         WHERE ST_DWithin(e.geom::geography, me.geom::geography,
+                          LEAST($2, CASE e.kind {near} ELSE $2 END)){where}
+         ORDER BY COALESCE(e.on_date, make_date(COALESCE(e.on_year,1900),1,1)) DESC, e.id""",
+        *args)
+    items = [{
+        "id": r["id"], "kind": r["kind"], "name": r["name"],
+        # 날짜 두 칸은 합치지 않는다. 없으면 null 이다 — 빈 문자열이 아니다
+        "on_date": r["on_date"].isoformat() if r["on_date"] else None,
+        "on_year": r["on_year"], "gosi_no": r["gosi_no"], "body": r["body"],
+        "source": r["source"], "source_url": r["source_url"],
+        "tags": list(r["tags"] or []),
+        "relation": "구역 안" if r["inside"] else "반경 안",
+        "distance_m": 0 if r["inside"] else r["distance_m"],
+        "lng": r["lng"], "lat": r["lat"],
+    } for r in rows]
+    kinds: dict[str, int] = {}
+    for x in items:
+        kinds[x["kind"]] = kinds.get(x["kind"], 0) + 1
+    return {"items": items, "kinds": kinds, "radius": radius}
 
 
 @router.get("/{building_pk}/parcels")
 async def get_parcels(building_pk: str, user: CurrentUser = Depends(current_user)):
     """필지 셀렉터(S02 §3.6): 대표+부속 필지별 속성·공시지가 시계열·규제 + 건물 요약(OR 집계)."""
     rows = await pool().fetch(
-        """SELECT bp.role, p.pnu, p.area, p.jimok, p.land_use, p.slope, p.shape,
+        """WITH dong AS (SELECT DISTINCT ON (bjd_code) bjd_code, dong FROM master.region_index)
+           SELECT bp.role, p.pnu, p.area, p.jimok, p.land_use, p.slope, p.shape,
                   p.road_frontage, p.use_zone, p.legal_bcr, p.legal_far, p.gongsi_latest,
-                  p.reg_godo, p.reg_district, p.reg_jeongbi, p.reg_gyeong, p.reg_banghwa, p.reg_munhwa,
                   -- 국토부 토지이용계획정보 원본(0136) — 필지에 걸린 지역·지구등 전부.
                   -- 여섯 칸은 그중 이름이 맞는 것만 담아서 건수로 93.4%가 빠져 있었다:
                   -- 토지거래허가구역·대공방어협조구역·상대보호구역이 화면에 아예 안 떴다.
-                  p.regulations
+                  p.regulations,
+                  -- 사람이 읽는 지번(2026-09-07 대표): PNU 는 화면에 못 세운다. vacant_parcels MV 와 같은 산식
+                  d.dong || ' ' || CASE WHEN substr(p.pnu,11,1)='2' THEN '산' ELSE '' END
+                    || ltrim(substr(p.pnu,12,4),'0')
+                    || CASE WHEN substr(p.pnu,16,4)<>'0000' THEN '-'||ltrim(substr(p.pnu,16,4),'0') ELSE '' END
+                    || '번지' AS label,
+                  -- 이 필지만의 폴리곤 — 고르면 지도가 여기로 따라간다
+                  ST_AsGeoJSON(p.geom) AS geom_json
            FROM master.building_parcels bp
            JOIN master.parcels p ON p.pnu = bp.pnu
+           LEFT JOIN dong d ON d.bjd_code = left(p.pnu, 10)
            WHERE bp.building_pk = $1
            ORDER BY (bp.role='대표') DESC, p.pnu""",
         building_pk,
     )
     parcels = []
-    summary: dict[str, str] = {}   # 건물 요약 = 전 필지 OR(한 필지라도 걸리면)
     for r in rows:
         d = dict(r)
         d["area"] = float(d["area"]) if d["area"] is not None else None
+        gj = d.pop("geom_json", None)
+        d["geom"] = json.loads(gj) if gj else None
         # 필지별 오버레이 병합(팀)
         ov = await pool().fetch(
             """SELECT field, value FROM app.overlays
@@ -323,16 +383,12 @@ async def get_parcels(building_pk: str, user: CurrentUser = Depends(current_user
             "SELECT year, price FROM master.gongsi_series WHERE pnu=$1 ORDER BY year", r["pnu"]
         )
         d["gongsi_series"] = [[x["year"], x["price"]] for x in g]
-        d["regs"] = {REG_LABELS[k]: d[k] for k in REG_LABELS if d.get(k)}
         # 원본 목록 — [이름, 저촉여부, 코드]. 적재 때 토지이음 순서로 정렬해 뒀다
         # (국토계획법 UQ* 가 먼저, 그 안에서 포함·저촉·접함 차례).
         raw = d.pop("regulations", None)
         if isinstance(raw, str):
             raw = json.loads(raw)
         d["reg_all"] = raw or []
-        for k, label in REG_LABELS.items():
-            if d.get(k) and label not in summary:
-                summary[label] = d[k]
         parcels.append(d)
     # 실측 도로폭은 **건물** 단위 배치값(master.building_road)이라 필지 행에는 없다.
     # 필지 오버레이로 손수 고친 값이 없을 때 화면이 이걸 기본값으로 쓴다(2026-08-11).
@@ -341,7 +397,7 @@ async def get_parcels(building_pk: str, user: CurrentUser = Depends(current_user
         building_pk)
     road = {k: (float(v) if isinstance(v, Decimal) else v)
             for k, v in (dict(rw).items() if rw else [])}
-    return {"parcels": parcels, "reg_summary": summary, "count": len(parcels), "road": road}
+    return {"parcels": parcels, "count": len(parcels), "road": road}
 
 
 # ── 나대지(건물이 없는 「대」 필지) ─────────────────────────────────────
@@ -418,7 +474,6 @@ async def get_vacant_parcel(pnu: str, user: CurrentUser = Depends(current_user))
     r = await pool().fetchrow(
         """SELECT v.pnu, v.addr, v.bjd_code, v.sgg_code, v.area, v.jimok, v.land_use, v.use_zone,
                   v.slope, v.shape, v.road_frontage, v.legal_bcr, v.legal_far, v.gongsi_latest,
-                  v.reg_godo, v.reg_district, v.reg_jeongbi, v.reg_gyeong,
                   -- 규제 원본은 MV(vacant_parcels)에 없다 — 필지 표에서 바로 가져온다(0136).
                   -- MV 를 다시 굽는 것보다 조인 한 번이 싸고, 건물 상세와 같은 값을 준다.
                   p.regulations,
@@ -532,31 +587,24 @@ async def vacant_pop(pnu: str, _: CurrentUser = Depends(current_user)):
 
     cells = await pool().fetch(
         f"""WITH s AS (SELECT geom FROM master.vacant_parcels WHERE pnu = $1),
-             g AS (SELECT l.grid, l.geom, l.day_avg FROM master.living_pop l, s
+             g AS (SELECT l.grid, l.day_avg,
+                          ST_Transform(ST_Envelope(ST_Expand(ST_Transform(l.geom, 5179), 125)), 4326) AS cell
+                     FROM master.living_pop l, s
                     WHERE ST_DWithin(l.geom::geography, s.geom::geography, $2)),
-             c AS (SELECT bp.grid, {_CAT} AS cat, count(*) AS n
-                     FROM master.building_pop bp
-                     JOIN g ON g.grid = bp.grid
-                     JOIN master.floor_outline fo ON fo.building_pk = bp.building_pk
-                    WHERE fo.use !~ '주택|아파트|오피스텔|주차|부대'
+             c AS (SELECT g.grid, st.cat, count(*) AS n
+                     FROM g JOIN ({STORES}) st ON ST_Contains(g.cell, st.geom)
                     GROUP BY 1, 2),
-             dom AS (SELECT DISTINCT ON (grid) grid, cat, n FROM c
-                      WHERE cat <> '기타' ORDER BY grid, n DESC)
-           SELECT g.grid, g.day_avg, dom.cat, dom.n,
-                  ST_AsGeoJSON(ST_Transform(ST_Envelope(
-                    ST_Expand(ST_Transform(g.geom, 5179), 125)), 4326)) AS geojson
+             dom AS (SELECT DISTINCT ON (grid) grid, cat, n FROM c ORDER BY grid, n DESC)
+           SELECT g.grid, g.day_avg, dom.cat, dom.n, ST_AsGeoJSON(g.cell) AS geojson
              FROM g LEFT JOIN dom ON dom.grid = g.grid""",
         pnu, _POP_R)
 
     mix = await pool().fetch(
-        f"""WITH s AS (SELECT geom FROM master.vacant_parcels WHERE pnu = $1),
-             g AS (SELECT l.grid FROM master.living_pop l, s
-                    WHERE ST_DWithin(l.geom::geography, s.geom::geography, $2))
-           SELECT {_CAT} AS cat, count(*) AS n
-             FROM master.building_pop bp
-             JOIN g ON g.grid = bp.grid
-             JOIN master.floor_outline fo ON fo.building_pk = bp.building_pk
-            WHERE fo.use !~ '주택|아파트|오피스텔|주차|부대'
+        f"""WITH s AS (SELECT geom FROM master.vacant_parcels WHERE pnu = $1)
+           SELECT st.cat, count(*) AS n
+             FROM ({STORES}) st, s
+            WHERE st.geom && ST_Expand(s.geom, $2 / 80000.0)
+              AND ST_DWithin(st.geom::geography, s.geom::geography, $2)
             GROUP BY 1""",
         pnu, _POP_R)
 

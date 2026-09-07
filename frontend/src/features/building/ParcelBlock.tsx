@@ -1,5 +1,5 @@
 import { Loading } from "../../shared/ui/Spinner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../shared/api/client";
 import { overlaysApi } from "../../shared/api/endpoints";
@@ -44,6 +44,8 @@ function GongsiTable({ series, unit = "py" }: { series: [number, number][]; unit
  */
 interface Parcel {
   role: string; pnu: string; area: number | string | null;
+  /** 「삼성동 78-1번지」 꼴 — PNU 는 사람이 못 읽는다(2026-09-07 대표). geom 은 이 필지만의 폴리곤 */
+  label?: string | null; geom?: unknown;
   jimok?: string; land_use?: string; slope?: string; shape?: string; road_frontage?: string;
   use_zone?: string; legal_bcr?: string; legal_far?: string; gongsi_latest?: number | string | null; total_gongsi?: number | string | null;
   gongsi_series: [number, number][];
@@ -54,17 +56,12 @@ interface Parcel {
   road_side_m?: string | number | null;
   road_rear_m?: string | number | null;
 }
-interface ParcelsResp { parcels: Parcel[]; reg_summary: Record<string, string>; count: number;
+interface ParcelsResp { parcels: Parcel[]; count: number;
   /** 실측 도로폭 — 건물 단위 배치값(master.building_road). 필지 오버레이가 없으면 이걸 쓴다. */
   road?: { front_m?: number | null; side_m?: number | null; rear_m?: number | null; front_rn?: string | null };
 }
 
-// 나대지 상세도 같은 칩을 쓴다 — 규제는 땅에 걸리는 것이라 건물 유무와 무관하다(2026-08-27)
-export const REG_ALL = ["지구단위계획", "정비구역", "고도지구", "경관지구", "방화지구", "문화재보존"];   // 목업 순서(개발제한=마스터 컬럼 없음, 제외)
-export const REG_FIELD: Record<string, string> = {   // 규제 라벨 → 필지 오버레이 필드(백엔드 REG_LABELS 역매핑)
-  "고도지구": "reg_godo", "지구단위계획": "reg_district", "정비구역": "reg_jeongbi",
-  "경관지구": "reg_gyeong", "방화지구": "reg_banghwa", "문화재보존": "reg_munhwa",
-};
+// 규제 여섯 칸(reg_godo…)과 그 칩 목록은 걷어냈다(2026-09-07) — 정본은 국토부 원문 `reg_all` 하나다.
 const num = (x: unknown): number | null => (x == null || x === "" ? null : Number(x));
 // 법정 건폐/용적은 **숫자 목록**으로 온다(0153): [55] 하나이거나 [50,60] 병기.
 // 걸친 필지에서 작은 쪽이 330㎡(상업 660㎡)를 넘으면 법이 가중평균을 금해 각각 적는다
@@ -76,10 +73,12 @@ const legalNum = (v: unknown): number | null =>
   Array.isArray(v) && v.length === 1 ? Number(v[0]) : null;
 
 const PY = 3.305785;
-export function ParcelBlock({ pk, useZoneMix, unit = "m2", bcr, far }: {
+export function ParcelBlock({ pk, useZoneMix, unit = "m2", bcr, far, onSelect }: {
   pk: string; useZoneMix?: unknown; unit?: "py" | "m2";
   /** 현재 건폐율·용적률(건물 값) — 법정과 견줘 「법정 대비」를 낸다. 현재 − 법정, 넘으면 + (2026-09-04) */
   bcr?: number | null; far?: number | null;
+  /** 고른 필지가 바뀌면 부모에 알린다 — 지도 폴리곤이 그 필지로 따라간다(2026-09-07 대표) */
+  onSelect?: (p: { pnu: string; geom: unknown } | null) => void;
 }) {
   const [sel, setSel] = useState(0);
   const qc = useQueryClient();
@@ -91,6 +90,7 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2", bcr, far }: {
   const road = q.data?.road;          // 건물 단위 실측 도로폭(배치) — 오버레이 없을 때의 기본값
   const p = parcels[sel];
   const pnu = p?.pnu ?? "";
+  useEffect(() => { onSelect?.(p ? { pnu: p.pnu, geom: p.geom ?? null } : null); }, [p?.pnu]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = useMutation({
     mutationFn: ({ field, value }: { field: string; value: string }) => overlaysApi.put(pnu, field, value, "parcel"),
@@ -103,10 +103,8 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2", bcr, far }: {
   if (q.isLoading) return <Loading label="필지 정보 불러오는 중" minHeight={120} />;
   if (parcels.length === 0) return null;
 
-  const summary = q.data?.reg_summary ?? {};
-  const applied = Object.keys(summary);
 
-  const parcelTag = parcels.length > 1 ? <small style={{ color: "var(--muted)", fontWeight: 400 }}>필지 {p.pnu.slice(-8)}</small> : null;
+  const parcelTag = parcels.length > 1 ? <small style={{ color: "var(--muted)", fontWeight: 400 }}>{p.label ?? p.pnu.slice(-8)}</small> : null;
   return (
     <>
     {/* 선 격자를 걷고 건물 탭과 같은 줄로(2026-08-26).
@@ -119,7 +117,7 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2", bcr, far }: {
           <span className="chips-in" style={{ marginLeft: 12 }}>
             {parcels.map((pc, i) => (
               <button key={pc.pnu} className={i === sel ? "on" : ""} onClick={() => setSel(i)}>
-                {pc.pnu.slice(-8)}{pc.role === "대표" && <span style={{ opacity: .65, marginLeft: 4 }}>대표</span>}
+                {pc.label ?? pc.pnu.slice(-8)}{pc.role === "대표" && <span style={{ opacity: .65, marginLeft: 4 }}>대표</span>}
               </button>
             ))}
           </span>
@@ -207,8 +205,7 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2", bcr, far }: {
 
     <div className="bg-card" id="bt-reg" style={{ marginTop: 14 }}>
       <div className="bg-ttl">규제 · 특례 {parcelTag}</div>
-      <RegCard regAll={p.reg_all ?? []}
-        other={applied.filter((k) => !p.regs[k])} summary={summary} />
+      <RegCard regAll={p.reg_all ?? []} />
     </div>
     </>
   );
@@ -224,10 +221,9 @@ export function ParcelBlock({ pk, useZoneMix, unit = "m2", bcr, far }: {
  *  칩 색은 선택 칩과 같은 연파랑이다. 규제는 경고가 아니라 이 건물의 주인공 값이라
  *  빨강(기한·경고)이 아니라 파랑이 맞다 — 지구단위계획은 개발 호재이기도 하다.
  */
-export function RegCard({ regAll, other, summary }: {
-  /** [이름, 저촉여부, 코드] — 국토부 토지이용계획정보 원본(0136) */
+export function RegCard({ regAll }: {
+  /** [이름, 저촉여부, 코드] — 국토부 토지이용계획정보 원본(0136). 이것 하나가 규제의 정본이다 */
   regAll: [string, string, string][];
-  other: string[]; summary: Record<string, string>;
 }) {
   if (regAll.length === 0) return <div className="pg-other">걸린 규제 없음</div>;
   // 토지이음·부동산플래닛과 같은 두 묶음 — 코드 UQ* 가 국토계획법이고 나머지가 기타법령이다.
@@ -250,10 +246,6 @@ export function RegCard({ regAll, other, summary }: {
         {group(law, "국토의 계획 및 이용에 관한 법률")}
         {group(etc, "기타법령")}
       </div>
-      {/* 다필지 — 이 필지엔 없지만 다른 필지에 걸린 규제. 건물 전체로는 해당한다 */}
-      {other.length > 0 && (
-        <div className="pg-other">다른 필지 {other.map((k) => <b key={k} title={summary[k]}>{k}</b>)}</div>
-      )}
     </>
   );
 }
