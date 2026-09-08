@@ -82,7 +82,7 @@ class BuyerIn(BaseModel):
     urgency: str | None = None
 
 
-@router.get("/buyers")
+@router.get("/buyers", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def list_buyers(user: CurrentUser = Depends(current_user)):
     """팀의 매수자 목록 + 담긴 매물 수(보드로 안 가도 상태가 보이게)."""
     rows = await pool().fetch(
@@ -1899,7 +1899,7 @@ async def attach_listing(oid: int, body: OwnerListingIn, user: CurrentUser = Dep
     return {"ok": True}
 
 
-@router.get("/sales/sellers")
+@router.get("/sales/sellers", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def list_sellers(mine: bool = False, owner_id: int | None = None,
                        user: CurrentUser = Depends(current_user)):
     """매물 단위 — 흐름 보드와 「이 매도자의 매물들」이 읽는다."""
@@ -2337,7 +2337,7 @@ async def delete_schedule(sid: int, user: CurrentUser = Depends(current_user)):
     return {"ok": True}
 
 
-@router.get("/sales/schedule")
+@router.get("/sales/schedule", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def sales_schedule(start: str, end: str, mine: bool = False,
                          user: CurrentUser = Depends(current_user)):
     """캘린더 한 화면치 — 그 달에 잡힌 약속들.
@@ -2441,7 +2441,7 @@ COLD_DAYS = 30        # 활성 매수자 무접촉 → 식음. 신규 등록자�
 RECALL_DAYS = 7       # 진행 중 소유자 무접촉 → 재통화
 
 
-@router.get("/sales/today")
+@router.get("/sales/today", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def sales_today(mine: bool = True, user: CurrentUser = Depends(current_user)):
     me = user.account_id if mine else None
     my_turn: list[dict] = []

@@ -27,7 +27,7 @@ class RentIn(BaseModel):
     tenant_name: str | None = None   # 상호명(0155) — 모르면 null. 용도 대신 화면에 선다
 
 
-@router.get("")
+@router.get("", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def list_rents(building_pk: str, user: CurrentUser = Depends(current_user)):
     rows = await pool().fetch(
         """SELECT id, floor, unit_no, use, contract_area,

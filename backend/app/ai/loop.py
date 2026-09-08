@@ -61,6 +61,7 @@ class Turn:
     stop: str
     tok_in: int
     tok_out: int
+    web: list[dict] = field(default_factory=list)   # 벤더가 돌린 웹 검색. {id, query, n}. 화면에 도구 줄로
 
 
 @dataclass
@@ -92,9 +93,15 @@ class AnthropicAdapter:
         self.client = ai.client()
         self.model = model or settings.ai_model
 
+    # 웹 검색은 벤더가 서버에서 돌리는 도구다(§9 · 2단계). 새 벤더도 새 키도 없다.
+    # 우리 도구와 다르게 **우리가 실행하지 않는다** — 모델 턴 안에서 벤더가 찾고 결과를 붙여 온다.
+    # 겨루기 때 재미나이·GPT 는 각자 제 검색을 이 자리에 끼운다.
+    WEB_SEARCH = {"type": "web_search_20250305", "name": "web_search", "max_uses": 5}
+
     def tools(self) -> list[dict]:
-        return [{"name": t.name, "description": t.description, "input_schema": t.params}
+        ours = [{"name": t.name, "description": t.description, "input_schema": t.params}
                 for t in REGISTRY.values()]
+        return ours + [self.WEB_SEARCH]
 
     async def turn(self, system, messages, on_text) -> Turn:
         # 지시문은 매 바퀴 같다. 캐시에 넣는다(§23). 10분의 1 값
@@ -112,17 +119,34 @@ class AnthropicAdapter:
         calls = [ToolCall(b.id, b.name, dict(b.input)) for b in final.content if b.type == "tool_use"]
         # 이력에 되붙일 assistant 내용은 **손으로 짓는다.** model_dump() 는 citations:null 같은
         # 빈 칸까지 실어 보내고, API 가 그걸 400 으로 거절했다(2026-09-08 대화 #11).
+        # 웹 검색 블록(server_tool_use · web_search_tool_result)과 인용은 그대로 되붙여야
+        # 다음 바퀴에서 모델이 자기가 뭘 찾았는지 안다. 그것만 exclude_none 으로 덤프한다.
         raw = []
+        web: list[dict] = []
         for b in final.content:
             if b.type == "text" and b.text:
-                raw.append({"type": "text", "text": b.text})
+                blk: dict = {"type": "text", "text": b.text}
+                cites = getattr(b, "citations", None)
+                if cites:
+                    blk["citations"] = [c.model_dump(exclude_none=True) for c in cites]
+                raw.append(blk)
             elif b.type == "tool_use":
                 raw.append({"type": "tool_use", "id": b.id, "name": b.name, "input": dict(b.input)})
+            elif b.type == "server_tool_use":
+                raw.append({"type": "server_tool_use", "id": b.id, "name": b.name, "input": dict(b.input)})
+                web.append({"id": b.id, "query": dict(b.input).get("query", ""), "n": 0})
+            elif b.type == "web_search_tool_result":
+                raw.append(b.model_dump(exclude_none=True))
+                c = getattr(b, "content", None)
+                n = len(c) if isinstance(c, list) else 0
+                for w in web:
+                    if w["id"] == getattr(b, "tool_use_id", None):
+                        w["n"] = n
         u = final.usage
         return Turn(text, calls, raw, final.stop_reason or "end_turn",
                     (u.input_tokens or 0) + (getattr(u, "cache_read_input_tokens", 0) or 0)
                     + (getattr(u, "cache_creation_input_tokens", 0) or 0),
-                    u.output_tokens or 0)
+                    u.output_tokens or 0, web)
 
     def assistant_msg(self, turn: Turn) -> dict:
         return {"role": "assistant", "content": turn.raw}
@@ -183,6 +207,12 @@ async def run(ctx: Ctx, system: str, history: list[dict], emit: Emit,
         turn = await adapter.turn(system, msgs, on_text)
         res.tok_in += turn.tok_in
         res.tok_out += turn.tok_out
+        # 벤더가 돌린 웹 검색은 모델 턴 안에서 이미 끝났다. 사후에 도구 줄로 내보내고 기록에 남긴다
+        for w in turn.web:
+            summ = f"결과 {w['n']}건"
+            await _emit({"t": "tool", "phase": "start", "id": w["id"], "name": "web_search", "input": {"q": w["query"]}})
+            await _emit({"t": "tool", "phase": "end", "id": w["id"], "name": "web_search", "ms": 0, "summary": summ})
+            res.tool_log.append({"name": "web_search", "input": {"q": w["query"]}, "ms": 0, "summary": summ, "error": None})
         if turn.text:
             res.pieces.append({"t": "text", "v": turn.text})
 

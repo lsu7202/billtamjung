@@ -64,11 +64,16 @@ _NOISE_KEYS = {"parcel_geom", "geom", "geom_json", "geometry"}
 # /search/suggest 의 price 는 「팀 수기 매매가 ?? 추정가」라 사실일 때도 주장일 때도 있고,
 # 모델은 그걸 가를 수 없다(2026-09-08 대화 #7 에서 「시세 약 154.5억」으로 샜다).
 # pk 를 푸는 길에 값은 필요 없으니 아예 뺀다.
+_PEOPLE = {"phone", "owner_phone", "buyer_phone", "rrn", "email", "assignee_account_id"}
 _STRIP_FOR: dict[tuple[str, str], set[str]] = {
     ("GET", "/search/suggest"): {"price"},
     # 검색 줄은 소유자 이름·전화까지 싣는다(팀 데이터). 건물을 찾는 길에 그건 필요 없다.
     # B 경로라 나가도 되는 값이지만, **필요 없는 개인정보를 습관처럼 보내지 않는다**(§22).
     ("POST", "/search"): {"price", "sale_price", "owner_name", "owner_phone", "assignee_account_id"},
+    # 팀 것을 읽는 길. 이름은 가되 전화는 안 간다. 「김대표 번호 뭐야」는 6단계(쓰기·조작) 흐름이다
+    ("GET", "/buyers"): _PEOPLE, ("GET", "/sales/sellers"): _PEOPLE, ("GET", "/sales/today"): _PEOPLE,
+    ("GET", "/sales/schedule"): _PEOPLE, ("GET", "/listings"): _PEOPLE | {"price"},
+    ("GET", "/listings/{building_pk}"): _PEOPLE | {"price"},
 }
 
 
@@ -99,13 +104,39 @@ def _strip(obj: Any, extra: set[str] = frozenset()) -> Any:
     return obj
 
 
-# 지시문에 싣는 한 줄 설명. summary 가 「Search」뿐이라 손으로 쓴다
+# 지시문에 싣는 한 줄 설명. summary 가 「Search」뿐이라 손으로 쓴다.
+# 처음엔 다섯만 열었다가 「이 주소 호재 있어?」에 모델이 표 일곱을 손으로 뒤지다 바퀴를 다 썼고,
+# 다음 질문엔 「소식은 없다」고 지어냈다(2026-09-08). 화면이 쓰는 길이 안 보이면 그렇게 된다.
 _HINT = {
+    # 찾기
     ("GET", "/search/suggest"): "q=주소·지번·건물명 → pk 후보. **건물을 부르기 전에 먼저.** 여럿이면 ask 로 되묻는다",
     ("POST", "/search"): "조건 검색. 화면 검색과 같은 결과. body={filters:{bjd_code,total_area_min,…},sort,per_page}. 칸은 describe_endpoint",
+    # 건물 하나
     ("GET", "/buildings/{building_pk}"): "건물 상세. 대장·필지·교통·공시지가·실거래",
-    ("GET", "/buildings/{building_pk}/parcels"): "필지 목록",
-    ("GET", "/buildings/{building_pk}/tenants"): "층별 업체",
+    ("GET", "/buildings/{building_pk}/parcels"): "필지 목록과 각 필지의 지목·면적·용도지역",
+    ("GET", "/buildings/{building_pk}/tenants"): "층별 업체(인허가·상가정보)",
+    ("GET", "/buildings/{building_pk}/floor-rents"): "층별 임대. 팀이 적은 호실·상호·면적·금액",
+    ("GET", "/buildings/{building_pk}/floor-outline"): "대장 층별개요. 층·용도·바닥면적",
+    ("GET", "/buildings/{building_pk}/events"): "**주변 소식 · 호재.** 정비·개발·기반시설·규제·정책·고시·보도자료. 반경 700m",
+    ("GET", "/buildings/{building_pk}/pop"): "유동인구 250m 격자. 낮·밤·피크",
+    ("GET", "/buildings/{building_pk}/wiki"): "이 건물에 사용자가 남긴 글",
+    ("GET", "/market/nearby-sales/{building_pk}"): "반경 안 최근 매각 사례(실거래). 가까운 순",
+    # 나대지
+    ("GET", "/buildings/parcels/{pnu}"): "나대지 상세. 건물이 없는 필지",
+    ("GET", "/buildings/parcels/{pnu}/pop"): "나대지 유동인구",
+    # 소식
+    ("GET", "/news"): "서울 전체 소식. 고시·공고·인허가·보도자료·정비. q·kind·page",
+    ("GET", "/news/item"): "소식 하나 상세. id",
+    # 우리 팀 것 (사용자 토큰으로 본다)
+    ("GET", "/listings"): "**우리 팀 매물** 목록",
+    ("GET", "/listings/{building_pk}"): "우리 팀 매물 하나",
+    ("GET", "/buyers"): "우리 팀 매수자 목록과 담긴 매물 수",
+    ("GET", "/sales/sellers"): "매물 단위 흐름 보드",
+    ("GET", "/sales/schedule"): "달력. 그 달의 약속. year·month",
+    ("GET", "/sales/today"): "오늘 할 일·밀린 약속·다가오는 일정",
+    # 사전
+    ("GET", "/enums"): "enum 사전. 코드 → 이름",
+    ("GET", "/fields"): "칸 사전. 이름·단위·형",
 }
 
 

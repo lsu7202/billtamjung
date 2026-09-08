@@ -75,7 +75,7 @@ async def team_members(user: CurrentUser = Depends(current_user)):
     return [{"account_id": r["account_id"], "name": r["name"], "role": r["role"]} for r in rows]
 
 
-@router.get("/{building_pk}")
+@router.get("/{building_pk}", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def get_listing(building_pk: str, user: CurrentUser = Depends(current_user)):
     # 소유자 값은 사람 표(0058)에서 온다. 화면·필터가 쓰던 이름(owner_name…)은 그대로 낸다 —
     # 저장 위치가 바뀌었다고 읽는 쪽 어휘까지 바꿀 이유는 없다.
@@ -238,7 +238,7 @@ async def patch_biz(body: BizPatch, user: CurrentUser = Depends(current_user)):
     return {"ok": True}
 
 
-@router.get("")
+@router.get("", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def my_listings(user: CurrentUser = Depends(current_user)):
     """내 매물 목록 = 팀의 등록(담당자 있는) 매물."""
     rows = await pool().fetch(

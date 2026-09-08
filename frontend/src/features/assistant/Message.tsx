@@ -80,7 +80,7 @@ export function Tools({ log, running }: { log: ToolLog[]; running?: string | nul
 const LABEL: Record<string, string> = {
   call_api: "자료를 읽는 중", query: "표를 세는 중", describe: "칸을 보는 중", list_tables: "표를 보는 중",
   list_endpoints: "길을 보는 중", describe_endpoint: "길을 보는 중", result_page: "다음 줄을 읽는 중",
-  codes: "코드를 보는 중", ask: "되묻는 중",
+  codes: "코드를 보는 중", ask: "되묻는 중", web_search: "웹을 찾는 중",
 };
 const label = (name: string) => LABEL[name] ?? `${name} 중`;
 const short = (o: Record<string, unknown>) => {

@@ -152,7 +152,7 @@ async def nearby(body: NearbyIn, _: CurrentUser = Depends(current_user)):
 # S01 지도에서 매물을 고르면 "이게 어느 정도인가"를 바로 가늠할 수 있어야 한다.
 # 자기 실거래 이력이 있는 건물은 13.5%뿐이라(2026-08-09 실측) 자기 이력만으로는 대개 빈 화면이다.
 # nearby()는 임대 추정 comp까지 무는 무거운 조회라 카드용으로는 매각 사례만 가볍게 뽑는다.
-@router.get("/nearby-sales/{building_pk}")
+@router.get("/nearby-sales/{building_pk}", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def nearby_sales(building_pk: str, radius_m: int = 500, years: int = 5, limit: int = 8,
                        _: CurrentUser = Depends(current_user)):
     """반경 내 최근 매각 사례 — 가까운 순. 본매물 제외, 매물당 최근 거래 1건(DISTINCT ON).

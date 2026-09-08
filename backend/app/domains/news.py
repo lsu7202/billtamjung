@@ -30,7 +30,7 @@ router = APIRouter(prefix="/news", tags=["news"])
 KINDS = ("정비·개발", "기반시설", "건축 인허가", "규제", "정책 발표", "고시·공고")
 
 
-@router.get("")
+@router.get("", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def news(
     kind: str | None = None,
     q: str | None = None,
@@ -185,7 +185,7 @@ async def news_pins(
     } for r in rows], "truncated": len(rows) >= limit}
 
 
-@router.get("/item")
+@router.get("/item", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def news_item(id: int, _: CurrentUser = Depends(current_user)):
     """지도 핀 하나 → 소식 탭에서 **그 소식**을 연다(2026-09-06 대표 「소식에서 보기가 소식 탭으로만 간다」).
 

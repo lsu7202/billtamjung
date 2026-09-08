@@ -161,7 +161,7 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
 _POP_R = 600      # 유동인구 지도 반경(m) — 250m 격자로 대여섯 칸. 300m면 두 칸이라 그림이 안 된다
 
 
-@router.get("/{building_pk}/pop")
+@router.get("/{building_pk}/pop", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def building_pop(building_pk: str, _: CurrentUser = Depends(current_user)):
     """유동인구 지도(분석 탭) — 250m 격자에 **색과 진하기를 같이** 준다.
 
@@ -256,7 +256,7 @@ async def building_scene(building_pk: str, _: CurrentUser = Depends(current_user
     }
 
 
-@router.get("/{building_pk}/floor-outline")
+@router.get("/{building_pk}/floor-outline", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def floor_outline(building_pk: str, _: CurrentUser = Depends(current_user)):
     """층별개요(대장) 프리필 — 층·용도·층별면적(바닥, 합=연면적) + 임대료/보증금 추정(공공 상권시세). 층별임대정보 시드용(S02 §3.5).
     rent_est/deposit_est = 마스터 추정값(유저가 입력하면 오버레이가 덮음)."""
@@ -278,7 +278,7 @@ async def floor_outline(building_pk: str, _: CurrentUser = Depends(current_user)
 # 빌드 단계가 빠진 2026-09-01 부터 0행인 채로 쿼리·화면에 남아 있었다.
 
 
-@router.get("/{building_pk}/events")
+@router.get("/{building_pk}/events", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def area_events(building_pk: str, radius: int = 700, kind: str | None = None,
                       years: int | None = None, _: CurrentUser = Depends(current_user)):
     """주변 소식 — master.area_event 에서 이 건물 둘레의 사건을 날짜순으로.
@@ -468,7 +468,7 @@ async def rent_series(building_pk: str, _: CurrentUser = Depends(current_user)):
             "sanggwon": cur["sanggwon"], "series_name": cur["series"]}
 
 
-@router.get("/parcels/{pnu}")
+@router.get("/parcels/{pnu}", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def get_vacant_parcel(pnu: str, user: CurrentUser = Depends(current_user)):
     """나대지 상세 — 필지 하나. 건물이 없으므로 building_pk 가 아니라 pnu 로 가리킨다."""
     r = await pool().fetchrow(
@@ -562,7 +562,7 @@ async def vacant_scene(pnu: str, _: CurrentUser = Depends(current_user)):
     }
 
 
-@router.get("/parcels/{pnu}/pop")
+@router.get("/parcels/{pnu}/pop", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def vacant_pop(pnu: str, _: CurrentUser = Depends(current_user)):
     """나대지 유동인구 — 건물용과 **같은 그림**. 생활인구는 땅의 성질이지 건물의 것이 아니다.
 

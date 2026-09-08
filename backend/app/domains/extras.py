@@ -15,7 +15,7 @@ _enum_cache: tuple[float, dict] | None = None
 _ENUM_TTL = 60.0
 
 
-@router.get("/enums")
+@router.get("/enums", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def enums(_: CurrentUser = Depends(current_user)):
     """전 enum 그룹 {enum_key: [{code,label,tier}]} — 드롭다운·코드↔라벨 매핑(레지스트리)."""
     import time
@@ -34,7 +34,7 @@ async def enums(_: CurrentUser = Depends(current_user)):
     return _enum_cache[1]
 
 
-@router.get("/fields")
+@router.get("/fields", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def fields(_: CurrentUser = Depends(current_user)):
     """필드 레지스트리 {field_key: {label,unit,data_type,enum_key,editable,display_group}}."""
     rows = await pool().fetch(
@@ -125,7 +125,7 @@ async def wiki_post(building_pk: str, body: WikiIn, user: CurrentUser = Depends(
     return {"id": pid}
 
 
-@router.get("/buildings/{building_pk}/wiki")
+@router.get("/buildings/{building_pk}/wiki", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def wiki_list(building_pk: str, user: CurrentUser = Depends(current_user)):
     rows = await pool().fetch(
         """SELECT w.id, w.category, w.body, w.created_at,
