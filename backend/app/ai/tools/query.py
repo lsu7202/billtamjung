@@ -158,10 +158,13 @@ async def codes(ctx: Ctx, *, group: str | None = None) -> dict:
     if group == "biz_category":
         rows = await p.fetch("SELECT * FROM ref.biz_category ORDER BY 1 LIMIT 300")
         return {"group": group, "codes": _rows(rows), "source": "ref.biz_category"}
+    # 칸 이름은 enum_key 다. group_key 로 짜 놓고 겨루기 6번에서 처음 밟았다(2026-09-08)
     if not group:
-        rows = await p.fetch("SELECT DISTINCT group_key FROM ref.enums ORDER BY 1")
-        return {"groups": [r["group_key"] for r in rows] + ["biz_category"], "source": "ref.enums"}
-    rows = await p.fetch("SELECT * FROM ref.enums WHERE group_key=$1 ORDER BY 1 LIMIT 300", group)
+        rows = await p.fetch("SELECT DISTINCT enum_key FROM ref.enums ORDER BY 1")
+        return {"groups": [r["enum_key"] for r in rows] + ["biz_category"], "source": "ref.enums"}
+    rows = await p.fetch(
+        "SELECT code, label, tier, parent_code FROM ref.enums WHERE enum_key=$1 AND active ORDER BY sort_order, code LIMIT 300",
+        group)
     return {"group": group, "codes": _rows(rows), "source": "ref.enums"}
 
 

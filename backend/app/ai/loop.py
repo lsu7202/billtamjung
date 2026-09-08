@@ -89,26 +89,32 @@ class Adapter(Protocol):
 
 # ── Anthropic ───────────────────────────────────────────────────────
 class AnthropicAdapter:
-    def __init__(self, model: str | None = None):
+    def __init__(self, model: str | None = None, effort: str | None = None):
         self.client = ai.client()
         self.model = model or settings.ai_model
+        # effort 는 모델 등급을 내리기 전에 먼저 당겨 볼 손잡이다(겨루기 A). 하이쿠 4.5 는 effort 를 모른다
+        self.effort = effort if (effort and "haiku" not in self.model) else None
 
     # 웹 검색은 벤더가 서버에서 돌리는 도구다(§9 · 2단계). 새 벤더도 새 키도 없다.
     # 우리 도구와 다르게 **우리가 실행하지 않는다** — 모델 턴 안에서 벤더가 찾고 결과를 붙여 온다.
     # 겨루기 때 재미나이·GPT 는 각자 제 검색을 이 자리에 끼운다.
-    WEB_SEARCH = {"type": "web_search_20250305", "name": "web_search", "max_uses": 5}
+    # 소넷 5 는 거르기가 붙은 20260209 판, 하이쿠 4.5 는 기본 20250305 판만 받는다.
+    def web_search(self) -> dict:
+        kind = "web_search_20250305" if "haiku" in self.model else "web_search_20260209"
+        return {"type": kind, "name": "web_search", "max_uses": 5}
 
     def tools(self) -> list[dict]:
         ours = [{"name": t.name, "description": t.description, "input_schema": t.params}
                 for t in REGISTRY.values()]
-        return ours + [self.WEB_SEARCH]
+        return ours + [self.web_search()]
 
     async def turn(self, system, messages, on_text) -> Turn:
         # 지시문은 매 바퀴 같다. 캐시에 넣는다(§23). 10분의 1 값
         sys_blocks = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+        extra: dict = {"output_config": {"effort": self.effort}} if self.effort else {}
         async with self.client.messages.stream(
             model=self.model, max_tokens=settings.ai_max_tokens,
-            system=sys_blocks, messages=messages, tools=self.tools(),
+            system=sys_blocks, messages=messages, tools=self.tools(), **extra,
         ) as s:
             async for ev in s:
                 if getattr(ev, "type", "") == "content_block_delta" \
@@ -158,10 +164,12 @@ class AnthropicAdapter:
             for tid, out in results]}
 
 
-def make_adapter(vendor: str = "anthropic") -> Adapter:
-    """겨루기 때 여기에 재미나이·GPT 가 붙는다. 지금은 하나."""
+def make_adapter(vendor: str = "anthropic", model: str | None = None,
+                 effort: str | None = None) -> Adapter:
+    """겨루기 때 여기에 재미나이·GPT 가 붙는다. 지금은 하나.
+    model·effort 는 겨루기(qa/ai/bench)가 같은 고리를 다른 모델로 돌릴 때 준다. 화면은 설정값을 쓴다."""
     if vendor == "anthropic":
-        return AnthropicAdapter()
+        return AnthropicAdapter(model, effort)
     raise ValueError(f"모르는 벤더 {vendor}")
 
 
@@ -189,10 +197,11 @@ def _summ(out: Any) -> str:
 
 
 async def run(ctx: Ctx, system: str, history: list[dict], emit: Emit,
-              vendor: str = "anthropic") -> Result:
+              vendor: str = "anthropic", model: str | None = None,
+              effort: str | None = None) -> Result:
     """도구가 없을 때까지, 또는 되물음이 뜰 때까지 돈다."""
     load_all()
-    adapter = make_adapter(vendor)
+    adapter = make_adapter(vendor, model, effort)
     msgs = list(history)
     res = Result()
 

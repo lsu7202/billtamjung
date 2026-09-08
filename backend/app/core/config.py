@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     ai_model: str = "claude-sonnet-5"                    # 대화 본체·문서·SQL
     ai_model_fast: str = "claude-haiku-4-5-20251001"     # 제목·기억 뽑기·분류
     ai_max_tokens: int = 4096
+    # 겨루기 첫 판(2026-09-08, 케이스 열 × 2회): 소넷 low 가 high 와 같은 답을 입력 25% 적게, 절반 시간에 냈다.
+    # 하이쿠는 3배 싸지만 평·㎡ 를 뒤바꾸고 공시지가를 10배로 읽었다. 등급을 내리기 전에 effort 부터.
+    ai_effort: str = "low"                                # "" 이면 모델 기본(high)
     # bt_ai 롤로 붙는 **별도 접속**. master·ref 만 읽는다(0167). 비어 있으면 query() 도구가 안 선다.
     # 앱 접속(database_url)은 postgres 슈퍼유저라 모델에게 절대 안 준다.
     ai_database_url: str = ""
