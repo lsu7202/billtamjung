@@ -6,16 +6,32 @@ import { api, refresh } from "../../shared/api/client";
 import { useAuth } from "../../shared/store/auth";
 
 export interface Chat { id: number; title: string | null; updated_at: string }
-/** 답 한 통은 조각 목록이다. 지금은 글뿐이고 곧 부품·아티팩트가 섞인다 */
-export type Piece = { t: "text"; v: string };
-export interface Msg { id: number; seq: number; role: "user" | "assistant"; content: Piece[]; created_at: string }
+
+/** 답 한 통은 조각 목록이다(§8-1). 글·부품·되물음이 섞인다.
+ *  다시 열면 부품은 **지금 값**으로 그리고 글자는 그때 그대로 남는다. */
+export type Piece =
+  | { t: "text"; v: string }
+  | { t: "ui"; name: string; props: Record<string, unknown> }
+  | { t: "ask"; question: string; options: string[] };
+
+export interface ToolLog { name: string; input: Record<string, unknown>; ms: number; summary: string; error: string | null }
+
+export interface Msg {
+  id: number; seq: number; role: "user" | "assistant";
+  content: Piece[]; tool_calls: ToolLog[] | null; created_at: string;
+}
 
 /** 흘러오는 것 — 서버가 던지는 조각. 오류 문구는 ref.error_msg 에서 온다(서버가 문장을 안 짓는다) */
 export type Ev =
   | { t: "start"; seq: number }
   | { t: "delta"; v: string }
+  | { t: "tool"; phase: "start"; id: string; name: string; input: Record<string, unknown> }
+  | { t: "tool"; phase: "end"; id: string; name: string; ms: number; summary: string }
+  | { t: "ui"; name: string; props: Record<string, unknown> }
+  | { t: "ask"; question: string; options: string[] }
   | { t: "error"; code: string; title: string; body: string | null; action: string | null; level: string }
-  | { t: "done"; message_id: number | null; title: string | null; stop: string };
+  | { t: "done"; message_id: number | null; title: string | null; stop: string;
+      scrubbed: string[] | null; tok_in: number; tok_out: number };
 
 export const chats = {
   list: () => api<Chat[]>("/ai/chats"),

@@ -12,7 +12,7 @@ from ..jobs import value_score as vs
 router = APIRouter(prefix="/buildings", tags=["buildings"])
 
 
-@router.get("/{building_pk}")
+@router.get("/{building_pk}", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def get_building(building_pk: str, user: CurrentUser = Depends(current_user)):
     """화면값 = master + 팀 오버레이 COALESCE(app.building_view)."""
     merged = await pool().fetchval("SELECT app.building_view($1, $2)", building_pk, user.team_id)
@@ -339,7 +339,7 @@ async def area_events(building_pk: str, radius: int = 700, kind: str | None = No
     return {"items": items, "kinds": kinds, "radius": radius}
 
 
-@router.get("/{building_pk}/parcels")
+@router.get("/{building_pk}/parcels", openapi_extra={"x-ai": "read"})
 async def get_parcels(building_pk: str, user: CurrentUser = Depends(current_user)):
     """필지 셀렉터(S02 §3.6): 대표+부속 필지별 속성·공시지가 시계열·규제 + 건물 요약(OR 집계)."""
     rows = await pool().fetch(

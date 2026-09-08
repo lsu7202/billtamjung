@@ -77,7 +77,7 @@ _BUILDING_SUGGEST = """
      LIMIT $3
 """
 
-@router.get("/suggest", response_model=list[Suggestion])
+@router.get("/suggest", response_model=list[Suggestion], openapi_extra={"x-ai": "read"})
 async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(current_user)):
     """통합 자동완성 — 지역(동·구) + 지하철역 + 건물주소(§3.1a 개편, 지오코딩 폴백 폐지).
     지역·역=인메모리 캐시 즉시 매칭 / 건물=동+지번 접두(btree) 우선, 모자라면 부분일치(trgm).
@@ -730,7 +730,7 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
     return base, args, outer_sql
 
 
-@router.post("")
+@router.post("", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3). 화면과 같은 답
 async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
     """2열 목록(내매물/일반) + 열별 독립 페이징. 무크레딧.
 

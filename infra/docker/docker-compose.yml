@@ -19,6 +19,8 @@ services:
     build: { context: ../../backend }
     environment:
       BT_DATABASE_URL: postgresql://postgres:test@db:5432/billtamjung
+      # bt_ai 롤(0167). .env 는 호스트 꼴(localhost:55432)이고 컨테이너는 여기서 덮는다
+      BT_AI_DATABASE_URL: postgresql://bt_ai:bt_ai_dev@db:5432/billtamjung
       APP_MODULE: app.main
       PORT: "8000"
     ports: ["8000:8000"]

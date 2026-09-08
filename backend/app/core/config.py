@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     ai_model: str = "claude-sonnet-5"                    # 대화 본체·문서·SQL
     ai_model_fast: str = "claude-haiku-4-5-20251001"     # 제목·기억 뽑기·분류
     ai_max_tokens: int = 4096
+    # bt_ai 롤로 붙는 **별도 접속**. master·ref 만 읽는다(0167). 비어 있으면 query() 도구가 안 선다.
+    # 앱 접속(database_url)은 postgres 슈퍼유저라 모델에게 절대 안 준다.
+    ai_database_url: str = ""
     # 대화가 길어지면 앞쪽을 요약해 접는다. 그 전까지는 통째로 다시 보낸다
     ai_history_turns: int = 40
 

@@ -29,21 +29,23 @@ export BT_DATABASE_URL
 # ── 무엇이 무엇을 보는가 ─────────────────────────────────────
 # 한 줄에 구분자로 몰아넣었더니 정규식의 | 와 부딪히고, § 로 바꿨더니 IFS 가 바이트
 # 단위라 또 깨졌다(2026-09-02). **배열 넷을 자리로 맞춘다** — 구분자가 아예 없다.
-NAMES=(  ui                     data                       units                        screen                        mirror                     build )
-DESCS=(  "UI 규칙(네모버튼·설명글씨)"  "DB 값·불변식 26가지"          "단위·파생이 선언한 검증 60가지"    "화면이 DB 값을 맞게 읽는가"       "한 사실이 여러 표에서 같은가"   "빌드 산출물이 맞는가" )
+NAMES=(  ui                     data                       units                        screen                        mirror                     build                      ai )
+DESCS=(  "UI 규칙(네모버튼·설명글씨)"  "DB 값·불변식 26가지"          "단위·파생이 선언한 검증 60가지"    "화면이 DB 값을 맞게 읽는가"       "한 사실이 여러 표에서 같은가"   "빌드 산출물이 맞는가"      "AI 벽(bt_ai 롤)·scrub 회귀" )
 # 무엇이 바뀌면 도는가
 PATS=(   '^frontend/'
          '^(db/migrations|pipeline|data/tools|scripts/(load_|rent_estimate))'
          '^(pipeline/units.py|scripts/(run_unit|load_|build_)|data/tools)'
          '^(frontend/src|backend/app|db/migrations|pipeline|data/tools)'
          '^backend/app/domains/(mirror|buyers|listings)'
-         '^(pipeline|data/tools)' )
+         '^(pipeline|data/tools)'
+         '^(backend/app/ai|db/migrations/016[7-9]|qa/ai)' )
 CMDS=(   "bash qa/ui/check_ui.sh"
          "$PY_BE qa/data/qa_data.py"
          "python3 qa/data/qa_units.py"
          "$PY_BE qa/screen/qa_screen.py"
          "$PY_BE qa/mirror/qa_mirror.py"
-         "$PY_GIS qa/build/qa_build.py" )
+         "$PY_GIS qa/build/qa_build.py"
+         "$PY_BE qa/ai/scrub_cases.py && $PY_BE qa/ai/walls.py" )
 # external(토지이음 대조)은 **자동으로 안 돈다.** 공공 사이트에 요청을 보내는 것이라
 # 사람이 정할 일이다. qa/external/README.md 참고.
 
@@ -83,7 +85,7 @@ for i in "${!NAMES[@]}"; do
   case " $WANT " in *" $name "*) ;; *) continue;; esac
   echo; echo "── $name · $desc"
   case "$name" in
-    data|units|mirror|build) need_db || { echo "   ⏭ 건너뜀 — DB(55432)가 안 떠 있습니다"; SKIP=$((SKIP+1)); continue; };;
+    data|units|mirror|build|ai) need_db || { echo "   ⏭ 건너뜀 — DB(55432)가 안 떠 있습니다"; SKIP=$((SKIP+1)); continue; };;
     screen) need_screen || { echo "   ⏭ 건너뜀 — 프론트(5173)·API(8000)가 안 떠 있습니다"; SKIP=$((SKIP+1)); continue; };;
   esac
   if eval "$cmd"; then RAN=$((RAN+1)); else echo "   ❌ $name 실패"; FAIL=$((FAIL+1)); fi

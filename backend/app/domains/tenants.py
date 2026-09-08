@@ -53,7 +53,7 @@ def _floor(n: int | None, base: bool) -> str | None:
     return f"지하{n}층" if base else f"{n}층"
 
 
-@router.get("")
+@router.get("", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def building_tenants(building_pk: str, _: CurrentUser = Depends(current_user)):
     rows = await pool().fetch(
         """WITH pc AS (SELECT p.pnu, p.geom FROM master.building_parcels bp
