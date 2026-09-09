@@ -271,6 +271,10 @@ class Filters(BaseModel):
     # biz 가 낱말 하나라 모델이 SQL 로 우회했고, 화면엔 첫 검색(113동)이 서고 답은 5곳이라
     # **화면과 답이 어긋났다**(2026-09-09 대표). 좁히는 물음은 좁아져야 한다.
     biz_all: list[str] | None = None         # 예: ["스타벅스", "의료"]
+    # **없는 건물**. 「병원이 아직 안 들어온 곳」을 물었는데 걸 자가 없어 모델이 biz 로 걸었고,
+    # 그건 정반대다 — 병원이 이미 있는 건물을 추천했다(2026-09-09 대표).
+    # 모델의 한계가 아니라 **우리 API 가 그 물음을 못 받는 것**이었다.
+    biz_not: list[str] | None = None         # 예: ["의료"] — 그 업종이 없는 건물만
     # 범위 (min/max)
     land_area_min: float | None = None
     land_area_max: float | None = None
@@ -585,6 +589,17 @@ def _filter_sql(f: Filters, args: list) -> tuple[str, str]:
         add(m, "b.etc_use ILIKE '%' || ${i} || '%'", f.etc_use)
     # 업체 표가 아직 없는 판(개발 DB 2026-09-09)에서는 이 자를 조용히 안 건다.
     # 없는 표를 읽으면 검색이 통째로 500 이 된다 — 자가 하나 빠지는 것보다 나쁘다.
+    for _w in (f.biz_not or []):
+        if not _HAS_PERMIT:
+            break
+        args.append(_w)
+        _i = len(args)
+        m.append(f"NOT EXISTS (SELECT 1 FROM master.localdata_permit p WHERE p.close_on IS NULL"
+                 f"  AND (p.biz1 ILIKE '%' || ${_i} || '%' OR p.name ILIKE '%' || ${_i} || '%'"
+                 f"       OR EXISTS (SELECT 1 FROM ref.biz_category bc"
+                 f"                   WHERE bc.cat = ${_i} AND p.biz1 ILIKE '%' || bc.key || '%'))"
+                 f"  AND ST_DWithin(b.geom::geography, p.geom::geography, 25))")
+
     for _w in (f.biz_all or []):
         if not _HAS_PERMIT:
             break

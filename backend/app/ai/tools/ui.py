@@ -134,6 +134,12 @@ def _from_model(name: str, props: dict) -> dict | None:
         data["items"] = items[:LIMIT["stats"]]
     elif name == "table":
         head, rows = props.get("head"), props.get("rows")
+        # **줄을 dict 로 보내는 일이 잦다.** 되돌려 보내면 한 바퀴(4천 토큰)를 버린다 —
+        # 칸 이름이 줄 안에 있으니 그대로 표로 세울 수 있다(2026-09-09)
+        if isinstance(rows, list) and rows and all(isinstance(r, dict) for r in rows):
+            if not isinstance(head, list) or not head:
+                head = list(dict.fromkeys(k for r in rows for k in r))
+            rows = [[r.get(h) for h in head] for r in rows]
         if not isinstance(head, list) or not isinstance(rows, list):
             return {"error": "table 은 head: […] 와 rows: [[…], …] 다"}
         data["head"], data["rows"] = head, rows[:LIMIT["table"]]

@@ -43,7 +43,12 @@ export function SearchResult({ filters, polygon }: { filters: Record<string, unk
         </div>
       ))}
       {rows.length === 0 && <div className="sel-empty">조건에 맞는 건물이 없습니다</div>}
-      <button className="as-srx" onClick={() => nav("/search")}>검색 화면에서 열기</button>
+      {/* **걸린 조건을 그대로 들고 간다.** 그냥 /search 로 보내면 조건이 통째로 날아가
+          사용자가 처음부터 다시 건다(2026-09-09 대표). 검색 화면은 state.applyCond 로 받는다 */}
+      <button className="as-srx"
+              onClick={() => nav("/search", { state: { applyCond: { filters, polygon } } })}>
+        검색 화면에서 열기
+      </button>
     </div>
   );
 }
