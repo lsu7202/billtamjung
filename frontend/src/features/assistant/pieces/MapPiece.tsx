@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { eventIcon } from "../../../shared/map/eventIcon";
 import { loadNaver } from "../../../shared/map/naver";
+import { IconSprite } from "../../../shared/ui/Icon";
 import { Frame } from "./Grids";
 
 type Pin = { lng: number; lat: number; tag?: string; title: string; sub?: string };
@@ -18,14 +19,16 @@ type Pin = { lng: number; lat: number; tag?: string; title: string; sub?: string
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 /** 갈래 → 아이콘. 아는 갈래만 제 그림을 갖고 나머지는 그냥 점이다(깃발은 소식 지도의 「기타」라 안 쓴다) */
-function pinIcon(tag?: string): string | null {
+function pinIcon(tag?: string, name?: string): string | null {
   if (!tag) return null;
-  const { icon } = eventIcon({ kind: tag, name: tag, source: "" });
+  // **이름도 넘긴다.** 갈래만 주면 「기반시설」이 철도·공원·학교 어느 것인지 못 갈라 전부 깃발이 됐고,
+  // 깃발은 안 쓰기로 했으니 스무 핀이 죄다 민무늬 점으로 떨어졌다(2026-09-09 화면 확인)
+  const { icon } = eventIcon({ kind: tag, name: name ?? tag, source: "" });
   return icon === "flag" ? null : icon;
 }
 
-const marker = (tag: string | undefined, on: boolean) => {
-  const ic = pinIcon(tag);
+const marker = (tag: string | undefined, on: boolean, name?: string) => {
+  const ic = pinIcon(tag, name);
   const body = ic
     ? `<svg width="15" height="15" viewBox="0 0 24 24"><use href="#bt-${ic}"/></svg>`
     : "";
@@ -69,18 +72,30 @@ export function MapPiece({ p }: { p: Record<string, any> }) {
       }
       const ms: any[] = pins.map((pin, i) => {
         const m = new naver.maps.Marker({ position: new naver.maps.LatLng(pin.lat, pin.lng), map,
-          zIndex: 20, icon: { content: marker(pin.tag, false), anchor: new naver.maps.Point(13, 13) } });
+          zIndex: 20, icon: { content: marker(pin.tag, false, pin.title), anchor: new naver.maps.Point(13, 13) } });
         naver.maps.Event.addListener(m, "click", () => {
           setSel((cur) => (cur === i ? null : i));
-          ms.forEach((o, j) => o.setIcon({ content: marker(pins[j].tag, j === i), anchor: new naver.maps.Point(13, 13) }));
+          ms.forEach((o, j) => o.setIcon({ content: marker(pins[j].tag, j === i, pins[j].title), anchor: new naver.maps.Point(13, 13) }));
         });
         bnds.extend(m.getPosition());
         return m;
       });
-      if (pins.length > 1 || (radius && radius > 0)) {
-        map.fitBounds(bnds, { top: 24, right: 24, bottom: 24, left: 24 });
-        map.setCenter(pos);
+      // **배율을 직접 센다.** fitBounds 는 SDK 판을 타서 700m 짜리 원에 서울 전체가 잡혔다
+      // (2026-09-09 화면 확인). 미터/픽셀 = 156543.034 · cos(위도) / 2^줌 — 표준 웹메르카토르 식이다
+      const box = ref.current?.getBoundingClientRect();
+      const side = Math.max(80, Math.min(box?.width || 320, box?.height || 220));
+      let span = radius && radius > 0 ? radius * 2 : 0;
+      if (!span && pins.length > 1) {
+        const la = pins.map((x) => x.lat), lo = pins.map((x) => x.lng);
+        span = Math.max((Math.max(...la) - Math.min(...la)) * 111320,
+                        (Math.max(...lo) - Math.min(...lo)) * 111320 * Math.cos((center[1] * Math.PI) / 180));
       }
+      if (span > 0) {
+        const mpp = (span * 1.25) / side;      // 1.25 = 가장자리 여백
+        const z = Math.log2((156543.034 * Math.cos((center[1] * Math.PI) / 180)) / mpp);
+        map.setZoom(Math.max(6, Math.min(19, Math.round(z))), false);
+      }
+      map.setCenter(pos);
     }).catch(() => setErr(true));
     return () => {
       dead = true;
@@ -95,6 +110,7 @@ export function MapPiece({ p }: { p: Record<string, any> }) {
   const on = sel != null ? pins[sel] : null;
   return (
     <Frame title={p.title} foot={p.foot}>
+      <IconSprite />
       <div className="gd-map" ref={ref} />
       {on && (
         <div className="gd-li gd-map-sel">

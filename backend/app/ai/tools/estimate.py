@@ -54,14 +54,20 @@ async def estimate(ctx: Ctx, *, building_pk: str, kind: str = "임대") -> dict:
     except ValueError:
         return {"error": "JSON 이 아니다"}
 
+    # **층 하나에 줄 하나.** 대장 층별개요는 한 층에 용도별로 줄이 서서, 그대로 옮기니
+    # 「지하1층」이 세 번 나왔다(2026-09-09 화면 확인). 같은 층은 합쳐야 층의 추정이 된다
+    per: dict[str, list] = {}
+    for o in fl:
+        if o.get("rent_est") and o.get("floor"):
+            a = per.setdefault(o["floor"], [0, 0])
+            a[0] += o["rent_est"]
+            a[1] += o.get("deposit_est") or 0
     rows, rent_sum, dep_sum = [], 0, 0
-    for o in sorted(fl, key=lambda x: order(sfloor(x.get("floor")))):
-        m, dep = o.get("rent_est"), o.get("deposit_est")
-        if not m:
-            continue
+    for floor in sorted(per, key=lambda f: order(sfloor(f))):
+        m, dep = per[floor]
         rent_sum += m
-        dep_sum += dep or 0
-        rows.append({"층": o.get("floor"), "추정 월세": band(m, _man),
+        dep_sum += dep
+        rows.append({"층": floor, "추정 월세": band(m, _man),
                      "추정 보증금": band(dep, lambda x: won(x) or "")})
     if not rows:
         return {"kind": "estimate", "data": {"결과": "이 건물은 추정 대상이 아니다"},

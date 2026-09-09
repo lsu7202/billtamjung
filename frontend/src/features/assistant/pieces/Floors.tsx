@@ -86,7 +86,17 @@ export function Floors({ p }: { p: Record<string, any> }) {
             </div>
           );
         })}
-        {unknown.length > 0 && <div className="gd-fx">{unknown.join(" · ")}</div>}
+        {/* 층을 모르는 업체 — 건물 화면과 같은 어법으로 **층 자리에 「—」**, 오른쪽에 이름을 잇는다.
+            이름만 덩그러니 두면 그 줄이 층인지 업체인지 읽는 사람이 못 가른다(2026-09-09 화면 확인).
+            「층 미상」이라는 말은 쓰지 않는다 */}
+        {unknown.length > 0 && (
+          <div className="gd-fr">
+            <div className="f"><b>—</b></div>
+            <div className="u"><div className="gd-fu"><span className="n">
+              <b>{unknown.join(" · ")}</b>
+            </span></div></div>
+          </div>
+        )}
       </div>
     </Frame>
   );

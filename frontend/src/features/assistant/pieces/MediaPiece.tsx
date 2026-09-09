@@ -43,9 +43,12 @@ function useSrc(url?: string): { src: string | null; bad: boolean } {
 
 function One({ it, onDead }: { it: Item; onDead: () => void }) {
   const [bad, setBad] = useState(false);
+  // 그 자리에 로드뷰가 없다고 판이 알려 준 것. 「이 위치 로드뷰 없음」 회색 네모를 답 가운데
+  // 세우느니 조각을 뺀다(2026-09-09 화면 확인 — 삼성동 78 에서 그 네모가 600px 로 섰다)
+  const [noRV, setNoRV] = useState(false);
   const wantPhoto = it.kind !== "roadview" && !!it.url && !bad;
   const { src, bad: loadBad } = useSrc(wantPhoto ? it.url : undefined);
-  const rv = hasRV(it);
+  const rv = hasRV(it) && !noRV;
   const dead = !wantPhoto && !rv;
   useEffect(() => { if (dead) onDead(); }, [dead, onDead]);
   useEffect(() => { if (loadBad) setBad(true); }, [loadBad]);
@@ -55,7 +58,8 @@ function One({ it, onDead }: { it: Item; onDead: () => void }) {
       <div className="b">
         {wantPhoto
           ? (src && <img src={src} alt={it.caption ?? ""} onError={() => setBad(true)} />)
-          : <RoadviewMini lng={Number(it.lng)} lat={Number(it.lat)} className="rv" />}
+          : <RoadviewMini lng={Number(it.lng)} lat={Number(it.lat)} className="rv"
+                          onNone={(n) => n && setNoRV(true)} />}
       </div>
       {it.caption && <figcaption>{it.caption}</figcaption>}
     </figure>

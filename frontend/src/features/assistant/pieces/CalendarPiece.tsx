@@ -43,7 +43,7 @@ export function CalendarPiece({ p }: { p: Record<string, any> }) {
     <Frame title={p.title ?? `${y}년 ${m}월`} foot={p.foot}>
       {/* 넓은 자리 — 월 격자 */}
       <div className="gd-cal">
-        <div className="g">
+        <div className="mo">
           {WEEK.map((w, i) => <div className={`wd ${i >= 5 ? "we" : ""}`} key={w}>{w}</div>)}
           {cells.map((d, i) => {
             const key = d ? iso(d) : null;

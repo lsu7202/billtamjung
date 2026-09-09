@@ -3,8 +3,10 @@ import { loadNaver } from "./naver";
 
 /** 네이버 파노라마(로드뷰) 미니 뷰어. 사이드바 sel-card용. 좌표 최근접 파노라마 로드.
  * 커버리지 없으면 안내. specs 네이버지도-연동(로드뷰). */
-export function RoadviewMini({ lng, lat, className, onExpand }: {
+export function RoadviewMini({ lng, lat, className, onExpand, onNone }: {
   lng: number; lat: number; className?: string; onExpand?: () => void;
+  /** 이 자리에 로드뷰가 없다고 부르는 쪽에 알린다 — 회색 네모를 답 가운데 세우지 않으려고(2026-09-09) */
+  onNone?: (none: boolean) => void;
 }) {
   const divRef = useRef<HTMLDivElement>(null);
   const panoRef = useRef<any>(null);
@@ -34,12 +36,14 @@ export function RoadviewMini({ lng, lat, className, onExpand }: {
           position: pos, pov: { pan: 0, tilt: 0, fov: 100 },   // fov 100 = 네이버 최대 광각(가장 축소)
           flightSpot: false, aroundControl: false, zoomControl: false,
         });
-        naver.maps.Event.addListener(panoRef.current, "pano_status", (s: any) => setNone(String(s) !== "OK"));
+        naver.maps.Event.addListener(panoRef.current, "pano_status", (s: any) => {
+          const bad = String(s) !== "OK"; setNone(bad); onNone?.(bad);
+        });
         naver.maps.Event.addListener(panoRef.current, "pano_changed", orient);   // 로딩·위치변경 → 방위 보정
       } else {
         panoRef.current.setPosition(pos);   // 위치 변경 → pano_changed → orient(새 좌표키라 재보정)
       }
-    }).catch(() => setNone(true));
+    }).catch(() => { setNone(true); onNone?.(true); });
     return () => { dead = true; };
   }, [lng, lat]);
 
