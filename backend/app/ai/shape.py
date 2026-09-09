@@ -456,6 +456,119 @@ def trades(d: Any) -> dict:
             "grids": {}, "show": ""}
 
 
+# ── 우리 팀 것 ───────────────────────────────────────────────────────
+# 화면이 칸에 색을 칠하려고 쓰는 값들(s1_owner·cells·photo_kinds·passed…)이 그대로 모델에게
+# 갔다. /sales/sellers 는 한 줄에 마흔 칸, 열한 줄에 8,820토큰이었다 — 한 바퀴가 4천인데
+# 한 번이 두 바퀴 값이다. 그리고 모델은 받은 걸 다 쓸 만한 것으로 여겨 화면에 그리려 든다.
+# **안 주면 그릴 수가 없다**(2026-09-09 대표: 「우리 API 가 DB 를 통째로 준다」).
+
+_STAGE = {"owner": "소유자", "touch": "접촉", "intent": "의향", "info": "정보",
+          "asset": "물건", "match": "매칭", "buyer": "매수자", "open": "제안"}
+
+
+def sellers(d: Any) -> dict:
+    """매물 흐름 보드 — 화면은 칸마다 색을 칠하지만 모델은 「어디까지 갔나」만 알면 된다."""
+    rows = d if isinstance(d, list) else (d.get("items") or [])
+    out = [_drop_none({
+        "주소": short_addr(r.get("addr")), "매물번호": r.get("listing_no"),
+        "소유자": r.get("owner_name"), "단계": _STAGE.get(r.get("stage"), r.get("stage")),
+        "희망 시기": r.get("sell_vague"), "매도희망가": won(r.get("ask_price")),
+        "마지막": " · ".join(x for x in (r.get("last_on"), r.get("last_note")) if x) or None,
+        "멈춤": r.get("stop_reason"),
+    }) for r in rows[:30]]
+    head = ["주소", "매물번호", "소유자", "단계", "희망 시기", "매도희망가", "마지막"]
+    used = [h for h in head if any(x.get(h) for x in out)]
+    return {"kind": "sellers", "grade": "사실", "source": "우리 팀 매물", "note": None,
+            "data": {"매물": len(rows), "목록": out},
+            "grids": {"table": {"head": used, "rows": [[x.get(h) for h in used] for x in out]}},
+            "show": 'ui(name="table", props={"source": ID})'}
+
+
+def buyers(d: Any) -> dict:
+    """매수자 목록. 나이·성별·연락처는 안 준다 — 사람 정보는 화면에서 본다."""
+    rows = d if isinstance(d, list) else (d.get("items") or [])
+    out = [_drop_none({
+        "이름": r.get("name"), "갈래": "법인" if r.get("is_corp") else "개인",
+        "단계": _STAGE.get(r.get("b_stage"), r.get("b_stage")),
+        "상태": r.get("activity"), "급함": r.get("urgency"),
+        "자기자본": won(r.get("equity_won")), "담은 매물": r.get("active_proposals"),
+        "유입": r.get("source"),
+    }) for r in rows[:30]]
+    head = ["이름", "갈래", "단계", "상태", "급함", "자기자본", "담은 매물"]
+    used = [h for h in head if any(x.get(h) for x in out)]
+    return {"kind": "buyers", "grade": "사실", "source": "우리 팀 매수자", "note": None,
+            "data": {"매수자": len(rows), "목록": out},
+            "grids": {"table": {"head": used, "rows": [[x.get(h) for h in used] for x in out]}},
+            "show": 'ui(name="table", props={"source": ID})'}
+
+
+def today(d: dict) -> dict:
+    """오늘 할 일. 화면은 구획 아홉인데 모델은 「무엇이 밀렸고 무엇이 다가오나」만 안다."""
+    def sched(rows):
+        return [_drop_none({"날짜": r.get("on_date"), "시각": r.get("at_time"),
+                            "일": r.get("title"), "상태": r.get("state")}) for r in (rows or [])[:10]]
+    money = d.get("money") or {}
+    stats = d.get("stats") or {}
+    data = _drop_none({
+        "오늘": sched(d.get("today_sched")) or None,
+        "밀린 것": sched(d.get("overdue")) or None,
+        "다가오는 것": sched(d.get("upcoming")) or None,
+        "내 차례": [_drop_none({"주소": short_addr(r.get("addr")), "할 일": r.get("kind") or r.get("why")})
+                  for r in (d.get("my_turn") or [])[:10]] or None,
+        "실마리": [_drop_none({"주소": short_addr(r.get("addr")), "갈래": r.get("kind")})
+                 for r in (d.get("starters") or [])[:8]] or None,
+        "돈": _drop_none({"계약": won(money.get("contracted")), "협의 중": won(money.get("negotiating"))}) or None,
+        "수": _drop_none({"열린 제안": stats.get("open_props"), "매물": stats.get("active_sellers"),
+                        "매수자": stats.get("buyers"), "이번 주 접촉": stats.get("week_contacts")}) or None,
+    })
+    return {"kind": "today", "grade": "사실", "source": "우리 팀 오늘", "note": None,
+            "data": data, "grids": {}, "show": ""}
+
+
+def enums(d: Any) -> dict:
+    """enum 사전. 통째로 5,029토큰이었다 — **갈래 이름만** 준다.
+    값이 필요하면 codes(enum_key) 로 그 갈래만 집어 온다."""
+    got = d if isinstance(d, dict) else {}
+    return {"kind": "enums", "grade": "사실", "source": "우리 사전", "note": None,
+            "data": {"갈래": " · ".join(f"{k}({len(v)})" for k, v in sorted(got.items()))},
+            "grids": {}, "show": '값이 필요한 갈래는 codes(group="…") 로 집어 온다'}
+
+
+def fields(d: Any) -> dict:
+    """칸 사전. 이름·단위만 남긴다 — 화면 배치용 칸은 모델에게 쓸모없다."""
+    got = d if isinstance(d, dict) else {}
+    rows = [f"{v.get('label') or k}({k}{'·' + v['unit'] if v.get('unit') else ''})"
+            for k, v in sorted(got.items())]
+    return {"kind": "fields", "grade": "사실", "source": "칸 사전", "note": None,
+            "data": {"칸": " · ".join(rows)}, "grids": {}, "show": ""}
+
+
+def listing(d: Any) -> dict:
+    """우리 팀 매물 하나. 화면이 쓰는 칸 서른 중 다섯만 모델에게."""
+    g = d if isinstance(d, dict) else {}
+    return {"kind": "listing", "grade": "사실", "source": "우리 팀 매물", "note": None,
+            "data": _drop_none({"매물번호": g.get("listing_no"), "의향": g.get("intent"),
+                                "매도희망가": won(g.get("ask_price")), "거래금액": won(g.get("deal_price")),
+                                "희망 시기": g.get("sell_vague"), "접수": g.get("received_on"),
+                                "멈춤": g.get("stop_reason")}),
+            "grids": {}, "show": ""}
+
+
+def news_item(d: Any) -> dict:
+    """소식 하나. **본문이 있으면 그게 알맹이다** — 제목만 보고 지어내던 것을 막는다."""
+    it = (d or {}).get("item") or {}
+    body = (it.get("body") or "").strip()
+    return {"kind": "news_item", "grade": "사실",
+            "source": it.get("source") or "고시·인허가", "note": None,
+            "data": _drop_none({"갈래": it.get("kind"), "제목": it.get("name"),
+                                "일자": it.get("on_date") or it.get("on_year"),
+                                "고시번호": it.get("gosi_no"),
+                                "본문": body[:1200] or None,
+                                "본문 더": f"{len(body) - 1200}자 더" if len(body) > 1200 else None,
+                                "원문": it.get("source_url")}),
+            "grids": {}, "show": ""}
+
+
 SHAPERS: dict[tuple[str, str], Callable[..., dict]] = {
     ("GET", "/buildings/{building_pk}"): lambda d, body: building(d),
     ("GET", "/buildings/{building_pk}/parcels"): lambda d, body: parcels(d),
@@ -468,6 +581,15 @@ SHAPERS: dict[tuple[str, str], Callable[..., dict]] = {
     ("GET", "/buildings/{building_pk}/floor-rents"): lambda d, body: floor_rents(d),
     ("GET", "/search/suggest"): lambda d, body: suggest(d),
     ("GET", "/search/trades"): lambda d, body: trades(d),
+    ("GET", "/sales/sellers"): lambda d, body: sellers(d),
+    ("GET", "/buyers"): lambda d, body: buyers(d),
+    ("GET", "/sales/today"): lambda d, body: today(d),
+    # 나대지 상세는 건물 굽기와 같은 꼴이다(건물이 없는 필지일 뿐)
+    ("GET", "/buildings/parcels/{pnu}"): lambda d, body: building(d),
+    ("GET", "/enums"): lambda d, body: enums(d),
+    ("GET", "/fields"): lambda d, body: fields(d),
+    ("GET", "/listings/{building_pk}"): lambda d, body: listing(d),
+    ("GET", "/news/item"): lambda d, body: news_item(d),
     ("GET", "/sales/schedule"): lambda d, body: schedule(d),
     ("GET", "/buildings/{building_pk}/photos"): lambda d, body: photos(d),
     ("GET", "/listings"): lambda d, body: listings(d),
