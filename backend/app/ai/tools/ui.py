@@ -26,7 +26,19 @@ from typing import Any
 from . import Ctx, tool
 
 NAMES = ("kv", "stats", "table", "chart", "list")
-LIMIT = {"kv": 14, "stats": 6, "table": 20, "list": 20}
+# 상한. **source 로 채우는 값은 모델 토큰이 0 이라 이 수는 화면 길이만 정한다.**
+# 14 였을 때 건물 제원 20줄 중 15번째인 승강기가 잘렸고, 하필 사용자가 물은 게 승강기였다
+# (2026-09-09 대표). 잘린 건 아래에서 모델에게 말해 준다
+LIMIT = {"kv": 24, "stats": 6, "table": 20, "list": 20}
+
+
+def _rows_pick(rows: list, props: dict) -> list:
+    """`rows: [0, 3, 7]` 로 줄을 고른다. 「이 중에서 몇 개만」이 되는 자리 —
+    없으면 모델은 스무 줄을 통째로 다시 그리는 수밖에 없다(2026-09-09 대표)."""
+    want = props.get("rows")
+    if not isinstance(want, list) or not all(isinstance(i, int) for i in want):
+        return rows
+    return [rows[i] for i in want if 0 <= i < len(rows)] or rows
 
 
 def _from_store(ctx: Ctx, name: str, props: dict) -> dict | None:
@@ -47,6 +59,7 @@ def _from_store(ctx: Ctx, name: str, props: dict) -> dict | None:
         if pick:
             want = [p.strip() for p in pick]
             rows = [r for r in rows if r[0] in want]
+        data["_cut"] = max(0, len(rows) - LIMIT["kv"])
         data["rows"] = rows[:LIMIT["kv"]]
         data["cols"] = int(props.get("cols") or 2)
     elif name == "stats":
@@ -54,6 +67,7 @@ def _from_store(ctx: Ctx, name: str, props: dict) -> dict | None:
         pick = props.get("pick")
         if pick:
             items = [i for i in items if i.get("label") in pick]
+        data["_cut"] = max(0, len(items) - LIMIT["stats"])
         data["items"] = items[:LIMIT["stats"]]
     elif name == "table":
         head, rows = grid["head"], grid["rows"]
@@ -62,9 +76,15 @@ def _from_store(ctx: Ctx, name: str, props: dict) -> dict | None:
             idx = [head.index(c) for c in cols if c in head]
             head = [head[i] for i in idx]
             rows = [[r[i] for i in idx] for r in rows]
-        data["head"], data["rows"] = head, rows[: int(props.get("limit") or LIMIT["table"])]
+        rows = _rows_pick(rows, props)
+        cap = int(props.get("limit") or LIMIT["table"])
+        data["_cut"] = max(0, len(rows) - cap)
+        data["head"], data["rows"] = head, rows[:cap]
     elif name == "list":
-        data["items"] = grid[: int(props.get("limit") or LIMIT["list"])]
+        items = _rows_pick(grid, props)
+        cap = int(props.get("limit") or LIMIT["list"])
+        data["_cut"] = max(0, len(items) - cap)
+        data["items"] = items[:cap]
     elif name == "chart":
         data.update(grid)
         if props.get("kind") in ("line", "bar"):
@@ -119,8 +139,14 @@ def _from_model(name: str, props: dict) -> dict | None:
                                     '값을 직접: kv rows / stats items / table head+rows / list items / chart x+series'},
            "title": {"type": "string", "description": "부품 위 한 줄. 없어도 된다"}},
        "required": ["name"]})
-async def ui(ctx: Ctx, *, name: str, props: dict | None = None, title: str | None = None) -> dict:
-    props = props or {}
+async def ui(ctx: Ctx, *, name: str, props: dict | None = None, title: str | None = None,
+             **loose: Any) -> dict:
+    """인자를 너그럽게 받는다. 모델이 `{"name":"kv","source":"facts#1"}` 처럼 props 를 빼고
+    부르는 일이 잦았고(2026-09-09 하이쿠), 그때마다 TypeError 가 나서 한 바퀴를 버렸다.
+    **한 바퀴가 1만 토큰이라 되돌려 보내는 것보다 받아 주는 게 싸다.**"""
+    props = dict(props or {})
+    for k, v in loose.items():                # props 밖으로 흘린 인자를 주워 담는다
+        props.setdefault(k, v)
     if name not in NAMES:
         return {"error": f"{name} 은 없다. 되는 것: {', '.join(NAMES)}"}
     data = _from_store(ctx, name, props) if props.get("source") else _from_model(name, props)
@@ -132,4 +158,7 @@ async def ui(ctx: Ctx, *, name: str, props: dict | None = None, title: str | Non
         return {"error": f"{name} 에 그릴 값이 없다. 자료가 비었으면 부품 없이 answer 로 말한다"}
     if title:
         data["title"] = title.strip()[:60]
-    return {"_ui": {"name": name, "props": data}, "ok": True, "shown": name}
+    out = {"_ui": {"name": name, "props": data}, "ok": True, "shown": name}
+    if cut := data.pop("_cut", 0):
+        out["잘림"] = f"{cut}줄이 상한에 걸려 빠졌다. 필요한 줄만 pick 으로 고른다"
+    return out

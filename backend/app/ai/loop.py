@@ -192,8 +192,8 @@ def _summ(out: Any) -> str:
         if "error" in out:
             return f"오류 · {out['error']}"[:TOOL_SUMMARY]
         bits = []
-        if "count" in out:
-            bits.append(f"{out['count']}줄")
+        if (n := out.get("돌아온 줄", out.get("count"))) is not None:
+            bits.append(f"{n}줄")
         if out.get("truncated"):
             bits.append("더 있음")
         if "ms" in out:

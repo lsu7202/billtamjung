@@ -79,4 +79,4 @@ async def estimate(ctx: Ctx, *, building_pk: str, kind: str = "임대") -> dict:
         "path": f"/buildings/{building_pk} 임대추정"})
     return {"id": sid, "grade": "추정", "source": "빌탐정 임대추정 v4",
             "note": f"중앙오차 약 {RENT_MDAPE}%. 실제 계약과 다를 수 있다",
-            "data": data, "show": f'ui("table", {{"source": "{sid}"}})'}
+            "data": data, "show": f'ui(name="table", props={{"source": "{sid}"}})'}

@@ -50,7 +50,7 @@ CONFIGS = {
 # (질문, 갈래, 지켜야 할 것)  지켜야 할 것은 기계가 재는 술어 이름
 CASES = [
     ("성수동1가 14-53 어떤 건물이야",                          "사실",  ["clean", "no_tail", "no_internal", "units_ok"]),
-    ("성수동1가 200평 넘는 건물 몇 동이야? 제일 큰 셋만",        "SQL",   ["clean", "no_tail", "no_internal", "has_number"]),
+    ("성수동1가 200평 넘는 건물 몇 동이야? 제일 큰 셋만",        "SQL",   ["clean", "no_tail", "no_internal", "counts_all"]),
     ("성수동1가 14-53 이 주소에 호재 어떤거 있어",              "소식",  ["clean", "no_tail", "no_internal", "has_number"]),
     ("우리 팀 매물 몇 개고 어디어디야",                          "팀",    ["clean", "no_tail", "no_internal", "has_number"]),
     ("성수동 상권 요즘 분위기 기사 좀 찾아줘",                   "웹",    ["clean", "no_tail", "used_web"]),
@@ -72,6 +72,12 @@ def judge(pred: str, a: str, ev: dict) -> tuple[bool, str]:
     if pred == "no_tail":      ok = not TAIL.search(a.strip()[-80:]); return ok, "꼬리말" if not ok else ""
     if pred == "no_internal":  m = INTERNAL.search(a); return not m, f"내부이름 {m.group(0)}" if m else ""
     if pred == "has_number":   ok = bool(re.search(r"\d", a)); return ok, "숫자 없음" if not ok else ""
+    if pred == "counts_all":
+        # **끝까지 훑었나.** 참값 415동(2026-09-09 직접 셈). 모델이 LIMIT 10 을 스스로 붙여 놓고
+        # 돌아온 열 줄을 세어 「모두 10동」이라 답한 적이 있다. 숫자가 있는지만 보면 그게 통과한다
+        got = [int(x.replace(",", "")) for x in re.findall(r"([\d,]+)\s*동", a)]
+        ok = any(400 <= g <= 430 for g in got)
+        return ok, f"전체를 안 셌다({got or '수 없음'} · 참값 415)" if not ok else ""
     if pred == "used_web":     ok = ev["web"] > 0; return ok, "웹 안 씀" if not ok else ""
     if pred == "no_pct_point": ok = "%p" not in a; return ok, "%p" if not ok else ""
     if pred == "has_caveat":   ok = bool(re.search(r"추정.*(다를 수|실제)", a)); return ok, "추정 표시 없음" if not ok else ""

@@ -145,7 +145,10 @@ def building(d: dict) -> dict:
     return {"kind": "facts", "grade": "사실", "source": "건축물대장 · 토지이용계획",
             "note": None, "data": facts,
             "grids": {"kv": [[k, v] for k, v in facts.items()], "stats": stats},
-            "show": 'ui("kv", {"source": ID}) 또는 ui("stats", {"source": ID})'}
+            # 한 가지만 물었으면 그 줄만 세운다 — pick 을 예로 보인다(2026-09-09).
+            # 「승강기 정보」에 제원 열넷을 통째로 세우고 정작 승강기는 상한에 잘렸다
+            "show": 'ui(name="kv", props={"source": ID}) · 한 가지만 물으면 '
+                    'ui(name="kv", props={"source": ID, "pick": ["승강기", "주차"]})'}
 
 
 def parcels(d: dict) -> dict:
@@ -178,7 +181,7 @@ def parcels(d: dict) -> dict:
                           "series": [{"name": "공시지가", "data": [v for _, v in series]}]}
     return {"kind": "parcels", "grade": "사실", "source": "지적도 · 공시지가",
             "note": "법정 건폐·용적은 토지이음 산식", "data": data, "grids": grids,
-            "show": 'ui("table", {"source": ID}) · 추이는 ui("chart", {"source": ID})'}
+            "show": 'ui(name="table", props={"source": ID}) · 추이는 ui(name="chart", props={"source": ID})'}
 
 
 def _event_rows(items: list, limit: int) -> list[dict]:
@@ -194,16 +197,21 @@ def _event_rows(items: list, limit: int) -> list[dict]:
 def events(d: dict) -> dict:
     items = d.get("items") or []
     kinds = d.get("kinds") or {}
-    rows = _event_rows(items, 8)
+    # **요약과 격자를 같은 20건으로 맞추고 번호를 붙인다.** 요약엔 8건만 싣고 격자엔 20건을 두니
+    # 「이 중에서 골라 줘」를 받은 모델이 못 본 열둘을 고를 수가 없어 스무 건을 통째로 다시 그렸다
+    # (2026-09-09 대표). 번호가 있어야 rows 로 고른다
+    rows = _event_rows(items, 20)
     data = {"반경": f"{d.get('radius')}m" if d.get("radius") else None,
             "건수": sum(kinds.values()) if kinds else len(items),
-            "갈래": kinds, "최근": rows}
+            "갈래": kinds,
+            "목록": [{"#": i, **r} for i, r in enumerate(rows)]}
     return {"kind": "events", "grade": "사실", "source": "고시·인허가·보도자료",
             "note": None, "data": _drop_none(data),
             "grids": {"list": [{"tag": r.get("갈래"), "title": r.get("제목"),
                                 "sub": " · ".join(x for x in (r.get("거리"), r.get("일자")) if x)}
-                               for r in _event_rows(items, 20)]},
-            "show": 'ui("list", {"source": ID})'}
+                               for r in rows]},
+            "show": 'ui(name="list", props={"source": ID}) · 몇 개만 고르려면 '
+                    'props={"source": ID, "rows": [0, 3, 7]} 로 # 번호를 준다'}
 
 
 def news(d: dict) -> dict:
@@ -213,7 +221,7 @@ def news(d: dict) -> dict:
             "note": None, "data": {"건수": d.get("total") or len(items), "최근": rows},
             "grids": {"list": [{"tag": r.get("갈래"), "title": r.get("제목"), "sub": r.get("일자")}
                                for r in _event_rows(items, 20)]},
-            "show": 'ui("list", {"source": ID})'}
+            "show": 'ui(name="list", props={"source": ID})'}
 
 
 def sales(d: dict) -> dict:
@@ -240,7 +248,7 @@ def sales(d: dict) -> dict:
     return {"kind": "sales", "grade": "사실", "source": "국토교통부 실거래",
             "note": None, "data": data,
             "grids": {"table": {"head": head, "rows": table_rows}, "chart": bar},
-            "show": 'ui("table", {"source": ID}) · 견주려면 ui("chart", {"source": ID})'}
+            "show": 'ui(name="table", props={"source": ID}) · 견주려면 ui(name="chart", props={"source": ID})'}
 
 
 def pop(d: dict) -> dict:
@@ -254,7 +262,7 @@ def pop(d: dict) -> dict:
                           "note": f"{round(d['peak']):,}명" if d.get("peak") else None}] if x["value"] is not None]
     return {"kind": "pop", "grade": "참조", "source": "서울시 생활인구",
             "note": "실제 유동은 현장에서 확인", "data": data,
-            "grids": {"stats": stats}, "show": 'ui("stats", {"source": ID})'}
+            "grids": {"stats": stats}, "show": 'ui(name="stats", props={"source": ID})'}
 
 
 def tenants(d: dict) -> dict:
@@ -266,7 +274,7 @@ def tenants(d: dict) -> dict:
             "data": {"업체": len(items), "층 아는 것": known, "목록": rows},
             "grids": {"list": [{"tag": r.get("층") or "층 모름", "title": r.get("이름"), "sub": r.get("업종")}
                                for r in rows]},
-            "show": 'ui("list", {"source": ID})'}
+            "show": 'ui(name="list", props={"source": ID})'}
 
 
 def floor_rents(d: dict) -> dict:
@@ -304,14 +312,14 @@ def floor_rents(d: dict) -> dict:
             "note": "금액은 팀이 적은 것만. 비어 있으면 아직 안 적은 층",
             "data": data,
             "grids": {"table": {"head": used, "rows": [[r.get(h) for h in used] for r in out]}},
-            "show": 'ui("table", {"source": ID})'}
+            "show": 'ui(name="table", props={"source": ID})'}
 
 def listings(d: Any) -> dict:
     rows = [_drop_none({"주소": short_addr(x.get("addr"))}) for x in (d if isinstance(d, list) else [])[:30]]
     return {"kind": "listings", "grade": "사실", "source": "우리 팀 매물",
             "note": None, "data": {"건수": len(rows), "목록": rows},
             "grids": {"list": [{"title": r.get("주소")} for r in rows]},
-            "show": 'ui("list", {"source": ID})'}
+            "show": 'ui(name="list", props={"source": ID})'}
 
 
 def search(d: dict, body: dict | None) -> dict:

@@ -182,12 +182,12 @@ async def query(ctx: Ctx, *, sql: str, purpose: str) -> dict:
     s = sql.strip().rstrip(";")
     head = (_FIRST.match(s) or [None, ""])[1].upper() if _FIRST.match(s) else ""
     if head not in ("SELECT", "WITH"):
-        return {"error": "SELECT 만 된다. 쓰기는 API 로 한다.", "rows": [], "count": 0}
+        return {"error": "SELECT 만 된다. 쓰기는 API 로 한다.", "rows": [], "돌아온 줄": 0}
     if ";" in s:
-        return {"error": "문장은 하나만.", "rows": [], "count": 0}
+        return {"error": "문장은 하나만.", "rows": [], "돌아온 줄": 0}
     if _GEN.search(s):
         return {"error": "세대 표 이름을 직접 쓰지 말고 뷰를 본다. buildings_v9 → master.buildings",
-                "rows": [], "count": 0}
+                "rows": [], "돌아온 줄": 0}
 
     p = await ai_db.pool()
     t0 = time.monotonic()
@@ -197,18 +197,25 @@ async def query(ctx: Ctx, *, sql: str, purpose: str) -> dict:
                 recs = await c.fetch(f"SELECT * FROM ({s}) _q LIMIT {CAP + 1}")
     except asyncpg.QueryCanceledError:
         return {"error": "10초를 넘겼다. 인덱스가 있는 칸(describe 의 indexed)으로 먼저 거르거나 범위를 좁힌다.",
-                "rows": [], "count": 0}
+                "rows": [], "돌아온 줄": 0}
     except asyncpg.InsufficientPrivilegeError as e:
-        return {"error": f"권한이 없다: {e}", "rows": [], "count": 0}
+        return {"error": f"권한이 없다: {e}", "rows": [], "돌아온 줄": 0}
     except asyncpg.PostgresError as e:
-        return {"error": f"{e.__class__.__name__}: {e}", "rows": [], "count": 0}
+        return {"error": f"{e.__class__.__name__}: {e}", "rows": [], "돌아온 줄": 0}
     ms = int((time.monotonic() - t0) * 1000)
 
     rows = scrub_obj(_rows(recs))
     more = len(rows) > CAP
     rows = rows[:CAP]
-    out: dict[str, Any] = {"count": len(rows), "truncated": more, "ms": ms,
+    # **`count` 를 「전체 개수」로 읽던 사고**(2026-09-09). 모델이 `LIMIT 10` 을 스스로 붙여 놓고
+    # 돌아온 10줄을 세어 「성수동1가에 200평 넘는 건물은 모두 10동」이라고 답했다(참값 415).
+    # 이름을 「돌아온 줄」로 바꾸고, 자기가 건 상한에 딱 걸리면 그렇다고 말해 준다
+    out: dict[str, Any] = {"돌아온 줄": len(rows), "truncated": more, "ms": ms,
                            "rows": rows[:HEAD], "source": "master (bt_ai)"}
+    m = re.search(r"\blimit\s+(\d+)\s*;?\s*$", s, re.I)
+    if m and len(rows) == int(m.group(1)):
+        out["상한"] = (f"직접 건 LIMIT {m.group(1)} 에 딱 찼다. 이 수는 전체 개수가 아니다 — "
+                     "몇 개인지 물었으면 count(*) 로 따로 센다")
     if len(rows) > HEAD:
         rid = await app_pool().fetchval(
             """INSERT INTO app.ai_result(chat_id, sql, purpose, n, rows)
@@ -233,7 +240,7 @@ async def result_page(ctx: Ctx, *, result_id: int, offset: int = HEAD, limit: in
     row = await app_pool().fetchrow(
         "SELECT n, rows FROM app.ai_result WHERE id=$1 AND chat_id=$2", result_id, ctx.chat_id)
     if not row:
-        return {"error": "그런 결과가 없다", "rows": [], "count": 0}
+        return {"error": "그런 결과가 없다", "rows": [], "돌아온 줄": 0}
     rows = json.loads(row["rows"])
-    return {"result_id": result_id, "count": row["n"], "offset": offset,
+    return {"result_id": result_id, "돌아온 줄": row["n"], "offset": offset,
             "rows": rows[offset:offset + limit], "source": "master (bt_ai)"}
