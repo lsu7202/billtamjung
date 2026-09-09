@@ -4,7 +4,7 @@ specs S01 §3.1a(자동완성)·§3.4(3열·열별 페이징)·§3.5(표시값)�
 import asyncio
 import json
 import re
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 from ..core.db import pool
 from ..core.hangul import from_qwerty, looks_latin
@@ -458,6 +458,11 @@ def _filter_sql(f: Filters, args: list) -> tuple[str, str]:
     if f.building_pk:
         add(m, "b.building_pk = ${i}", f.building_pk)
     if f.bjd_code:
+        # **엉터리 코드는 0건이 아니라 오류다.** 「11-00-06-00-13」처럼 지어낸 코드에 빈 결과를
+        # 돌려주니 모델이 「그런 건물이 없다」고 답했다(2026-09-09 개발서버). 조용한 0 은 거짓말이다
+        if not f.bjd_code.isdigit() or len(f.bjd_code) > 10:
+            raise HTTPException(400, "bjd_code 는 숫자 10자리다(구=5자리). "
+                                     "동 이름으로 찾으려면 /search/suggest 를 먼저 부른다")
         add(m, "b.bjd_code LIKE ${i} || '%'", f.bjd_code)
     anyof(m, "b.use_zone", f.use_zones)
     anyof(m, "b.jimok", f.jimoks)

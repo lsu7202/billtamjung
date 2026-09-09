@@ -11,12 +11,13 @@ CONN=$(gcloud sql instances describe "$DB_INSTANCE" --project="$PROJECT" --forma
 cd "$(dirname "$0")/../../backend"
 gcloud auth configure-docker "$REGION-docker.pkg.dev" -q
 docker build --platform linux/amd64 -t "$IMG" . && docker push "$IMG"
+# AI 어시스턴트 두 줄(2026-09-09). 키는 **서버에만** 산다 — 프런트로 안 간다.
+# bt_ai 는 읽기전용·master/ref 만 보는 롤이다(0167) — 사용자 DB 줄과 따로 둔다.
+# **주석을 `\` 줄 이음 안에 두지 않는다** — 백슬래시가 끊겨 그 줄이 딴 명령이 됐다.
 gcloud run deploy bt-api-dev --project="$PROJECT" --region="$REGION" \
   --image="$IMG" --allow-unauthenticated \
   --add-cloudsql-instances="$CONN" \
   --min-instances=0 --max-instances=1 --memory=512Mi \
-  # AI 어시스턴트 두 줄(2026-09-09). 키는 **서버에만** 산다 — 프런트로 안 간다.
-  # bt_ai 는 읽기전용·master/ref 만 보는 롤이다(0167) — 사용자 DB 줄과 따로 둔다
   --set-secrets=BT_DATABASE_URL=bt-db-url-dev:latest,BT_ANTHROPIC_API_KEY=bt-anthropic-key:latest,BT_AI_DATABASE_URL=bt-ai-db-url-dev:latest \
   --update-env-vars="^##^BT_SIGNUPS_OPEN=true##BT_LOGIN_ALLOW=${LOGIN_ALLOW}"
 API_DEV=$(gcloud run services describe bt-api-dev --project="$PROJECT" --region="$REGION" --format='value(status.url)')
