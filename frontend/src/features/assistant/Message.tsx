@@ -39,16 +39,8 @@ export function Pieces({ pieces, onPick, live }: {
           const make = PIECES[p.name];
           return make ? <div className="as-piece" key={i}>{make(p.props ?? {})}</div> : null;
         }
-        if (p.t === "next") {
-          // 「다음에 뭘 할까」는 문장이 아니라 칩이다(§13). 답 끝에 두셋
-          return (
-            <div className="as-next" key={i}>
-              {p.options.map((o) => (
-                <button key={o} className="chip" disabled={!onPick} onClick={() => onPick?.(o)}>{o}</button>
-              ))}
-            </div>
-          );
-        }
+        // 「다음 걸음」 칩은 뺐다(2026-09-09 대표). 옛 대화에 남은 조각은 그냥 지나간다
+        if (p.t === "next") return null;
         if (p.t === "ask") {
           return (
             <div className="as-ask" key={i}>

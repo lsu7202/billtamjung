@@ -125,6 +125,10 @@ async def ui(ctx: Ctx, *, name: str, props: dict | None = None, title: str | Non
     data = _from_store(ctx, name, props) if props.get("source") else _from_model(name, props)
     if data is None or "error" in data:
         return data or {"error": "인자가 비었다"}
+    # **빈 그릇은 세우지 않는다.** 줄 0 짜리 표는 화면에 빈 테두리만 남기고,
+    # 모델은 「보여 드렸다」고 여겨 답에서 그 사실을 안 짚는다(2026-09-09 대화 #124)
+    if not (data.get("rows") or data.get("items") or data.get("series")):
+        return {"error": f"{name} 에 그릴 값이 없다. 자료가 비었으면 부품 없이 answer 로 말한다"}
     if title:
         data["title"] = title.strip()[:60]
     return {"_ui": {"name": name, "props": data}, "ok": True, "shown": name}

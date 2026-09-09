@@ -309,6 +309,8 @@ async def call_api(ctx: Ctx, *, method: str, path: str,
         from ..floors import compose
         slim = await compose(ctx.token, _match(hit["path"], path)["building_pk"],
                              slim if isinstance(slim, dict) else {})
+        if isinstance(slim, dict) and slim.get("_error"):
+            return {"error": slim["_error"], "path": path}
 
     from ..shape import SHAPERS
     shaper = SHAPERS.get((method, hit["path"]))

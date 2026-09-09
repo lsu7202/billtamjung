@@ -73,8 +73,14 @@ async def compose(token: str, pk: str, rents: dict) -> dict:
 
     outline = await get(f"/buildings/{pk}/floor-outline") or []
     ten = ((await get(f"/buildings/{pk}/tenants")) or {}).get("items") or []
-
     items = rents.get("items") or []
+
+    # **없는 건물과 빈 건물을 가른다.** 이 세 길은 모르는 pk 에도 200 과 빈 목록을 준다.
+    # 모델이 pk 를 지어내면(2026-09-09 하이쿠, 대화 #124) 그게 「아직 안 적은 건물」로 보였고,
+    # 모델은 층 넷에 업체가 있는 건물을 두고 「임대 정보가 없습니다」라고 자신 있게 답했다.
+    if not (items or outline or ten) and await get(f"/buildings/{pk}") is None:
+        return {"_error": f"{pk} 는 없는 건물이다. /search/suggest 로 pk 를 먼저 확정한다"}
+
     team_floors = {sfloor(i.get("floor")) for i in items if i.get("floor")}
     biz = {nname(t.get("name")): t.get("biz") for t in ten if t.get("name")}
 

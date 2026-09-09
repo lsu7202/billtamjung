@@ -307,10 +307,6 @@ async def run(ctx: Ctx, system: str, history: list[dict], emit: Emit,
                 piece = {"t": "text", "v": ans["text"], "confidence": ans["confidence"]}
                 res.pieces.append(piece)
                 await _emit({"t": "text", **{k: v for k, v in piece.items() if k != "t"}})
-                if ans.get("next"):
-                    nxt = {"t": "next", "options": ans["next"]}
-                    res.pieces.append(nxt)
-                    await _emit(nxt)
                 res.answered = True
                 res.stop = "end_turn"
                 return res                               # answer 가 마지막이다
