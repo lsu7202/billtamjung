@@ -35,6 +35,7 @@ from app.ai.prompt import limits, system  # noqa: E402
 from app.ai.scrub import scrub         # noqa: E402
 from app.ai.tools import brief, load_all  # noqa: E402
 from app.ai.tools.api import endpoints_brief  # noqa: E402
+from app.ai.tools.query import tables_brief  # noqa: E402
 from app.core import db, security      # noqa: E402
 from app.core.config import settings   # noqa: E402
 
@@ -128,7 +129,7 @@ async def one(cfg: str, q: str) -> dict:
         if e.get("t") == "ui": ev["ui"].append(e.get("name"))
         if e.get("t") == "next": ev["next"] += 1
 
-    sys_text = system(tools=brief() + "\n\n" + endpoints_brief(), limits=await limits())
+    sys_text = system(tables=await tables_brief(), tools=brief() + "\n\n" + endpoints_brief(), limits=await limits())
     t0 = time.perf_counter()
     err = None
     try:

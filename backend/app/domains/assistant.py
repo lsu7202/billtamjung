@@ -42,6 +42,7 @@ from pydantic import BaseModel, Field
 
 from ..ai import client as ai
 from ..ai import loop
+from ..ai.tools.query import tables_brief
 from ..ai.prompt import limits, system
 from ..ai.scrub import scrub
 from ..ai.tools import Ctx, brief, load_all
@@ -200,7 +201,7 @@ async def send(chat_id: int, body: SendIn, req: Request,
                     raise ai.AiUnavailable(ai.NOT_CONFIGURED)
                 load_all()
                 # 길 다섯을 지시문에 직접 싣는다. 첫 실측에서 매 대화 list·describe 두 바퀴에 3만 토큰이 들었다
-                sys_text = system(tools=brief() + "\n\n" + endpoints_brief(),
+                sys_text = system(tables=await tables_brief(), tools=brief() + "\n\n" + endpoints_brief(),
                                   limits=await limits(), skills=skill_brief())
                 res = await loop.run(ctx, sys_text, msgs, emit, effort=settings.ai_effort or None)
             except (ai.AiUnavailable, anthropic.APIError, anthropic.APIConnectionError) as e:

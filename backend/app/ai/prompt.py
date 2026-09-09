@@ -19,10 +19,11 @@ pk 라고 주지 않으면 되는 거잖아.」
     어법·규칙   400
     도구 요약   300      숨긴 것(list_endpoints)은 빠진다
     길 목록     600
+    표 지도   1,000      2026-09-09 추가. 탐색 바퀴 넷(4만 토큰)을 없앤다
     스킬 목록    20
     한계        60
     ───────────────
-    기본      1,380      캐시가 붙는다
+    기본      2,380      캐시가 받아 두 번째 바퀴부터 10분의 1
 """
 from __future__ import annotations
 
@@ -59,7 +60,7 @@ VOICE = """당신은 빌탐정의 조수입니다. 빌탐정은 서울 상업용
 
 def system(**parts: str) -> str:
     """어법 + 단계별 조각. 빈 조각은 빠진다."""
-    order = ("limits", "memory", "tools", "skills")
+    order = ("limits", "memory", "tables", "tools", "skills")
     tail = [parts[k].strip() for k in order if parts.get(k, "").strip()]
     return "\n\n".join([VOICE, *tail])
 

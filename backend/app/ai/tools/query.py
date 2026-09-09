@@ -30,7 +30,7 @@ import asyncpg
 from ...core.db import pool as app_pool
 from .. import db as ai_db
 from ..scrub import scrub_obj
-from . import Ctx, tool
+from . import REGISTRY, Ctx, tool
 
 HEAD = 5          # 모델에게 바로 보이는 줄
 CAP = 200         # 결과 상한. 넘으면 자르고 「더 있다」를 값으로
@@ -56,6 +56,38 @@ def _rows(records) -> list[dict]:
 
 
 # ── list_tables ─────────────────────────────────────────────────────
+_TABLES: str | None = None
+
+
+async def tables_brief() -> str:
+    """표 지도 — 지시문에 늘 실린다. DB 의 표 설명(0169)에서 만든다.
+
+    **왜 지시문에 싣나.** 없을 때 모델은 「성수동2가 병원 건물」 한 물음에 바퀴를 일곱 돌았다
+    (2026-09-09). 첫 SQL 은 없는 칸 이름을 지어냈고, list_tables → describe → codes → skill 을
+    차례로 부르며 더듬었다. **한 바퀴가 1만 토큰이다.** 지도는 1,000 토큰쯤이고 캐시가 받아
+    10분의 1로 돈다. 넷을 아끼고 하나를 낸다.
+
+    **왜 손으로 안 적나.** 표가 바뀌면 지시문이 따로 논다. DB 에 두면 표를 옮기는 사람이
+    설명도 같이 옮긴다(칸 설명 0167·0168 과 같은 자리).
+    """
+    global _TABLES
+    if _TABLES is not None:
+        return _TABLES
+    p = await ai_db.pool()
+    rows = await p.fetch(
+        """SELECT n.nspname || '.' || c.relname AS name, obj_description(c.oid) AS note
+             FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname IN ('master', 'ref') AND c.relkind IN ('r', 'm', 'v')
+              AND has_table_privilege(c.oid, 'SELECT') AND obj_description(c.oid) IS NOT NULL
+            ORDER BY 1""")
+    if not rows:
+        return ""
+    _TABLES = ("## 우리 표 (query 로 읽는다 · SELECT 만)\n"
+               + "\n".join(f"- {r['name']}  {r['note']}" for r in rows)
+               + "\n\n칸이 더 궁금하면 describe. 없는 표는 없다 — 여기 없으면 API 나 웹으로 간다.")
+    return _TABLES
+
+
 @tool("list_tables",
       "읽을 수 있는 표 목록과 한 줄 설명. SQL 을 짜기 전에 먼저 본다.",
       {"type": "object", "properties": {}, "required": []})
@@ -244,3 +276,7 @@ async def result_page(ctx: Ctx, *, result_id: int, offset: int = HEAD, limit: in
     rows = json.loads(row["rows"])
     return {"result_id": result_id, "돌아온 줄": row["n"], "offset": offset,
             "rows": rows[offset:offset + limit], "source": "master (bt_ai)"}
+
+
+# 표 지도는 지시문에 이미 실린다. 모델이 습관처럼 부르던 바퀴를 없앤다(길 목록과 같은 수)
+REGISTRY["list_tables"].hidden = True
