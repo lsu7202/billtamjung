@@ -69,7 +69,9 @@ def _from_store(ctx: Ctx, name: str, props: dict) -> dict | None:
         data.update(grid)
         if props.get("kind") in ("line", "bar"):
             data["kind"] = props["kind"]
-    data["foot"] = {"grade": ent.get("grade"), "source": ent.get("source"), "note": ent.get("note")}
+    # 발에는 **등급과 출처만.** note(「비어 있으면 아직 안 적은 층」류)는 조건·요약이라
+    # 화면에 붙이지 않는다(CLAUDE.md 설명글씨 금지 · 2026-09-09 대표). 모델은 도구 결과에서 계속 읽는다
+    data["foot"] = {"grade": ent.get("grade"), "source": ent.get("source")}
     return data
 
 
@@ -101,8 +103,7 @@ def _from_model(name: str, props: dict) -> dict | None:
             return {"error": 'chart 는 kind: "line"|"bar", x: […], series: [{"name","data":[…]}] 다'}
         data.update({k: props[k] for k in ("kind", "x", "series", "unit", "mark") if k in props})
         data.setdefault("kind", "line")
-    data["foot"] = {"grade": props.get("grade") or "모델", "source": props.get("source_note") or "대화 · 웹",
-                    "note": None}
+    data["foot"] = {"grade": props.get("grade") or "모델", "source": props.get("source_note") or "대화 · 웹"}
     return data
 
 

@@ -11,7 +11,8 @@ import React from "react";
 
 import "./grids.css";
 
-type Foot = { grade?: string; source?: string; note?: string | null };
+// 발엔 등급과 출처만. 조건·요약(note)은 붙이지 않는다 — 설명글씨 금지(2026-09-09 대표)
+type Foot = { grade?: string; source?: string };
 
 function Frame({ title, foot, children }: { title?: string; foot?: Foot; children: React.ReactNode }) {
   return (
@@ -21,7 +22,7 @@ function Frame({ title, foot, children }: { title?: string; foot?: Foot; childre
       {foot?.source && (
         <div className="gd-f">
           {foot.grade && <span className={`gd-g ${foot.grade === "참조" ? "r" : ""}`}>{foot.grade}</span>}
-          <span>{foot.source}{foot.note ? ` · ${foot.note}` : ""}</span>
+          <span>{foot.source}</span>
         </div>
       )}
     </div>

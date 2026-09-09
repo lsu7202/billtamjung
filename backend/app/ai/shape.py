@@ -176,7 +176,7 @@ def parcels(d: dict) -> dict:
         data["공시지가 추이"] = f"{first[0]} {first[1]:,} → {last[0]} {last[1]:,}만원/㎡ ({last[1] / first[1]:.1f}배)"
         grids["chart"] = {"kind": "line", "unit": "만원/㎡", "x": [y for y, _ in series],
                           "series": [{"name": "공시지가", "data": [v for _, v in series]}]}
-    return {"kind": "parcels", "grade": "사실", "source": "지적도 · 토지이용계획 · 개별공시지가",
+    return {"kind": "parcels", "grade": "사실", "source": "지적도 · 공시지가",
             "note": "법정 건폐·용적은 토지이음 산식", "data": data, "grids": grids,
             "show": 'ui("table", {"source": ID}) · 추이는 ui("chart", {"source": ID})'}
 
@@ -198,7 +198,7 @@ def events(d: dict) -> dict:
     data = {"반경": f"{d.get('radius')}m" if d.get("radius") else None,
             "건수": sum(kinds.values()) if kinds else len(items),
             "갈래": kinds, "최근": rows}
-    return {"kind": "events", "grade": "사실", "source": "서울시 고시·공고 · 인허가 · 보도자료 · 나라장터",
+    return {"kind": "events", "grade": "사실", "source": "고시·인허가·보도자료",
             "note": None, "data": _drop_none(data),
             "grids": {"list": [{"tag": r.get("갈래"), "title": r.get("제목"),
                                 "sub": " · ".join(x for x in (r.get("거리"), r.get("일자")) if x)}
@@ -209,7 +209,7 @@ def events(d: dict) -> dict:
 def news(d: dict) -> dict:
     items = d.get("items") or []
     rows = _event_rows(items, 8)
-    return {"kind": "news", "grade": "사실", "source": "서울시 고시·공고 · 인허가 · 보도자료",
+    return {"kind": "news", "grade": "사실", "source": "고시·인허가·보도자료",
             "note": None, "data": {"건수": d.get("total") or len(items), "최근": rows},
             "grids": {"list": [{"tag": r.get("갈래"), "title": r.get("제목"), "sub": r.get("일자")}
                                for r in _event_rows(items, 20)]},
@@ -252,7 +252,7 @@ def pop(d: dict) -> dict:
                          {"label": "밤", "value": round(d["night"]) if d.get("night") else None, "unit": "명"},
                          {"label": "피크", "value": d.get("peak_hour"), "unit": "시",
                           "note": f"{round(d['peak']):,}명" if d.get("peak") else None}] if x["value"] is not None]
-    return {"kind": "pop", "grade": "참조", "source": "서울시 생활인구(KT 통신량 추정)",
+    return {"kind": "pop", "grade": "참조", "source": "서울시 생활인구",
             "note": "실제 유동은 현장에서 확인", "data": data,
             "grids": {"stats": stats}, "show": 'ui("stats", {"source": ID})'}
 
@@ -261,7 +261,7 @@ def tenants(d: dict) -> dict:
     items = d.get("items") or []
     rows = [_drop_none({"이름": t.get("name"), "층": t.get("floor"), "업종": t.get("biz")}) for t in items[:12]]
     known = sum(1 for t in items if t.get("floor"))
-    return {"kind": "tenants", "grade": "참조", "source": "인허가 · 상가정보 원장",
+    return {"kind": "tenants", "grade": "참조", "source": "업체 원장",
             "note": "층은 원장에 있는 것만(68~80%). 폐업 반영이 늦을 수 있다",
             "data": {"업체": len(items), "층 아는 것": known, "목록": rows},
             "grids": {"list": [{"tag": r.get("층") or "층 모름", "title": r.get("이름"), "sub": r.get("업종")}
@@ -300,7 +300,7 @@ def floor_rents(d: dict) -> dict:
     head = ["층", "호", "상호", "업종", "면적", "보증금", "월세", "공실"]
     used = [h for h in head if any(r.get(h) for r in out)]
     return {"kind": "floors", "grade": "사실",
-            "source": "층별임대정보 · 팀 입력 + 업체 원장(인허가·상가정보)",
+            "source": "팀 입력 · 업체 원장",
             "note": "금액은 팀이 적은 것만. 비어 있으면 아직 안 적은 층",
             "data": data,
             "grids": {"table": {"head": used, "rows": [[r.get(h) for h in used] for r in out]}},
