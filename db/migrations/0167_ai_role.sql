@@ -42,30 +42,69 @@ GRANT USAGE ON SCHEMA master, ref TO bt_ai;
 -- app 스키마는 USAGE 자체를 안 준다. 개인정보는 SQL 로 영영 못 닿는다.
 
 -- ── 사실 ─────────────────────────────────────────────────────────────
-GRANT SELECT ON
-  -- 건물 · 필지 (뷰)
-  master.buildings, master.parcels, master.building_parcels,
-  master.building_ledger_raw, master.building_legal,
-  master.ledger_basic, master.building_zone, master.building_closed, master.building_complex,
-  master.building_energy, master.building_septic, master.building_unit,
-  -- 정비 · 지구단위
-  master.building_district_plan, master.district_plan, master.redevel_zone, master.building_redevel,
-  master.building_permit, master.building_road, master.building_pop,
-  -- 지가 · 거래
-  master.gongsi_series, master.land_adjust,
-  master.sales_history, master.sales_agg, master.apt_price,
-  -- 소식
-  master.area_event, master.press_event, master.urban_notice, master.g2b_bid, master.city_facility,
-  -- 업체 · 상권
-  master.localdata_permit, master.sbiz_store,
-  master.sanggwon, master.sanggwon_rent_series, master.trade_area,
-  -- 교통 · 인구 · 도로
-  master.subway_stations, master.road_segment, master.living_pop,
-  -- 층 · 검색 보조
-  master.floor_outline, master.region_index, master.vacant_parcels
-TO bt_ai;
+-- **없는 표는 건너뛴다.** 개발 DB 는 master 판이 옛것이라 업체·소식 표가 아직 없다.
+-- 하나가 없다고 GRANT 전체가 멈추면 롤이 반만 열린 채로 남는다(2026-09-09).
+-- 자료가 들어오는 날 이 마이그레이션을 다시 돌리면 나머지도 열린다.
+DO $$
+DECLARE t text; missing text[] := '{}';
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'master.buildings',
+    'master.parcels',
+    'master.building_parcels',
+    'master.building_ledger_raw',
+    'master.building_legal',
+    'master.ledger_basic',
+    'master.building_zone',
+    'master.building_closed',
+    'master.building_complex',
+    'master.building_energy',
+    'master.building_septic',
+    'master.building_unit',
+    'master.building_district_plan',
+    'master.district_plan',
+    'master.redevel_zone',
+    'master.building_redevel',
+    'master.building_permit',
+    'master.building_road',
+    'master.building_pop',
+    'master.gongsi_series',
+    'master.land_adjust',
+    'master.sales_history',
+    'master.sales_agg',
+    'master.apt_price',
+    'master.area_event',
+    'master.press_event',
+    'master.urban_notice',
+    'master.g2b_bid',
+    'master.city_facility',
+    'master.localdata_permit',
+    'master.sbiz_store',
+    'master.sanggwon',
+    'master.sanggwon_rent_series',
+    'master.trade_area',
+    'master.subway_stations',
+    'master.road_segment',
+    'master.living_pop',
+    'master.floor_outline',
+    'master.region_index',
+    'master.vacant_parcels'
+  ] LOOP
+    IF to_regclass(t) IS NULL THEN missing := missing || t; CONTINUE; END IF;
+    EXECUTE format('GRANT SELECT ON %s TO bt_ai', t);
+  END LOOP;
+  IF array_length(missing, 1) > 0 THEN
+    RAISE NOTICE '이 판에 없어 건너뛴 표 %개: %', array_length(missing, 1), array_to_string(missing, ', ');
+  END IF;
+END $$;
 
-GRANT SELECT ON ref.biz_category, ref.enums, ref.enum_groups, ref.fields, ref.error_msg TO bt_ai;
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['ref.biz_category', 'ref.enums', 'ref.enum_groups', 'ref.fields', 'ref.error_msg'] LOOP
+    IF to_regclass(t) IS NOT NULL THEN EXECUTE format('GRANT SELECT ON %s TO bt_ai', t); END IF;
+  END LOOP;
+END $$;
 
 -- ── 닫힌 것 ──────────────────────────────────────────────────────────
 -- 아래는 GRANT 목록에 없으니 이미 닫혀 있다. 그래도 이름을 적어 두는 것은

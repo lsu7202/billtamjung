@@ -425,6 +425,20 @@ async def parcel_for_building(building_pk: str, _: CurrentUser = Depends(current
     return {"polygon": json.loads(gj) if gj else None}
 
 
+# 업체 원장이 이 판에 있나. 뜰 때 한 번 보고 기억한다 — 표는 도는 중에 생기지 않는다.
+# None = 아직 안 봤다(있다고 치고 간다. 운영엔 있다)
+_HAS_PERMIT: bool | None = None
+
+
+async def check_permit() -> None:
+    """main 의 lifespan 이 부른다."""
+    global _HAS_PERMIT
+    try:
+        _HAS_PERMIT = await pool().fetchval("SELECT to_regclass('master.localdata_permit') IS NOT NULL")
+    except Exception:  # noqa: BLE001 — 못 봤으면 있다고 친다
+        _HAS_PERMIT = None
+
+
 def _filter_sql(f: Filters, args: list) -> tuple[str, str]:
     """속성 필터 → (마스터 WHERE절, 외부 WHERE절). 마스터=classified 내부(b.·조인) / 외부=classified 계산값 필터.
     반환 두 절 모두 앞에 ' AND '가 붙어 바로 이어붙이기 가능(빈 문자열이면 없음)."""
@@ -454,7 +468,9 @@ def _filter_sql(f: Filters, args: list) -> tuple[str, str]:
     anyof(m, "b.main_use_name", f.main_uses)   # UI=주용도명 · DB main_use_name과 직접 일치(코드매핑 불필요)
     if f.etc_use:
         add(m, "b.etc_use ILIKE '%' || ${i} || '%'", f.etc_use)
-    if f.biz:
+    # 업체 표가 아직 없는 판(개발 DB 2026-09-09)에서는 이 자를 조용히 안 건다.
+    # 없는 표를 읽으면 검색이 통째로 500 이 된다 — 자가 하나 빠지는 것보다 나쁘다.
+    if f.biz and _HAS_PERMIT is not False:
         # 영업 인허가 원장(315만)에서 반경 25m 안. **::geography 를 빼면 25가 도가 되어 전국을 센다.**
         # 그 꼴 그대로 GIST 색인을 만들어 뒀다(0170) — 구 하나가 5분에서 1.5초가 됐다.
         #

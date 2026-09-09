@@ -11,6 +11,8 @@ from .domains import auth, social, search, buildings, overlays, credits, listing
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await db.connect()
+    from .domains.search import check_permit   # 업체 표가 있는 판인지 한 번 본다
+    await check_permit()
     yield
     await db.disconnect()
 
