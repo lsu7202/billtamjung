@@ -246,6 +246,10 @@ class Filters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     bjd_code: str | None = None       # 법정동(prefix: 구=5자리·동=10자리)
+    # **지역을 이름으로 받는다**(2026-09-09). 코드를 모르는 쪽이 코드를 만들어 내는 것보다
+    # 서버가 맞추는 게 싸고 정확하다 — AI 는 한 바퀴가 3,976토큰이고, 그 바퀴에서 코드를 지어냈다.
+    # 여럿이면 서버가 고르지 않는다 — 후보를 담아 400 을 낸다(조용히 하나 고르면 그게 거짓말이다).
+    region: str | None = None         # 「종로구」·「성수동2가」·「강남구 논현동」
     # 한 매물로 좁히기 — 매수자 조건에 이 매물이 걸리는지 볼 때 쓴다(S04 「맞는 매수자」).
     # 매칭용 쿼리를 따로 만들면 검색과 언젠가 어긋나므로, 같은 엔진을 한 행으로 좁혀 쓴다.
     building_pk: str | None = None
@@ -442,20 +446,43 @@ _HAS_PERMIT: bool | None = None
 _ENUM: dict[str, set[str]] = {}
 # 있는 지역 코드 접두 전부(시 2 · 구 5 · 동 10 자리). region_index 466줄에서 만든다
 _REGION: set[str] = set()
+# 이름 → 코드. 「종로구」·「성수동2가」·「강남구 논현동」을 다 받는다
+_REGION_NAME: dict[str, list[tuple[str, str]]] = {}   # 낱말 → [(코드, 보여 줄 이름)]
 
 
 async def load_guards() -> None:
     """막이가 쓸 목록을 채운다. **처음 쓸 때** 채운다 —
     시작할 때만 채우면 그 길을 안 거치는 판(잣대·스크립트)에서 조용히 꺼져 있었다(2026-09-09)."""
+    if _REGION and _ENUM:
+        return
+    # 고르는 자가 받는 값 — **막이가 반만 살아 있으면 없는 것보다 나쁘다.**
+    # 「광대로각지」가 조용히 걸러져 12동이 7동이 되어 답으로 나갔다(2026-09-09)
+    for fld, col in (("road_frontages", "road_frontage"), ("shapes", "shape"), ("slopes", "slope")):
+        try:
+            rows = await pool().fetch(
+                f"SELECT DISTINCT {col} AS v FROM master.parcels WHERE {col} IS NOT NULL")  # noqa: S608
+            _ENUM[fld] = {r["v"] for r in rows if r["v"]}
+        except Exception:  # noqa: BLE001 — 못 읽었으면 그 자만 검사를 안 한다
+            _ENUM.pop(fld, None)
     if _REGION:
         return
     try:
-        rows = await pool().fetch("SELECT DISTINCT bjd_code FROM master.region_index WHERE bjd_code IS NOT NULL")
+        rows = await pool().fetch(
+            "SELECT bjd_code, gu, dong FROM master.region_index WHERE bjd_code IS NOT NULL")
         for r in rows:
             c = r["bjd_code"] or ""
             for n in (2, 5, 10):
                 if len(c) >= n:
                     _REGION.add(c[:n])
+            gu, dong = r["gu"], r["dong"]
+            if gu:
+                _REGION_NAME.setdefault(gu, [])
+                if not any(x[0] == c[:5] for x in _REGION_NAME[gu]):
+                    _REGION_NAME[gu].append((c[:5], f"서울 {gu}"))
+            if gu and dong:
+                full = f"서울 {gu} {dong}"
+                _REGION_NAME.setdefault(dong, []).append((c, full))
+                _REGION_NAME.setdefault(f"{gu} {dong}", []).append((c, full))
     except Exception:  # noqa: BLE001 — 못 읽었으면 검사를 안 한다
         _REGION.clear()
 
@@ -468,13 +495,24 @@ async def check_permit() -> None:
     except Exception:  # noqa: BLE001 — 못 봤으면 있다고 친다
         _HAS_PERMIT = None
     await load_guards()
-    for f, col in (("road_frontages", "road_frontage"), ("shapes", "shape"), ("slopes", "slope")):
-        try:
-            rows = await pool().fetch(
-                f"SELECT DISTINCT {col} AS v FROM master.parcels WHERE {col} IS NOT NULL")  # noqa: S608
-            _ENUM[f] = {r["v"] for r in rows}
-        except Exception:  # noqa: BLE001 — 못 읽었으면 검사를 안 한다
-            _ENUM.pop(f, None)
+
+
+def resolve_region(text: str) -> tuple[str, str]:
+    """지역 이름 → (코드, 보여 줄 이름). 여럿이면 **고르지 않고** 후보를 담아 400.
+
+    코드를 모르는 쪽이 코드를 만들어 내는 것보다 서버가 맞추는 게 싸고 정확하다 —
+    모델은 한 바퀴가 4천 토큰이고, 그 바퀴에서 「1100000000」 같은 걸 지어냈다(2026-09-09).
+    """
+    want = " ".join(text.replace("서울특별시", "").replace("서울시", "").replace("서울", "").split())
+    hit = _REGION_NAME.get(want) or _REGION_NAME.get(want.replace(" ", ""))
+    if not hit:
+        hit = sorted({(c, nm) for k, v in _REGION_NAME.items() if k.startswith(want) for c, nm in v})
+        if not hit:
+            raise HTTPException(400, f"「{text}」은 우리 자료에 없다. 우리 판은 **서울시**다")
+    if len({c for c, _ in hit}) > 1:
+        names = " / ".join(f"{nm}({c})" for c, nm in hit[:8])
+        raise HTTPException(400, f"「{text}」은 여럿이다: {names}. 하나를 bjd_code 로 준다")
+    return hit[0]
 
 
 def _check_enum(field: str, vals: list[str] | None) -> None:
@@ -491,6 +529,7 @@ def _filter_sql(f: Filters, args: list) -> tuple[str, str]:
     """속성 필터 → (마스터 WHERE절, 외부 WHERE절). 마스터=classified 내부(b.·조인) / 외부=classified 계산값 필터.
     반환 두 절 모두 앞에 ' AND '가 붙어 바로 이어붙이기 가능(빈 문자열이면 없음)."""
     m: list[str] = []   # classified 내부(b. 컬럼·조인 l.)
+    matched: list[str] = []   # 이름으로 받은 것을 무엇으로 읽었는지 — 응답에 실어 돌려준다
     o: list[str] = []   # 외부(classified SELECT 계산값 별칭)
 
     def add(lst, cond, val):
@@ -505,6 +544,11 @@ def _filter_sql(f: Filters, args: list) -> tuple[str, str]:
     # ── 마스터(b.) — classified WHERE ──
     if f.building_pk:
         add(m, "b.building_pk = ${i}", f.building_pk)
+    if f.region and not f.bjd_code:
+        code, name = resolve_region(f.region)
+        add(m, "b.bjd_code LIKE ${i} || '%'", code)
+        matched.append(name)
+
     if f.bjd_code:
         # **없는 지역 코드는 0건이 아니라 오류다.** 조용한 0 을 모델은 「그런 건물이 없다」로 읽는다.
         # 실제로 나온 것들: 「11-00-06-00-13」(지어냄) · 「1100%」(접두 LIKE 라는 말에 % 를 붙임) ·
@@ -651,6 +695,7 @@ def _filter_sql(f: Filters, args: list) -> tuple[str, str]:
 
     ms = (" AND " + " AND ".join(m)) if m else ""
     os_ = (" AND " + " AND ".join(o)) if o else ""
+    f.__dict__["_matched"] = matched      # 무엇으로 읽었는지 — 핸들러가 응답에 싣는다
     return ms, os_
 
 
@@ -842,6 +887,58 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
     return base, args, outer_sql
 
 
+@router.get("/trades", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
+async def area_trades(region: str | None = None, bjd_code: str | None = None,
+                      limit: int = 40, _: CurrentUser = Depends(current_user)):
+    """그 동네에 **어떤 업종이 있는지** 목록으로. 「병원 건물 찾아줘」의 앞단.
+
+    ## 왜 이 길인가
+
+    「병원」이 우리 자료에서 무엇을 뜻하는지 **우리는 모른다.** 인허가 업종에 「병원」은 병원만이고
+    의원·치과의원·한의원은 딴 낱말이다. 사전(ref.biz_category)에 적어 두는 길도 있지만 업종 낱말이
+    8,184개라 영영 못 채운다(2026-09-09 대표: 「AI 가 API 의 기대값을 다 외울 수 없다」).
+
+    **그래서 판단을 우리가 하지 않는다.** 그 동네에 실제로 있는 업종을 세어 주면, 모델이 그 안에서
+    「의원·치과의원도 병원이구나」를 고른다. 언어 일은 언어 모델이 낫고, 우리는 재료만 준다.
+    「병원」이든 「의원」이든 「치과」든 같은 목록을 보고 고르니 답이 갈리지 않는다.
+
+    ## 왜 sbiz_store 인가
+
+    인허가 원장(localdata_permit)은 좌표로 이어야 해서 역삼동 하나에 6~55초가 든다.
+    상가정보(sbiz_store)는 **pnu 가 있어** 0.3초다. 게다가 cat1(보건의료)/cat2(의원) 두 층으로
+    이미 묶여 있어 모델이 고르기 쉽다. 대신 55만건이라 인허가(315만)보다 성기다 —
+    **목록을 고르는 데 쓰고, 세는 것은 /search 의 biz 가 한다.**
+    """
+    await load_guards()
+    if not (region or bjd_code):
+        raise HTTPException(400, "region(「종로2가」) 이나 bjd_code 를 준다")
+    if region and not bjd_code:
+        bjd_code, name = resolve_region(region)
+    else:
+        name = bjd_code or ""
+    rows = await pool().fetch(
+        """SELECT s.cat1, s.cat2, count(*)::int AS n, count(DISTINCT s.pnu)::int AS lots
+             FROM master.sbiz_store s
+            WHERE s.pnu IN (SELECT pnu FROM master.parcels
+                             WHERE building_pk IN (SELECT building_pk FROM master.buildings
+                                                    WHERE bjd_code LIKE $1 || '%'))
+              AND coalesce(s.cat2, '') <> ''
+            GROUP BY s.cat1, s.cat2 ORDER BY n DESC LIMIT $2""",
+        bjd_code, max(1, min(limit, 200)))
+    return {"region": name, "bjd_code": bjd_code,
+            "trades": [{"갈래": r["cat1"], "업종": r["cat2"], "업체": r["n"], "필지": r["lots"]} for r in rows],
+            "note": "여기 있는 업종 이름을 /search 의 filters.biz 에 그대로 준다. 여럿이면 여러 번 부른다"}
+
+
+def _with_match(body: SearchIn, out: dict) -> dict:
+    """이름으로 받은 지역을 **무엇으로 읽었는지 응답이 말한다**(2026-09-09).
+    서버가 조용히 고르면 그게 거짓말이다 — 골랐으면 골랐다고 밝힌다."""
+    got = getattr(body.filters, "__dict__", {}).get("_matched") or []
+    if got:
+        out["matched"] = got
+    return out
+
+
 @router.post("", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3). 화면과 같은 답
 async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
     """2열 목록(내매물/일반) + 열별 독립 페이징. 무크레딧.
@@ -886,7 +983,7 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
     # 두 열은 서로 독립 — 순차로 돌면 합계만큼 기다린다(구 단위 실측 합 0.83s → 최댓값 0.62s).
     mine, normal = await asyncio.gather(
         column("mine", body.page_mine), column("normal", body.page_normal))
-    return {"mine": mine, "normal": normal}
+    return _with_match(body, {"mine": mine, "normal": normal})
 
 
 @router.post("/count")

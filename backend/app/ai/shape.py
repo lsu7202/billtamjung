@@ -361,7 +361,9 @@ def search(d: dict, body: dict | None) -> dict:
         rows.append(_drop_none({"주소": short_addr(r.get("addr")), "연면적": area(r.get("total_area")),
                                 "층": r.get("floors_above"), "용도지역": r.get("use_zone"),
                                 "최근 실거래": eok(r.get("last_sale_price")) if r.get("last_sale_price") else None}))
-    data = _drop_none({"우리 팀": mine.get("total"), "전체": normal.get("total"), "앞": rows})
+    # 이름으로 준 지역을 서버가 무엇으로 읽었는지. **골랐으면 골랐다고 말한다**
+    data = _drop_none({"읽은 지역": " · ".join(d.get("matched") or []) or None,
+                       "우리 팀": mine.get("total"), "전체": normal.get("total"), "앞": rows})
     # **격자를 낸다.** 없으면 모델이 표를 그리려다 「못 그린다」를 받고 한 바퀴를 버린다
     # (2026-09-09 종로2가). 검색 줄 부품은 자동으로 뜨지만, 표나 지도로 보고 싶을 때가 있다
     head = ["주소", "연면적", "층", "용도지역", "최근 실거래"]
@@ -437,6 +439,23 @@ def suggest(d: Any) -> dict:
             "show": "후보가 여럿이면 ask 로 고르게 한다. bjd_code·pk 는 **그대로** 다음 부름에 쓴다"}
 
 
+def trades(d: Any) -> dict:
+    """그 동네 업종 목록. **판단을 우리가 하지 않고 재료를 준다**(2026-09-09 대표).
+
+    「병원」이 우리 자료에서 무엇인지 우리는 모른다. 목록을 주면 모델이 「의원·치과의원도
+    병원이구나」를 고른다. 언어 일은 언어 모델이 낫다.
+    """
+    rows = (d or {}).get("trades") or []
+    by: dict[str, list] = {}
+    for r in rows:
+        by.setdefault(r.get("갈래") or "기타", []).append(f"{r.get('업종')} {r.get('업체')}")
+    return {"kind": "trades", "grade": "사실", "source": "소상공인 상가정보",
+            "note": "여기 있는 업종 이름을 그대로 /search 의 biz 에 준다. 여럿이면 여러 번 부른다",
+            "data": {"지역": d.get("region"),
+                     "업종": {k: " · ".join(v) for k, v in by.items()}},
+            "grids": {}, "show": ""}
+
+
 SHAPERS: dict[tuple[str, str], Callable[..., dict]] = {
     ("GET", "/buildings/{building_pk}"): lambda d, body: building(d),
     ("GET", "/buildings/{building_pk}/parcels"): lambda d, body: parcels(d),
@@ -448,6 +467,7 @@ SHAPERS: dict[tuple[str, str], Callable[..., dict]] = {
     ("GET", "/buildings/{building_pk}/tenants"): lambda d, body: tenants(d),
     ("GET", "/buildings/{building_pk}/floor-rents"): lambda d, body: floor_rents(d),
     ("GET", "/search/suggest"): lambda d, body: suggest(d),
+    ("GET", "/search/trades"): lambda d, body: trades(d),
     ("GET", "/sales/schedule"): lambda d, body: schedule(d),
     ("GET", "/buildings/{building_pk}/photos"): lambda d, body: photos(d),
     ("GET", "/listings"): lambda d, body: listings(d),
