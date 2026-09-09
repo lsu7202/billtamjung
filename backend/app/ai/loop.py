@@ -37,9 +37,13 @@ log = logging.getLogger(__name__)
 from ..core.config import settings
 from . import client as ai
 from .scrub import scrub_obj
-from .tools import REGISTRY, Ctx, load_all
+from .tools import REGISTRY, Ctx, load_all, visible
+from .tools.answer import normalize
 
-MAX_ROUNDS = 8            # 도구 바퀴 상한. 넘으면 「더 못 한다」고 멈춘다
+MAX_ROUNDS = 10           # 도구 바퀴 상한. ui·answer 도 바퀴라 8 은 빠듯했다(2026-09-09 겨루기 2번:
+                          # 자료를 다 모으고 ui 까지 부른 뒤 answer 할 바퀴가 없어 버렸다)
+FINISH = ("자료는 충분합니다. 이번 턴에 **answer 로 끝내세요.** 도구를 더 부르지 않습니다. "
+          "모은 것으로 두세 문장을 쓰고, 모자란 것은 모자라다고 적습니다.")
 TOOL_SUMMARY = 160        # 화면에 보이는 도구 결과 한 줄
 
 Emit = Callable[[dict], Awaitable[None] | None]
@@ -61,6 +65,7 @@ class Turn:
     stop: str
     tok_in: int
     tok_out: int
+    cache_read: int = 0            # 캐시에서 읽은 입력. 10분의 1 값이라 따로 센다(§23)
     web: list[dict] = field(default_factory=list)   # 벤더가 돌린 웹 검색. {id, query, n}. 화면에 도구 줄로
 
 
@@ -71,6 +76,9 @@ class Result:
     stop: str = "end_turn"
     tok_in: int = 0
     tok_out: int = 0
+    cache_read: int = 0
+    answered: bool = False
+    answer_fail: int = 0           # answer 도구로 답이 났나
 
     @property
     def text(self) -> str:
@@ -82,7 +90,8 @@ OnText = Callable[[str], Awaitable[None]]
 
 class Adapter(Protocol):
     def tools(self) -> list[dict]: ...
-    async def turn(self, system: str, messages: list[dict], on_text: OnText) -> Turn: ...
+    async def turn(self, system: str, messages: list[dict], on_text: OnText,
+                   finish: bool = False) -> Turn: ...
     def assistant_msg(self, turn: Turn) -> dict: ...
     def tool_results_msg(self, results: list[tuple[str, Any]]) -> dict: ...
 
@@ -105,16 +114,19 @@ class AnthropicAdapter:
 
     def tools(self) -> list[dict]:
         ours = [{"name": t.name, "description": t.description, "input_schema": t.params}
-                for t in REGISTRY.values()]
+                for t in visible()]
         return ours + [self.web_search()]
 
-    async def turn(self, system, messages, on_text) -> Turn:
+    async def turn(self, system, messages, on_text, finish: bool = False) -> Turn:
         # 지시문은 매 바퀴 같다. 캐시에 넣는다(§23). 10분의 1 값
         sys_blocks = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
         extra: dict = {"output_config": {"effort": self.effort}} if self.effort else {}
         async with self.client.messages.stream(
             model=self.model, max_tokens=settings.ai_max_tokens,
-            system=sys_blocks, messages=messages, tools=self.tools(), **extra,
+            system=sys_blocks, messages=messages,
+            # 마무리 바퀴는 answer 만 준다. 도구를 또 부르면 영영 안 끝난다
+            tools=[t for t in self.tools() if t.get("name") == "answer"] if finish else self.tools(),
+            **extra,
         ) as s:
             async for ev in s:
                 if getattr(ev, "type", "") == "content_block_delta" \
@@ -149,10 +161,10 @@ class AnthropicAdapter:
                     if w["id"] == getattr(b, "tool_use_id", None):
                         w["n"] = n
         u = final.usage
+        cr = getattr(u, "cache_read_input_tokens", 0) or 0
         return Turn(text, calls, raw, final.stop_reason or "end_turn",
-                    (u.input_tokens or 0) + (getattr(u, "cache_read_input_tokens", 0) or 0)
-                    + (getattr(u, "cache_creation_input_tokens", 0) or 0),
-                    u.output_tokens or 0, web)
+                    (u.input_tokens or 0) + cr + (getattr(u, "cache_creation_input_tokens", 0) or 0),
+                    u.output_tokens or 0, cr, web)
 
     def assistant_msg(self, turn: Turn) -> dict:
         return {"role": "assistant", "content": turn.raw}
@@ -212,20 +224,28 @@ async def run(ctx: Ctx, system: str, history: list[dict], emit: Emit,
 
     for _round in range(MAX_ROUNDS):
         async def on_text(s: str) -> None:
-            await _emit({"t": "delta", "v": s})          # 글자마다 흘린다. 바퀴 끝에 몰아 보내면 스트림이 아니다
+            # 답은 answer 도구로 온다(§8-1). 바퀴 사이 글은 「검색하겠습니다」 같은 혼잣말이라
+            # 화면에 안 흘린다(2026-09-08 겨루기에서 하이쿠가 그걸 답에 실었다).
+            # 기다리는 동안은 도구 줄이 흐른다
+            return
         turn = await adapter.turn(system, msgs, on_text)
         res.tok_in += turn.tok_in
         res.tok_out += turn.tok_out
+        res.cache_read += turn.cache_read
         # 벤더가 돌린 웹 검색은 모델 턴 안에서 이미 끝났다. 사후에 도구 줄로 내보내고 기록에 남긴다
         for w in turn.web:
             summ = f"결과 {w['n']}건"
             await _emit({"t": "tool", "phase": "start", "id": w["id"], "name": "web_search", "input": {"q": w["query"]}})
             await _emit({"t": "tool", "phase": "end", "id": w["id"], "name": "web_search", "ms": 0, "summary": summ})
             res.tool_log.append({"name": "web_search", "input": {"q": w["query"]}, "ms": 0, "summary": summ, "error": None})
-        if turn.text:
-            res.pieces.append({"t": "text", "v": turn.text})
-
         if not turn.tool_calls:
+            # answer 없이 끝났다. 모델이 그냥 글로 답한 것 — 정규화해서 받는다
+            if turn.text and not res.answered:
+                from .tools.answer import normalize
+                t = normalize(turn.text)
+                if t:
+                    res.pieces.append({"t": "text", "v": t})
+                    await _emit({"t": "text", "v": t})
             res.stop = turn.stop
             return res
 
@@ -249,10 +269,11 @@ async def run(ctx: Ctx, system: str, history: list[dict], emit: Emit,
                                 json.dumps(tc.input, ensure_ascii=False)[:300])
             ms = int((time.monotonic() - t0) * 1000)
 
-            ui = ask = None
+            ui = ask = ans = None
             if isinstance(out, dict):
                 ui = out.pop("_ui", None)
                 ask = out.pop("_ask", None)
+                ans = out.pop("_answer", None)
             out = scrub_obj(out)                       # 나가는 문 ②
 
             res.tool_log.append({"name": tc.name, "input": tc.input, "ms": ms, "summary": _summ(out),
@@ -269,11 +290,62 @@ async def run(ctx: Ctx, system: str, history: list[dict], emit: Emit,
                 await _emit(piece)
                 res.stop = "ask"
                 return res                               # 답은 다음 사용자 말로 온다
+            if isinstance(out, dict) and out.get("error") and tc.name == "answer":
+                # answer 가 거절당하면 모델이 답을 고쳐 쓰며 바퀴를 태운다(#77 에서 다섯 번).
+                # 한 번만 봐주고, 두 번째부터는 우리 잘못이니 글을 그대로 받는다
+                res.answer_fail += 1
+                if res.answer_fail >= 2:
+                    t = (tc.input.get("text") or "").strip()
+                    if t:
+                        res.pieces.append({"t": "text", "v": t})
+                        await _emit({"t": "text", "v": t})
+                        res.answered = True
+                        res.stop = "end_turn"
+                        log.warning("ai answer 두 번 거절 · 원문으로 받는다 · %s", out.get("error"))
+                        return res
+            if ans:
+                piece = {"t": "text", "v": ans["text"], "confidence": ans["confidence"]}
+                res.pieces.append(piece)
+                await _emit({"t": "text", **{k: v for k, v in piece.items() if k != "t"}})
+                if ans.get("next"):
+                    nxt = {"t": "next", "options": ans["next"]}
+                    res.pieces.append(nxt)
+                    await _emit(nxt)
+                res.answered = True
+                res.stop = "end_turn"
+                return res                               # answer 가 마지막이다
             results.append((tc.id, out))
         msgs.append(adapter.tool_results_msg(results))
 
+    # 바퀴를 다 썼다. 여기서 버리면 여덟 바퀴가 통째로 날아간다 — **한 번 더 주되 도구를 뺀다.**
+    # 모델은 모은 것으로 answer 만 낼 수 있다(2026-09-09 겨루기 2번에서 자료를 다 모으고도 버렸다)
+    msgs.append({"role": "user", "content": FINISH})
+    try:
+        turn = await adapter.turn(system, msgs, on_text, finish=True)
+        res.tok_in += turn.tok_in
+        res.tok_out += turn.tok_out
+        res.cache_read += turn.cache_read
+        for tc in turn.tool_calls:
+            if tc.name == "answer":
+                t = normalize((tc.input.get("text") or "").strip())
+                if t:
+                    res.pieces.append({"t": "text", "v": t, "confidence": tc.input.get("confidence", "추정")})
+                    await _emit({"t": "text", "v": t, "confidence": tc.input.get("confidence", "추정")})
+                    res.answered = True
+                    res.stop = "end_turn"
+                    return res
+        if turn.text:
+            t = normalize(turn.text)
+            if t:
+                res.pieces.append({"t": "text", "v": t})
+                await _emit({"t": "text", "v": t})
+                res.answered = True
+                res.stop = "end_turn"
+                return res
+    except Exception as e:  # noqa: BLE001
+        log.warning("ai 마무리 바퀴 실패: %s", e)
     res.stop = "max_rounds"
-    res.pieces.append({"t": "text", "v": "도구를 여러 번 불렀는데 답이 안 모입니다. 질문을 좁혀 주세요."})
+    res.pieces.append({"t": "text", "v": "자료를 다 모으지 못했습니다. 질문을 좁혀 주시면 다시 찾아보겠습니다."})
     return res
 
 

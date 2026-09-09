@@ -1,0 +1,130 @@
+"""부품 지목 — 모델은 부품 이름과 인자만 낸다. 값은 서버가 채운다. 정본 §12-1 · §12-1-1
+
+## 그릇 다섯 (2단계)
+
+    kv     라벨·값 쌍       제원 · 개요 · 조건
+    stats  큰 숫자 타일     한눈에 들어오는 자리
+    table  행·열           마크다운 표가 하던 자리
+    chart  선 · 막대        추이 · 견주기
+    list   태그·제목·꼬리   소식 · 업체 · 이력
+
+전용 부품(facts·sales·events…)을 안 만든다. **데이터만 있으면 채워지는 그릇**이라 새 자료가 와도
+부품을 안 만들고, 모델이 조합해서 처음 보는 요청도 짠다(대표 2026-09-09).
+
+## 데이터가 오는 두 길
+
+    ui("table", {"source": "sales#1"})            도구가 가져온 것을 가리킨다. 토큰 0
+    ui("table", {"head": […], "rows": [[…]]})     모델이 쓴다. 웹에서 찾은 것처럼 우리 자료에 없는 값
+
+`source` 가 있으면 store 의 격자를 집어 쓰고 등급·출처를 발에 단다. 없으면 모델이 준 것을
+그대로 그리되 발에 「대화·웹」이라고 적는다. 어느 쪽이든 **부품이 등급을 스스로 그린다**(§16 과 같은 수).
+"""
+from __future__ import annotations
+
+from typing import Any
+
+from . import Ctx, tool
+
+NAMES = ("kv", "stats", "table", "chart", "list")
+LIMIT = {"kv": 14, "stats": 6, "table": 20, "list": 20}
+
+
+def _from_store(ctx: Ctx, name: str, props: dict) -> dict | None:
+    sid = props.get("source")
+    if not sid:
+        return None
+    ent = ctx.store.get(sid)
+    if not ent:
+        return {"error": f"{sid} 는 이 대화에서 가져온 자료가 아니다. 도구 결과의 id 를 쓴다."}
+    grid = (ent.get("grids") or {}).get(name)
+    if grid is None:
+        have = ", ".join((ent.get("grids") or {}).keys()) or "없음"
+        return {"error": f"{sid} 는 {name} 로 못 그린다. 되는 것: {have}"}
+    data: dict[str, Any] = {}
+    if name == "kv":
+        rows = grid
+        pick = props.get("pick")
+        if pick:
+            want = [p.strip() for p in pick]
+            rows = [r for r in rows if r[0] in want]
+        data["rows"] = rows[:LIMIT["kv"]]
+        data["cols"] = int(props.get("cols") or 2)
+    elif name == "stats":
+        items = grid
+        pick = props.get("pick")
+        if pick:
+            items = [i for i in items if i.get("label") in pick]
+        data["items"] = items[:LIMIT["stats"]]
+    elif name == "table":
+        head, rows = grid["head"], grid["rows"]
+        cols = props.get("cols")
+        if cols:
+            idx = [head.index(c) for c in cols if c in head]
+            head = [head[i] for i in idx]
+            rows = [[r[i] for i in idx] for r in rows]
+        data["head"], data["rows"] = head, rows[: int(props.get("limit") or LIMIT["table"])]
+    elif name == "list":
+        data["items"] = grid[: int(props.get("limit") or LIMIT["list"])]
+    elif name == "chart":
+        data.update(grid)
+        if props.get("kind") in ("line", "bar"):
+            data["kind"] = props["kind"]
+    data["foot"] = {"grade": ent.get("grade"), "source": ent.get("source"), "note": ent.get("note")}
+    return data
+
+
+def _from_model(name: str, props: dict) -> dict | None:
+    """모델이 값을 직접 준 경우. 최소한의 모양만 검사한다."""
+    data: dict[str, Any] = {}
+    if name == "kv":
+        rows = props.get("rows")
+        if not isinstance(rows, list) or not all(isinstance(r, list) and len(r) == 2 for r in rows):
+            return {"error": 'kv 는 rows: [["라벨","값"], …] 다'}
+        data["rows"], data["cols"] = rows[:LIMIT["kv"]], int(props.get("cols") or 2)
+    elif name == "stats":
+        items = props.get("items")
+        if not isinstance(items, list) or not all(isinstance(i, dict) and "label" in i and "value" in i for i in items):
+            return {"error": 'stats 는 items: [{"label","value","unit"?,"note"?}, …] 다'}
+        data["items"] = items[:LIMIT["stats"]]
+    elif name == "table":
+        head, rows = props.get("head"), props.get("rows")
+        if not isinstance(head, list) or not isinstance(rows, list):
+            return {"error": "table 은 head: […] 와 rows: [[…], …] 다"}
+        data["head"], data["rows"] = head, rows[:LIMIT["table"]]
+    elif name == "list":
+        items = props.get("items")
+        if not isinstance(items, list) or not all(isinstance(i, dict) and "title" in i for i in items):
+            return {"error": 'list 는 items: [{"title","sub"?,"tag"?}, …] 다'}
+        data["items"] = items[:LIMIT["list"]]
+    elif name == "chart":
+        if not isinstance(props.get("x"), list) or not isinstance(props.get("series"), list):
+            return {"error": 'chart 는 kind: "line"|"bar", x: […], series: [{"name","data":[…]}] 다'}
+        data.update({k: props[k] for k in ("kind", "x", "series", "unit", "mark") if k in props})
+        data.setdefault("kind", "line")
+    data["foot"] = {"grade": props.get("grade") or "모델", "source": props.get("source_note") or "대화 · 웹",
+                    "note": None}
+    return data
+
+
+@tool("ui",
+      "화면에 부품을 세운다. 값은 서버가 채운다 — 도구 결과의 id 를 source 로 주면 토큰이 안 든다. "
+      "숫자 여럿·표·목록·추이는 글로 옮기지 말고 이걸로 보인다. "
+      "kv(라벨·값) · stats(큰 숫자) · table(행·열) · chart(선·막대) · list(태그·제목·꼬리).",
+      {"type": "object",
+       "properties": {
+           "name": {"type": "string", "enum": list(NAMES)},
+           "props": {"type": "object", "additionalProperties": True,
+                     "description": '{"source": "facts#1", "pick": [...]} 처럼 참조하거나, '
+                                    '값을 직접: kv rows / stats items / table head+rows / list items / chart x+series'},
+           "title": {"type": "string", "description": "부품 위 한 줄. 없어도 된다"}},
+       "required": ["name"]})
+async def ui(ctx: Ctx, *, name: str, props: dict | None = None, title: str | None = None) -> dict:
+    props = props or {}
+    if name not in NAMES:
+        return {"error": f"{name} 은 없다. 되는 것: {', '.join(NAMES)}"}
+    data = _from_store(ctx, name, props) if props.get("source") else _from_model(name, props)
+    if data is None or "error" in data:
+        return data or {"error": "인자가 비었다"}
+    if title:
+        data["title"] = title.strip()[:60]
+    return {"_ui": {"name": name, "props": data}, "ok": True, "shown": name}

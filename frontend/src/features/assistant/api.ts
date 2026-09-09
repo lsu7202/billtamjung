@@ -12,7 +12,8 @@ export interface Chat { id: number; title: string | null; updated_at: string }
 export type Piece =
   | { t: "text"; v: string }
   | { t: "ui"; name: string; props: Record<string, unknown> }
-  | { t: "ask"; question: string; options: string[] };
+  | { t: "ask"; question: string; options: string[] }
+  | { t: "next"; options: string[] };
 
 export interface ToolLog { name: string; input: Record<string, unknown>; ms: number; summary: string; error: string | null }
 
@@ -29,6 +30,8 @@ export type Ev =
   | { t: "tool"; phase: "end"; id: string; name: string; ms: number; summary: string }
   | { t: "ui"; name: string; props: Record<string, unknown> }
   | { t: "ask"; question: string; options: string[] }
+  | { t: "next"; options: string[] }
+  | { t: "text"; v: string; confidence?: string }
   | { t: "error"; code: string; title: string; body: string | null; action: string | null; level: string }
   | { t: "done"; message_id: number | null; title: string | null; stop: string;
       scrubbed: string[] | null; tok_in: number; tok_out: number };

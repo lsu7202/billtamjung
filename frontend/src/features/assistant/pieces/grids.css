@@ -1,0 +1,49 @@
+/* 그릇 다섯. 폭에 반응한다 — 채팅(좁다) · 문서(중간) · 슬라이드(넓다). 정본 §12-1-1 */
+.gd{container-type:inline-size; background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:14px}
+.gd-t{font-size:12.5px; font-weight:800; color:var(--ink-2); margin:0 0 9px}
+.gd-f{margin-top:10px; padding-top:8px; border-top:1px solid var(--line-2);
+  font-size:11px; color:var(--muted); display:flex; gap:6px; align-items:center; flex-wrap:wrap}
+.gd-g{font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:999px; background:var(--blue-bg); color:var(--blue)}
+.gd-g.r{background:var(--amber-t, #FFF6D6); color:var(--amber, #8A6D00)}
+.gd-u{font-size:11px; color:var(--muted); text-align:right; margin-top:4px}
+
+/* kv */
+.gd-kv{display:grid; grid-template-columns:auto 1fr; gap:8px 16px; font-size:13.5px; margin:0}
+.gd-kv dt{color:var(--muted); font-weight:600; white-space:nowrap}
+.gd-kv dd{margin:0; font-weight:600; text-align:right; font-variant-numeric:tabular-nums;
+  overflow-wrap:anywhere}
+@container (min-width:520px){ .gd-kv.two{grid-template-columns:auto 1fr auto 1fr} }
+
+/* stats */
+.gd-st{display:grid; grid-template-columns:repeat(2,1fr); gap:1px; background:var(--line-2);
+  border-radius:11px; overflow:hidden}
+@container (min-width:420px){ .gd-st{grid-template-columns:repeat(var(--n,4),1fr)} }
+.gd-s{background:var(--paper); padding:11px 13px; min-width:0}
+.gd-s .l{font-size:11.5px; color:var(--muted); font-weight:600; margin-bottom:2px}
+.gd-s .v{font-size:21px; font-weight:800; letter-spacing:-.03em; font-variant-numeric:tabular-nums; line-height:1.15}
+.gd-s .v i{font-style:normal; font-size:12.5px; font-weight:700; color:var(--muted); margin-left:2px}
+.gd-s .n{font-size:11px; color:var(--muted); margin-top:2px}
+
+/* table */
+.gd-wrap{overflow-x:auto; margin:0 -4px}
+.gd-tb{border-collapse:collapse; width:100%; font-size:13px}
+.gd-tb th{font-size:11px; color:var(--muted); font-weight:700; text-align:left; padding:6px 9px;
+  border-bottom:1px solid var(--line); white-space:nowrap}
+.gd-tb td{padding:7px 9px; border-bottom:1px solid var(--line-2); font-variant-numeric:tabular-nums; white-space:nowrap}
+.gd-tb tr:last-child td{border-bottom:0}
+.gd-tb th.r, .gd-tb td.r{text-align:right}
+
+/* list */
+.gd-li{display:flex; flex-direction:column; gap:1px; background:var(--line-2); border-radius:11px; overflow:hidden}
+.gd-l{background:var(--paper); padding:9px 12px; display:flex; gap:9px; align-items:baseline; flex-wrap:wrap}
+.gd-l .g{font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:999px;
+  background:var(--blue-bg); color:var(--blue); white-space:nowrap; flex:0 0 auto}
+.gd-l .t{flex:1; font-size:13.5px; font-weight:600; min-width:120px}
+.gd-l .s{font-size:11.5px; color:var(--muted); white-space:nowrap}
+
+/* chart */
+.gd-ch{width:100%; height:auto; display:block}
+.gd-lb{font-size:11px; fill:var(--ink-2); font-family:inherit}
+.gd-vl{font-size:10.5px; fill:var(--ink-2); font-weight:700; font-family:var(--mono)}
+.gd-ax{font-size:10px; fill:var(--muted); font-family:var(--mono)}
+.gd-mk{font-size:10.5px; fill:var(--red); font-weight:700; font-family:var(--mono)}

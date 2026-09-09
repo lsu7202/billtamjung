@@ -46,6 +46,7 @@ from ..ai.prompt import limits, system
 from ..ai.scrub import scrub
 from ..ai.tools import Ctx, brief, load_all
 from ..ai.tools.api import endpoints_brief
+from ..ai.tools.skill import brief as skill_brief
 from ..core.config import settings
 from ..core.db import pool
 from ..core.deps import CurrentUser, current_user
@@ -199,7 +200,8 @@ async def send(chat_id: int, body: SendIn, req: Request,
                     raise ai.AiUnavailable(ai.NOT_CONFIGURED)
                 load_all()
                 # 길 다섯을 지시문에 직접 싣는다. 첫 실측에서 매 대화 list·describe 두 바퀴에 3만 토큰이 들었다
-                sys_text = system(tools=brief() + "\n\n" + endpoints_brief(), limits=await limits())
+                sys_text = system(tools=brief() + "\n\n" + endpoints_brief(),
+                                  limits=await limits(), skills=skill_brief())
                 res = await loop.run(ctx, sys_text, msgs, emit, effort=settings.ai_effort or None)
             except (ai.AiUnavailable, anthropic.APIError, anthropic.APIConnectionError) as e:
                 code = ai.as_code(e)
@@ -232,6 +234,7 @@ async def send(chat_id: int, body: SendIn, req: Request,
             tool_log = res.tool_log if res else []
             tin = res.tok_in if res else 0
             tout = res.tok_out if res else 0
+            cached = res.cache_read if res else 0
             stop = stop or (f"error:{code}" if code else (res.stop if res else "stop"))
             if code:
                 yield _sse(await err(code))
@@ -242,7 +245,7 @@ async def send(chat_id: int, body: SendIn, req: Request,
             answer = res.text if res else ""
             if answer and not had_title:
                 title = await _title(chat_id, text, answer)
-            yield _sse({"t": "done", "message_id": mid, "title": title, "stop": stop,
+            yield _sse({"t": "done", "message_id": mid, "title": title, "stop": stop, "cached": cached,
                         "scrubbed": sorted(set(ctx.scrub_hits)) or None,
                         "tok_in": tin, "tok_out": tout})
 

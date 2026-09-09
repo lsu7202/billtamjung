@@ -170,8 +170,10 @@ async def codes(ctx: Ctx, *, group: str | None = None) -> dict:
 
 # ── query ───────────────────────────────────────────────────────────
 @tool("query",
-      "읽기 전용 SQL. 화면이 쓰는 길(읽기 API)이 없는 질문에만. 세대 표(_v9)가 아니라 뷰(master.buildings)를 본다. "
-      "결과는 개수와 앞 다섯 줄만 오고 나머지는 result_id 로 넘긴다.",
+      "읽기 전용 SQL. 화면이 쓰는 길(읽기 API)이 없는 질문에만(집계·복합 조건·상대 비교). "
+      "세대 표(_v9)가 아니라 뷰(master.buildings)를 본다. 결과는 개수와 앞 다섯 줄만 오고 나머지는 result_id 로 넘긴다. "
+      "**짜기 전에 describe(표) 로 칸 주석을 본다** — 연면적·대지면적처럼 뜻이 갈리는 칸이 있다. "
+      "지역 이름은 master.region_index 에서 bjd_code 를 찾아 접두 LIKE 로 거른다. 면적은 ㎡, 돈은 원이다.",
       {"type": "object",
        "properties": {"sql": {"type": "string"},
                       "purpose": {"type": "string", "description": "이 쿼리로 무엇을 알려는지 한 줄"}},

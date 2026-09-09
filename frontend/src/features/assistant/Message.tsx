@@ -11,11 +11,18 @@ import type { Piece, ToolLog } from "./api";
 import { Markdown } from "./Markdown";
 import { BuildingCard } from "./pieces/BuildingCard";
 import { SearchResult } from "./pieces/SearchResult";
+import { Chart, KV, List, Stats, Table } from "./pieces/Grids";
 
 /** 모델이 지목할 수 있는 부품. **여기 없으면 안 그린다** — 새 부품은 기본이 금지(§12-1) */
 const PIECES: Record<string, (props: Record<string, unknown>) => JSX.Element | null> = {
   building_card: (p) => (typeof p.pk === "string" ? <BuildingCard pk={p.pk} /> : null),
   search_result: (p) => <SearchResult filters={(p.filters as Record<string, unknown>) ?? {}} polygon={p.polygon} />,
+  // 그릇 다섯(§12-1-1). 값은 서버가 채워 보낸다 — 여기선 그리기만 한다
+  kv: (p) => <KV p={p} />,
+  stats: (p) => <Stats p={p} />,
+  table: (p) => <Table p={p} />,
+  chart: (p) => <Chart p={p} />,
+  list: (p) => <List p={p} />,
 };
 
 export function Pieces({ pieces, onPick, live }: {
@@ -31,6 +38,16 @@ export function Pieces({ pieces, onPick, live }: {
         if (p.t === "ui") {
           const make = PIECES[p.name];
           return make ? <div className="as-piece" key={i}>{make(p.props ?? {})}</div> : null;
+        }
+        if (p.t === "next") {
+          // 「다음에 뭘 할까」는 문장이 아니라 칩이다(§13). 답 끝에 두셋
+          return (
+            <div className="as-next" key={i}>
+              {p.options.map((o) => (
+                <button key={o} className="chip" disabled={!onPick} onClick={() => onPick?.(o)}>{o}</button>
+              ))}
+            </div>
+          );
         }
         if (p.t === "ask") {
           return (

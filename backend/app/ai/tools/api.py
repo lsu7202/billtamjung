@@ -31,7 +31,7 @@ from typing import Any
 import httpx
 
 from ..scrub import scrub_obj
-from . import Ctx, tool
+from . import REGISTRY, Ctx, tool
 
 LIST_CAP = 20          # 응답 안의 목록은 이만큼만 모델에게. 나머지는 개수로
 STAGE_OPEN = ("read",)  # 2단계. 6단계에서 ("read", "write")
@@ -298,17 +298,37 @@ async def call_api(ctx: Ctx, *, method: str, path: str,
     except ValueError:
         return {"error": "JSON 이 아니다", "path": path}
 
-    # 주장 걷어내기(§16) → 나가는 문(§3 ②) → 크기 줄이기(§23-1). 차례가 뜻이다
+    # 주장 걷어내기(§16) → 나가는 문(§3 ②) → 굽기(§9-9 · §23-1). 차례가 뜻이다
     extra = _STRIP_FOR.get((method, hit["path"]), set())
-    slim = _strip(data, extra)
+    slim = scrub_obj(_strip(data, extra))
     keep = _KEEP_FOR.get((method, hit["path"]))
     if keep:
         slim = _keep_rows(slim, keep)
-    out: dict[str, Any] = {"path": path, "data": _trim(scrub_obj(slim)),
-                           "source": f"api {method} {hit['path']}"}
+
+    from ..shape import SHAPERS
+    shaper = SHAPERS.get((method, hit["path"]))
+    if shaper:
+        # 모델은 단위·등급·출처가 박힌 요약과 id 만 읽는다. 원문과 격자는 store 에 두고
+        # 부품이 id 로 집어 간다. 화면용 원문 2,400토큰이 100토큰이 되는 자리
+        shaped = shaper(slim if isinstance(slim, (dict, list)) else {}, body)
+        sid = ctx.remember(shaped["kind"], {"raw": slim, "grids": shaped.get("grids") or {},
+                                            "grade": shaped["grade"], "source": shaped["source"],
+                                            "note": shaped.get("note"), "path": path})
+        out: dict[str, Any] = {"id": sid, "grade": shaped["grade"], "source": shaped["source"]}
+        if shaped.get("note"):
+            out["note"] = shaped["note"]
+        out["data"] = shaped["data"]
+        if shaped.get("show"):
+            out["show"] = shaped["show"].replace("ID", f'"{sid}"')
+    else:
+        out = {"path": path, "data": _trim(slim), "source": f"api {method} {hit['path']}"}
     maker = _UI_FOR.get((method, hit["path"]))
     if maker:
         ui = maker(path, body, data if isinstance(data, dict) else {})
         if ui:
             out["_ui"] = ui
     return out
+
+
+# 길 목록은 지시문(endpoints_brief)에 이미 실린다. 모델이 습관처럼 한 번 더 부르던 바퀴(3만 토큰)를 없앤다
+REGISTRY["list_endpoints"].hidden = True
