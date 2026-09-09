@@ -129,7 +129,7 @@ async def one(cfg: str, q: str) -> dict:
         if e.get("t") == "ui": ev["ui"].append(e.get("name"))
         if e.get("t") == "next": ev["next"] += 1
 
-    sys_text = system(tables=await tables_brief(), tools=brief() + "\n\n" + endpoints_brief(), limits=await limits())
+    sys_text = system(tables=await tables_brief(), tools=brief() + "\n\n" + await endpoints_brief(), limits=await limits())
     t0 = time.perf_counter()
     err = None
     try:

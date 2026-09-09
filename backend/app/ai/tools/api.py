@@ -107,6 +107,37 @@ def _strip(obj: Any, extra: set[str] = frozenset()) -> Any:
 # 지시문에 싣는 한 줄 설명. summary 가 「Search」뿐이라 손으로 쓴다.
 # 처음엔 다섯만 열었다가 「이 주소 호재 있어?」에 모델이 표 일곱을 손으로 뒤지다 바퀴를 다 썼고,
 # 다음 질문엔 「소식은 없다」고 지어냈다(2026-09-08). 화면이 쓰는 길이 안 보이면 그렇게 된다.
+async def _search_values() -> str:
+    """고르는 자가 **어떤 값을 받는지** DB 에서 뽑는다. 이름만 보여 주면 모델이 값을 지어낸다.
+
+    「논현 피부과 코너건물」에 모델이 `shapes: ["L","ㄷ","T"]` 를 보냈다(2026-09-09 대표).
+    그런 값은 없어 0건이 났다. 지형형상은 부정형·정방형·사다리형이고,
+    **「코너」는 도로접면의 「각지」**다. 우리가 쓰는 말을 안 보여 주면 모델은 자기 말로 짓는다.
+
+    손으로 안 적는다 — 자료가 바뀌면 따로 논다. 한 번 뽑고 기억한다.
+    """
+    from .. import db as ai_db
+    try:
+        pool = await ai_db.pool()
+        rows = await pool.fetch(
+            """SELECT 'road_frontages' AS f, string_agg(DISTINCT road_frontage, ' · ') AS v
+                 FROM master.parcels WHERE road_frontage IS NOT NULL
+               UNION ALL SELECT 'shapes', string_agg(DISTINCT shape, ' · ')
+                 FROM master.parcels WHERE shape IS NOT NULL
+               UNION ALL SELECT 'slopes', string_agg(DISTINCT slope, ' · ')
+                 FROM master.parcels WHERE slope IS NOT NULL""")
+    except Exception:  # noqa: BLE001 — 값 목록이 없어도 대화는 돈다
+        return ""
+    got = {r["f"]: r["v"] for r in rows if r["v"]}
+    if not got:
+        return ""
+    return ("\n  고르는 자가 받는 값(그대로 쓴다) — "
+            + " / ".join(f"{k}: {v}" for k, v in got.items())
+            + "\n  **「코너 건물」은 road_frontages 중 「각지」가 붙은 값들**이다. "
+              "「대로변」은 「광대」, 「길 없는 땅」은 「맹지」. "
+              "use_zones·jimoks·main_uses 값은 codes 로 본다.")
+
+
 def _search_fields() -> str:
     """`/search` 가 받는 자를 **이름 그대로** 낸다. Filters 에서 뽑으니 따로 놀 수 없다.
 
@@ -163,13 +194,25 @@ _HINT = {
 }
 
 
-def endpoints_brief() -> str:
-    """지시문에 싣는 길 목록. 다섯이라 싣는 게 싸다 —
-    매 대화마다 list_endpoints·describe_endpoint 두 바퀴 도는 것(3만 토큰)을 아낀다."""
+_VALUES: str | None = None
+
+
+async def endpoints_brief() -> str:
+    """지시문에 싣는 길 목록. 싣는 게 싸다 —
+    매 대화마다 list_endpoints·describe_endpoint 두 바퀴 도는 것(3만 토큰)을 아낀다.
+
+    고르는 자가 받는 값도 같이 싣는다. 이름만 보여 주니 모델이 값을 지어냈다(2026-09-09).
+    """
+    global _VALUES
+    if _VALUES is None:
+        _VALUES = await _search_values()
     lines = ["## 우리 API (call_api 로 부른다)"]
     for o in _ops():
         if o["x_ai"] in STAGE_OPEN:
-            lines.append(f"- {o['method']} {o['path']}  {_HINT.get((o['method'], o['path']), o['summary'])}")
+            hint = _HINT.get((o["method"], o["path"]), o["summary"])
+            if (o["method"], o["path"]) == ("POST", "/search"):
+                hint += _VALUES
+            lines.append(f"- {o['method']} {o['path']}  {hint}")
     return "\n".join(lines)
 
 # 부품을 딸려 내는 길. 화면이 그린다(§12·§13). 2단계에 둘만 당겨 왔다

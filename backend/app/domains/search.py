@@ -430,6 +430,12 @@ async def parcel_for_building(building_pk: str, _: CurrentUser = Depends(current
 _HAS_PERMIT: bool | None = None
 
 
+# 고르는 자가 받는 값. 뜰 때 한 번 읽는다.
+# **없는 값은 조용히 걸러지면 안 된다** — 모델이 「광대각지」(실제는 광대세각·광대소각)를 지어내
+# 28동이 4동이 됐고, 그게 답으로 나갔다(2026-09-09 대표). 조용한 축소도 거짓말이다.
+_ENUM: dict[str, set[str]] = {}
+
+
 async def check_permit() -> None:
     """main 의 lifespan 이 부른다."""
     global _HAS_PERMIT
@@ -437,6 +443,23 @@ async def check_permit() -> None:
         _HAS_PERMIT = await pool().fetchval("SELECT to_regclass('master.localdata_permit') IS NOT NULL")
     except Exception:  # noqa: BLE001 — 못 봤으면 있다고 친다
         _HAS_PERMIT = None
+    for f, col in (("road_frontages", "road_frontage"), ("shapes", "shape"), ("slopes", "slope")):
+        try:
+            rows = await pool().fetch(
+                f"SELECT DISTINCT {col} AS v FROM master.parcels WHERE {col} IS NOT NULL")  # noqa: S608
+            _ENUM[f] = {r["v"] for r in rows}
+        except Exception:  # noqa: BLE001 — 못 읽었으면 검사를 안 한다
+            _ENUM.pop(f, None)
+
+
+def _check_enum(field: str, vals: list[str] | None) -> None:
+    known = _ENUM.get(field)
+    if not vals or not known:
+        return
+    bad = [v for v in vals if v not in known]
+    if bad:
+        raise HTTPException(400, f"{field} 에 없는 값: {', '.join(bad)}. "
+                                 f"되는 값: {' · '.join(sorted(known))}")
 
 
 def _filter_sql(f: Filters, args: list) -> tuple[str, str]:
@@ -466,6 +489,8 @@ def _filter_sql(f: Filters, args: list) -> tuple[str, str]:
         add(m, "b.bjd_code LIKE ${i} || '%'", f.bjd_code)
     anyof(m, "b.use_zone", f.use_zones)
     anyof(m, "b.jimok", f.jimoks)
+    for _fld, _vals in (("road_frontages", f.road_frontages), ("shapes", f.shapes), ("slopes", f.slopes)):
+        _check_enum(_fld, _vals)
     anyof(m, "b.road_frontage", f.road_frontages)
     anyof(m, "b.shape", f.shapes)
     anyof(m, "b.slope", f.slopes)

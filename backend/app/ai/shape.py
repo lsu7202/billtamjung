@@ -366,17 +366,12 @@ def search(d: dict, body: dict | None) -> dict:
     # (2026-09-09 종로2가). 검색 줄 부품은 자동으로 뜨지만, 표나 지도로 보고 싶을 때가 있다
     head = ["주소", "연면적", "층", "용도지역", "최근 실거래"]
     used = [h for h in head if any(r.get(h) for r in rows)]
-    pins = [{"lng": r["lng"], "lat": r["lat"], "title": short_addr(r.get("addr")) or "",
-             "sub": area(r.get("total_area"))}
-            for r in (mine.get("items") or []) + (normal.get("items") or [])
-            if r.get("lng") and r.get("lat")][:50]
+    # 지도 격자는 안 만든다 — 검색 줄에는 좌표가 없고, search_result 부품이 pk 로 제 지도를 그린다
     grids: dict[str, Any] = {"table": {"head": used, "rows": [[r.get(h) for h in used] for r in rows]}}
-    if pins:
-        grids["map"] = {"center": [pins[0]["lng"], pins[0]["lat"]], "pins": pins}
     return {"kind": "search", "grade": "사실", "source": "건축물대장 · 실거래",
             "note": "화면 검색과 같은 결과", "data": data, "grids": grids,
-            "show": "검색 줄 부품은 자동으로 떴다. 글로 목록을 되풀이하지 않는다. "
-                    "표나 지도로 더 보이려면 ui(name=\"table\"|\"map\", props={\"source\": ID})"}
+            "show": "검색 줄 부품이 목록과 **지도까지** 자동으로 그렸다. 글로 되풀이하지 않는다. "
+                    "표로 더 보이려면 ui(name=\"table\", props={\"source\": ID})"}
 
 
 # (method, path 템플릿) → 굽는 함수. 없으면 걷어내고 자른 원문이 그대로 간다
