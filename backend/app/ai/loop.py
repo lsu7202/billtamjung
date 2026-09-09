@@ -249,8 +249,14 @@ async def run(ctx: Ctx, system: str, history: list[dict], emit: Emit,
                 if t:
                     res.pieces.append({"t": "text", "v": t})
                     await _emit({"t": "text", "v": t})
-            res.stop = turn.stop
-            return res
+                    res.answered = True
+            if res.answered:
+                res.stop = turn.stop
+                return res
+            # **부품만 그리고 입을 다문 경우.** 도구도 글도 없이 끝났다 —
+            # 화면엔 표가 섰는데 답이 없다(2026-09-09 잣대 12번). 마무리 바퀴로 보낸다
+            log.info("ai 도구도 글도 없이 끝났다 · 마무리 바퀴로")
+            break
 
         msgs.append(adapter.assistant_msg(turn))
         results: list[tuple[str, Any]] = []

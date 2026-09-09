@@ -67,11 +67,13 @@ async def answer(ctx: Ctx, *, text: str, confidence: str) -> dict:
     raw = (text or "").strip()
     if not raw:
         return {"error": "text 가 비었다"}
-    # 꼬리말 **하나뿐인** 답. 문장이 하나라 _drop_tail 이 자를 게 없어 그대로 나갔다 —
-    # 「다른 궁금한 점이 있으면 알려주세요.」가 답의 전부였다(2026-09-09 하이쿠).
-    # 고리가 두 번까지 되돌려 주고, 그래도 같으면 원문을 받는다
-    if len([m for m in SENT.finditer(raw)]) < 2 and TAIL_WORDS.search(raw):
-        return {"error": "찾은 것을 한두 문장으로 쓴다. 되물음만으로는 답이 되지 않는다"}
+    # **되물음만 있는 답을 되돌린다.** 처음엔 「문장이 하나인데 꼬리말이면」으로 좁게 잡았더니
+    # 「…말씀해 주세요. …알려드릴 수 있습니다.」처럼 두 문장이면 그냥 통과했고, 표를 그린 뒤
+    # 수를 안 말하는 답이 잣대 다섯 문항에 깔렸다(2026-09-09).
+    # 잣대는 **길이가 아니라 알맹이**다 — 되물음 낱말이 있는데 사실(숫자·고유명사)이 없으면 답이 아니다.
+    body = TAIL_WORDS.sub("", raw)
+    if TAIL_WORDS.search(raw) and not re.search(r"\d", body):
+        return {"error": "찾은 것을 먼저 말한다 — 몇 개인지, 어디인지. 되물음만으로는 답이 되지 않는다"}
     # 정규화가 다 지웠으면 **원문을 쓴다.** 우리 손질 때문에 모델이 답을 다시 쓰게 하지 않는다
     t = normalize(raw) or raw
     if confidence == "추정" and CAVEAT not in t:

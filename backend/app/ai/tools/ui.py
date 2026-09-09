@@ -49,6 +49,14 @@ def _from_store(ctx: Ctx, name: str, props: dict) -> dict | None:
     ent = ctx.store.get(sid)
     if not ent:
         return {"error": f"{sid} 는 이 대화에서 가져온 자료가 아니다. 도구 결과의 id 를 쓴다."}
+    # **옛 결과를 그리면 화면과 답이 어긋난다.** 「스타벅스 99동」을 그려 놓고 답은
+    # 「스타벅스+병원 5곳」이라 하면 사용자는 어느 쪽을 믿어야 할지 모른다(2026-09-09 대표).
+    # 같은 갈래를 여러 번 가져왔으면 **마지막 것**이 지금 답의 근거다
+    kind = sid.split("#")[0]
+    last = max((k for k in ctx.store if k.split("#")[0] == kind),
+               key=lambda k: int(k.split("#")[1]), default=sid)
+    if last != sid:
+        return {"error": f"{sid} 는 지난 결과다. 지금 답의 근거인 {last} 를 그린다"}
     grid = (ent.get("grids") or {}).get(name)
     if grid is None:
         have = ", ".join((ent.get("grids") or {}).keys()) or "없음"
