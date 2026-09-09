@@ -5,7 +5,7 @@
 마크다운 한 덩이가 나오면 우리는 손댈 수 없었다. 꼬리말(「어떤 게 필요하세요」)을 지시문으로 다섯 번
 조여도 다섯 중 다섯이 붙었다. **규칙으로 못 이기는 건 코드가 이긴다** — 조각으로 받아서 자른다.
 
-    text        두세 문장. 부품이 그린 값을 되풀이하지 않는다. 해석·비교·판단만
+    text        두세 문장. 해석·비교·판단만 쓴다 — 값은 부품이 그렸다
     confidence  사실 | 추정.  「추정」이면 서버가 한 줄을 붙인다. 모델이 안 쓴다
     next        다음 걸음 칩 두셋. 「다음에 뭘 할까」는 문장이 아니라 칩이다(§13)
 
@@ -51,12 +51,12 @@ def normalize(text: str) -> str:
 
 
 @tool("answer",
-      "답을 낸다. 마지막에 한 번. text 는 두세 문장으로 해석·비교·판단만 쓰고, 숫자 여럿·표·목록은 ui 로 "
-      "이미 보였으니 되풀이하지 않는다. 판단이 들어 있으면 confidence 를 추정으로. "
+      "답을 낸다. 마지막에 한 번. text 는 두세 문장, 해석·비교·판단만. 숫자 여럿·표·목록은 ui 가 이미 그렸다. "
+      "판단이 들어 있으면 confidence 를 추정으로. "
       "next 는 이어서 할 만한 것 두셋(짧은 명사구).",
       {"type": "object",
        "properties": {
-           "text": {"type": "string", "description": "두세 문장. 마크다운 굵게·목록은 되고 표는 안 쓴다(ui 로)"},
+           "text": {"type": "string", "description": "두세 문장. 마크다운 굵게·목록은 된다. 표는 ui 가 그린다"},
            "confidence": {"type": "string", "enum": ["사실", "추정"]},
            "next": {"type": "array", "items": {"type": "string"}, "maxItems": 3}},
        "required": ["text", "confidence"]})

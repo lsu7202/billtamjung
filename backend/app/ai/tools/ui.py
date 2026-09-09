@@ -107,7 +107,7 @@ def _from_model(name: str, props: dict) -> dict | None:
 
 
 @tool("ui",
-      "화면에 부품을 세운다. 값은 서버가 채운다 — 도구 결과의 id 를 source 로 주면 토큰이 안 든다. "
+      "화면에 부품을 세운다. 도구 결과의 id 를 source 로 주면 서버가 값을 채운다. 그게 가장 싼 길이다. "
       "숫자 여럿·표·목록·추이는 글로 옮기지 말고 이걸로 보인다. "
       "kv(라벨·값) · stats(큰 숫자) · table(행·열) · chart(선·막대) · list(태그·제목·꼬리).",
       {"type": "object",

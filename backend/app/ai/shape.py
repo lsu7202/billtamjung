@@ -46,6 +46,20 @@ def won_m2(v: float | None) -> str | None:
     return None if v is None else f"{round(v / 10000):,}만원/㎡"
 
 
+def won(v: float | None) -> str | None:
+    """보증금·거래금액처럼 만과 억을 오가는 돈. 1억 밑은 만, 위는 「2억 3,514만」.
+
+    `eok` 로 찍으면 2,399만이 「0.2억」이 된다(2026-09-09). 월세·관리비는 늘 만이라 이걸 안 쓴다.
+    """
+    if not v:
+        return None
+    if v < 1e8:
+        return f"{round(v / 1e4):,}만"
+    e, m = divmod(round(v), 10 ** 8)
+    man = round(m / 1e4)
+    return f"{e}억" + (f" {man:,}만" if man else "")
+
+
 def eok(v: float | None) -> str | None:
     if v is None:
         return None
@@ -256,22 +270,41 @@ def tenants(d: dict) -> dict:
 
 
 def floor_rents(d: dict) -> dict:
-    items = d.get("items") or []
-    rows = [_drop_none({"층": i.get("floor"), "호": i.get("unit_no"), "상호": i.get("tenant_name"),
-                        "면적": area(i.get("contract_area")),
-                        "보증금": eok(i.get("deposit")) if i.get("deposit") else None,
-                        "월세": f"{round(i['rent'] / 10000):,}만" if i.get("rent") else None,
-                        "공실": "공실" if i.get("is_vacant") else None}) for i in items[:20]]
-    tot = d.get("total") or {}
-    data = _drop_none({"팀 입력": len(items), "목록": rows,
-                       "월세 합": f"{round(tot['rent'] / 10000):,}만" if tot.get("rent") else None,
-                       "공실": tot.get("vacant_count")})
-    head = ["층", "호", "상호", "면적", "보증금", "월세", "공실"]
-    return {"kind": "floors", "grade": "사실", "source": "우리 팀이 적은 층별 임대",
-            "note": "비어 있으면 팀이 아직 안 적은 것", "data": data,
-            "grids": {"table": {"head": head, "rows": [[r.get(h) for h in head] for r in rows]}},
-            "show": 'ui("table", {"source": ID})'}
+    """층별임대정보 — 건물 상세 화면과 같은 목록. app/ai/floors.py 가 겹쳐 둔 것을 굽는다.
 
+    **금액은 팀이 적은 것만이다.** 대장에는 금액이 없고, 우리 임대추정은 여기 안 섞인다 —
+    추정은 사용자가 물을 때 `estimate` 가 이름과 오차를 붙여 따로 낸다(§16).
+    """
+    rows = d.get("rows") or []
+    out = []
+    for r in rows[:24]:
+        out.append(_drop_none({
+            "층": r.get("층"), "호": r.get("호"), "상호": r.get("상호"), "업종": r.get("업종"),
+            "면적": area(r.get("면적")),
+            "보증금": won(r.get("보증금")),
+            "월세": f"{round(r['월세'] / 10000):,}만" if r.get("월세") else None,
+            "관리비": f"{round(r['관리비'] / 10000):,}만" if r.get("관리비") else None,
+            "공실": "공실" if r.get("공실") else None,
+            "적은이": r.get("적은이")}))
+    tot = d.get("total") or {}
+    unknown = d.get("층 모르는 업체") or []
+    data = _drop_none({
+        "줄": len(rows), "팀이 적은 줄": d.get("팀 입력"),
+        "목록": out,
+        "층 총면적": {k: area(v) for k, v in (d.get("층면적") or {}).items()} or None,
+        "층 모르는 업체": f"{len(unknown)}곳 · {', '.join(unknown[:5])}" if unknown else None,
+        "월세 합": f"{round(tot['rent'] / 10000):,}만" if tot.get("rent") else None,
+        # 팀이 아무 줄도 안 적었으면 공실 0 은 「공실 없음」이 아니라 「모른다」다.
+        # 그대로 주니 모델이 「공실은 없는 것으로 나옵니다」라고 답했다(2026-09-09)
+        "공실": tot.get("vacant_count") if d.get("팀 입력") else None})
+    head = ["층", "호", "상호", "업종", "면적", "보증금", "월세", "공실"]
+    used = [h for h in head if any(r.get(h) for r in out)]
+    return {"kind": "floors", "grade": "사실",
+            "source": "층별임대정보 · 팀 입력 + 업체 원장(인허가·상가정보)",
+            "note": "금액은 팀이 적은 것만. 비어 있으면 아직 안 적은 층",
+            "data": data,
+            "grids": {"table": {"head": used, "rows": [[r.get(h) for h in used] for r in out]}},
+            "show": 'ui("table", {"source": ID})'}
 
 def listings(d: Any) -> dict:
     rows = [_drop_none({"주소": short_addr(x.get("addr"))}) for x in (d if isinstance(d, list) else [])[:30]]

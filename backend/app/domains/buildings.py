@@ -256,7 +256,9 @@ async def building_scene(building_pk: str, _: CurrentUser = Depends(current_user
     }
 
 
-@router.get("/{building_pk}/floor-outline", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
+# 대장 층별개요는 **AI 에게 열지 않는다.** 화면의 층별임대정보가 이것을 겹친 결과라
+# 원본을 열어 두면 모델이 대장 표를 「층별 임대」로 그린다(2026-09-09 대표). 조립은 app/ai/floors.py 가 한다
+@router.get("/{building_pk}/floor-outline")
 async def floor_outline(building_pk: str, _: CurrentUser = Depends(current_user)):
     """층별개요(대장) 프리필 — 층·용도·층별면적(바닥, 합=연면적) + 임대료/보증금 추정(공공 상권시세). 층별임대정보 시드용(S02 §3.5).
     rent_est/deposit_est = 마스터 추정값(유저가 입력하면 오버레이가 덮음)."""

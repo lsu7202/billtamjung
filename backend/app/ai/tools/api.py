@@ -44,7 +44,7 @@ STAGE_OPEN = ("read",)  # 2단계. 6단계에서 ("read", "write")
 # 주장은 나중에 get_estimate 가 **구간과 규칙을 붙여** 따로 낸다. 지금은 안 보인다.
 _CLAIM_KEYS = {
     "sale_est",           # 적정가
-    "est_annual_rent", "rent_est_m", "deposit_est",   # 임대추정
+    "est_annual_rent", "rent_est_m", "rent_est", "deposit_est",   # 임대추정
     "roi", "roi_est", "roi_exvac",   # 둘을 나눈 것. 오차가 곱해진다
     "price_is_est",       # 「위 price 가 추정이다」 표시. price 자체는 길별로 뺀다
     "pp_total", "pp_land", "pp_total_team", "pp_land_team",   # 평당가. price 가 추정이면 이것도 추정
@@ -115,8 +115,7 @@ _HINT = {
     ("GET", "/buildings/{building_pk}"): "건물 상세. 대장·필지·교통·공시지가·실거래",
     ("GET", "/buildings/{building_pk}/parcels"): "필지 목록과 각 필지의 지목·면적·용도지역",
     ("GET", "/buildings/{building_pk}/tenants"): "층별 업체(인허가·상가정보)",
-    ("GET", "/buildings/{building_pk}/floor-rents"): "층별 임대. 팀이 적은 호실·상호·면적·금액",
-    ("GET", "/buildings/{building_pk}/floor-outline"): "대장 층별개요. 층·용도·바닥면적",
+    ("GET", "/buildings/{building_pk}/floor-rents"): "**층별 임대. 건물 상세 화면과 같은 목록** — 층·상호·업종·면적·보증금·월세. 팀이 적은 층은 팀 것, 나머지는 업체 원장. 층 임대를 물으면 이 길",
     ("GET", "/buildings/{building_pk}/events"): "**주변 소식 · 호재.** 정비·개발·기반시설·규제·정책·고시·보도자료. 반경 700m",
     ("GET", "/buildings/{building_pk}/pop"): "유동인구 250m 격자. 낮·밤·피크",
     ("GET", "/buildings/{building_pk}/wiki"): "이 건물에 사용자가 남긴 글",
@@ -304,6 +303,12 @@ async def call_api(ctx: Ctx, *, method: str, path: str,
     keep = _KEEP_FOR.get((method, hit["path"]))
     if keep:
         slim = _keep_rows(slim, keep)
+
+    # 층별임대정보는 세 자료를 겹친 화면이다. 화면과 같은 목록을 서버가 만들어 준다(§12-4)
+    if (method, hit["path"]) == ("GET", "/buildings/{building_pk}/floor-rents"):
+        from ..floors import compose
+        slim = await compose(ctx.token, _match(hit["path"], path)["building_pk"],
+                             slim if isinstance(slim, dict) else {})
 
     from ..shape import SHAPERS
     shaper = SHAPERS.get((method, hit["path"]))

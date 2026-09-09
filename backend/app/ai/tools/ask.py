@@ -19,12 +19,12 @@ MAX_OPTIONS = 6
 
 @tool("ask",
       "답이 갈리는 자리에서 사용자에게 되묻는다. 선택지가 칩으로 뜬다. "
-      "건물 후보가 여럿일 때, 범위·형식을 정해야 할 때 쓴다. 빈 되물음(「어떤 게 필요하세요」)엔 쓰지 않는다.",
+      "건물 후보가 여럿일 때, 범위·형식을 정해야 할 때 쓴다. 고를 것이 실제로 여럿일 때 쓴다 — 후보 건물, 갈림길이 되는 조건.",
       {"type": "object",
        "properties": {
            "question": {"type": "string", "description": "한 문장. 존댓말"},
            "options": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": MAX_OPTIONS,
-                       "description": "고를 것. 짧은 명사구. 「직접 입력」은 화면이 알아서 붙이니 넣지 않는다"}},
+                       "description": "고를 것. 짧은 명사구. 「직접 입력」은 화면이 알아서 붙인다 — 고를 것만 적는다"}},
        "required": ["question", "options"]})
 async def ask(ctx: Ctx, *, question: str, options: list[str]) -> dict:
     opts = [o.strip() for o in options if o and o.strip()][:MAX_OPTIONS]

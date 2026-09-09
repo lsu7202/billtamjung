@@ -75,7 +75,7 @@ def visible() -> list[Tool]:
 def load_all() -> dict[str, Tool]:
     """도구 모듈을 전부 불러 등록시킨다. loop 가 처음 돌 때 한 번."""
     from . import query  # noqa: F401
-    for mod in ("api", "ask", "ui", "answer", "skill"):
+    for mod in ("api", "ask", "ui", "answer", "skill", "estimate"):
         try:
             __import__(f"{__name__}.{mod}")
         except ImportError as e:  # 없는 모듈은 넘어가되, 있는데 깨진 건 죽인다
