@@ -107,10 +107,31 @@ def _strip(obj: Any, extra: set[str] = frozenset()) -> Any:
 # 지시문에 싣는 한 줄 설명. summary 가 「Search」뿐이라 손으로 쓴다.
 # 처음엔 다섯만 열었다가 「이 주소 호재 있어?」에 모델이 표 일곱을 손으로 뒤지다 바퀴를 다 썼고,
 # 다음 질문엔 「소식은 없다」고 지어냈다(2026-09-08). 화면이 쓰는 길이 안 보이면 그렇게 된다.
+def _search_fields() -> str:
+    """`/search` 가 받는 자를 **이름 그대로** 낸다. Filters 에서 뽑으니 따로 놀 수 없다.
+
+    「종로2가에 병원 업체가 많은 건물, 거래가 100~200억」에 모델이 biz_min 도 거래가 자도 못 찾고
+    SQL 로 샜다가 네 번 죽었다(2026-09-09). 「칸은 describe_endpoint 로 보라」고 적어 둔 것은
+    **안 보여 준 것과 같다** — 한 바퀴가 1만 토큰이라 모델은 그 바퀴를 아끼려 든다.
+    예순 이름은 250토큰이고 캐시가 받는다.
+    """
+    from ...domains.search import Filters
+    return " · ".join(Filters.model_fields)
+
+
+_SEARCH_HINT = (
+    "조건 검색. 화면 검색과 같은 결과. body={filters:{…}, sort:price|roi|addr, per_page}. "
+    "**bjd_code 는 숫자 10자리**(구=5자리) — 동 이름을 받으면 /search/suggest 로 먼저 찾는다. "
+    "**업종으로 건물 찾기는 biz** — 「병원 건물」은 biz:\"의료\"(갈래는 의료·먹자·판매·업무·유흥·"
+    "생활서비스·교육, 낱말도 된다: 카페·학원). 대장 주용도는 통째로 그 용도인 건물만이라 대부분을 놓친다. "
+    "**「많은」은 biz_min**(그 업종이 몇 곳 이상). 거래가는 last_sale_min·last_sale_max(원). "
+    "쓸 수 있는 자 전부 → " + _search_fields())
+
+
 _HINT = {
     # 찾기
     ("GET", "/search/suggest"): "q=주소·지번·건물명 → pk 후보. **건물을 부르기 전에 먼저.** 여럿이면 ask 로 되묻는다",
-    ("POST", "/search"): "조건 검색. 화면 검색과 같은 결과. body={filters:{bjd_code,total_area_min,…},sort,per_page}. **bjd_code 는 숫자 10자리**(구=5자리) — 동 이름을 받으면 /search/suggest 로 먼저 찾는다. **업종으로 건물 찾기는 filters.biz** — 「병원 건물」은 biz:\"의료\"(갈래는 의료·먹자·판매·업무·유흥·생활서비스·교육, 낱말도 된다: 카페·학원). 대장 주용도는 통째로 그 용도인 건물만이라 대부분을 놓친다. biz_min 으로 몇 곳 이상. 칸은 describe_endpoint",
+    ("POST", "/search"): _SEARCH_HINT,
     # 건물 하나
     ("GET", "/buildings/{building_pk}"): "건물 상세. 대장·필지·교통·공시지가·실거래",
     ("GET", "/buildings/{building_pk}/parcels"): "필지 목록과 각 필지의 지목·면적·용도지역",
