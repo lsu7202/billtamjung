@@ -186,6 +186,26 @@ def make_adapter(vendor: str = "anthropic", model: str | None = None,
 
 
 # ── 고리 ────────────────────────────────────────────────────────────
+def _one(o: Any, cap: int = 400) -> str:
+    """도구에 보낸 것을 한 줄로. 경로만으론 모자란다 — /search 는 경로가 늘 같고 본문이 다르다."""
+    if not isinstance(o, dict):
+        return str(o)[:cap]
+    bits = []
+    for k in ("path", "query", "table", "name", "group", "building_pk", "region"):
+        if o.get(k):
+            bits.append(f"{k}={json.dumps(o[k], ensure_ascii=False)}" if not isinstance(o[k], str) else f"{k}={o[k]}")
+    if o.get("body"):
+        b = o["body"]
+        bits.append(json.dumps(b.get("filters", b), ensure_ascii=False) if isinstance(b, dict) else str(b))
+    if o.get("sql"):
+        bits.append(" ".join(str(o["sql"]).split()))
+    if o.get("props"):
+        bits.append(json.dumps(o["props"], ensure_ascii=False))
+    if o.get("text"):
+        bits.append(str(o["text"]))
+    return " ".join(bits)[:cap] or json.dumps(o, ensure_ascii=False)[:cap]
+
+
 def _summ(out: Any) -> str:
     """화면에 보이는 도구 결과 한 줄. 모델이 아니라 사람이 본다."""
     if isinstance(out, dict):
@@ -204,6 +224,16 @@ def _summ(out: Any) -> str:
             bits.append(f"칸 {len(out['columns'])}개")
         if "endpoints" in out:
             bits.append(f"길 {len(out['endpoints'])}개")
+        # **구운 결과는 알맹이를 앞으로 끌어낸다.** 그냥 JSON 앞 160자를 자르면
+        # 「전체 0동」이 뒤에 묻혀 화면에서 안 보인다 — 모델이 0을 받고 99라 답한 판을
+        # 사람이 눈치챌 수가 없었다(2026-09-09 대표). 사람이 보는 줄이니 사람이 볼 것을 앞에
+        data = out.get("data")
+        if isinstance(data, dict):
+            for k in ("전체", "우리 팀", "건수", "줄", "매물", "매수자", "업체", "후보", "사진", "약속"):
+                if k in data and not isinstance(data[k], (dict, list)):
+                    bits.append(f"{k} {data[k]}")
+            if out.get("id"):
+                bits.append(str(out["id"]))
         return " · ".join(bits) or json.dumps(out, ensure_ascii=False)[:TOOL_SUMMARY]
     return str(out)[:TOOL_SUMMARY]
 
@@ -216,6 +246,8 @@ async def run(ctx: Ctx, system: str, history: list[dict], emit: Emit,
     adapter = make_adapter(vendor, model, effort)
     msgs = list(history)
     res = Result()
+    log.info("■ %s", " ".join(str((history or [{}])[-1].get("content", ""))[:160].split()))
+    drafts: list[dict] = []      # 도중에 그린 부품. 화면엔 떴지만 답에 남을지는 answer 가 정한다
 
     async def _emit(e: dict) -> None:
         r = emit(e)
@@ -247,6 +279,8 @@ async def run(ctx: Ctx, system: str, history: list[dict], emit: Emit,
                 # 파일 머리(41줄)에 이미 있다.
                 t = normalize(turn.text)
                 if t:
+                    if drafts:
+                        res.pieces.append(drafts[-1])
                     res.pieces.append({"t": "text", "v": t})
                     await _emit({"t": "text", "v": t})
                     res.answered = True
@@ -287,11 +321,18 @@ async def run(ctx: Ctx, system: str, history: list[dict], emit: Emit,
 
             res.tool_log.append({"name": tc.name, "input": tc.input, "ms": ms, "summary": _summ(out),
                                  "error": out.get("error") if isinstance(out, dict) else None})
+            # **터미널로 한 바퀴를 그대로 본다**(2026-09-09 대표). 오류만 찍으니 「무엇을 물었길래
+            # 이 답이 나왔나」를 볼 수가 없었다. docker logs -f docker-api-1 로 흐르게 둔다
+            log.info("  %-14s %s", tc.name, _one(tc.input))
+            log.info("  %-14s → %s", "", _summ(out))
             await _emit({"t": "tool", "phase": "end", "id": tc.id, "name": tc.name, "ms": ms,
                          "summary": _summ(out)})
             if ui:
+                # **화면엔 바로 띄우되 대화엔 안 남긴다.** 답이 정해지기 전의 부품은
+                # 「찾는 중」 표시다. 마지막에 answer 가 고른 것만 답에 남는다 —
+                # 안 그러면 「스타벅스 99동」을 그려 놓고 답은 「5곳」이 된다(2026-09-09 대표)
                 piece = {"t": "ui", **ui}
-                res.pieces.append(piece)
+                drafts.append(piece)
                 await _emit(piece)
             if ask:
                 piece = {"t": "ask", **ask}
@@ -306,6 +347,8 @@ async def run(ctx: Ctx, system: str, history: list[dict], emit: Emit,
                 if res.answer_fail >= 2:
                     t = (tc.input.get("text") or "").strip()
                     if t:
+                        if drafts:
+                            res.pieces.append(drafts[-1])
                         res.pieces.append({"t": "text", "v": t})
                         await _emit({"t": "text", "v": t})
                         res.answered = True
@@ -313,8 +356,25 @@ async def run(ctx: Ctx, system: str, history: list[dict], emit: Emit,
                         log.warning("ai answer 두 번 거절 · 원문으로 받는다 · %s", out.get("error"))
                         return res
             if ans:
+                # 답이 고른 부품을 먼저, 글을 나중에. 한 번에 쓰였으니 어긋날 자리가 없다
+                for want in (ans.get("show") or [])[:4]:
+                    nm = want.get("name") if isinstance(want, dict) else None
+                    if not nm:
+                        continue
+                    built = await REGISTRY["ui"].fn(ctx, name=nm,
+                                                    props={k: v for k, v in want.items() if k != "name"},
+                                                    title=want.get("title"))
+                    if isinstance(built, dict) and built.get("_ui"):
+                        res.pieces.append({"t": "ui", **built["_ui"]})
+                    else:
+                        log.info("ai answer.show 못 그림 · %s", (built or {}).get("error"))
+                if not res.pieces and drafts:
+                    # 부품을 안 골랐는데 도중에 그린 게 있으면 마지막 것만 남긴다 —
+                    # 화면에 떴던 게 통째로 사라지면 사용자가 놓친 줄 안다
+                    res.pieces.append(drafts[-1])
                 piece = {"t": "text", "v": ans["text"], "confidence": ans["confidence"]}
                 res.pieces.append(piece)
+                log.info("✔ %s", " ".join(ans["text"][:300].split()))
                 await _emit({"t": "text", **{k: v for k, v in piece.items() if k != "t"}})
                 res.answered = True
                 res.stop = "end_turn"
@@ -334,6 +394,9 @@ async def run(ctx: Ctx, system: str, history: list[dict], emit: Emit,
             if tc.name == "answer":
                 t = normalize((tc.input.get("text") or "").strip())
                 if t:
+                    # 마무리 바퀴도 같은 규칙 — 도중에 그린 것 중 마지막 하나만 남긴다
+                    if drafts:
+                        res.pieces.append(drafts[-1])
                     res.pieces.append({"t": "text", "v": t, "confidence": tc.input.get("confidence", "추정")})
                     await _emit({"t": "text", "v": t, "confidence": tc.input.get("confidence", "추정")})
                     res.answered = True
@@ -342,6 +405,8 @@ async def run(ctx: Ctx, system: str, history: list[dict], emit: Emit,
         if turn.text:
             t = normalize(turn.text)
             if t:
+                if drafts:
+                    res.pieces.append(drafts[-1])
                 res.pieces.append({"t": "text", "v": t})
                 await _emit({"t": "text", "v": t})
                 res.answered = True

@@ -1,4 +1,5 @@
 """빌탐정 API 엔트리(Cloud Run: api). 01-상세설계 §1."""
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -6,6 +7,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from .core import db, ratelimit
 from .core.config import settings
 from .domains import auth, social, search, buildings, overlays, credits, listings, floor_rents, market, reports, extras, photos, series, team, survey, buyers, stops, places, news, tenants, assistant
+
+
+# **AI 한 바퀴를 터미널로 본다**(2026-09-09 대표). uvicorn 은 제 로거만 켜므로
+# 우리 것을 따로 켠다. `docker logs -f docker-api-1` 로 흐른다 —
+# 물음(■) · 도구마다 보낸 것과 받은 것 · 답(✔) 이 차례로 찍힌다.
+logging.getLogger("app.ai").setLevel(logging.INFO)
+if not logging.getLogger("app.ai").handlers:
+    _h = logging.StreamHandler()
+    _h.setFormatter(logging.Formatter("%(message)s"))
+    logging.getLogger("app.ai").addHandler(_h)
+    logging.getLogger("app.ai").propagate = False
 
 
 @asynccontextmanager

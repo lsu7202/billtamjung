@@ -24,6 +24,8 @@
 """
 from __future__ import annotations
 
+import inspect
+
 import json
 import re
 from typing import Any
@@ -42,9 +44,11 @@ STAGE_OPEN = ("read",)  # 2단계. 6단계에서 ("read", "write")
 # 「예상 매각가 154억 5,222만원」이 점 추정 그대로 새어 나왔다.
 # 잣대(§16-1): 정부 규칙을 옮긴 계산은 사실, 우리가 가중치를 고른 점수는 주장.
 # 주장은 나중에 get_estimate 가 **구간과 규칙을 붙여** 따로 낸다. 지금은 안 보인다.
+# **막는 게 아니라 이름을 붙인다**(2026-09-09 대표: 「사용하되 이건 추정이다를 붙이라고 한 거지,
+# 빌탐정 추정가라고 API 가 답을 주면 되지」). 적정가·임대추정은 굽는 층이 「빌탐정 추정가 42억」
+# 처럼 이름을 박아 내보낸다 — 값이 스스로 무엇인지 말하면 오도할 자리가 없다.
+# 여기 남는 것은 **우리가 가중치를 고른 점수**다. 이름을 붙여도 근거를 설명할 수 없는 값들이다.
 _CLAIM_KEYS = {
-    "sale_est",           # 적정가
-    "est_annual_rent", "rent_est_m", "rent_est", "deposit_est",   # 임대추정
     "roi", "roi_est", "roi_exvac",   # 둘을 나눈 것. 오차가 곱해진다
     "price_is_est",       # 「위 price 가 추정이다」 표시. price 자체는 길별로 뺀다
     "pp_total", "pp_land", "pp_total_team", "pp_land_team",   # 평당가. price 가 추정이면 이것도 추정
@@ -131,23 +135,47 @@ async def _search_values() -> str:
     got = {r["f"]: r["v"] for r in rows if r["v"]}
     if not got:
         return ""
-    return ("\n  고르는 자가 받는 값(그대로 쓴다) — "
-            + " / ".join(f"{k}: {v}" for k, v in got.items())
-            + "\n  **「코너 건물」은 road_frontages 중 「각지」가 붙은 값들**이다. "
-              "「대로변」은 「광대」, 「길 없는 땅」은 「맹지」. "
-              "use_zones·jimoks·main_uses 값은 codes 로 본다.")
+    # **값을 갈래로 묶어 준다.** 나열만 하니 모델이 「광대로한면」도 코너인 줄 알고 넣어
+    # 99동이 159동이 됐다(2026-09-09 대표). 낱말만 봐서는 못 가린다 —
+    # 「광대로한면」과 「광대소각」은 둘 다 「광대」로 시작한다.
+    rf = got.get("road_frontages", "")
+    vals = [v.strip() for v in rf.split(" · ") if v.strip()]
+    corner = [v for v in vals if any(x in v for x in ("각지", "소각", "세각"))]
+    oneside = [v for v in vals if v not in corner and v != "맹지"]
+    lines = [f"  {k}: {v}" for k, v in got.items() if k != "road_frontages"]
+    if vals:
+        lines.insert(0, "  road_frontages(도로접면) — "
+                        f"**코너(두 면 이상 도로)**: {' · '.join(corner)} / "
+                        f"**한 면만**: {' '.join(oneside)} / 도로에 안 닿음: 맹지")
+    return ("\n  고르는 자가 받는 값(그대로 쓴다)\n" + "\n".join(lines)
+            + "\n  「코너 건물」은 코너 여섯을 **다** 건다. 「대로변」은 「광대」로 시작하는 것, "
+              "「길 없는 땅」은 「맹지」.\n"
+              "  use_zones·jimoks·main_uses 값은 codes 로 본다.")
 
 
 def _search_fields() -> str:
-    """`/search` 가 받는 자를 **이름 그대로** 낸다. Filters 에서 뽑으니 따로 놀 수 없다.
+    """`/search` 가 받는 자를 **뜻과 함께** 낸다. Filters 의 줄 끝 주석에서 뽑는다.
+
+    이름만 예순 개 나열했더니 모델이 영어에서 뜻을 짐작했다 — `gongsi_total_min` 을 보고
+    「총액이니 건물값이겠지」로 읽어 「100억~200억」에 공시지가 총액을 걸었다(2026-09-09 대표).
+    모델이 부동산을 몰라서가 아니다. **우리 자 이름이 그렇게 읽힐 뿐이다.**
+    뜻은 이미 주석으로 다 적혀 있었다 — 모델에게 안 보냈을 뿐이다. 손으로 다시 적지 않는다.
 
     「종로2가에 병원 업체가 많은 건물, 거래가 100~200억」에 모델이 biz_min 도 거래가 자도 못 찾고
     SQL 로 샜다가 네 번 죽었다(2026-09-09). 「칸은 describe_endpoint 로 보라」고 적어 둔 것은
     **안 보여 준 것과 같다** — 한 바퀴가 1만 토큰이라 모델은 그 바퀴를 아끼려 든다.
     예순 이름은 250토큰이고 캐시가 받는다.
     """
+    from ...domains import search as _srch
     from ...domains.search import Filters
-    return " · ".join(Filters.model_fields)
+    # 줄 끝 주석이 곧 뜻이다: `last_sale_min: int | None = None   # 실거래가(원)`
+    src = inspect.getsource(Filters)
+    note = dict(re.findall(r"^\s{4}(\w+):[^#\n]*#\s*(.+?)\s*$", src, re.M))
+    out = []
+    for k in Filters.model_fields:
+        why = note.get(k) or note.get(k.replace("_min", "_max"))
+        out.append(f"{k}({why})" if why else k)
+    return " · ".join(out)
 
 
 _SEARCH_HINT = (

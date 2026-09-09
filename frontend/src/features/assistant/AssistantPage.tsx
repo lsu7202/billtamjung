@@ -67,8 +67,10 @@ function Row({ c, on, pick, drop }: { c: Chat; on: boolean; pick: () => void; dr
 }
 
 /** 흘러오는 답 한 통의 상태. 끝나면 서버 것으로 갈아탄다 */
-interface Live { pieces: Piece[]; log: ToolLog[]; running: string | null }
-const EMPTY: Live = { pieces: [], log: [], running: null };
+interface Live { pieces: Piece[]; log: ToolLog[]; running: string | null;
+                 /** 지금 도는 도구에 무엇을 보냈나 — end 에서 기록에 붙인다 */
+                 sent?: Record<string, unknown> | null }
+const EMPTY: Live = { pieces: [], log: [], running: null, sent: null };
 
 /** 오른쪽 한 판. 대화를 아직 안 골랐어도 **입력줄은 늘 서 있다** —
  *  「먼저 새 대화를 누르세요」를 시키면 한 걸음이 더 는다. 치면 그때 만들어진다. */
@@ -119,8 +121,10 @@ function Pane({ chatId, onCreated }: { chatId: number | null; onCreated: (id: nu
     try {
       await send(cid, t, (e: Ev) => {
         if (e.t === "delta") { acc += e.v; push(); }
-        else if (e.t === "tool" && e.phase === "start") { flush(); L.running = e.name; push(); }
-        else if (e.t === "tool") { L.log = [...L.log, { name: e.name, input: {}, ms: e.ms, summary: e.summary, error: null }]; L.running = null; push(); }
+        // **무엇을 보냈는지도 화면에 남긴다.** input 을 비워 보내니 「모델이 무엇을 물었길래
+        // 이 답이 나왔나」를 화면에서 못 봤다. start 의 인자를 붙들었다가 end 에 붙인다(2026-09-09 대표)
+        else if (e.t === "tool" && e.phase === "start") { flush(); L.running = e.name; L.sent = e.input ?? {}; push(); }
+        else if (e.t === "tool") { L.log = [...L.log, { name: e.name, input: L.sent ?? {}, ms: e.ms, summary: e.summary, error: null }]; L.running = null; L.sent = null; push(); }
         else if (e.t === "ui") { flush(); L.pieces = [...L.pieces, { t: "ui", name: e.name, props: e.props }]; push(); }
         else if (e.t === "ask") { flush(); L.pieces = [...L.pieces, { t: "ask", question: e.question, options: e.options }]; push(); }
         else if (e.t === "error") setErr(e);

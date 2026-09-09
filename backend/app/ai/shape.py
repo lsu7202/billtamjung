@@ -83,6 +83,17 @@ def short_addr(a: str | None) -> str:
     return (a or "").replace("서울특별시 ", "").replace("번지", "").strip()
 
 
+def est(v: float | None, kind: str = "적정가") -> str | None:
+    """우리가 계산한 값에 **이름을 박아** 낸다. 「42억」이 아니라 「빌탐정 적정가 42억(추정)」.
+
+    값이 스스로 무엇인지 말하면 모델이 사실처럼 옮길 자리가 없다. 막아 두면 답을 못 하고,
+    맨값을 주면 사실이 된다 — 이름이 그 사이다(2026-09-09 대표).
+    """
+    if not v:
+        return None
+    return f"빌탐정 {kind} {won(v)}(추정)"
+
+
 def _drop_none(d: dict) -> dict:
     return {k: v for k, v in d.items() if v not in (None, "", [], {})}
 
@@ -132,6 +143,10 @@ def building(d: dict) -> dict:
         "주차": f"{d['parking']}대" if d.get("parking") is not None else None,
         "역": stn,
         "공시지가": won_m2(d.get("gongsi_latest")),
+        # **이름을 박아 낸다.** 맨값을 주면 사실이 되고, 막으면 답을 못 한다(2026-09-09 대표)
+        "빌탐정 적정가": est(d.get("sale_est"), "적정가"),
+        "빌탐정 임대추정": (f"월 {round(d['est_annual_rent'] / 12 / 10000):,}만(추정)"
+                        if d.get("est_annual_rent") else None),
         "최근 실거래": (f"{eok(d.get('last_sale_price'))} ({d.get('last_sale_ym')})"
                     if d.get("last_sale_price") else None),
         "지목": d.get("jimok"), "도로접면": d.get("road_frontage"),
@@ -360,13 +375,14 @@ def search(d: dict, body: dict | None) -> dict:
             break
         rows.append(_drop_none({"주소": short_addr(r.get("addr")), "연면적": area(r.get("total_area")),
                                 "층": r.get("floors_above"), "용도지역": r.get("use_zone"),
-                                "최근 실거래": eok(r.get("last_sale_price")) if r.get("last_sale_price") else None}))
+                                "최근 실거래": eok(r.get("last_sale_price")) if r.get("last_sale_price") else None,
+                                "빌탐정 적정가": est(r.get("sale_est"), "적정가")}))
     # 이름으로 준 지역을 서버가 무엇으로 읽었는지. **골랐으면 골랐다고 말한다**
     data = _drop_none({"읽은 지역": " · ".join(d.get("matched") or []) or None,
                        "우리 팀": mine.get("total"), "전체": normal.get("total"), "앞": rows})
     # **격자를 낸다.** 없으면 모델이 표를 그리려다 「못 그린다」를 받고 한 바퀴를 버린다
     # (2026-09-09 종로2가). 검색 줄 부품은 자동으로 뜨지만, 표나 지도로 보고 싶을 때가 있다
-    head = ["주소", "연면적", "층", "용도지역", "최근 실거래"]
+    head = ["주소", "연면적", "층", "용도지역", "최근 실거래", "빌탐정 적정가"]
     used = [h for h in head if any(r.get(h) for r in rows)]
     # 지도 격자는 안 만든다 — 검색 줄에는 좌표가 없고, search_result 부품이 pk 로 제 지도를 그린다
     grids: dict[str, Any] = {"table": {"head": used, "rows": [[r.get(h) for h in used] for r in rows]}}

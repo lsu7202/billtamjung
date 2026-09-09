@@ -15,6 +15,15 @@
 조각 목록 `[text, ui, ui, text]` 은 문서의 뼈대와 같은 모양이라 「이 대화로 보고서」가 조각을 옮기는
 일이 된다(§24-2).
 
+## 한 벌로 받는다 (2026-09-09)
+
+부품을 `ui` 로 하나씩 부르고 `answer` 를 따로 부르니 **조각끼리 어긋났다.** 「스타벅스 99동」을
+그려 놓고 답은 「스타벅스+병원 5곳」이라 했고, 왜 있는지 모를 building_card 셋이 끼어 있었다.
+각 호출이 앞뒤를 몰라서고, 서버도 검사할 단위가 없어서다(대표 지적).
+
+그래서 **`show` 로 답과 부품을 한 번에 받는다.** 한 번에 쓰니 어긋날 자리가 없고,
+서버가 한 벌을 통째로 볼 수 있다. 도중의 `ui` 는 화면에 「찾는 중」으로 뜨되 답에는 안 남는다.
+
 ## 정규화
 
 모델에게 부탁하지 않고 우리가 자른다. 마지막 문장이 빈 되물음이면 지운다. `%p`→`%`. 대시 연결어→쉼표.
@@ -63,9 +72,13 @@ def normalize(text: str) -> str:
       {"type": "object",
        "properties": {
            "text": {"type": "string", "description": "첫 문장이 답. 마크다운이 자유롭다 — 표·목록·굵게 다 된다. 값이 많고 정확해야 하면 ui 부품, 몇 줄만 골라 보이거나 우리 칸에 없는 것을 섞으면 마크다운 표"},
+           "show": {"type": "array", "maxItems": 4,
+                    "description": "글과 **함께** 세울 부품. 앞서 ui 로 그린 것을 다시 적지 않는다 — "
+                                   "여기 적은 것만 답에 남는다. [{\"name\":\"map\",\"source\":\"events#1\"}, …]",
+                    "items": {"type": "object", "additionalProperties": True}},
            "confidence": {"type": "string", "enum": ["사실", "추정"]}},
        "required": ["text", "confidence"]})
-async def answer(ctx: Ctx, *, text: str, confidence: str) -> dict:
+async def answer(ctx: Ctx, *, text: str, confidence: str, show: list | None = None) -> dict:
     raw = (text or "").strip()
     if not raw:
         return {"error": "text 가 비었다"}
@@ -85,4 +98,4 @@ async def answer(ctx: Ctx, *, text: str, confidence: str) -> dict:
     t = normalize(raw) or raw
     if confidence == "추정" and CAVEAT not in t:
         t = f"{t}\n\n{CAVEAT}"
-    return {"_answer": {"text": t, "confidence": confidence}, "ok": True}
+    return {"_answer": {"text": t, "confidence": confidence, "show": show or []}, "ok": True}

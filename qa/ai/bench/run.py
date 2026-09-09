@@ -66,6 +66,8 @@ CASES = [
     ("논현에 피부과 건물 중 코너건물 찾아줘",                     "코너",  ["clean", "no_tail", "no_internal", "corner_ok"]),
     ("삼성동 78번지 주변 호재 중에 실제로 도움될 것만 골라 설명해줘", "골라내기", ["clean", "no_tail", "no_internal", "picked_few"]),
     ("삼성동 78번지 승강기 몇 대야",                              "한칸",  ["clean", "no_tail", "no_internal", "says_elevator"]),
+    # 답의 수가 API 가 준 수와 같아야 한다. 모델이 23,950 을 지어낸 적이 있다(2026-09-09)
+    ("종로구 코너 건물중 스타벅스 입점해있는 건물 찾아줘",         "수옮김", ["clean", "no_tail", "no_internal", "count_sane"]),
 ]
 
 TAINT = re.compile(r"적정가|예상 매각가|sale_est|\broi\b|활용유형|매도가능성|매력도")
@@ -96,6 +98,12 @@ def judge(pred: str, a: str, ev: dict) -> tuple[bool, str]:
     if pred == "says_elevator":
         ok = bool(re.search(r"승강기|엘리베이터", a)) and bool(re.search(r"\d", a))
         return ok, "승강기를 안 말했다" if not ok else ""
+    if pred == "count_sane":
+        # 종로구 건물이 26,714동인데 「코너 + 스타벅스」가 그보다 많을 수 없다.
+        # 모델이 옮겨 적다 틀리는 것을 잡는다 — 참값은 99~159동 사이다
+        got = [int(x.replace(",", "")) for x in re.findall(r"([\d,]{2,})\s*(?:동|개|곳)", a)]
+        ok = bool(got) and all(g <= 1000 for g in got)
+        return ok, f"수가 말이 안 된다({got})" if not ok else ""
     if pred == "has_number":   ok = bool(re.search(r"\d", a)); return ok, "숫자 없음" if not ok else ""
     if pred == "counts_all":
         # **끝까지 훑었나.** 참값 415동(2026-09-09 직접 셈). 모델이 LIMIT 10 을 스스로 붙여 놓고

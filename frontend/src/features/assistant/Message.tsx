@@ -90,7 +90,14 @@ const LABEL: Record<string, string> = {
   codes: "코드를 보는 중", ask: "되묻는 중", web_search: "웹을 찾는 중",
 };
 const label = (name: string) => LABEL[name] ?? `${name} 중`;
+/** 모델이 무엇을 보냈나. **경로만 보이면 모자란다** — /search 는 경로가 늘 같고
+ *  본문이 다르다. 「무엇을 물었길래 이 답이 나왔나」가 화면에서 보여야 한다(2026-09-09 대표). */
 const short = (o: Record<string, unknown>) => {
-  const s = o.sql ?? o.path ?? o.table ?? o.q ?? JSON.stringify(o);
-  return String(s).replace(/\s+/g, " ").slice(0, 90);
+  const parts: string[] = [];
+  if (o.path) parts.push(String(o.path));
+  if (o.query && Object.keys(o.query as object).length) parts.push(JSON.stringify(o.query));
+  if (o.body) parts.push(JSON.stringify((o.body as Record<string, unknown>).filters ?? o.body));
+  if (o.sql) parts.push(String(o.sql));
+  if (!parts.length) parts.push(JSON.stringify(o));
+  return parts.join(" ").replace(/\s+/g, " ").slice(0, 220);
 };
