@@ -29,12 +29,32 @@
 
 ## 예제
 
-**동 하나에서 연면적 200평 넘는 건물 몇 동, 큰 순 셋**
+**「몇 개」와 「큰 순 셋」은 다른 물음이다 — 둘 다 물었으면 둘 다 센다**
+
+`LIMIT` 은 보여 줄 줄만 자른다. **개수가 아니다.**
+`LIMIT 10` 을 붙여 놓고 돌아온 열 줄을 세면 415동짜리 동네가 10동이 된다(2026-09-09 실제).
+
 ```sql
-SELECT addr, total_area, floors_above
+-- ① 몇 동인가 — 세는 쿼리. LIMIT 을 안 쓴다
+SELECT count(*) AS n
   FROM master.buildings
  WHERE bjd_code LIKE '1120011400%'      -- 성수동1가. region_index 에서 찾는다
    AND total_area >= 661.16
+```
+```sql
+-- ② 큰 순 셋 — 보여 줄 줄만 자른다
+SELECT addr, total_area, floors_above
+  FROM master.buildings
+ WHERE bjd_code LIKE '1120011400%'
+   AND total_area >= 661.16
+ ORDER BY total_area DESC LIMIT 3
+```
+
+한 번에 하려면 창 함수를 쓴다.
+```sql
+SELECT addr, total_area, count(*) OVER () AS 전체
+  FROM master.buildings
+ WHERE bjd_code LIKE '1120011400%' AND total_area >= 661.16
  ORDER BY total_area DESC LIMIT 3
 ```
 

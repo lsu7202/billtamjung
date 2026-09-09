@@ -91,6 +91,10 @@ def _drop_none(d: dict) -> dict:
 # 반환: {"kind", "grade", "source", "note", "data", "grids", "show"}
 #   data   모델이 읽는 요약
 #   grids  부품이 먹는 꼴 {kv|stats|table|list|chart: …}
+#
+# **규칙: 모델이 읽는 목록과 격자는 같은 줄에서 나온다.** 호재를 요약엔 8건, 격자엔 20건 실었더니
+# 「이 중에서 골라 줘」를 받은 모델이 못 본 열둘을 고를 수 없어 스무 건을 통째로 다시 그렸다
+# (2026-09-09 대표). 화면에 선 것은 모델도 볼 수 있어야 한다 — 안 그러면 그것에 대해 말을 못 한다
 #   show   모델에게 「이렇게 보여라」 한 줄
 
 def building(d: dict) -> dict:
@@ -188,9 +192,13 @@ def _event_rows(items: list, limit: int) -> list[dict]:
     out = []
     for e in items[:limit]:
         when = e.get("on_date") or (f"{e['on_year']}년" if e.get("on_year") else None)
+        # **id 와 본문 유무를 준다.** 이게 없어서 「이 호재가 뭔지 설명해 줘」에 모델이 제목만
+        # 보고 지어냈다. 본문은 master.area_event 에 7,441건 있고 /news/item 이 내준다.
+        # 없는 것(건축 인허가·보도자료)은 웹으로 간다(2026-09-09 대표)
         out.append(_drop_none({"갈래": e.get("kind"), "제목": e.get("name"), "일자": when,
                                "거리": f"{e['distance_m']}m" if e.get("distance_m") is not None else None,
-                               "출처": e.get("source")}))
+                               "출처": e.get("source"), "id": e.get("id"),
+                               "본문": "있음" if e.get("body") else "웹에서"}))
     return out
 
 
@@ -201,12 +209,16 @@ def events(d: dict) -> dict:
     # 「이 중에서 골라 줘」를 받은 모델이 못 본 열둘을 고를 수가 없어 스무 건을 통째로 다시 그렸다
     # (2026-09-09 대표). 번호가 있어야 rows 로 고른다
     rows = _event_rows(items, 20)
-    data = {"반경": f"{d.get('radius')}m" if d.get("radius") else None,
+    yrs = d.get("_years")
+    data = {"본 창": f"최근 {yrs}년 · 반경 {d.get('radius')}m" if yrs else f"반경 {d.get('radius')}m",
             "건수": sum(kinds.values()) if kinds else len(items),
             "갈래": kinds,
             "목록": [{"#": i, **r} for i, r in enumerate(rows)]}
+    # 창이 좁아 거의 안 나오면 넓히라고 말해 준다. 기본이 1년이라 「호재 알려 줘」에 한 건만 뜰 수 있다
+    note = ("이 창에서 {}건이다. 더 보려면 years 를 키운다".format(len(items))
+            if yrs and len(items) < 5 else None)
     return {"kind": "events", "grade": "사실", "source": "고시·인허가·보도자료",
-            "note": None, "data": _drop_none(data),
+            "note": note, "data": _drop_none(data),
             "grids": {"list": [{"tag": r.get("갈래"), "title": r.get("제목"),
                                 "sub": " · ".join(x for x in (r.get("거리"), r.get("일자")) if x)}
                                for r in rows]},

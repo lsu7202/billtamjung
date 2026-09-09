@@ -116,7 +116,7 @@ _HINT = {
     ("GET", "/buildings/{building_pk}/parcels"): "필지 목록과 각 필지의 지목·면적·용도지역",
     ("GET", "/buildings/{building_pk}/tenants"): "층별 업체(인허가·상가정보)",
     ("GET", "/buildings/{building_pk}/floor-rents"): "**층별 임대. 건물 상세 화면과 같은 목록** — 층·상호·업종·면적·보증금·월세. 팀이 적은 층은 팀 것, 나머지는 업체 원장. 층 임대를 물으면 이 길",
-    ("GET", "/buildings/{building_pk}/events"): "**주변 소식 · 호재.** 정비·개발·기반시설·규제·정책·고시·보도자료. 반경 700m",
+    ("GET", "/buildings/{building_pk}/events"): "**주변 소식 · 호재.** 정비·개발·기반시설·규제·정책·고시·보도자료. query 로 **years**(몇 년치 · 기본 1)와 **radius**(m · 기본 700 · 100~3000)를 정한다 — 대화에 맞춰 고른다. 줄마다 id 가 있고 본문=있음이면 /news/item?id= 로 본문을 읽는다",
     ("GET", "/buildings/{building_pk}/pop"): "유동인구 250m 격자. 낮·밤·피크",
     ("GET", "/buildings/{building_pk}/wiki"): "이 건물에 사용자가 남긴 글",
     ("GET", "/market/nearby-sales/{building_pk}"): "반경 안 최근 매각 사례(실거래). 가까운 순",
@@ -125,7 +125,7 @@ _HINT = {
     ("GET", "/buildings/parcels/{pnu}/pop"): "나대지 유동인구",
     # 소식
     ("GET", "/news"): "서울 전체 소식. 고시·공고·인허가·보도자료·정비. q·kind·page",
-    ("GET", "/news/item"): "소식 하나 상세. id",
+    ("GET", "/news/item"): "소식 하나 **본문**. id. 「이 호재가 뭔지」를 물으면 여기서 읽는다",
     # 우리 팀 것 (사용자 토큰으로 본다)
     ("GET", "/listings"): "**우리 팀 매물** 목록",
     ("GET", "/listings/{building_pk}"): "우리 팀 매물 하나",
@@ -281,6 +281,14 @@ async def call_api(ctx: Ctx, *, method: str, path: str,
     if hit["x_ai"] not in STAGE_OPEN:
         return {"error": f"{method} {path} 는 {hit['x_ai']} 등급이라 아직 못 부른다(6단계)."}
 
+    # **호재는 기본 1년치.** API 기본값은 「전부」라 2023년 케이블 트레이 이설공사까지 올라왔다.
+    # 화면은 사람이 스크롤로 거르지만 모델은 스무 줄을 다 읽고 답에 싣는다(2026-09-09 대표).
+    # 모델이 years 를 주면 그것을 쓴다 — 「10년치 보자」가 되게
+    if (method, hit["path"]) == ("GET", "/buildings/{building_pk}/events"):
+        query = {**(query or {})}
+        query.setdefault("years", 1)
+        _years = query["years"]
+
     from ...main import app
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://ai",
                                  timeout=30.0) as c:
@@ -300,6 +308,8 @@ async def call_api(ctx: Ctx, *, method: str, path: str,
     # 주장 걷어내기(§16) → 나가는 문(§3 ②) → 굽기(§9-9 · §23-1). 차례가 뜻이다
     extra = _STRIP_FOR.get((method, hit["path"]), set())
     slim = scrub_obj(_strip(data, extra))
+    if (method, hit["path"]) == ("GET", "/buildings/{building_pk}/events") and isinstance(slim, dict):
+        slim["_years"] = _years          # 어느 창으로 봤는지. 모델이 넓힐 판단을 하려면 알아야 한다
     keep = _KEEP_FOR.get((method, hit["path"]))
     if keep:
         slim = _keep_rows(slim, keep)

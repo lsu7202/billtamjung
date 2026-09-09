@@ -89,9 +89,11 @@ def _from_store(ctx: Ctx, name: str, props: dict) -> dict | None:
         data.update(grid)
         if props.get("kind") in ("line", "bar"):
             data["kind"] = props["kind"]
-    # 발에는 **등급과 출처만.** note(「비어 있으면 아직 안 적은 층」류)는 조건·요약이라
-    # 화면에 붙이지 않는다(CLAUDE.md 설명글씨 금지 · 2026-09-09 대표). 모델은 도구 결과에서 계속 읽는다
-    data["foot"] = {"grade": ent.get("grade"), "source": ent.get("source")}
+    # **발은 추정에만 붙는다**(2026-09-09 대표). 사실에 「사실 · 고시·인허가·보도자료」를 달면
+    # 줄마다 출처가 서서 읽는 데 방해만 된다. 조심해야 하는 건 우리가 계산한 값 하나뿐이다.
+    # 등급·출처·note 는 도구 결과로 모델이 계속 읽는다 — 화면에 안 그릴 뿐이다
+    if ent.get("grade") == "추정":
+        data["foot"] = {"grade": "추정", "source": "빌탐정 추정"}
     return data
 
 
@@ -123,7 +125,8 @@ def _from_model(name: str, props: dict) -> dict | None:
             return {"error": 'chart 는 kind: "line"|"bar", x: […], series: [{"name","data":[…]}] 다'}
         data.update({k: props[k] for k in ("kind", "x", "series", "unit", "mark") if k in props})
         data.setdefault("kind", "line")
-    data["foot"] = {"grade": props.get("grade") or "모델", "source": props.get("source_note") or "대화 · 웹"}
+    if props.get("grade") == "추정":       # 모델이 쓴 값도 추정이면 표시한다
+        data["foot"] = {"grade": "추정", "source": "빌탐정 추정"}
     return data
 
 
