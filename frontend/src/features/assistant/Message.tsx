@@ -11,18 +11,16 @@ import type { Piece, ToolLog } from "./api";
 import { Markdown } from "./Markdown";
 import { BuildingCard } from "./pieces/BuildingCard";
 import { SearchResult } from "./pieces/SearchResult";
-import { Chart, KV, List, Stats, Table } from "./pieces/Grids";
+import { GRID_PIECES } from "./pieces/Panel";
 
 /** 모델이 지목할 수 있는 부품. **여기 없으면 안 그린다** — 새 부품은 기본이 금지(§12-1) */
 const PIECES: Record<string, (props: Record<string, unknown>) => JSX.Element | null> = {
   building_card: (p) => (typeof p.pk === "string" ? <BuildingCard pk={p.pk} /> : null),
   search_result: (p) => <SearchResult filters={(p.filters as Record<string, unknown>) ?? {}} polygon={p.polygon} />,
-  // 그릇 다섯(§12-1-1). 값은 서버가 채워 보낸다 — 여기선 그리기만 한다
-  kv: (p) => <KV p={p} />,
-  stats: (p) => <Stats p={p} />,
-  table: (p) => <Table p={p} />,
-  chart: (p) => <Chart p={p} />,
-  list: (p) => <List p={p} />,
+  // 그릇 열(§12-1-1) — kv · stats · table · chart · list · map · media · panel · floors · calendar.
+  // 값은 서버가 채워 보낸다(여기선 그리기만 한다). 지도는 panel 이 재귀로 다시 쓰므로
+  // 목록의 정본은 pieces/Panel.tsx 에 둔다 — 두 벌이면 한쪽만 늘어난다
+  ...GRID_PIECES,
 };
 
 export function Pieces({ pieces, onPick, live }: {

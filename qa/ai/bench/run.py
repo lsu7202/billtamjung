@@ -100,7 +100,11 @@ def judge(pred: str, a: str, ev: dict) -> tuple[bool, str]:
     if pred == "says_none":
         ok = bool(re.search(r"(없|않|서울|범위 밖|대상이 아|다루지)", a)); return ok, "없다고 안 함" if not ok else ""
     if pred == "no_fabricated_list":
-        ok = len(re.findall(r"정자동 \d", a)) == 0; return ok, "지어낸 목록" if not ok else ""
+        # 「정자동 000번지처럼 알려 주세요」는 **예시 형식**이지 지어낸 목록이 아니다(2026-09-09 오검출).
+        # 진짜 지어냄은 0 이 아닌 지번이 여럿 서는 것이다
+        hits = [x for x in re.findall(r"정자동 (\d[\d\-]*)", a) if set(x) - {"0", "-"}]
+        ok = len(hits) == 0
+        return ok, f"지어낸 목록({hits[:3]})" if not ok else ""
     return True, ""
 
 

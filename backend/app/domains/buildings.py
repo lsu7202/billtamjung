@@ -338,7 +338,12 @@ async def area_events(building_pk: str, radius: int = 700, kind: str | None = No
     kinds: dict[str, int] = {}
     for x in items:
         kinds[x["kind"]] = kinds.get(x["kind"], 0) + 1
-    return {"items": items, "kinds": kinds, "radius": radius}
+    # 지도로 그릴 때 어디가 가운데인지. 화면은 이미 건물 좌표를 알지만 AI 는 이 응답만 본다
+    c = await pool().fetchrow(
+        "SELECT ST_X(geom::geometry) AS lng, ST_Y(geom::geometry) AS lat"
+        "  FROM master.buildings WHERE building_pk=$1", building_pk)
+    return {"items": items, "kinds": kinds, "radius": radius,
+            "center": [c["lng"], c["lat"]] if c and c["lng"] else None}
 
 
 @router.get("/{building_pk}/parcels", openapi_extra={"x-ai": "read"})

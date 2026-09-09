@@ -16,7 +16,7 @@ KINDS = ("exterior", "interior", "land_use", "building_ledger", "cadastral", "et
 router = APIRouter(prefix="/buildings/{building_pk}/photos", tags=["photos"])
 
 
-@router.get("")
+@router.get("", openapi_extra={"x-ai": "read"})   # media 부품의 재료. 파일 자체는 /{photo_id} 라 안 연다
 async def list_photos(building_pk: str, user: CurrentUser = Depends(current_user)):
     """종류별 정렬(0032). 브리핑이 서류 슬롯을 종류로 찾는다.
 

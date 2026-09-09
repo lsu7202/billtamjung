@@ -25,11 +25,12 @@ from typing import Any
 
 from . import Ctx, tool
 
-NAMES = ("kv", "stats", "table", "chart", "list")
+NAMES = ("kv", "stats", "table", "chart", "list", "map", "media", "panel", "floors", "calendar")
 # 상한. **source 로 채우는 값은 모델 토큰이 0 이라 이 수는 화면 길이만 정한다.**
 # 14 였을 때 건물 제원 20줄 중 15번째인 승강기가 잘렸고, 하필 사용자가 물은 게 승강기였다
 # (2026-09-09 대표). 잘린 건 아래에서 모델에게 말해 준다
-LIMIT = {"kv": 24, "stats": 6, "table": 20, "list": 20}
+LIMIT = {"kv": 24, "stats": 6, "table": 20, "list": 20,
+         "map": 60, "media": 6, "floors": 60, "calendar": 200}
 
 
 def _rows_pick(rows: list, props: dict) -> list:
@@ -89,6 +90,19 @@ def _from_store(ctx: Ctx, name: str, props: dict) -> dict | None:
         data.update(grid)
         if props.get("kind") in ("line", "bar"):
             data["kind"] = props["kind"]
+    elif name == "map":
+        pins = _rows_pick(grid.get("pins") or [], props)
+        data["_cut"] = max(0, len(pins) - LIMIT["map"])
+        data.update({"center": grid.get("center"), "radius": props.get("radius") or grid.get("radius"),
+                     "pins": pins[:LIMIT["map"]]})
+    elif name == "media":
+        items = _rows_pick(grid.get("items") or grid, props)
+        data["items"] = items[:LIMIT["media"]]
+    elif name == "floors":
+        data.update({"rows": (grid.get("rows") or [])[:LIMIT["floors"]],
+                     "unknown": grid.get("unknown") or [], "총면적": grid.get("총면적") or {}})
+    elif name == "calendar":
+        data.update({"month": grid.get("month"), "days": grid.get("days") or []})
     # **발은 추정에만 붙는다**(2026-09-09 대표). 사실에 「사실 · 고시·인허가·보도자료」를 달면
     # 줄마다 출처가 서서 읽는 데 방해만 된다. 조심해야 하는 건 우리가 계산한 값 하나뿐이다.
     # 등급·출처·note 는 도구 결과로 모델이 계속 읽는다 — 화면에 안 그릴 뿐이다
@@ -125,15 +139,72 @@ def _from_model(name: str, props: dict) -> dict | None:
             return {"error": 'chart 는 kind: "line"|"bar", x: […], series: [{"name","data":[…]}] 다'}
         data.update({k: props[k] for k in ("kind", "x", "series", "unit", "mark") if k in props})
         data.setdefault("kind", "line")
+    elif name == "map":
+        pins = props.get("pins")
+        if not isinstance(pins, list) or not all(
+                isinstance(p, dict) and "lng" in p and "lat" in p and "title" in p for p in pins):
+            return {"error": 'map 은 pins: [{"lng","lat","title","tag"?,"sub"?}, …] 다'}
+        data.update({"center": props.get("center") or [pins[0]["lng"], pins[0]["lat"]] if pins else None,
+                     "radius": props.get("radius"), "pins": pins[:LIMIT["map"]]})
+    elif name == "media":
+        items = props.get("items")
+        if not isinstance(items, list) or not all(isinstance(i, dict) and i.get("kind") in ("photo", "roadview")
+                                                  for i in items):
+            return {"error": 'media 는 items: [{"kind":"photo"|"roadview","url"?,"lng"?,"lat"?,"caption"?}, …] 다'}
+        data["items"] = items[:LIMIT["media"]]
+    elif name == "floors":
+        rows = props.get("rows")
+        if not isinstance(rows, list):
+            return {"error": 'floors 는 rows: [{"층","상호"?,"면적"?,"월세"?, …}, …] 다'}
+        data.update({"rows": rows[:LIMIT["floors"]], "unknown": props.get("unknown") or [],
+                     "총면적": props.get("총면적") or {}})
+    elif name == "calendar":
+        days = props.get("days")
+        if not isinstance(props.get("month"), str) or not isinstance(days, list):
+            return {"error": 'calendar 는 month: "2026-09", days: [{"date","items":[{"title","tag"?}]}] 다'}
+        data.update({"month": props["month"], "days": days})
     if props.get("grade") == "추정":       # 모델이 쓴 값도 추정이면 표시한다
         data["foot"] = {"grade": "추정", "source": "빌탐정 추정"}
     return data
 
 
+def _panel(ctx: Ctx, props: dict, title: str | None) -> dict:
+    """부품 묶음. 안쪽 조각도 `source` 로 서버가 채운다 — 묶었다고 값을 모델이 쓰게 되면 안 된다.
+
+    한 겹까지만 판다. panel 안의 panel 은 끝이 없고, 화면에서도 카드가 겹쳐 읽기만 나빠진다.
+    """
+    parts = props.get("parts")
+    if not isinstance(parts, list) or not parts:
+        return {"error": 'panel 은 parts: [{"name": "kv", "props": {…}}, …] 다'}
+    out = []
+    for part in parts[:6]:
+        if not isinstance(part, dict):
+            continue
+        nm, pp = part.get("name"), dict(part.get("props") or {})
+        if nm not in NAMES or nm == "panel":
+            return {"error": f"panel 안에는 {', '.join(n for n in NAMES if n != 'panel')} 만 넣는다"}
+        d = _from_store(ctx, nm, pp) if pp.get("source") else _from_model(nm, pp)
+        if d is None or "error" in d:
+            return d or {"error": f"{nm} 인자가 비었다"}
+        d.pop("_cut", None)
+        if part.get("title"):
+            d["title"] = str(part["title"])[:60]
+        if d.get("rows") or d.get("items") or d.get("series") or d.get("pins") or d.get("days"):
+            out.append({"name": nm, "props": d})
+    if not out:
+        return {"error": "panel 에 그릴 조각이 없다"}
+    data: dict[str, Any] = {"parts": out, "dir": props.get("dir") if props.get("dir") in ("col", "row") else "col"}
+    if title:
+        data["title"] = title.strip()[:60]
+    return {"_ui": {"name": "panel", "props": data}, "ok": True, "shown": "panel"}
+
+
 @tool("ui",
       "화면에 부품을 세운다. 도구 결과의 id 를 source 로 주면 서버가 값을 채운다. 그게 가장 싼 길이다. "
       "숫자 여럿·표·목록·추이는 글로 옮기지 말고 이걸로 보인다. "
-      "kv(라벨·값) · stats(큰 숫자) · table(행·열) · chart(선·막대) · list(태그·제목·꼬리).",
+      "kv(라벨·값) · stats(큰 숫자) · table(행·열) · chart(선·막대) · list(태그·제목·꼬리) · "
+      "map(좌표에 핀 — 호재·매물처럼 어디인지가 뜻일 때) · media(사진·로드뷰) · floors(층별 임대) · "
+      "calendar(달력) · panel(여럿을 한 틀에).",
       {"type": "object",
        "properties": {
            "name": {"type": "string", "enum": list(NAMES)},
@@ -152,12 +223,14 @@ async def ui(ctx: Ctx, *, name: str, props: dict | None = None, title: str | Non
         props.setdefault(k, v)
     if name not in NAMES:
         return {"error": f"{name} 은 없다. 되는 것: {', '.join(NAMES)}"}
+    if name == "panel":
+        return _panel(ctx, props, title)
     data = _from_store(ctx, name, props) if props.get("source") else _from_model(name, props)
     if data is None or "error" in data:
         return data or {"error": "인자가 비었다"}
     # **빈 그릇은 세우지 않는다.** 줄 0 짜리 표는 화면에 빈 테두리만 남기고,
     # 모델은 「보여 드렸다」고 여겨 답에서 그 사실을 안 짚는다(2026-09-09 대화 #124)
-    if not (data.get("rows") or data.get("items") or data.get("series")):
+    if not any(data.get(k) for k in ("rows", "items", "series", "pins", "days", "parts")):
         return {"error": f"{name} 에 그릴 값이 없다. 자료가 비었으면 부품 없이 answer 로 말한다"}
     if title:
         data["title"] = title.strip()[:60]

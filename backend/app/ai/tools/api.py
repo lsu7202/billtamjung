@@ -131,7 +131,7 @@ _HINT = {
     ("GET", "/listings/{building_pk}"): "우리 팀 매물 하나",
     ("GET", "/buyers"): "우리 팀 매수자 목록과 담긴 매물 수",
     ("GET", "/sales/sellers"): "매물 단위 흐름 보드",
-    ("GET", "/sales/schedule"): "달력. 그 달의 약속. year·month",
+    ("GET", "/sales/schedule"): "달력. 그 기간의 약속. **start·end**(YYYY-MM-DD) 를 준다. mine=true 면 내 담당만",
     ("GET", "/sales/today"): "오늘 할 일·밀린 약속·다가오는 일정",
     # 사전
     ("GET", "/enums"): "enum 사전. 코드 → 이름",

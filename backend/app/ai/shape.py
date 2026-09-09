@@ -148,7 +148,13 @@ def building(d: dict) -> dict:
     ] if x.get("value") is not None]
     return {"kind": "facts", "grade": "사실", "source": "건축물대장 · 토지이용계획",
             "note": None, "data": facts,
-            "grids": {"kv": [[k, v] for k, v in facts.items()], "stats": stats},
+            "grids": {"kv": [[k, v] for k, v in facts.items()], "stats": stats,
+                      **({"map": {"center": [d["lng"], d["lat"]], "pins": [
+                              {"lng": d["lng"], "lat": d["lat"], "title": short_addr(d.get("addr")) or "이 건물"}]},
+                          # 건물 사진은 팀이 올린 것만이라 거의 없다. 기본은 로드뷰다(2026-09-09 대표)
+                          "media": {"items": [{"kind": "roadview", "lng": d["lng"], "lat": d["lat"],
+                                               "caption": short_addr(d.get("addr"))}]}}
+                         if d.get("lng") and d.get("lat") else {})},
             # 한 가지만 물었으면 그 줄만 세운다 — pick 을 예로 보인다(2026-09-09).
             # 「승강기 정보」에 제원 열넷을 통째로 세우고 정작 승강기는 상한에 잘렸다
             "show": 'ui(name="kv", props={"source": ID}) · 한 가지만 물으면 '
@@ -221,9 +227,15 @@ def events(d: dict) -> dict:
             "note": note, "data": _drop_none(data),
             "grids": {"list": [{"tag": r.get("갈래"), "title": r.get("제목"),
                                 "sub": " · ".join(x for x in (r.get("거리"), r.get("일자")) if x)}
-                               for r in rows]},
-            "show": 'ui(name="list", props={"source": ID}) · 몇 개만 고르려면 '
-                    'props={"source": ID, "rows": [0, 3, 7]} 로 # 번호를 준다'}
+                               for r in rows],
+                      # 호재는 **어디인지가 뜻이다.** 목록으로만 주면 「내 건물에서 얼마나 가까운가」가 안 보인다
+                      "map": {"center": d.get("center"), "radius": d.get("radius"),
+                              "pins": [{"lng": e["lng"], "lat": e["lat"], "tag": e.get("kind"),
+                                        "title": e.get("name") or "",
+                                        "sub": f"{e['distance_m']}m" if e.get("distance_m") is not None else None}
+                                       for e in items[:20] if e.get("lng") and e.get("lat")]}},
+            "show": 'ui(name="map", props={"source": ID}) 로 지도에, ui(name="list", props={"source": ID}) 로 목록에. '
+                    '몇 개만 고르려면 props={"source": ID, "rows": [0, 3, 7]} 로 # 번호를 준다'}
 
 
 def news(d: dict) -> dict:
@@ -323,8 +335,11 @@ def floor_rents(d: dict) -> dict:
             "source": "팀 입력 · 업체 원장",
             "note": "금액은 팀이 적은 것만. 비어 있으면 아직 안 적은 층",
             "data": data,
-            "grids": {"table": {"head": used, "rows": [[r.get(h) for h in used] for r in out]}},
-            "show": 'ui(name="table", props={"source": ID})'}
+            "grids": {"table": {"head": used, "rows": [[r.get(h) for h in used] for r in out]},
+                      # 층이 쌓이는 게 정보다. 표로 주면 지하가 위로 오고 층 사이 빈 곳이 안 보인다
+                      "floors": {"rows": out, "unknown": unknown,
+                                 "총면적": {k: area(v) for k, v in (d.get("층면적") or {}).items()}}},
+            "show": 'ui(name="floors", props={"source": ID}) · 표로 보려면 ui(name="table", props={"source": ID})'}
 
 def listings(d: Any) -> dict:
     rows = [_drop_none({"주소": short_addr(x.get("addr"))}) for x in (d if isinstance(d, list) else [])[:30]]
@@ -353,6 +368,46 @@ def search(d: dict, body: dict | None) -> dict:
 
 
 # (method, path 템플릿) → 굽는 함수. 없으면 걷어내고 자른 원문이 그대로 간다
+def schedule(d: Any) -> dict:
+    """달력 — 그 기간의 약속. 응답은 줄 목록이라 날짜로 묶어 격자를 만든다.
+
+    목록으로도 주는 이유: 채팅 폭에서 7열 달력은 못 읽는다. 「이번 주 뭐 있어」는 목록이 낫고
+    「9월 어때」는 달력이 낫다. **어느 쪽인지는 모델이 대화를 보고 고른다.**
+    """
+    items = d if isinstance(d, list) else (d.get("items") or [])
+    by: dict[str, list] = {}
+    for it in items:
+        if it.get("on_date"):
+            by.setdefault(it["on_date"], []).append(it)
+    rows = [_drop_none({"날짜": it.get("on_date"), "시각": it.get("at_time"),
+                        "일": it.get("title"), "갈래": it.get("kind"),
+                        "상태": it.get("state"), "곳": it.get("place")})
+            for it in items[:40]]
+    month = min(by) [:7] if by else None
+    return {"kind": "schedule", "grade": "사실", "source": "우리 팀 일정", "note": None,
+            "data": {"약속": len(items), "목록": rows},
+            "grids": {"calendar": {"month": month,
+                                   "days": [{"date": k,
+                                             "items": [{"title": x.get("title") or "",
+                                                        "tag": x.get("kind")} for x in v]}
+                                            for k, v in sorted(by.items())]},
+                      "list": [{"tag": r.get("날짜"), "title": r.get("일"),
+                                "sub": " · ".join(x for x in (r.get("시각"), r.get("상태")) if x)}
+                               for r in rows]},
+            "show": 'ui(name="calendar", props={"source": ID}) · 며칠치면 ui(name="list", props={"source": ID})'}
+
+
+def photos(d: Any) -> dict:
+    """팀이 올린 사진. 없으면 건물 굽기가 이미 로드뷰를 준다 — 여기서 로드뷰를 또 만들지 않는다."""
+    items = d if isinstance(d, list) else (d.get("items") or [])
+    got = [{"kind": "photo", "url": f"/api{x['url']}" if x.get("url", "").startswith("/") else x.get("url"),
+            "caption": x.get("caption")} for x in items if x.get("url")]
+    return {"kind": "photos", "grade": "사실", "source": "팀이 올린 사진", "note": None,
+            "data": {"사진": len(got)},
+            "grids": {"media": {"items": got[:6]}},
+            "show": 'ui(name="media", props={"source": ID})'}
+
+
 SHAPERS: dict[tuple[str, str], Callable[..., dict]] = {
     ("GET", "/buildings/{building_pk}"): lambda d, body: building(d),
     ("GET", "/buildings/{building_pk}/parcels"): lambda d, body: parcels(d),
@@ -363,6 +418,8 @@ SHAPERS: dict[tuple[str, str], Callable[..., dict]] = {
     ("GET", "/buildings/parcels/{pnu}/pop"): lambda d, body: pop(d),
     ("GET", "/buildings/{building_pk}/tenants"): lambda d, body: tenants(d),
     ("GET", "/buildings/{building_pk}/floor-rents"): lambda d, body: floor_rents(d),
+    ("GET", "/sales/schedule"): lambda d, body: schedule(d),
+    ("GET", "/buildings/{building_pk}/photos"): lambda d, body: photos(d),
     ("GET", "/listings"): lambda d, body: listings(d),
     ("POST", "/search"): search,
 }

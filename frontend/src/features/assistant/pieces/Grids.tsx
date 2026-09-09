@@ -12,9 +12,11 @@ import React from "react";
 import "./grids.css";
 
 // 발엔 등급과 출처만. 조건·요약(note)은 붙이지 않는다 — 설명글씨 금지(2026-09-09 대표)
-type Foot = { grade?: string; source?: string };
+export type Foot = { grade?: string; source?: string };
 
-function Frame({ title, foot, children }: { title?: string; foot?: Foot; children: React.ReactNode }) {
+/** 부품 다섯이 더 붙었다(지도·사진·묶음·층별·달력). 발·제목·테두리는 여기 하나로 — 새 부품이
+ *  제 테두리를 그리기 시작하면 카드가 두 겹으로 겹친다. */
+export function Frame({ title, foot, children }: { title?: string; foot?: Foot; children: React.ReactNode }) {
   return (
     <div className="gd">
       {title && <div className="gd-t">{title}</div>}
