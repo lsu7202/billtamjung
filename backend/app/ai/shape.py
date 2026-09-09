@@ -415,6 +415,28 @@ def photos(d: Any) -> dict:
             "show": 'ui(name="media", props={"source": ID})'}
 
 
+def suggest(d: Any) -> dict:
+    """주소 자동완성. **빈 결과가 무슨 뜻인지 응답이 말한다.**
+
+    빈 목록만 주니 모델이 「분당 정자동」에 도구를 아예 안 부르고 되물었다(2026-09-09 잣대).
+    우리 판은 서울이다 — 밖이면 밖이라고 말해 주어야 모델이 웹으로 갈지 판단한다.
+    """
+    rows = d if isinstance(d, list) else (d.get("data") or [])
+    if not rows:
+        return {"kind": "suggest", "grade": "사실", "source": "우리 자료(서울)",
+                "note": "우리 자료는 **서울시**다. 서울 밖이면 여기서 안 나온다 — "
+                        "밖의 곳이면 그렇게 말하고, 필요하면 웹으로 찾는다",
+                "data": {"후보": 0}, "grids": {}, "show": ""}
+    out = [_drop_none({"갈래": r.get("kind"), "주소": short_addr(r.get("addr")),
+                       "bjd_code": r.get("bjd_code"), "pk": r.get("building_pk"),
+                       "곁말": r.get("sub")}) for r in rows[:8]]
+    return {"kind": "suggest", "grade": "사실", "source": "우리 자료(서울)", "note": None,
+            "data": {"후보": out},
+            "grids": {"list": [{"tag": r.get("갈래"), "title": r.get("주소"), "sub": r.get("곁말")}
+                               for r in out]},
+            "show": "후보가 여럿이면 ask 로 고르게 한다. bjd_code·pk 는 **그대로** 다음 부름에 쓴다"}
+
+
 SHAPERS: dict[tuple[str, str], Callable[..., dict]] = {
     ("GET", "/buildings/{building_pk}"): lambda d, body: building(d),
     ("GET", "/buildings/{building_pk}/parcels"): lambda d, body: parcels(d),
@@ -425,6 +447,7 @@ SHAPERS: dict[tuple[str, str], Callable[..., dict]] = {
     ("GET", "/buildings/parcels/{pnu}/pop"): lambda d, body: pop(d),
     ("GET", "/buildings/{building_pk}/tenants"): lambda d, body: tenants(d),
     ("GET", "/buildings/{building_pk}/floor-rents"): lambda d, body: floor_rents(d),
+    ("GET", "/search/suggest"): lambda d, body: suggest(d),
     ("GET", "/sales/schedule"): lambda d, body: schedule(d),
     ("GET", "/buildings/{building_pk}/photos"): lambda d, body: photos(d),
     ("GET", "/listings"): lambda d, body: listings(d),

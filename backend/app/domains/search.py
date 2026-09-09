@@ -47,9 +47,13 @@ async def _suggest_refs() -> tuple[list, list]:
     regions = [r for r in regions if r["lng"] is not None and r["lat"] is not None]
     gus: dict[str, dict] = {}          # 구 단위(동 평균의 평균)
     for r in regions:
-        g = gus.setdefault(r["gu"], {"gu": r["gu"], "lng": 0.0, "lat": 0.0, "cnt": 0, "n": 0})
+        g = gus.setdefault(r["gu"], {"gu": r["gu"], "lng": 0.0, "lat": 0.0, "cnt": 0, "n": 0,
+                                     "bjd_code": (r["bjd_code"] or "")[:5] or None})
         g["lng"] += r["lng"]; g["lat"] += r["lat"]; g["cnt"] += (r["cnt"] or 0); g["n"] += 1
-    gu_list = [{"gu": g["gu"], "lng": g["lng"]/g["n"], "lat": g["lat"]/g["n"], "cnt": g["cnt"]} for g in gus.values()]
+    # **구도 코드를 준다.** 동은 코드가 오는데 구는 null 이라, 「종로구」를 물은 모델이 코드를
+    # 못 받고 11010·1101·1100000000 을 지어내며 열 바퀴를 돌았다(2026-09-09). 구 코드는 동 앞 5자리다
+    gu_list = [{"gu": g["gu"], "lng": g["lng"]/g["n"], "lat": g["lat"]/g["n"], "cnt": g["cnt"],
+                "bjd_code": g["bjd_code"]} for g in gus.values()]
     stations = [dict(r) for r in await pool().fetch(
         """SELECT name, string_agg(route, '·' ORDER BY route) AS routes,
                   avg(lng) AS lng, avg(lat) AS lat
@@ -102,8 +106,10 @@ async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(curr
             out.append(Suggestion(kind="region", addr=f"서울특별시 {r['gu']} {dong}",
                                   lng=r["lng"], lat=r["lat"], sub=f"매물 {r['cnt']:,}동", bjd_code=r.get("bjd_code")))
         elif not dong and r["gu"].startswith(norm):
+            # 구 줄에도 코드를 실어 준다. 없으니 「종로구」를 물은 모델이 코드를 지어냈다(2026-09-09)
             out.append(Suggestion(kind="region", addr=f"서울특별시 {r['gu']}",
-                                  lng=r["lng"], lat=r["lat"], sub=f"매물 {r['cnt']:,}동"))
+                                  lng=r["lng"], lat=r["lat"], sub=f"매물 {r['cnt']:,}동",
+                                  bjd_code=r.get("bjd_code")))
     # 역: '강남역' → '강남' 매칭도 지원(끝의 '역' 제거)
     st_q = norm[:-1] if norm.endswith("역") and len(norm) > 1 else norm
     st_hits = [s for s in stations if s["name"].startswith(st_q)]
@@ -434,6 +440,24 @@ _HAS_PERMIT: bool | None = None
 # **없는 값은 조용히 걸러지면 안 된다** — 모델이 「광대각지」(실제는 광대세각·광대소각)를 지어내
 # 28동이 4동이 됐고, 그게 답으로 나갔다(2026-09-09 대표). 조용한 축소도 거짓말이다.
 _ENUM: dict[str, set[str]] = {}
+# 있는 지역 코드 접두 전부(시 2 · 구 5 · 동 10 자리). region_index 466줄에서 만든다
+_REGION: set[str] = set()
+
+
+async def load_guards() -> None:
+    """막이가 쓸 목록을 채운다. **처음 쓸 때** 채운다 —
+    시작할 때만 채우면 그 길을 안 거치는 판(잣대·스크립트)에서 조용히 꺼져 있었다(2026-09-09)."""
+    if _REGION:
+        return
+    try:
+        rows = await pool().fetch("SELECT DISTINCT bjd_code FROM master.region_index WHERE bjd_code IS NOT NULL")
+        for r in rows:
+            c = r["bjd_code"] or ""
+            for n in (2, 5, 10):
+                if len(c) >= n:
+                    _REGION.add(c[:n])
+    except Exception:  # noqa: BLE001 — 못 읽었으면 검사를 안 한다
+        _REGION.clear()
 
 
 async def check_permit() -> None:
@@ -443,6 +467,7 @@ async def check_permit() -> None:
         _HAS_PERMIT = await pool().fetchval("SELECT to_regclass('master.localdata_permit') IS NOT NULL")
     except Exception:  # noqa: BLE001 — 못 봤으면 있다고 친다
         _HAS_PERMIT = None
+    await load_guards()
     for f, col in (("road_frontages", "road_frontage"), ("shapes", "shape"), ("slopes", "slope")):
         try:
             rows = await pool().fetch(
@@ -481,12 +506,24 @@ def _filter_sql(f: Filters, args: list) -> tuple[str, str]:
     if f.building_pk:
         add(m, "b.building_pk = ${i}", f.building_pk)
     if f.bjd_code:
-        # **엉터리 코드는 0건이 아니라 오류다.** 「11-00-06-00-13」처럼 지어낸 코드에 빈 결과를
-        # 돌려주니 모델이 「그런 건물이 없다」고 답했다(2026-09-09 개발서버). 조용한 0 은 거짓말이다
-        if not f.bjd_code.isdigit() or len(f.bjd_code) > 10:
-            raise HTTPException(400, "bjd_code 는 숫자 10자리다(구=5자리). "
-                                     "동 이름으로 찾으려면 /search/suggest 를 먼저 부른다")
-        add(m, "b.bjd_code LIKE ${i} || '%'", f.bjd_code)
+        # **없는 지역 코드는 0건이 아니라 오류다.** 조용한 0 을 모델은 「그런 건물이 없다」로 읽는다.
+        # 실제로 나온 것들: 「11-00-06-00-13」(지어냄) · 「1100%」(접두 LIKE 라는 말에 % 를 붙임) ·
+        # 「1100000000」(서울시 코드에 0 을 채워 열 자리로 만듦). 셋 다 조용히 0동이 됐다(2026-09-09).
+        # 자릿수만 보면 셋째가 통과하므로, **실제로 있는 지역인지**를 본다.
+        code = f.bjd_code.rstrip("%").strip()
+        if not code.isdigit() or len(code) > 10:
+            raise HTTPException(400, f"bjd_code 「{f.bjd_code}」는 코드가 아니다. "
+                                     "숫자만 쓴다(구 5자리 · 동 10자리). % 는 붙이지 않는다. "
+                                     "지역 이름으로 찾으려면 /search/suggest 를 먼저 부른다")
+        if _REGION and code not in _REGION:
+            # **오류가 답을 들고 온다.** 「가서 찾아라」라고만 하니 모델이 코드를 계속 지어내며
+            # 열 바퀴를 돌았다(2026-09-09). 가까운 후보를 같이 준다 — 한 바퀴가 1만 토큰이다
+            near = sorted(c for c in _REGION if len(c) == 5 and c[:4] == code[:4])[:6] \
+                or sorted(c for c in _REGION if len(c) == 5 and c[:2] == code[:2])[:6]
+            tip = f" 가까운 구 코드: {' · '.join(near)}" if near else ""
+            raise HTTPException(400, f"bjd_code 「{code}」로 시작하는 지역이 없다.{tip} "
+                                     "지역 이름을 알면 /search/suggest 가 코드를 준다")
+        add(m, "b.bjd_code LIKE ${i} || '%'", code)
     anyof(m, "b.use_zone", f.use_zones)
     anyof(m, "b.jimok", f.jimoks)
     for _fld, _vals in (("road_frontages", f.road_frontages), ("shapes", f.shapes), ("slopes", f.slopes)):
@@ -812,6 +849,7 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
     분류(§3.4·상태 종속): 내매물 = 팀 담당자 지정 · 일반 = 나머지.
     매매가(§3.5): 내매물=팀 수기 sale_price / 일반=NULL(후순위).
     """
+    await load_guards()          # 막이 목록(있는 지역 코드)을 처음 쓸 때 채운다
     # 정렬 = 매매가순 / 수익률순만(S01 §3.3). 값 없는 항목은 후순위(NULLS LAST).
     # 수익률순은 **추정 수익률**로 세운다 — 팀 매매가는 극소수라 그걸로 세우면 목록이 빈다.
     # 목록 줄에 뜨는 값도 팀 매매가가 없으면 추정 수익률이라 순서와 숫자가 맞는다.
