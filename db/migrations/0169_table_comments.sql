@@ -24,7 +24,7 @@ BEGIN
     ('master.building_road', '도로 접면. building_pk·front_m(전면 도로폭)·n_roads(접한 도로 수)'),
     ('master.building_ledger_raw', '대장 원본 JSON. 보통 안 쓴다 — 파생표를 먼저 본다'),
     ('master.vacant_parcels', '나대지(건물 없는 필지) 33만. pnu·addr·area·use_zone·gongsi_latest'),
-    ('master.localdata_permit', '**영업 인허가 업체 315만**(행안부 LOCALDATA). 「이 건물·동네에 무슨 가게가 있나」는 여기. name·biz1(업종)·open_on·close_on(NULL=영업 중)·floor_no(층)·jibun·road·geom. **building_pk 가 없다** — jibun 이나 geom 으로 잇는다'),
+    ('master.localdata_permit', '**영업 인허가 업체 315만**(행안부 LOCALDATA). 「이 건물·동네에 무슨 가게가 있나」는 여기. name·biz1(업종)·open_on·close_on(NULL=영업 중)·floor_no(층)·jibun·road·geom. **building_pk 가 없다** — ST_DWithin(b.geom::geography, p.geom::geography, 25) 로 잇는다(::geography 를 빼면 25가 도가 되어 전국을 센다)'),
     ('master.sbiz_store', '소상공인 상가정보 55만. localdata 와 겹치지만 **pnu 와 층이 있다**. name·cat1~3(업종)·pnu·floor·ho·geom'),
     ('ref.biz_category', '업종 이름 → 상권 갈래(먹자·판매·업무·유흥·생활서비스·교육·의료·기타)'),
     ('master.sanggwon', '상권 72개 경계. id·nm·geom'),

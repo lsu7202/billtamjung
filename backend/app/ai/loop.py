@@ -241,7 +241,10 @@ async def run(ctx: Ctx, system: str, history: list[dict], emit: Emit,
         if not turn.tool_calls:
             # answer 없이 끝났다. 모델이 그냥 글로 답한 것 — 정규화해서 받는다
             if turn.text and not res.answered:
-                from .tools.answer import normalize
+                # 여기서 import 를 한 번 더 하면 **파이썬이 normalize 를 이 함수의 지역 이름으로 본다.**
+                # 그러면 이 줄에 닿기 전에 쓰는 326·334 줄이 UnboundLocalError 로 죽고,
+                # 마무리 바퀴가 통째로 날아가 「자료를 다 모으지 못했습니다」가 나갔다(2026-09-09).
+                # 파일 머리(41줄)에 이미 있다.
                 t = normalize(turn.text)
                 if t:
                     res.pieces.append({"t": "text", "v": t})

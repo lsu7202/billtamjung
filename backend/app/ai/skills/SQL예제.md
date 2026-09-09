@@ -58,6 +58,28 @@ SELECT addr, total_area, count(*) OVER () AS 전체
  ORDER BY total_area DESC LIMIT 3
 ```
 
+**「병원 건물 찾아줘」 — 대장 용도가 아니라 실제 입주 업체로 찾는다**
+
+대장 주용도가 「의료시설」인 건물은 **통째로 병원인 건물**이라 드물다(성수동2가 2동).
+중개인이 찾는 건 보통 **병원이 층으로 든 건물**이다(같은 동네 42지번 · 47곳).
+업체는 `master.localdata_permit`(영업 인허가 315만)에 있다. 업종은 `biz1`, 영업 중은 `close_on IS NULL`.
+
+**좌표는 4326 이라 미터로 재려면 `::geography` 를 붙인다.** 안 붙이면 25가 미터가 아니라 **도**가 되어
+2,700km 를 훑고 전국을 센다 — 성수동2가 의료업체가 21,004곳으로 나왔다(2026-09-09 실측).
+
+```sql
+SELECT b.building_pk, b.addr, b.total_area, count(*) AS 업체
+  FROM master.buildings b
+  JOIN master.localdata_permit p
+    ON ST_DWithin(b.geom::geography, p.geom::geography, 25)   -- ::geography 를 빼지 않는다
+ WHERE b.bjd_code = '1120011500'
+   AND p.close_on IS NULL
+   AND (p.biz1 LIKE '%의원%' OR p.biz1 LIKE '%병원%' OR p.biz1 LIKE '%치과%')
+ GROUP BY 1, 2, 3
+ ORDER BY 업체 DESC
+```
+동 하나면 1.5초에 끝난다. 서울 전체를 이렇게 돌리지는 않는다 — bjd_code 로 먼저 좁힌다.
+
 **구별 평균 연면적**
 ```sql
 SELECT r.gu, round(avg(b.total_area)/3.3058) AS avg_py, count(*) AS n
