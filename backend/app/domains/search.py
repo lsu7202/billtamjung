@@ -484,8 +484,13 @@ def _filter_sql(f: Filters, args: list) -> tuple[str, str]:
         # 낱말을 다 편다. 갈래가 아니면 그 낱말 그대로 부분일치.
         args.append(f.biz)
         i_biz = len(args)
+        # **상호도 본다.** 인허가 업종(biz1)은 「의원·치과의원·한의원·병원」까지만이라
+        # 피부과·소아청소년과·정형외과 같은 **진료과는 상호에 산다**(「멜로우피부과의원」의 업종은 그냥 「의원」).
+        # 업종만 보면 「피부과 많은 건물」이 0건이 된다(2026-09-09 대표). 상호로 세면 749곳이다.
+        # 같은 이치로 「스타벅스 든 건물」·「올리브영」도 상호로 닿는다.
         where_biz = (f"p.close_on IS NULL AND ("
                      f"  p.biz1 ILIKE '%' || ${i_biz} || '%'"
+                     f"  OR p.name ILIKE '%' || ${i_biz} || '%'"
                      f"  OR EXISTS (SELECT 1 FROM ref.biz_category bc"
                      f"              WHERE bc.cat = ${i_biz} AND p.biz1 ILIKE '%' || bc.key || '%'))"
                      f" AND ST_DWithin(b.geom::geography, p.geom::geography, 25)")
