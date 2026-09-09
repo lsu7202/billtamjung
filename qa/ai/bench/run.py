@@ -43,6 +43,7 @@ ACCOUNT, TEAM = 24, 24                 # phototest@t.com · 팀 매물 7개
 CONFIGS = {
     "sonnet-high": dict(model="claude-sonnet-5", effort=None),     # 지금 화면
     "sonnet-low":  dict(model="claude-sonnet-5", effort="low"),    # A
+    "haiku-low":   dict(model="claude-haiku-4-5", effort="low"),   # B — 가장 싼 판
     "haiku":       dict(model="claude-haiku-4-5", effort=None),    # B
 }
 

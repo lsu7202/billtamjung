@@ -21,7 +21,11 @@ class Settings(BaseSettings):
     # 키가 비어 있으면 /ai/* 는 AI_NOT_CONFIGURED 로 답한다(소셜 키와 같은 어법).
     # **절대 프론트로 안 간다.** 모델 호출은 전부 서버에서만 난다.
     anthropic_api_key: str = ""
-    ai_model: str = "claude-sonnet-5"                    # 대화 본체·문서·SQL
+    # 2026-09-09 대표 지시로 하이쿠·low. 값이 절반이다.
+    # **잣대에서 8○ → 6○ 로 내려간다.** 특히 SQL 을 짜서 세는 질문에서
+    # 「성수동1가 200평 넘는 건물」을 415동 대신 **10동**이라고 냈다(참값 415).
+    # 되돌리려면 이 줄만 claude-sonnet-5 로. 잣대: qa/ai/bench/result-20260909-1135.md
+    ai_model: str = "claude-haiku-4-5"                   # 대화 본체·문서·SQL
     ai_model_fast: str = "claude-haiku-4-5-20251001"     # 제목·기억 뽑기·분류
     ai_max_tokens: int = 4096
     # 겨루기 첫 판(2026-09-08, 케이스 열 × 2회): 소넷 low 가 high 와 같은 답을 입력 25% 적게, 절반 시간에 냈다.
