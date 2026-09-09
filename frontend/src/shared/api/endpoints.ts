@@ -57,6 +57,10 @@ export interface AttrFilters {
   land_uses?: string[] | null;
   main_uses?: string[] | null;
   etc_use?: string | null;
+  /** 입주 업종 — 대장 용도가 아니라 실제 영업 중 업체로 거른다(0170).
+   *  갈래(의료·먹자·판매·업무·유흥·생활서비스·교육)나 낱말(카페·학원). */
+  biz?: string | null;
+  biz_min?: number | null;
   land_area_min?: number | null; land_area_max?: number | null;
   total_area_min?: number | null; total_area_max?: number | null;
   build_area_min?: number | null; build_area_max?: number | null;

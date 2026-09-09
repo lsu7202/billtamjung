@@ -252,6 +252,11 @@ class Filters(BaseModel):
     land_uses: list[str] | None = None       # 토지이용상황(land_use) — 값=명(상업용·단독 등)
     main_uses: list[str] | None = None       # 주용도(코드 저장 — 매핑 전까지 미연결)
     etc_use: str | None = None               # 기타용도(부분일치)
+    # 업종으로 건물 찾기(0170) — **대장 용도가 아니라 실제 입주 업체**로 거른다.
+    # 「병원 건물」을 주용도로 찾으면 통째로 병원인 건물만 잡힌다(성수동2가 2동).
+    # 실제로 병원이 층으로 든 건물은 42지번이다. 그게 중개인이 찾는 것이다(2026-09-09 대표).
+    biz: str | None = None                   # 업종 낱말(부분일치). 예: 의원 · 카페 · 학원
+    biz_min: int | None = None               # 그 업종이 최소 몇 곳 (기본 1)
     # 범위 (min/max)
     land_area_min: float | None = None
     land_area_max: float | None = None
@@ -449,6 +454,25 @@ def _filter_sql(f: Filters, args: list) -> tuple[str, str]:
     anyof(m, "b.main_use_name", f.main_uses)   # UI=주용도명 · DB main_use_name과 직접 일치(코드매핑 불필요)
     if f.etc_use:
         add(m, "b.etc_use ILIKE '%' || ${i} || '%'", f.etc_use)
+    if f.biz:
+        # 영업 인허가 원장(315만)에서 반경 25m 안. **::geography 를 빼면 25가 도가 되어 전국을 센다.**
+        # 그 꼴 그대로 GIST 색인을 만들어 뒀다(0170) — 구 하나가 5분에서 1.5초가 됐다.
+        #
+        # **낱말은 편다.** 「병원」에는 「의원」이 없어서 biz='의원' 이 병원 건물을 놓쳤다(2026-09-09).
+        # 갈래 이름(의료·먹자·판매·업무·유흥·생활서비스·교육)을 주면 ref.biz_category 로 그 아래
+        # 낱말을 다 편다. 갈래가 아니면 그 낱말 그대로 부분일치.
+        args.append(f.biz)
+        i_biz = len(args)
+        where_biz = (f"p.close_on IS NULL AND ("
+                     f"  p.biz1 ILIKE '%' || ${i_biz} || '%'"
+                     f"  OR EXISTS (SELECT 1 FROM ref.biz_category bc"
+                     f"              WHERE bc.cat = ${i_biz} AND p.biz1 ILIKE '%' || bc.key || '%'))"
+                     f" AND ST_DWithin(b.geom::geography, p.geom::geography, 25)")
+        if f.biz_min and f.biz_min > 1:
+            args.append(f.biz_min)
+            m.append(f"(SELECT count(*) FROM master.localdata_permit p WHERE {where_biz}) >= ${len(args)}")
+        else:
+            m.append(f"EXISTS (SELECT 1 FROM master.localdata_permit p WHERE {where_biz})")
     rng(m, "b.land_area", f.land_area_min, f.land_area_max)
     rng(m, "b.total_area", f.total_area_min, f.total_area_max)
     rng(m, "COALESCE(b.build_area, bc.build_area_calc)", f.build_area_min, f.build_area_max)

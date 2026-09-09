@@ -110,7 +110,7 @@ def _strip(obj: Any, extra: set[str] = frozenset()) -> Any:
 _HINT = {
     # 찾기
     ("GET", "/search/suggest"): "q=주소·지번·건물명 → pk 후보. **건물을 부르기 전에 먼저.** 여럿이면 ask 로 되묻는다",
-    ("POST", "/search"): "조건 검색. 화면 검색과 같은 결과. body={filters:{bjd_code,total_area_min,…},sort,per_page}. 칸은 describe_endpoint",
+    ("POST", "/search"): "조건 검색. 화면 검색과 같은 결과. body={filters:{bjd_code,total_area_min,…},sort,per_page}. **업종으로 건물 찾기는 filters.biz** — 「병원 건물」은 biz:\"의료\"(갈래는 의료·먹자·판매·업무·유흥·생활서비스·교육, 낱말도 된다: 카페·학원). 대장 주용도는 통째로 그 용도인 건물만이라 대부분을 놓친다. biz_min 으로 몇 곳 이상. 칸은 describe_endpoint",
     # 건물 하나
     ("GET", "/buildings/{building_pk}"): "건물 상세. 대장·필지·교통·공시지가·실거래",
     ("GET", "/buildings/{building_pk}/parcels"): "필지 목록과 각 필지의 지목·면적·용도지역",

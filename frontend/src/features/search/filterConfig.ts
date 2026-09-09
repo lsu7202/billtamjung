@@ -111,6 +111,9 @@ export const GROUPS: Group[] = [
       S("대수선 및 리모델링 경과", { min: 0, max: 30, unit: "년", inf: true, handle: "right", le: "이하", ticks: "0,10,20" }),
       TOP("주용도", 주용도자주, [...주용도주, ...주용도부].filter((x) => !주용도자주.includes(x))),
       X("기타용도", "건축물대장 기타용도 · 부분일치", ["근린생활시설", "사무소", "업무시설", "단독주택", "다가구주택", "소매점", "판매시설", "상가"]),
+      // 대장 용도가 아니라 **실제로 든 업체**로 거른다(0170). 「병원 건물」을 주용도로 찾으면
+      // 통째로 병원인 건물만 잡힌다 — 성수동2가에서 2동, 실제로 의료 업체가 든 건 177동이다.
+      X("입주 업종", "영업 중 업체 기준 · 갈래나 낱말", ["의료", "먹자", "판매", "업무", "교육", "생활서비스", "카페", "학원"]),
     ] },
   { t: "토지",
     reps: [G("용도지역", 용도지역계열)],
@@ -213,7 +216,7 @@ export const GROUPS: Group[] = [
  *  드러나게 둔다 — 오타를 잡아내던 그물은 남긴다. */
 const SERVER_FILTER_KEYS = new Set([
   "bjd_code", "building_pk", "use_zones", "jimoks", "road_frontages", "shapes", "slopes",
-  "land_uses", "main_uses", "etc_use", "land_area_min", "land_area_max", "total_area_min",
+  "land_uses", "main_uses", "etc_use", "biz", "biz_min", "land_area_min", "land_area_max", "total_area_min",
   "total_area_max", "build_area_min", "build_area_max", "floors_above_min", "floors_above_max",
   "floors_below_min", "floors_below_max", "bcr_min", "bcr_max", "far_min", "far_max",
   "elevator_min", "elevator_max", "parking_min", "parking_max", "station_dist_max",

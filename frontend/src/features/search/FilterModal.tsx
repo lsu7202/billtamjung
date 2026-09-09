@@ -345,6 +345,7 @@ function toFilters(v: Values, members: { account_id: number; name: string }[] = 
     shapes: arr(ms("지형/형상")), road_frontages: arr(ms("도로접면")), slopes: arr(ms("지세")),
     main_uses: arr(ms("주용도")),                          // DB main_use_name과 직접 일치
     etc_use: txt("기타용도"),
+    biz: txt("입주 업종"),
     land_area_min: area(la.lo), land_area_max: area(la.hi),
     total_area_min: area(ta.lo), total_area_max: area(ta.hi),
     build_area_min: area(ba.lo), build_area_max: area(ba.hi),
