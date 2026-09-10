@@ -249,7 +249,9 @@ class Filters(BaseModel):
     # **지역을 이름으로 받는다**(2026-09-09). 코드를 모르는 쪽이 코드를 만들어 내는 것보다
     # 서버가 맞추는 게 싸고 정확하다 — AI 는 한 바퀴가 3,976토큰이고, 그 바퀴에서 코드를 지어냈다.
     # 여럿이면 서버가 고르지 않는다 — 후보를 담아 400 을 낸다(조용히 하나 고르면 그게 거짓말이다).
-    region: str | None = None         # 「종로구」·「성수동2가」·「강남구 논현동」
+    # 여럿도 받는다. 「성수동」처럼 1가·2가로 갈린 곳을 두 번 부르게 두면 답이 반쪽이 되고,
+    # 화면엔 마지막 것만 선다(2026-09-10 대표). 하나로 받아 OR 로 묶는다.
+    region: str | list[str] | None = None   # 「종로구」 · 「성수동2가」 · ["성수동1가","성수동2가"]
     # 한 매물로 좁히기 — 매수자 조건에 이 매물이 걸리는지 볼 때 쓴다(S04 「맞는 매수자」).
     # 매칭용 쿼리를 따로 만들면 검색과 언젠가 어긋나므로, 같은 엔진을 한 행으로 좁혀 쓴다.
     building_pk: str | None = None
@@ -518,8 +520,12 @@ def resolve_region(text: str) -> tuple[str, str]:
         if not hit:
             raise HTTPException(400, f"「{text}」은 우리 자료에 없다. 우리 판은 **서울시**다")
     if len({c for c, _ in hit}) > 1:
+        # **오류가 답을 들고 온다.** 「하나를 골라라」라고만 하니 모델이 사용자에게 되물었다 —
+        # 이제 region 이 목록을 받으니 그냥 다 넣으면 된다(2026-09-10 대표).
         names = " / ".join(f"{nm}({c})" for c, nm in hit[:8])
-        raise HTTPException(400, f"「{text}」은 여럿이다: {names}. 하나를 bjd_code 로 준다")
+        picks = ", ".join(f'"{nm.replace("서울 ", "")}"' for _, nm in hit[:8])
+        raise HTTPException(400, f"「{text}」은 여럿이다: {names}. "
+                                 f"다 보려면 region:[{picks}], 하나만 보려면 그 이름 하나를 준다")
     return hit[0]
 
 
@@ -553,9 +559,15 @@ def _filter_sql(f: Filters, args: list) -> tuple[str, str]:
     if f.building_pk:
         add(m, "b.building_pk = ${i}", f.building_pk)
     if f.region and not f.bjd_code:
-        code, name = resolve_region(f.region)
-        add(m, "b.bjd_code LIKE ${i} || '%'", code)
-        matched.append(name)
+        wants = f.region if isinstance(f.region, list) else [f.region]
+        ors = []
+        for w in wants[:10]:
+            code, name = resolve_region(w)
+            args.append(code)
+            ors.append(f"b.bjd_code LIKE ${len(args)} || '%'")
+            matched.append(name)
+        if ors:
+            m.append("(" + " OR ".join(ors) + ")")
 
     if f.bjd_code:
         # **없는 지역 코드는 0건이 아니라 오류다.** 조용한 0 을 모델은 「그런 건물이 없다」로 읽는다.

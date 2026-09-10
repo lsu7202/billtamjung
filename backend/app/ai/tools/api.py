@@ -207,7 +207,7 @@ _HINT = {
     ("GET", "/buildings/{building_pk}/parcels"): "필지 목록과 각 필지의 지목·면적·용도지역",
     ("GET", "/buildings/{building_pk}/tenants"): "층별 업체(인허가·상가정보)",
     ("GET", "/buildings/{building_pk}/floor-rents"): "**층별 임대. 건물 상세 화면과 같은 목록** — 층·상호·업종·면적·보증금·월세. 팀이 적은 층은 팀 것, 나머지는 업체 원장. 층 임대를 물으면 이 길",
-    ("GET", "/buildings/{building_pk}/events"): "**주변 소식 · 호재.** 정비·개발·기반시설·규제·정책·고시·보도자료. query 로 **years**(몇 년치 · 기본 1)와 **radius**(m · 기본 700 · 100~3000)를 정한다 — 대화에 맞춰 고른다. 줄마다 id 가 있고 본문=있음이면 /news/item?id= 로 본문을 읽는다",
+    ("GET", "/buildings/{building_pk}/events"): "**주변 소식 · 호재.** 정비·개발·기반시설·규제·정책·고시·보도자료. query 로 **years**(몇 년치 · 기본 1)와 **radius**(m · 기본 700 · 100~3000)를 정한다. **「주변」이라고만 하면 700m 를 쓴다** — 판마다 반경을 달리 잡으면 같은 물음에 건수가 갈린다(88건/50건). 사용자가 더 넓게 볼 이유를 말했을 때만 키운다. 줄마다 id 가 있고 본문=있음이면 /news/item?id= 로 본문을 읽는다",
     ("GET", "/buildings/{building_pk}/pop"): "유동인구 250m 격자. 낮·밤·피크",
     ("GET", "/buildings/{building_pk}/wiki"): "이 건물에 사용자가 남긴 글",
     ("GET", "/market/nearby-sales/{building_pk}"): "반경 안 최근 매각 사례(실거래). 가까운 순",
@@ -431,9 +431,12 @@ async def call_api(ctx: Ctx, *, method: str, path: str,
         # 모델은 단위·등급·출처가 박힌 요약과 id 만 읽는다. 원문과 격자는 store 에 두고
         # 부품이 id 로 집어 간다. 화면용 원문 2,400토큰이 100토큰이 되는 자리
         shaped = shaper(slim if isinstance(slim, (dict, list)) else {}, body)
+        # **무엇을 물어 얻은 결과인가**를 같이 둔다. 「좁힌 것」과 「나눠 부른 것」을
+        # 가리려면 조건을 견줘야 한다(2026-09-10 대표)
+        ask = dict((body or {}).get("filters") or {}) if isinstance(body, dict) else dict(query or {})
         sid = ctx.remember(shaped["kind"], {"raw": slim, "grids": shaped.get("grids") or {},
                                             "grade": shaped["grade"], "source": shaped["source"],
-                                            "note": shaped.get("note"), "path": path})
+                                            "note": shaped.get("note"), "path": path, "ask": ask})
         out: dict[str, Any] = {"id": sid, "grade": shaped["grade"], "source": shaped["source"]}
         if shaped.get("note"):
             out["note"] = shaped["note"]

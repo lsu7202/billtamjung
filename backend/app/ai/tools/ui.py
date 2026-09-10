@@ -33,6 +33,18 @@ LIMIT = {"kv": 24, "stats": 6, "table": 20, "list": 20,
          "map": 60, "media": 6, "floors": 60, "calendar": 200}
 
 
+def _narrowed(old: dict | None, new: dict | None) -> bool:
+    """새 결과가 옛 결과를 **좁힌 것**인가. 나란한 것(동을 나눠 두 번 부른 것)은 아니다.
+
+    조건이 옛것을 다 품고 더 붙었으면 좁힌 것이다. 하나라도 값이 다르면 나란한 것이다.
+    조건을 모르면(굽는 층이 안 실었으면) 막지 않는다 — 모를 때 막으면 답이 반쪽이 된다.
+    """
+    a, b = (old or {}).get("ask"), (new or {}).get("ask")
+    if not isinstance(a, dict) or not isinstance(b, dict):
+        return False
+    return all(b.get(k) == v for k, v in a.items()) and len(b) > len(a)
+
+
 def _rows_pick(rows: list, props: dict) -> list:
     """`rows: [0, 3, 7]` 로 줄을 고른다. 「이 중에서 몇 개만」이 되는 자리 —
     없으면 모델은 스무 줄을 통째로 다시 그리는 수밖에 없다(2026-09-09 대표)."""
@@ -49,14 +61,17 @@ def _from_store(ctx: Ctx, name: str, props: dict) -> dict | None:
     ent = ctx.store.get(sid)
     if not ent:
         return {"error": f"{sid} 는 이 대화에서 가져온 자료가 아니다. 도구 결과의 id 를 쓴다."}
-    # **옛 결과를 그리면 화면과 답이 어긋난다.** 「스타벅스 99동」을 그려 놓고 답은
-    # 「스타벅스+병원 5곳」이라 하면 사용자는 어느 쪽을 믿어야 할지 모른다(2026-09-09 대표).
-    # 같은 갈래를 여러 번 가져왔으면 **마지막 것**이 지금 답의 근거다
+    # 옛 결과를 그리면 화면과 답이 어긋난다 — 「스타벅스 99동」을 그려 놓고 답은
+    # 「스타벅스+병원 5곳」이면 사용자는 어느 쪽을 믿어야 할지 모른다(2026-09-09 대표).
+    #
+    # **그런데 「좁혀서 다시」와 「나눠서 여러 번」은 다르다.** 성수동1가 63동 · 성수동2가 74동은
+    # 둘 다 답의 일부인데, 앞의 것을 막아 137동 중 74동만 화면에 섰다(2026-09-10 대표).
+    # 조건이 **더 좁아졌을 때만** 지난 것으로 본다. 조건이 나란하면 둘 다 그린다.
     kind = sid.split("#")[0]
     last = max((k for k in ctx.store if k.split("#")[0] == kind),
                key=lambda k: int(k.split("#")[1]), default=sid)
-    if last != sid:
-        return {"error": f"{sid} 는 지난 결과다. 지금 답의 근거인 {last} 를 그린다"}
+    if last != sid and _narrowed(ctx.store.get(sid), ctx.store.get(last)):
+        return {"error": f"{sid} 는 조건을 좁히기 전 결과다. 지금 답의 근거인 {last} 를 그린다"}
     grid = (ent.get("grids") or {}).get(name)
     if grid is None:
         have = ", ".join((ent.get("grids") or {}).keys()) or "없음"

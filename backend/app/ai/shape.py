@@ -373,7 +373,10 @@ def search(d: dict, body: dict | None) -> dict:
     for r in (mine.get("items") or []) + (normal.get("items") or []):
         if len(rows) >= 8:
             break
-        rows.append(_drop_none({"주소": short_addr(r.get("addr")), "연면적": area(r.get("total_area")),
+        # **pk 를 준다.** 안 주니 모델이 「1120011400000004391」 같은 걸 지어내 404 를 냈다
+        # (2026-09-10 대표). 건물 하나를 더 보려면 pk 가 있어야 한다
+        rows.append(_drop_none({"pk": r.get("building_pk"),
+                                "주소": short_addr(r.get("addr")), "연면적": area(r.get("total_area")),
                                 "층": r.get("floors_above"), "용도지역": r.get("use_zone"),
                                 "최근 실거래": eok(r.get("last_sale_price")) if r.get("last_sale_price") else None,
                                 "빌탐정 적정가": est(r.get("sale_est"), "적정가")}))
