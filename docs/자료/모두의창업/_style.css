@@ -1,0 +1,31 @@
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  background:#fff; padding:28px 30px; width:1000px;
+  -webkit-font-smoothing:antialiased;
+}
+h2 { font-size:16px; color:#1F3864; letter-spacing:-0.3px; margin-bottom:10px; font-weight:700; }
+h3 { font-size:14px; color:#1F3864; letter-spacing:-0.3px; margin:22px 0 8px; font-weight:700; }
+table { width:100%; border-collapse:collapse; table-layout:fixed; }
+th, td { border:1px solid #B8C4D9; padding:9px 11px; font-size:13.5px; line-height:1.5; letter-spacing:-0.3px; vertical-align:middle; }
+thead th { background:#243B5E; color:#fff; font-weight:700; text-align:center; font-size:13.5px; }
+tbody th { background:#DCE4F0; color:#1F3864; font-weight:700; text-align:center; }
+td { color:#222; }
+td.c { text-align:center; }
+td.n { text-align:center; font-variant-numeric:tabular-nums; }
+td.b { font-weight:700; }
+tr.sum th { background:#C9D5E8; }
+tr.sum td { background:#F2F5FA; font-weight:700; }
+.src { margin-top:9px; font-size:11.5px; color:#7A8699; letter-spacing:-0.3px; line-height:1.6; }
+
+.tw { margin:0; }
+
+tr.gA th { background:#DCE4F0; color:#1F3864; }
+tr.gA td { background:#FFFFFF; }
+tr.gB th { background:#F6DCC4; color:#8A4B12; }
+tr.gB td { background:#FDF4EC; }
+.kA, .kB { display:inline-block; width:11px; height:11px; border:1px solid #B8C4D9; vertical-align:-1px; }
+.kA { background:#DCE4F0; }
+.kB { background:#F6DCC4; border-color:#E0B98F; }
+
+.o { color:#7A8699; font-size:11.5px; }

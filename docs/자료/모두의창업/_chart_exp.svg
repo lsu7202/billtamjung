@@ -1,0 +1,26 @@
+<svg width="960" height="330" viewBox="0 0 960 330" xmlns="http://www.w3.org/2000/svg" font-family="Apple SD Gothic Neo, sans-serif">
+<rect width="960" height="330" fill="#ffffff"/>
+<line x1="200" y1="268.0" x2="870" y2="268.0" stroke="#E4E8EF" stroke-width="1"/>
+<text x="190" y="273.0" font-size="14" fill="#8A94A6" text-anchor="end">0</text>
+<line x1="200" y1="201.8" x2="870" y2="201.8" stroke="#E4E8EF" stroke-width="1"/>
+<text x="190" y="206.8" font-size="14" fill="#8A94A6" text-anchor="end">10,000</text>
+<line x1="200" y1="135.5" x2="870" y2="135.5" stroke="#E4E8EF" stroke-width="1"/>
+<text x="190" y="140.5" font-size="14" fill="#8A94A6" text-anchor="end">20,000</text>
+<line x1="200" y1="69.2" x2="870" y2="69.2" stroke="#E4E8EF" stroke-width="1"/>
+<text x="190" y="74.2" font-size="14" fill="#8A94A6" text-anchor="end">30,000</text>
+<rect x="215.0" y="168.6" width="170" height="99.4" fill="#7E93B5"/>
+<text x="300" y="156.6" font-size="17" fill="#243B5E" text-anchor="middle" font-weight="700">15,000만원</text>
+<text x="300" y="292" font-size="16" fill="#1F3864" text-anchor="middle" font-weight="700">출시 단계</text>
+<text x="300" y="313" font-size="13.5" fill="#6B7688" text-anchor="middle">PLUS 30,000원</text>
+<rect x="535.0" y="102.4" width="170" height="165.6" fill="#243B5E"/>
+<text x="620" y="90.4" font-size="17" fill="#243B5E" text-anchor="middle" font-weight="700">25,000만원</text>
+<text x="620" y="292" font-size="16" fill="#1F3864" text-anchor="middle" font-weight="700">확장 단계</text>
+<text x="620" y="313" font-size="13.5" fill="#6B7688" text-anchor="middle">PLUS 50,000원</text>
+<rect x="535.0" y="20.4" width="170" height="52" rx="6" fill="#FDF4EC" stroke="#E8873A" stroke-width="1.6" stroke-dasharray="6 4"/>
+<text x="620" y="42.4" font-size="14" fill="#C9762E" text-anchor="middle" font-weight="700">광고 수익</text>
+<text x="620" y="60.4" font-size="13" fill="#C9762E" text-anchor="middle">추가 발생</text>
+<line x1="403.0" y1="168.6" x2="517.0" y2="168.6" stroke="#C9762E" stroke-width="1.6" stroke-dasharray="5 3"/>
+<text x="460" y="135.5" font-size="16" fill="#C9762E" text-anchor="middle" font-weight="700">+10,000만원</text>
+<line x1="200" y1="268" x2="870" y2="268" stroke="#B8C4D9" stroke-width="1"/>
+<text x="200" y="38" font-size="14.5" fill="#2C4A78" font-weight="700">구독 매출(만원) · 5,000명 기준</text>
+</svg>
