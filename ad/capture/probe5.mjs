@@ -1,0 +1,27 @@
+import { chromium } from "playwright";
+import { CURSOR } from "./lib.mjs";
+const b = await chromium.launch({ headless: true });
+const ctx = await b.newContext({ viewport: { width: 1920, height: 1080 } });
+await ctx.addInitScript(CURSOR);
+const page = await ctx.newPage();
+await page.goto("https://billtamjung.web.app/login", { waitUntil: "domcontentloaded" });
+await page.waitForSelector('input[type="password"]');
+await page.fill('input[type="email"], input[placeholder*="이메일"]', "demo@billtamjung.app");
+await page.fill('input[type="password"]', "btdemo2026!");
+await page.keyboard.press("Enter");
+await page.waitForURL(/\/(search|welcome)/);
+if (page.url().includes("/welcome")) await page.goto("https://billtamjung.web.app/search");
+await page.waitForSelector("button.tool-btn");
+await page.waitForTimeout(2500);
+await page.locator('button:has-text("필터")').first().click();
+await page.waitForTimeout(800);
+await page.locator('.idx-item:has-text("토지정보")').click();
+await page.waitForTimeout(600);
+await page.locator('span.vchip:has-text("토지이용상황")').first().click();
+await page.waitForTimeout(900);
+const html = await page.evaluate(() => {
+  const p = document.querySelector(".pop-slot");
+  return p ? p.outerHTML.slice(0, 2200) : "(pop-slot 없음)";
+});
+console.log(html.replace(/></g, ">\n<"));
+await b.close();

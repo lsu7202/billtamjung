@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
-"""경쟁사 심층 분석 PPT (부기사·디스코·건물닷컴) — 실행화면 캡처 임베드.
-객관적 분석(빌탐정 우위 프레이밍 배제)."""
+"""경쟁사 분석 PPT — 3개 서비스별 독립 덱 생성.
+  · 부기사.pptx   (유료 회원제 → 공개화면 기준 표면 분석 · 부기맨 상업 라인 포함)
+  · 디스코.pptx   (Playwright로 직접 조작, 역삼동 601-5 실사용)
+  · 건물닷컴.pptx (가격평가 미리보기 리포트 직접 열람)
+객관적 프레이밍(빌탐정 우위 강변 배제).
+
+실행: python gen_competitor.py            → 3개 덱 모두
+      python gen_competitor.py bugisa     → 부기사만 (디스코/건물닷컴 스크린샷 없어도 OK)
+      python gen_competitor.py disco gunmul
+"""
+import sys
 from pptx import Presentation
 from pptx.util import Inches as I, Pt
 from pptx.dml.color import RGBColor
@@ -8,12 +17,17 @@ from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from PIL import Image
 
 SHOTS="/private/tmp/claude-501/-Users-iseung-ug-Desktop---------/ddcd61b1-bac0-48e0-b3bb-bca11bf8983c/scratchpad/shots/"
-AC=RGBColor(0x1A,0x4F,0xC0); INK=RGBColor(0x1C,0x24,0x30); SUB=RGBColor(0x5A,0x65,0x72)
+OUT="specs/05-business/"
+AC=RGBColor(0x1E,0x5A,0xF0); INK=RGBColor(0x0F,0x1A,0x2E); SUB=RGBColor(0x3A,0x46,0x57)  # 디자인토큰 2026-07-21
 LINE=RGBColor(0xE6,0xEA,0xEF); CARD=RGBColor(0xF5,0xF8,0xFC); WHITE=RGBColor(0xFF,0xFF,0xFF)
-GREEN=RGBColor(0x2A,0x7D,0x46); AMBER=RGBColor(0xC8,0x78,0x1A)
-p=Presentation(); p.slide_width=I(13.333); p.slide_height=I(7.5); W=13.333
-BLANK=p.slide_layouts[6]
-def slide(): return p.slides.add_slide(BLANK)
+GREEN=RGBColor(0x2A,0x7D,0x46); AMBER=RGBColor(0xC8,0x78,0x1A); RED=RGBColor(0xC0,0x39,0x2B)
+NAVY=RGBColor(0x0F,0x1A,0x2E)
+W=13.333
+
+def deck():
+    p=Presentation(); p.slide_width=I(13.333); p.slide_height=I(7.5)
+    return p
+def slide(p): return p.slides.add_slide(p.slide_layouts[6])
 def rect(s,l,t,w,h,fill,ln=None):
     sh=s.shapes.add_shape(1,I(l),I(t),I(w),I(h)); sh.fill.solid(); sh.fill.fore_color.rgb=fill
     sh.line.color.rgb=ln if ln else fill; sh.line.width=Pt(0.75 if ln else 0); sh.shadow.inherit=False
@@ -37,122 +51,212 @@ def pic(s,path,l,t,boxw,boxh):
     if h>boxh: h=boxh; w=boxh*ar
     x=l+(boxw-w)/2
     pc=s.shapes.add_picture(path,I(x),I(t),I(w),I(h))
-    pc.line.color.rgb=LINE; pc.line.width=Pt(0.75)   # 이미지 자체에 테두리
-def band(s,no,label):
-    rect(s,0,0,W,0.6,RGBColor(0x12,0x2A,0x5C)); txt(s,0.5,0.15,8,0.3,[("빌탐정 · 경쟁사 분석",12,True,WHITE)])
-    txt(s,W-4.5,0.17,4,0.3,f"{no} · {label}",10,False,RGBColor(0xB8,0xC4,0xDE),PP_ALIGN.RIGHT)
+    pc.line.color.rgb=LINE; pc.line.width=Pt(0.75)
+def band(s,name,accent,label):
+    rect(s,0,0,W,0.6,NAVY); rect(s,0,0,0.16,0.6,accent)
+    txt(s,0.42,0.15,8,0.3,[(f"경쟁사 분석  ·  {name}",12,True,WHITE)])
+    txt(s,W-4.5,0.17,4,0.3,label,10,False,RGBColor(0xB8,0xC4,0xDE),PP_ALIGN.RIGHT)
 def foot(s,n): txt(s,W-2.0,7.12,1.6,0.25,f"{n}",9,False,RGBColor(0xAA,0xB2,0xBC),PP_ALIGN.RIGHT)
+def usedchip(s,l,t,used=True):
+    w=1.55 if used else 2.1; c=GREEN if used else AMBER; lab="직접 사용" if used else "유료 · 표면 분석"
+    rect(s,l,t,w,0.34,c); txt(s,l,t+0.055,w,0.3,lab,10,True,WHITE,PP_ALIGN.CENTER)
 def bullets(s,l,t,w,items,size=12,gap=5):
     runs=[[("• ",size,True,AC),(a,size,b,INK)]+([(" — "+c,size-1,False,SUB)] if c else []) for (a,b,c) in items]
     txt(s,l,t,w,5,runs,size,sp=gap)
+def cover(p,name,eng,tag,accent,used):
+    s=slide(p); rect(s,0,0,W,7.5,NAVY); rect(s,0,0,0.35,7.5,accent)
+    txt(s,0.95,1.7,11,0.35,"경쟁사 분석",16,True,RGBColor(0x8F,0xB0,0xFF))
+    txt(s,0.9,2.35,11,0.8,name,44,True,WHITE)
+    txt(s,0.95,3.5,11,0.4,eng,16,False,RGBColor(0xB8,0xC4,0xDE))
+    txt(s,0.95,4.35,11.5,0.4,tag,15,False,RGBColor(0xC8,0xD4,0xEE))
+    usedchip(s,0.95,5.25,used)
+    txt(s,0.95,6.6,11.5,0.3,"시장 조사 자료 · 2026.07 · 테스트 물건: 강남구 역삼동 601-5",11,False,RGBColor(0x9A,0xA8,0xC8))
+def closing(s,name,accent,gaps,verdict):
+    txt(s,0.5,0.85,10,0.3,"종합 평가",12,True,accent); txt(s,0.5,1.18,11,0.5,f"{name}의 한계",22,True,INK)
+    for i,(k,v) in enumerate(gaps):
+        t=2.1+i*1.05; rect(s,0.5,t,12.3,0.92,CARD,LINE); rect(s,0.5,t,0.1,0.92,accent)
+        txt(s,0.85,t+0.13,3.3,0.3,k,13.5,True,INK); txt(s,4.2,t+0.16,8.4,0.6,v,12,False,SUB)
+    rect(s,0.5,2.1+len(gaps)*1.05+0.15,12.3,0.95,RGBColor(0xEF,0xF3,0xFB),accent)
+    txt(s,0.85,2.1+len(gaps)*1.05+0.3,11.8,0.7,[[("총평  ",12.5,True,accent),(verdict,12.5,False,INK)]])
 
-# ── 1 표지 ──
-s=slide(); rect(s,0,0,W,7.5,RGBColor(0x12,0x2A,0x5C))
-txt(s,0.9,2.5,11,0.5,"경쟁사 심층 분석",34,True,WHITE)
-txt(s,0.92,3.4,11,0.5,[("부기사",22,True,RGBColor(0x8F,0xB0,0xFF)),("  ·  ",22,True,WHITE),("디스코",22,True,RGBColor(0x8F,0xB0,0xFF)),("  ·  ",22,True,WHITE),("건물닷컴",22,True,RGBColor(0x8F,0xB0,0xFF))])
-txt(s,0.92,4.3,11,0.4,"핵심 기능 · 실제 동작 · 실행화면 기준 객관 분석",14,False,RGBColor(0xC8,0xD4,0xEE))
-txt(s,0.92,6.6,11,0.3,"빌탐정 사업계획 자료 · 2026.07",11,False,RGBColor(0x9A,0xA8,0xC8))
+# ═══════════════════ 1. 부기사 (5장) ═══════════════════
+def build_bugisa():
+    p=deck(); AC1=RGBColor(0x2E,0x6F,0xED)
+    cover(p,"부기사","Bugisa · 부기맨  —  중개 운영 올인원(CRM)",
+          "매물·고객·직원·정산 + 마케팅·AI 올인원. 상업 빌딩은 '부기맨' 라인.",AC1,used=False)
 
-# ── 2 분석 개요 ──
-s=slide(); band(s,"00","분석 개요"); txt(s,0.5,0.85,10,0.3,"00 분석 개요",12,True,AC); txt(s,0.5,1.18,11,0.5,"세 서비스는 서로 다른 축에 서 있다",22,True,INK)
-cols=[("부기사","중개 운영관리","매물·고객·직원·수수료 CRM + 마케팅 발송. 상업 빌딩 특화(부기맨).",RGBColor(0x2E,0x6F,0xED)),
-      ("디스코","데이터 조회","지도 기반 실거래가·대장·공시·등기·경매 조회 + 경량 매물등록.",RGBColor(0x2A,0x7D,0x46)),
-      ("건물닷컴","가치평가 + 실매물","3기준 자동 가격평가 + 컨설팅형 클리닉 + 수익형 실매물.",RGBColor(0xC8,0x78,0x1A))]
-for i,(nm,pos,desc,cl) in enumerate(cols):
-    l=0.5+i*4.15; rect(s,l,2.0,3.9,3.6,CARD,LINE); rect(s,l,2.0,3.9,0.12,cl)
-    txt(s,l+0.28,2.35,3.4,0.4,nm,18,True,INK); txt(s,l+0.28,2.85,3.4,0.3,pos,13,True,cl)
-    txt(s,l+0.28,3.35,3.35,2,desc,12,False,SUB)
-txt(s,0.5,5.9,12.3,0.9,[[("관점: ",12,True,INK),("각 서비스를 '더 좋다/나쁘다'가 아니라 하나의 주체로 — 어떤 기능을 제공하고, 그 기능이 실제로 어떻게 동작하는지를 실행화면으로 확인.",12,False,SUB)]]); foot(s,2)
+    # ── 01 · 운영 올인원 (CRM 코어) ──
+    s=slide(p); band(s,"부기사",AC1,"01 · 운영 기능(올인원)")
+    txt(s,0.5,0.8,8,0.3,"중개 운영 올인원 — 방대한 기능 폭",12,True,AC1)
+    txt(s,0.5,1.13,8.5,0.4,"매물·고객·직원·정산·마케팅을 한 곳에서",19,True,INK)
+    usedchip(s,10.8,0.9,False)
+    cats=[
+     ("매물관리","주소→대장·실거래가·승강기 자동입력 · 지도기반 현장관리 · 건물 노후도 · 필지 합산(복합 브리핑)"),
+     ("고객 CRM","조건 저장→매칭 매물 자동 알림 · 고객별 TM 관리"),
+     ("직원·정산","활동추적(TM·계약·사진) · 권한/매물보안 · 수수료 배분·급여 산출"),
+     ("마케팅·AI","1클릭 네이버부동산·SNS 발송 · 반복 포스팅 · 제로콜(AI 전화응대·통화요약)"),
+    ]
+    for i,(k,v) in enumerate(cats):
+        t=1.8+i*1.08
+        rect(s,0.5,t,6.3,0.96,CARD,LINE); rect(s,0.5,t,0.1,0.96,AC1)
+        txt(s,0.78,t+0.12,5.85,0.3,k,13,True,INK)
+        txt(s,0.78,t+0.44,5.85,0.5,v,10.5,False,SUB)
+    pic(s,SHOTS+"bg_maemul.png",7.0,1.7,5.9,1.9)
+    txt(s,7.0,3.55,5.9,0.25,"▲ 매물관리 그리드+모바일 — 주소 입력→대장·실거래가 자동",9,False,SUB)
+    pic(s,SHOTS+"bg_crm.png",7.0,4.0,5.9,1.9)
+    txt(s,7.0,5.82,5.9,0.25,"▲ 고객 TM관리·매물매칭 — 조건 맞는 매물 등록 시 자동 알림",9,False,SUB)
+    foot(s,2)
 
-# ── 3 부기사 ──
-s=slide(); band(s,"01","부기사"); txt(s,0.5,0.8,8,0.3,"01 부기사 (Bugisa / 부기맨)",12,True,AC); txt(s,0.5,1.13,7,0.4,"중개 운영 올인원 — CRM 중심",20,True,INK)
-bullets(s,0.5,1.85,6.6,[
- ("매물 자동입력",True,"주소→건축물·토지대장·실거래가 자동"),
- ("고객 CRM",True,"조건 저장→매칭 매물 자동 알림·TM관리"),
- ("직원 관리",True,"활동 추적·수수료 배분"),
- ("관리자",True,"종류·상태·지도·급여 관리(운영 전반)"),
- ("마케팅 발송",True,"1클릭 네이버 부동산·블로그·SNS"),
- ("AI 전화응대(제로콜)",True,"통화요약·매물추천·그룹공유"),
-],size=12.5,gap=7)
-rect(s,0.5,5.35,6.6,1.4,CARD,LINE)
-txt(s,0.72,5.5,6.2,1.2,[
- [("가격  ",11,True,AC),("상업 빌딩 초기 400만 + 연 100만 / 일반 연 100만",11,False,INK)],
- [("강점  ",11,True,GREEN),("성숙한 CRM·직원·운영 관리, 네이버 연동, 시장 침투",11,False,INK)],
- [("약점  ",11,True,RGBColor(0xC0,0x39,0x2B)),("가치분석·매수자 설득 보고서 없음(운영관리 중심)·상위 고가",11,False,INK)],
-],11,sp=4)
-pic(s,SHOTS+"bugisa_crop_A.png",7.35,1.5,5.6,4.4); txt(s,7.35,6.0,5.6,0.3,"▲ 실행화면: 매물 그리드 + 고객별 TM관리·매물매칭",9.5,False,SUB); foot(s,3)
+    # ── 02 · 부기맨(상업 빌딩 특화) ──
+    s=slide(p); band(s,"부기사",AC1,"02 · 부기맨(상업 빌딩 특화)")
+    txt(s,0.5,0.8,9,0.3,"부기맨 — 상업용·빌딩 특화 라인",12,True,AC1)
+    txt(s,0.5,1.13,9,0.4,"우리와 직접 겹치는 세그먼트",19,True,INK)
+    bullets(s,0.5,1.85,6.3,[
+     ("포지셔닝",True,"'건물 매매·임대 전문' 최적화 매물관리 — 별도 브랜드(bugiman.co.kr)"),
+     ("상업 특화",True,"상업용 템플릿(건물개요 브리핑 프린트)·권리분석·지도기반·ChatGPT 표방"),
+     ("데이터",True,"건축물/토지대장 자동입력 · PC·모바일 최적화"),
+     ("가격",True,"초기 400만 + 연 100만 갱신 — 일반 대비 고가"),
+     ("규모",True,"1,000+ 가입사(국내 10만 공인중개사 대상)"),
+    ],size=12,gap=8)
+    rect(s,0.5,5.35,6.3,1.35,RGBColor(0xEF,0xF3,0xFB),AC1)
+    txt(s,0.72,5.5,5.9,1.1,[[("의미  ",11.5,True,AC1),("상업 빌딩 세그먼트를 이미 겨냥한 유일한 경쟁 라인. 매물관리·브리핑까지는 커버 — 심화 가치평가는 다음 장.",11,False,INK)]],11)
+    pic(s,SHOTS+"bm_hero.png",7.0,1.55,5.9,2.45)
+    pic(s,SHOTS+"bm_app.png",7.0,4.25,5.9,1.35)
+    txt(s,7.0,5.62,5.9,0.3,"▲ 부기맨 상업용 매물관리 — 건물/토지대장 자동입력·화면 최적화",9,False,SUB)
+    foot(s,3)
 
-# ── 4 디스코 ──
-s=slide(); band(s,"02","디스코"); txt(s,0.5,0.8,8,0.3,"02 디스코 (Disco)",12,True,AC); txt(s,0.5,1.13,7,0.4,"무료 부동산 데이터 조회",20,True,INK)
-bullets(s,0.5,1.85,6.3,[
- ("지도 검색",True,"지번/건물명→일대 실거래가(매매/전월세) 지도 라벨(평당가·거래일)"),
- ("도구",True,"필터·매물만보기·로드뷰·거리/면적/반경 측정·지적/위성"),
- ("건물 데이터",True,"대장(대지·건축·연면적·준공)·공시지가·등기부 열람"),
- ("전문가 회원",True,"매물 등록/관리·경매중개·관심목록·AI 기획설계·포스트"),
-],size=12.5,gap=8)
-rect(s,0.5,5.0,6.3,1.75,CARD,LINE)
-txt(s,0.72,5.15,5.9,1.5,[
- [("가격  ",11,True,AC),("전문가 서비스 전부 무료, 등기 열람권만 유료",11,False,INK)],
- [("강점  ",11,True,GREEN),("데이터 폭·무료·UX, 중개인 사이 실사용 많음",11,False,INK)],
- [("약점  ",11,True,RGBColor(0xC0,0x39,0x2B)),("조회·경량 매물등록 중심 → 본격 CRM(고객·직원·수수료)·설득 보고서로 안 이어짐",11,False,INK)],
-],11,sp=5)
-pic(s,SHOTS+"disco.png",7.05,1.5,5.9,4.55); txt(s,7.05,6.08,5.9,0.3,"▲ 실행화면: 지도 실거래가 라벨 + 좌측 동별 실거래가·전문가",9.5,False,SUB); foot(s,4)
+    # ── 03 · 데이터·분석과 산출물 (정정) ──
+    s=slide(p); band(s,"부기사",AC1,"03 · 데이터·분석과 산출물")
+    txt(s,0.5,0.8,10,0.3,"데이터·분석 — 어디까지 하나",12,True,AC1)
+    txt(s,0.5,1.13,10,0.4,"'제공하는 것'과 '하지 않는 것'을 정확히",18.5,True,INK)
+    rect(s,0.5,1.85,6.15,2.55,RGBColor(0xEF,0xF6,0xEF),GREEN)
+    txt(s,0.72,2.0,5.7,0.3,"제공하는 것",12.5,True,GREEN)
+    bullets(s,0.72,2.42,5.75,[
+     ("자동 데이터",True,"건축물·토지대장·실거래가·승강기·고시정보(신규/변경/폐지)"),
+     ("등기부 권리분석",True,""),
+     ("부동산 계산기",True,"평단가·수익률·대출"),
+     ("브리핑 산출물",True,"건물개요 IM/팜플렛 프린트(상업 템플릿)"),
+    ],size=11,gap=6)
+    rect(s,0.5,4.55,6.15,2.15,RGBColor(0xFB,0xEE,0xEC),RED)
+    txt(s,0.72,4.7,5.7,0.3,"하지 않는 것",12.5,True,RED)
+    bullets(s,0.72,5.12,5.75,[
+     ("심화 가치평가 없음",True,"감정평가식 적정매매가·가치점수 산출 아님"),
+     ("설득형 보고서 아님",True,"항목별 등급·근거로 '왜 이 값인가' 설명 X"),
+    ],size=11,gap=6)
+    pic(s,SHOTS+"bg_brief.png",6.95,1.75,5.95,3.6)
+    txt(s,6.95,5.42,5.95,0.3,"▲ 건물개요 브리핑 프린트(상업 템플릿) — 실제 화면",9,False,SUB)
+    rect(s,6.95,5.85,5.95,0.85,RGBColor(0xFC,0xF3,0xE2),AMBER)
+    txt(s,7.15,5.96,5.6,0.65,[[("정정  ",10.5,True,AMBER),("앞서 '설득 보고서 전무'는 부정확 — 기본 브리핑·수익률 계산은 존재. 부재한 것은 심화 가치평가.",10.5,False,INK)]],10.5)
+    foot(s,4)
 
-# ── 5 건물닷컴 개요 ──
-s=slide(); band(s,"03","건물닷컴"); txt(s,0.5,0.8,8,0.3,"03 건물닷컴 (Gunmul.com)",12,True,AC); txt(s,0.5,1.13,7,0.4,"상업 가치평가 + 실매물",20,True,INK)
-bullets(s,0.5,1.85,6.3,[
- ("부동산 클리닉 6종",True,"가치평가·매입예정 평가·수익률 진단·경매 권리분석·감정평가·세금 원클릭"),
- ("자동 가격평가",True,"3기준 병렬 원클릭(다음 장 상세)"),
- ("가치평가 클리닉",True,"사람 개입 컨설팅, 의뢰~완료 10일, 매각=무료·보유=유료"),
- ("실매물",True,"수익형/투자/사옥 100% 실매물 + 금융 제휴 거래사례"),
-],size=12.5,gap=8)
-rect(s,0.5,5.0,6.3,1.75,CARD,LINE)
-txt(s,0.72,5.15,5.9,1.5,[
- [("특징  ",11,True,AMBER),("\"법적 효력 없음·참고용\" · 10억↑ 정확 · 서울·경기 · 페이지 문구 노후(2017/2021)",11,False,INK)],
- [("강점  ",11,True,GREEN),("상업 가치평가 특화·3기준 병렬·실매물+금융제휴",11,False,INK)],
- [("약점  ",11,True,RGBColor(0xC0,0x39,0x2B)),("자동평가 정성적·정확도 불명·클리닉 느림·CRM 없음·UI 노후",11,False,INK)],
-],11,sp=5)
-pic(s,SHOTS+"gunmul_main.png",7.05,1.5,5.9,4.55); txt(s,7.05,6.08,5.9,0.3,"▲ 실행화면: 부동산 클리닉 6메뉴 + 실매물 그리드",9.5,False,SUB); foot(s,5)
+    # ── 04 · 종합 평가 ──
+    s=slide(p); band(s,"부기사",AC1,"04 · 종합 평가")
+    closing(s,"부기사",AC1,[
+     ("심화 가치평가","브리핑·수익률 계산은 있으나, 감정평가식 적정매매가·가치점수 같은 심화 가치 산출은 다루지 않음."),
+     ("설득형 산출물","건물개요 프린트는 있으나, 항목별 등급·근거로 매수자를 설득하는 분석 보고서 형태는 아님."),
+     ("진입 비용·확인 한계","상업(부기맨) 초기 400만+연 100만 → 소형 중개인엔 부담. 유료라 내부 동작은 표면 확인."),
+    ],"중개 운영·관리(CRM)와 방대한 기능 폭이 강점. 다만 매물의 가격·가치를 심화 평가하고 항목별 근거로 설득하는 분석 산출물은 핵심 영역이 아니다.")
+    foot(s,5)
+    p.save(OUT+"경쟁사분석_부기사.pptx"); print("saved 부기사 ·",len(p.slides._sldIdLst),"slides")
 
-# ── 6 건물닷컴 가치평가 방식 ──
-s=slide(); band(s,"03","건물닷컴 · 가치평가 방식"); txt(s,0.5,0.8,10,0.3,"03 건물닷컴 — 자동 가격평가 3기준",12,True,AC); txt(s,0.5,1.13,8,0.4,"원클릭 자동 가격평가는 어떻게 동작하나",19,True,INK)
-rows=[("① 부동산원가 기준","토지 개별공시지가 + 표준지 공시지가 + 건물 시가표준액 + 역세권·개발호재·용도지역"),
-      ("② 수익률 기준","지역별 매매가 대비 평균 임대수익률 + 임차업종"),
-      ("③ 실거래 비교 기준","반경 1m~500m 매매사례(최근·월/분기/연도 평균) + 평가 부동산 기본정보")]
-for i,(k,v) in enumerate(rows):
-    t=1.95+i*0.95; rect(s,0.5,t,6.5,0.82,CARD,LINE); txt(s,0.72,t+0.1,6.1,0.3,k,13,True,AC); txt(s,0.72,t+0.42,6.1,0.35,v,10.5,False,SUB)
-txt(s,0.5,4.95,6.6,1.7,[
- [("대상  ",11,True,INK),("건물·모텔·상가주택·원룸 = 3기준 / 토지·주택·주유소 = 2기준",11,False,SUB)],
- [("관찰  ",11,True,AMBER),("정성적 요인(경기·금리·환금성) 검토라 표준 자동산식 아님 · 정확도 수치 미공개 · '참고용' 명시",11,False,SUB)],
-],11,sp=6)
-pic(s,SHOTS+"gunmul_appraisal.png",7.2,1.5,5.7,4.7); txt(s,7.2,6.25,5.7,0.3,"▲ 실행화면: 3기준 추출방식 · 제공지역",9.5,False,SUB); foot(s,6)
+# ═══════════════════ 2. 디스코 ═══════════════════
+def build_disco():
+    p=deck(); AC2=GREEN
+    cover(p,"디스코","Disco  —  무료 부동산 데이터 조회",
+          "지도 기반 실거래가·대장·공시·등기·토지특성 조회 + 경량 매물등록.",AC2,used=True)
+    # 실사용 ① 검색·상세
+    s=slide(p); band(s,"디스코",AC2,"01 · 직접 써보니"); txt(s,0.5,0.8,10,0.3,"디스코 — 직접 써보니",12,True,AC2); txt(s,0.5,1.13,8,0.4,"건물 하나하나의 원본 열람이 강하다",19,True,INK); usedchip(s,7.05,0.88,True)
+    bullets(s,0.5,1.75,6.3,[
+     ("검색",True,"'역삼동 601-5' 입력→자동완성 즉시, 지번·도로명·부속지번까지"),
+     ("지도",True,"화면 모든 건물에 실거래가·평당가 라벨이 이미 얹혀 있음(압도적 밀도)"),
+     ("건물 상세",True,"클릭 한 번→실거래가·경매·토지·건물(대장)·등기 탭 전환"),
+     ("실거래 이력",True,"601-5 = 매매 69억('19.02)·40.5억('09.10) 2건 + 등기 링크"),
+    ],size=12,gap=7)
+    rect(s,0.5,4.95,6.3,1.8,CARD,LINE)
+    txt(s,0.72,5.1,5.9,1.55,[
+     [("강점  ",11,True,GREEN),("개별 건물의 원본 데이터 깊이 + 서울 전역 커버리지. '동네 시세 감' 잡는 데 탁월.",11,False,INK)],
+     [("수익모델  ",11,True,AC),("'우리동네 공인중개사'(PRO 배지) 노출·전화연결 = 중개사 광고/리드",11,False,INK)],
+     [("한계  ",11,True,RED),("건물을 '찍어서 여는' 데 최적화 → 조건으로 후보를 좁히는 검색은 약함(다음 장)",11,False,INK)],
+    ],11,sp=4)
+    pic(s,SHOTS+"disco_detail.png",7.05,1.5,5.9,4.5); txt(s,7.05,6.05,5.9,0.3,"▲ 직접 검색: 역삼동 601-5 상세 — 실거래 69억·거래내역 2건·탭 5종",9.5,False,SUB); foot(s,2)
+    # 실사용 ② 조건 검색(필터)의 한계
+    s=slide(p); band(s,"디스코",AC2,"02 · 조건 검색"); txt(s,0.5,0.8,10,0.3,"조건 검색은 의외로 얕다",12,True,AC2); txt(s,0.5,1.13,9,0.4,"'찾기'보다 '열람'에 맞춰진 필터",19,True,INK); usedchip(s,0.5,1.7,True)
+    txt(s,0.5,2.3,6.3,0.35,[[("필터 패널에서 제공하는 조건 (전부)",12.5,True,INK)]])
+    bullets(s,0.5,2.85,6.3,[
+     ("부동산 유형",True,"상업용건물·상가·토지·단독 등 10종"),
+     ("마커 유형",True,"매물 / 경매 / 실거래가 표시 토글"),
+     ("실거래 기간",True,"2006년 ~ 현재"),
+     ("거래가격",True,"㎡당 또는 총액 range"),
+    ],size=12,gap=7)
+    rect(s,0.5,5.35,6.3,1.5,RGBColor(0xFB,0xEE,0xEC),RED)
+    txt(s,0.72,5.5,5.9,1.25,[
+     [("없는 조건  ",11.5,True,RED),("용도지역 · 대지/연면적 규모 · 건폐율/용적률 · 연식(사용승인) · 도로접면 · 층수 · 주차 · 수익률 · 경사도 등",11,False,INK)],
+     [("→ ",11,True,INK),("'유형+가격대'로만 거를 수 있어, 조건으로 매물 후보를 발굴하는 검색엔 부적합.",11,True,INK)],
+    ],11,sp=3)
+    pic(s,SHOTS+"disco_filter.png",7.05,1.5,5.9,4.55); txt(s,7.05,6.1,5.9,0.3,"▲ 지도 필터 패널 실제 화면 — 유형·마커·기간·가격이 전부",9.5,False,SUB); foot(s,3)
+    # 실사용 ② 데이터 깊이
+    s=slide(p); band(s,"디스코",AC2,"03 · 데이터 깊이"); txt(s,0.5,0.8,10,0.3,"데이터는 있고, 해석은 없다",12,True,AC2); txt(s,0.5,1.13,9,0.4,"토지특성까지 원본 그대로 노출된다",19,True,INK); usedchip(s,0.5,1.7,True)
+    txt(s,0.5,2.25,6.3,0.4,[[("601-5 '토지' 탭에서 실제로 확인한 항목",12.5,True,INK)]])
+    bullets(s,0.5,2.85,6.3,[
+     ("도로접면",True,"세로한면(가)"),
+     ("지형형상",True,"세로장방"),
+     ("지형높이",True,"평지"),
+     ("용도지역",True,"제3종일반주거지역 / 이용상황 주상기타"),
+     ("공시지가·토지이용계획",True,"규제(토지거래허가구역)까지 열람"),
+    ],size=12,gap=7)
+    rect(s,0.5,5.75,6.3,1.15,RGBColor(0xEF,0xF6,0xEF),GREEN)
+    txt(s,0.72,5.9,5.9,0.95,[
+     [("핵심 관찰  ",11.5,True,GREEN),("입지·토지특성(도로접면·지형·용도)의 원본 데이터를 빠짐없이 노출한다.",11,False,INK)],
+     [("",4,True,INK)],
+     [("다만 이를 ",11,True,INK),("하나의 점수·등급이나 추정가로 종합",11,True,RED),("하지는 않는다 — 판단은 사용자 몫.",11,True,INK)],
+    ],11,sp=2)
+    pic(s,SHOTS+"disco_land.png",7.5,1.5,3.4,5.4); txt(s,7.0,6.95,6.3,0.3,"▲ 601-5 토지 정보 실제 화면(도로접면·지형높이·지형형상)",9.5,False,SUB); foot(s,4)
+    # 시사점
+    s=slide(p); band(s,"디스코",AC2,"04 · 종합 평가")
+    closing(s,"디스코",AC2,[
+     ("조건 검색","유형+가격대뿐 — 용도지역·규모·연식·도로·수익률 등으로 후보를 좁히는 발굴형 검색이 약함."),
+     ("종합 판단","실거래·공시·토지특성 원본은 풍부하나, 하나의 판단(점수/등급/추정가)으로 묶지 않음."),
+     ("관리·산출물","경량 매물등록뿐(CRM 없음) · 화면 조회로 끝 · 매수자에게 건넬 보고서 형태 산출물 없음."),
+    ],"개별 건물의 원본 데이터 열람은 강하나, 조건 검색·종합 판단·설득 산출물은 다루지 않는다.")
+    foot(s,5)
+    p.save(OUT+"경쟁사분석_디스코.pptx"); print("saved 디스코 ·",len(p.slides._sldIdLst),"slides")
 
-# ── 7 종합 비교 ──
-s=slide(); band(s,"04","종합"); txt(s,0.5,0.8,10,0.3,"04 종합 비교",12,True,AC); txt(s,0.5,1.13,10,0.4,"세 축이 분리되어 있다",20,True,INK)
-hdr=["","부기사","디스코","건물닷컴"]
-data=[["초점","중개 운영관리","데이터 조회","가치평가+실매물"],
-["매물 CRM","●●● 고객·직원·수수료","● 경량 등록","○"],
-["가치평가/보고서","○ 계산기","○","●● 3기준+컨설팅"],
-["데이터 조회","●●","●●●","●●"],
-["가격","연 100만~400만+","무료(등기만 유료)","매각평가 무료"],
-["타겟","개업중개사·법인","중개인·투자자","상업 투자·중개"]]
-tb=s.shapes.add_table(len(data)+1,4,I(0.5),I(1.9),I(7.3),I(3.7)).table
-tb.columns[0].width=I(1.7)
-for j,h in enumerate(hdr):
-    c=tb.cell(0,j); c.fill.solid(); c.fill.fore_color.rgb=RGBColor(0x12,0x2A,0x5C)
-    pr=c.text_frame.paragraphs[0]; pr.alignment=PP_ALIGN.CENTER; r=pr.add_run(); r.text=h; r.font.size=Pt(11.5); r.font.bold=True; r.font.color.rgb=WHITE; r.font.name='Malgun Gothic'
-for i,row in enumerate(data,1):
-    for j,val in enumerate(row):
-        c=tb.cell(i,j); c.fill.solid(); c.fill.fore_color.rgb=CARD if j==0 else WHITE
-        pr=c.text_frame.paragraphs[0]; pr.alignment=PP_ALIGN.LEFT if j==0 else PP_ALIGN.CENTER
-        r=pr.add_run(); r.text=val; r.font.size=Pt(10); r.font.bold=(j==0); r.font.color.rgb=INK; r.font.name='Malgun Gothic'
-txt(s,8.1,1.9,4.8,0.35,"시사점 (객관)",14,True,INK)
-bullets(s,8.1,2.4,4.8,[
- ("운영관리·조회·평가 세 축이 분리",True,"통합 사업자 부재"),
- ("가치평가는 자동(정성)·컨설팅(수기)로 갈림",True,"즉석·투명·중개워크플로 결합은 빈 자리"),
- ("공개 유저 리뷰 희소",True,"입소문·영업 중심 시장"),
-],size=11.5,gap=10)
-foot(s,7)
+# ═══════════════════ 3. 건물닷컴 ═══════════════════
+def build_gunmul():
+    p=deck(); AC3=AMBER
+    cover(p,"건물닷컴","Gunmul.com  —  가격평가 리포트 + 실매물",
+          "감정평가 3방식 자동 가격평가 웹리포트 + 컨설팅 + 수익형 실매물.",AC3,used=True)
+    # 실사용 — 가격평가 리포트
+    s=slide(p); band(s,"건물닷컴",AC3,"01 · 직접 써보니"); txt(s,0.5,0.8,10,0.3,"건물닷컴 — 가격평가 리포트를 열어보니",12,True,AC3); txt(s,0.5,1.13,9,0.4,"감정평가 3방식으로 가격을 삼각측량한다",18.5,True,INK); usedchip(s,0.5,1.68,True)
+    rows=[("① 원가기준","토지(공시지가+UP)+건물(복성식)","100,000만"),
+          ("② 수익률기준","임대료(지역별 차등)","105,000만"),
+          ("③ 실거래기준","거래일+거리+도로+건물가","102,000만")]
+    for i,(k,v,val) in enumerate(rows):
+        t=2.25+i*0.72; rect(s,0.5,t,6.4,0.62,CARD,LINE); txt(s,0.68,t+0.06,3.0,0.3,k,12,True,AC3)
+        txt(s,0.68,t+0.33,4.3,0.25,v,9.5,False,SUB); txt(s,5.1,t+0.16,1.7,0.3,val+"원",11.5,True,INK,PP_ALIGN.RIGHT)
+    rect(s,0.5,4.5,6.4,0.62,RGBColor(0xFC,0xF3,0xE2),AMBER)
+    txt(s,0.68,4.58,6.1,0.45,[[("최종  ",12,True,AMBER),("3방식 평균 ±7% → 95,170만 ~ 109,496만원 range",11.5,True,INK)]])
+    txt(s,0.5,5.35,6.4,1.55,[
+     [("느낀 점  ",11,True,GREEN),("감정평가 논리(원가·수익·비교)를 자동화한 건 탄탄. 근거가 투명하게 병렬로 보임.",11,False,INK)],
+     [("한계  ",11,True,RED),("의뢰(신청)형 웹페이지 · 홍길동 샘플·2017 카피라이트로 UI 노후 · 항목별 등급·층별 임대·CRM 연계 없음",11,False,INK)],
+    ],11,sp=5)
+    pic(s,SHOTS+"gunmul_valresult_crop.png",7.1,1.55,5.8,3.0)
+    pic(s,SHOTS+"gunmul_appr_preview.png",10.15,4.75,2.7,2.55)
+    txt(s,7.1,4.62,3.0,0.3,"▲ 3방식 가격평가결과(실제 미리보기)",9.5,False,SUB)
+    txt(s,7.1,5.3,2.9,1.4,[[("좌: 리포트 전체 →  ",9.5,False,SUB)],[("웹페이지 1장짜리 표 형식.",9.5,False,SUB)],[("배포용 산출물 아님.",9.5,True,AMBER)]],9.5); foot(s,2)
+    # 시사점
+    s=slide(p); band(s,"건물닷컴",AC3,"02 · 시사점")
+    closing(s,"건물닷컴",AC3,[
+     ("항목별 등급 설명","금액(range)은 주지만 '왜 이 값인가'를 항목별 등급으로 설명하지는 않음."),
+     ("워크플로·즉시성","의뢰(신청)형 → 즉석·자기주도 조회가 아님. 중개 CRM과도 분리."),
+     ("산출물 형태·UI","웹 1장 표 + 노후 UI. 매수자에게 건넬 배포용 산출물로는 약함."),
+    ],"평가 논리는 정통(3방식)이나, 즉시성·항목별 설명·배포용 산출물·중개 워크플로 결합은 다루지 않는다.")
+    foot(s,3)
+    p.save(OUT+"경쟁사분석_건물닷컴.pptx"); print("saved 건물닷컴 ·",len(p.slides._sldIdLst),"slides")
 
-p.save("specs/05-business/경쟁사분석.pptx")
-print("saved 경쟁사분석.pptx ·", len(p.slides._sldIdLst), "slides")
+# ═══════════════════ dispatch ═══════════════════
+BUILDERS={"bugisa":build_bugisa,"disco":build_disco,"gunmul":build_gunmul}
+if __name__=="__main__":
+    sel=[a for a in sys.argv[1:] if a in BUILDERS] or list(BUILDERS)
+    for k in sel: BUILDERS[k]()
+    print("done ·",len(sel),"deck(s)")

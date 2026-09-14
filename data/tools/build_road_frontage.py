@@ -14,6 +14,7 @@ from shapely import make_valid, STRtree
 from shapely.ops import unary_union
 sys.path.insert(0,'data/tools')
 from dbf_inspect import read_dbf
+from paths import LDREG
 
 def perp_width(a, b, roadU):
     """edge(a→b)의 중점에서 도로쪽으로 수직선을 쏴 도로필지를 가로지르는 실제 폭 측정.
@@ -81,7 +82,7 @@ def main():
         for r in rows():
             if r['A11']=='도로': road_pnu.add(r['A1'])
             else: parcel_road[r['A1']]=r['A24']
-    r=shapefile.Reader("data/raw/LSMD_CONT_LDREG_5174_서울/LSMD_CONT_LDREG_5174_11_202606",encoding='cp949')
+    r=shapefile.Reader(LDREG,encoding='cp949')
     idx=[f[0] for f in r.fields[1:]].index('PNU')
     roads=[]; parcels=[]
     for sr in r.iterShapeRecords():

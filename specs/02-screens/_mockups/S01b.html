@@ -33,6 +33,18 @@ body{margin:0}
 .region .f label small{color:#b6bdc6; font-weight:600; margin-left:3px}
 .region select{width:100%; border:1px solid var(--line); border-radius:7px; padding:8px 10px; font-size:13px; outline:none; background:#fff}
 .region select:disabled{background:#eef0f3; color:#aab2bc; cursor:not-allowed}
+.region.dim{opacity:.5; pointer-events:none}
+/* 영역 그리기 진입 (S01 §3.6c 연동) */
+.region-draw{display:flex; align-items:center; gap:10px; margin-top:10px}
+.region-draw .rd-or{font-size:11px; color:#aab2bc; font-weight:700}
+.rd-btn{border:1px solid var(--line-2); background:#fff; border-radius:8px; padding:8px 13px; font-size:12.5px; font-weight:700; color:var(--ink); cursor:pointer}
+.rd-btn:hover{border-color:var(--signal); color:var(--signal)}
+.region-draw .rd-hint{font-size:11px; color:#aab2bc}
+.region-drawn{display:flex; align-items:center; gap:10px; margin-top:10px}
+.region-drawn.hidden,.region-draw.hidden{display:none}
+.region-drawn .rg-chip{background:var(--signal-bg); border:1px solid #c3d4fb; color:var(--signal-ink); font-weight:700; font-size:12.5px; border-radius:999px; padding:5px 12px}
+.region-drawn .rd-link{border:0; background:none; color:var(--signal); font-size:12px; font-weight:700; cursor:pointer; padding:0}
+.region-drawn .rd-link.del{color:var(--up)}
 /* ── 전체 적용조건 칩바 ── */
 .applied-bar{display:flex; align-items:center; gap:8px; margin-top:14px; padding:10px 12px; border:1px dashed #dfe4ea; border-radius:10px; min-height:44px; flex-wrap:wrap}
 .applied-bar .albl{font-size:11px; font-weight:800; color:#9aa4b0; flex:0 0 auto}
@@ -211,7 +223,6 @@ body{margin:0}
   <div class="modal">
     <div class="modal-head">
       <h2>상세검색</h2><span class="sub">S01 필터</span>
-      <span class="est">예상 <b id="ecount-top">1,284</b>건</span>
       <span class="sp"></span>
       <span class="unit"><button class="on">평</button><button>㎡</button></span>
       <button class="lnk" id="btn-load">불러오기</button><button class="lnk" id="btn-save">조건저장</button>
@@ -220,11 +231,24 @@ body{margin:0}
 
     <div class="modal-body">
 
-      <!-- 지역 앵커 -->
-      <div class="region">
+      <!-- 지역 앵커 (법정동 캐스케이드 또는 영역 그리기 — 배타) -->
+      <div class="region" id="rg-cascade">
         <div class="f"><label>시/도</label><select id="rg-sido"></select></div>
         <div class="f"><label>시/군/구</label><select id="rg-sgg"></select></div>
         <div class="f"><label>법정동 <small>선택 시 조건 추가 · 여러 개 가능</small></label><select id="rg-bjd"></select></div>
+      </div>
+      <!-- 영역 그리기 진입 (S01 지도와 범위 공유) -->
+      <div class="region-draw" id="rg-drawentry">
+        <span class="rd-or">또는</span>
+        <button class="rd-btn" onclick="s01bDraw()">🗺️ 지도에서 영역 그리기</button>
+        <span class="rd-hint">행정경계로 못 자르는 임의 범위를 지도에 직접 그립니다</span>
+      </div>
+      <!-- 그린 영역 활성 상태 (배타 — 법정동 비활성) -->
+      <div class="region-drawn hidden" id="rg-drawn">
+        <span class="rg-chip">✏️ 그린 영역</span>
+        <button class="rd-link" onclick="s01bDraw()">다시 그리기</button>
+        <button class="rd-link del" onclick="s01bClearDraw()">지우기</button>
+        <span class="rd-hint">그린 영역이 검색 범위입니다 · 법정동 선택 비활성</span>
       </div>
 
       <!-- 전체 적용조건 칩바 -->
@@ -244,7 +268,7 @@ body{margin:0}
       <span class="applied">적용 조건 <b id="acount">0</b>개</span>
       <span class="sp"></span>
       <button class="cancel">취소</button>
-      <button class="apply">적용 · 예상 <b id="ecount">1,284</b>건</button>
+      <button class="apply">적용</button>
     </div>
   </div>
 </div>
@@ -293,9 +317,9 @@ const 이용상황섹터=[
  {name:'상업용 빌딩', items:['상업용','업무용','상업기타']},
  {name:'상가주택', items:['주상용','주상기타']},
  {name:'주거', items:['단독','연립','다세대','아파트','주거기타']},
- {name:'공업·산업', items:['공업용','공업기타','태양광발전소부지']},
+ {name:'공업·산업', items:['공업용','공업기타']},
  {name:'신축부지', items:['주거나지','상업나지','주상나지','공업나지','주차장등']},
- {name:'특수·기타시설', items:['전','과수원','전기타','전창고','전축사','답','답기타','답창고','조림','자연림','토지임야','임야기타','유원지','골프장 회원제','여객자동차터미널','콘도미니엄','공항','고속도로휴게소','발전소','물류터미널','특수기타','도로등','하천등','공원등','운동장등','위험시설','유해.혐오시설','지정되지않음','기타']},
+ {name:'특수·기타시설', items:['전','과수원','전기타','전창고','전축사','답','답기타','답창고','조림','자연림','토지임야','임야기타','유원지','골프장 회원제','여객자동차터미널','콘도미니엄','공항','고속도로휴게소','발전소','물류터미널','특수기타','도로등','하천등','공원등','운동장등','위험시설','유해.혐오시설','기타']},
 ];
 /* 디벨롭 = 배타 섹터가 아니라 크로스 프리셋(재개발·용도전환 유망 값 묶음 한번에 선택) */
 const 디벨롭=['단독','연립','다세대','주거기타','공업용','공업기타','상업용','업무용','상업기타','주상용','주상기타'];
@@ -310,7 +334,7 @@ const GROUPS=[
  {t:'입지정보',
    reps:[ S('역과의거리',{min:0,max:1000,unit:'m',inf:1,handle:'right',ticks:'0,500',le:'이내',
             chips:[['도보5분↓',0,350],['도보10분↓',0,700]]}) ],
-   body:[ M('유동인구',['확인중','매우높음','높음','보통','낮음','매우낮음']) ]},
+   body:[ M('유동인구',['매우높음','높음','보통','낮음','매우낮음']) ]},
 
  {t:'건물정보',
    reps:[
@@ -334,7 +358,7 @@ const GROUPS=[
        chips:[['여유 100%p↑',100,''],['여유 200%p↑',200,'']]}),
     S('규모 지상',{min:0,max:30,unit:'층',inf:1,handle:'left',ticks:'0,10,20'}),
     S('규모 지하',{min:0,max:10,unit:'층',inf:1,handle:'left',ticks:'0,3,6'}),
-    S('대수선·리모델링',{min:1970,max:2026,unit:'',inf:1,inflo:1,handle:'left',ge:'부터',le:'까지',ticks:'1990,2010'}),
+    S('대수선 경과연수',{min:0,max:30,unit:'년',inf:1,handle:'right',le:'이하',ticks:'0,10,20'}),
     TM('주용도',[{name:'주요 용도',open:true,items:주용도주},{name:'그 외 용도',items:주용도부}]),
     X('기타용도','건축물대장 기타용도 · 부분일치',['근린생활시설','사무소','업무시설','단독주택','다가구주택','소매점','판매시설','상가']),
    ]},
@@ -350,7 +374,7 @@ const GROUPS=[
    reps:[
     S('매매가',{min:0,max:200,unit:'억',inf:1,ticks:'0,50,100,150',
        chips:[['~50억',0,50],['50~100',50,100],['100억~',100,'']]}),
-    S('수익률',{min:0,max:8,step:0.1,unit:'%',inf:1,handle:'left',ticks:'0,2,4,6',
+    S('수익률(만실)',{min:0,max:8,step:0.1,unit:'%',inf:1,handle:'left',ticks:'0,2,4,6',
        chips:[['3%↑',3,''],['4%↑',4,''],['5%↑',5,'']]}),
    ],
    body:[
@@ -359,47 +383,45 @@ const GROUPS=[
     S('총보증금',{min:0,max:100000,unit:'만원',inf:1,ticks:'0,10000,30000,50000'}),
     S('총임대료',{min:0,max:10000,unit:'만원',inf:1,ticks:'0,2000,5000'}),
     S('총관리비',{min:0,max:5000,unit:'만원',inf:1,ticks:'0,1000,3000'}),
-    S('연면적당임대료',{min:0,max:50,unit:'만원',inf:1,ticks:'0,10,20,30'}),
-    S('공실제외수익률',{min:0,max:8,step:0.1,unit:'%',inf:1,handle:'left',ticks:'0,3,6'}),
-    S('자기자본수익률',{min:0,max:15,step:0.1,unit:'%',inf:1,handle:'left',ticks:'0,5,10'}),
-    T('총공실',['있음','없음','확인중']),
+    S('수익률(공실제외)',{min:0,max:8,step:0.1,unit:'%',inf:1,handle:'left',ticks:'0,3,6'}),
+    T('총공실',['있음','없음']),
    ]},
 
  {t:'상세정보',
-   reps:[ M('건물용도',['확인중','수익률','신축용','사옥용','리모델링용']) ],
-   body:[ SM('등급',['확인중','매우좋음','좋음','나쁨','매우나쁨']), SM('입지',['확인중','매우좋음','좋음','나쁨','매우나쁨']),
-    M('명도',['확인중','완료','가능','불가','일부','조건부']),
-    M('용도변경',['확인중','근생','상가주택','다가구주택','가능','불가','협의가능']),
-    M('멸실',['확인중','불가','협조가능','잔금전멸실','협의가능','조건부']) ]},
+   reps:[ M('건물용도',['수익률','신축용','사옥용','리모델링용']) ],
+   body:[ SM('등급',['매우좋음','좋음','나쁨','매우나쁨']), SM('입지',['매우좋음','좋음','나쁨','매우나쁨']),
+    M('명도',['완료','가능','불가','일부','조건부']),
+    M('용도변경',['나대지(주차장)','근생','상가주택','다가구주택','다세대주택','가능','불가','협의가능','조건부']),
+    M('멸실',['불가','협조가능','잔금전멸실','나대지(주차장)','협의가능','조건부']) ]},
 
- {t:'공시지가·매각·광고',
+ {t:'공시지가·실거래·광고',
    reps:[
     S('광고가',{min:0,max:200,unit:'억',inf:1,ticks:'0,50,100'}),
-    S('매각일',{min:1970,max:2026,unit:'',inf:1,inflo:1,handle:'left',ge:'부터',le:'까지',ticks:'1990,2010'}),
+    S('실거래일',{min:1970,max:2026,unit:'',inf:1,inflo:1,handle:'left',ge:'부터',le:'까지',ticks:'1990,2010'}),
    ],
    body:[
-    S('최신 공시지가',{min:0,max:5000,unit:'만원',inf:1,ticks:'0,1000,3000'}),
+    S('최신 공시지가',{min:0,max:5000,unit:'만원/㎡',inf:1,ticks:'0,1000,3000'}),
     S('공시지가 상승률 5년',{min:0,max:100,unit:'%',inf:1,handle:'left',ticks:'0,30,60'}),
     S('공시지가 상승률 10년',{min:0,max:200,unit:'%',inf:1,handle:'left',ticks:'0,50,100'}),
     S('총공시지가/매매가',{min:0,max:200,unit:'%',inf:1,ticks:'0,50,100'}),
-    S('공시지가 기준',{min:0,max:10000,unit:'만원',inf:1,ticks:'0,3000,6000'}),
+    S('공시지가 기준',{min:0,max:200,unit:'억',inf:1,ticks:'0,50,100,150'}),
     S('광고 상승률',{min:-50,max:100,unit:'%',inf:1,inflo:1,ticks:'-50,0,50'}),
-    T('광고등록',['있음','없음']),
-    S('매각액',{min:0,max:200,unit:'억',inf:1,ticks:'0,50,100'}),
-    S('매각손익',{min:-50,max:200,unit:'%',inf:1,inflo:1,ticks:'-50,0,50,100'}),
-    S('매각횟수',{min:0,max:10,unit:'건',inf:1,handle:'left',ticks:'0,3,6'}),
+    T('광고 상태',['광고중','광고없음']),
+    S('실거래가',{min:0,max:200,unit:'억',inf:1,ticks:'0,50,100'}),
+    S('실거래손익',{min:-50,max:200,unit:'%',inf:1,inflo:1,ticks:'-50,0,50,100'}),
+    S('실거래횟수',{min:0,max:10,unit:'건',inf:1,handle:'left',ticks:'0,3,6'}),
    ]},
 
  {t:'업무',
    reps:[ M('진행상태',['준비중','진행중','철회','가격제시','매각']),
-    M('소유자타입',['확인중','개인','법인']) ],
-   body:[ X('담당자','담당자명'),
-    M('긴급도',['확인중','매우급함','급함','보통','여유','안팔아도됨']),
-    M('관계',['확인중','건물주/법인대표','관리자','친인척','부동산','기타']),
-    M('협조도',['확인중','협조적','보통','비협조적']), M('친절도',['확인중','친절','보통','불친절']),
+    M('소유자타입',['개인','법인']) ],
+   body:[ M('담당자',['이승욱','박실장','김대리']),
+    M('긴급도',['매우급함','급함','보통','여유','안팔아도됨']),
+    M('관계',['건물주/법인대표','관리자','친인척','부동산','기타']),
+    M('협조도',['협조적','보통','비협조적']), M('친절도',['친절','보통','불친절']),
     X('소유자명','소유자명'), X('매물번호','매물번호'),
     S('접수일',{min:1970,max:2026,unit:'',inf:1,inflo:1,handle:'left',ge:'부터',le:'까지',ticks:'2000,2015'}),
-    T('매수의향서',['확인중','원함','원치않음']), T('전화번호',['있음','없음']),
+    T('매수의향서',['원함','원치않음']), T('전화번호',['있음','없음']),
     T('사진',['있음','없음']), T('브리핑',['있음','없음']) ]},
 ];
 
@@ -529,6 +551,21 @@ rgSido.onchange=fillSgg; rgSgg.onchange=fillBjd;
 rgBjd.onchange=()=>{ const s=rgSido.value,g=rgSgg.value,b=rgBjd.value; if(!b)return; if(!regions.some(r=>r.sgg===g&&r.bjd===b))regions.push({sido:s,sgg:g,bjd:b}); rgBjd.value=''; refresh(); };
 const regionLabel=r=>`${r.sgg} ${r.bjd==='전체'?'전체':r.bjd}`;
 fillSido(); fillSgg();
+
+/* ── 영역 그리기 연동 (S01 지도와 범위 공유) ──
+   실제: 모달 닫고 S01 지도 그리기 모드 진입. 그린 영역 ↔ 법정동은 배타. */
+function s01bDraw(){
+  document.getElementById('rg-cascade').classList.add('dim');
+  document.getElementById('rg-drawentry').classList.add('hidden');
+  document.getElementById('rg-drawn').classList.remove('hidden');
+  regions=[]; if(typeof refresh==='function') refresh();
+}
+function s01bClearDraw(){
+  document.getElementById('rg-cascade').classList.remove('dim');
+  document.getElementById('rg-drawentry').classList.remove('hidden');
+  document.getElementById('rg-drawn').classList.add('hidden');
+  if(typeof refresh==='function') refresh();
+}
 
 /* ── 섹터 그룹 다중선택 ── */
 function initSector(sm){
@@ -671,8 +708,8 @@ function refresh(){
   const total=items.length;
   const allBd=document.querySelector('.idx-item[data-tab="all"] .badge'); allBd.textContent=total; allBd.classList.toggle('zero',!total);
   document.getElementById('acount').textContent=total;
-  const est=Math.max(3,1284-total*137).toLocaleString();
-  document.getElementById('ecount').textContent=est; document.getElementById('ecount-top').textContent=est;
+  /* 예상 건수(실시간 재계산) 폐기 2026-07-19 — 조건 변경마다 전수 COUNT는 DB 부하 대비 실익 없음.
+     건수는 적용 후 S01 결과바에서 확인한다. */
 }
 document.addEventListener('input',refresh); document.addEventListener('change',refresh);
 document.querySelector('.close').onclick=()=>{};

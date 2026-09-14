@@ -1,0 +1,114 @@
+<svg width="960" height="585" viewBox="0 0 960 585" xmlns="http://www.w3.org/2000/svg" font-family="Apple SD Gothic Neo, sans-serif">
+<rect width="960" height="585" fill="#ffffff"/>
+<line x1="151.7" y1="6" x2="151.7" y2="579" stroke="#8A94A6" stroke-width="1.8" stroke-dasharray="5 4"/>
+<line x1="433.1" y1="6" x2="433.1" y2="579" stroke="#8A94A6" stroke-width="1.8" stroke-dasharray="5 4"/>
+<line x1="579.4" y1="6" x2="579.4" y2="579" stroke="#8A94A6" stroke-width="1.8" stroke-dasharray="5 4"/>
+<line x1="767.0" y1="6" x2="767.0" y2="579" stroke="#8A94A6" stroke-width="1.8" stroke-dasharray="5 4"/>
+<line x1="0" y1="190" x2="960" y2="190" stroke="#B8C4D9" stroke-width="1.2"/>
+<polyline points="165.8,190.0 306.5,190.0 436.0,190.0 469.7,181.5 564.8,156.3 663.8,122.7 867.1,63.8" fill="none" stroke="#E8873A" stroke-width="2.8"/>
+<line x1="165.8" y1="190.0" x2="165.8" y2="190" stroke="#E8873A66" stroke-width="1.2" stroke-dasharray="3 3"/>
+<circle cx="165.8" cy="190.0" r="5" fill="#E8873A"/>
+<text x="165.8" y="164.0" font-size="12.5" fill="#6B7688" text-anchor="middle"></text>
+<text x="165.8" y="180.0" font-size="15" fill="#E8873A" text-anchor="middle" font-weight="700"></text>
+<line x1="306.5" y1="190.0" x2="306.5" y2="190" stroke="#E8873A66" stroke-width="1.2" stroke-dasharray="3 3"/>
+<circle cx="306.5" cy="190.0" r="5" fill="#E8873A"/>
+<text x="306.5" y="164.0" font-size="12.5" fill="#6B7688" text-anchor="middle">베타 · 무료</text>
+<text x="306.5" y="180.0" font-size="15" fill="#E8873A" text-anchor="middle" font-weight="700">0원</text>
+<line x1="436.0" y1="190.0" x2="436.0" y2="190" stroke="#E8873A66" stroke-width="1.2" stroke-dasharray="3 3"/>
+<circle cx="436.0" cy="190.0" r="5" fill="#E8873A"/>
+<text x="436.0" y="164.0" font-size="12.5" fill="#6B7688" text-anchor="middle"></text>
+<text x="436.0" y="180.0" font-size="15" fill="#E8873A" text-anchor="middle" font-weight="700"></text>
+<line x1="469.7" y1="181.5" x2="469.7" y2="190" stroke="#E8873A66" stroke-width="1.2" stroke-dasharray="3 3"/>
+<circle cx="469.7" cy="181.5" r="5" fill="#E8873A"/>
+<text x="469.7" y="155.5" font-size="12.5" fill="#6B7688" text-anchor="middle">30명</text>
+<text x="469.7" y="171.5" font-size="15" fill="#E8873A" text-anchor="middle" font-weight="700">90만원</text>
+<line x1="564.8" y1="156.3" x2="564.8" y2="190" stroke="#E8873A66" stroke-width="1.2" stroke-dasharray="3 3"/>
+<circle cx="564.8" cy="156.3" r="5" fill="#E8873A"/>
+<text x="564.8" y="130.3" font-size="12.5" fill="#6B7688" text-anchor="middle">100명</text>
+<text x="564.8" y="146.3" font-size="15" fill="#E8873A" text-anchor="middle" font-weight="700">300만원</text>
+<line x1="663.8" y1="122.7" x2="663.8" y2="190" stroke="#E8873A66" stroke-width="1.2" stroke-dasharray="3 3"/>
+<circle cx="663.8" cy="122.7" r="5" fill="#E8873A"/>
+<text x="663.8" y="96.7" font-size="12.5" fill="#6B7688" text-anchor="middle">300명</text>
+<text x="663.8" y="112.7" font-size="15" fill="#E8873A" text-anchor="middle" font-weight="700">1,500만원</text>
+<line x1="867.1" y1="63.8" x2="867.1" y2="190" stroke="#E8873A66" stroke-width="1.2" stroke-dasharray="3 3"/>
+<circle cx="867.1" cy="63.8" r="5" fill="#E8873A"/>
+<line x1="867.1" y1="63.8" x2="867.1" y2="34" stroke="#E8873A" stroke-width="2.8"/>
+<path d="M859.1,34 h16 l-8,-14 z" fill="#E8873A"/>
+<text x="853.1" y="39.8" font-size="12.5" fill="#6B7688" text-anchor="end">5,000명</text>
+<text x="853.1" y="57.8" font-size="15" fill="#E8873A" text-anchor="end" font-weight="700">25,000만원</text>
+<text x="879.1" y="68.8" font-size="13.5" fill="#E8873A" font-weight="700">월 매출</text>
+<path d="M0,252 h140.7 l22,32.0 l-22,32.0 H0 l22,-32.0 z" fill="#DCE4F0"/>
+<text x="81" y="279" font-size="15.5" fill="#1F3864" text-anchor="middle" font-weight="700">기획 및 개발</text>
+<text x="81" y="299" font-size="12.5" fill="#1F3864" text-anchor="middle" opacity="0.85">2026.07~08</text>
+<rect x="24.0" y="333.0" width="5" height="5" fill="#7E93B5"/>
+<text x="35.0" y="342" font-size="14.5" fill="#3E4A5E">서울 빌딩 60만</text>
+<text x="35.0" y="363" font-size="14.5" fill="#3E4A5E">채 DB 기반 검색</text>
+<text x="35.0" y="384" font-size="14.5" fill="#3E4A5E">엔진</text>
+<rect x="24.0" y="396.0" width="5" height="5" fill="#7E93B5"/>
+<text x="35.0" y="405" font-size="14.5" fill="#3E4A5E">가치 추정</text>
+<text x="35.0" y="426" font-size="14.5" fill="#3E4A5E">시스템</text>
+<rect x="24.0" y="438.0" width="5" height="5" fill="#7E93B5"/>
+<text x="35.0" y="447" font-size="14.5" fill="#3E4A5E">매물·일정 관리</text>
+<text x="35.0" y="468" font-size="14.5" fill="#3E4A5E">시스템</text>
+<path d="M140.7,252 h281.4 l22,32.0 l-22,32.0 H140.7 l22,-32.0 z" fill="#C3CEE0"/>
+<text x="292" y="279" font-size="15.5" fill="#1F3864" text-anchor="middle" font-weight="700">베타테스트</text>
+<text x="292" y="299" font-size="12.5" fill="#1F3864" text-anchor="middle" opacity="0.85">2026.08~11</text>
+<path d="M140.7,252 h281.4 l22,32.0 l-22,32.0 H140.7 l22,-32.0 z" fill="none" stroke="#C0392B" stroke-width="3"/>
+<rect x="254.4" y="214" width="76" height="26" rx="13.0" fill="#C0392B"/>
+<text x="292" y="232" font-size="14.5" fill="#ffffff" text-anchor="middle" font-weight="700">현재</text>
+<path d="M285.4,240 h14 l-7,10 z" fill="#C0392B"/>
+<text x="164.7" y="342" font-size="14.5" fill="#1F3864" font-weight="700">1차 2026.08 · 중개사 7명</text>
+<rect x="164.7" y="354.0" width="5" height="5" fill="#3C5C8C"/>
+<text x="175.7" y="363" font-size="14.5" fill="#3E4A5E">UI/UX 적응 어려움, 실제 매물 없음</text>
+<rect x="164.7" y="375.0" width="5" height="5" fill="#3C5C8C"/>
+<text x="175.7" y="384" font-size="14.5" fill="#3E4A5E">분석을 한 화면에서 확인하고 싶음</text>
+<rect x="164.7" y="396.0" width="5" height="5" fill="#3C5C8C"/>
+<text x="175.7" y="405" font-size="14.5" fill="#1F3864" font-weight="700">구매 의향서 확보 완료</text>
+<text x="164.7" y="426" font-size="14.5" fill="#1F3864" font-weight="700">개선 진행 및 2차 테스트 준비</text>
+<rect x="164.7" y="438.0" width="5" height="5" fill="#3C5C8C"/>
+<text x="175.7" y="447" font-size="14.5" fill="#3E4A5E">유저가 이미 익숙한 UI/UX로 개선</text>
+<rect x="164.7" y="459.0" width="5" height="5" fill="#3C5C8C"/>
+<text x="175.7" y="468" font-size="14.5" fill="#3E4A5E">상위 기능을 전부 통제하는 AI</text>
+<text x="175.7" y="489" font-size="14.5" fill="#3E4A5E">에이전트 개발</text>
+<rect x="164.7" y="501.0" width="5" height="5" fill="#3C5C8C"/>
+<text x="175.7" y="510" font-size="14.5" fill="#3E4A5E">조회·분석·자료 생성 등 전문 스킬</text>
+<text x="175.7" y="531" font-size="14.5" fill="#3E4A5E">탑재</text>
+<rect x="164.7" y="543.0" width="5" height="5" fill="#3C5C8C"/>
+<text x="175.7" y="552" font-size="14.5" fill="#3E4A5E">DB를 근거로 답하는 구조로 설계</text>
+<path d="M422.09999999999997,252 h146.328 l22,32.0 l-22,32.0 H422.09999999999997 l22,-32.0 z" fill="#7E93B5"/>
+<text x="506" y="279" font-size="15.5" fill="#FFFFFF" text-anchor="middle" font-weight="700">출시</text>
+<text x="506" y="299" font-size="12.5" fill="#FFFFFF" text-anchor="middle" opacity="0.85">2026.12~2027.05</text>
+<text x="446.1" y="342" font-size="14.5" fill="#1F3864" font-weight="700">유료 구독으로</text>
+<text x="446.1" y="363" font-size="14.5" fill="#1F3864" font-weight="700">출시</text>
+<rect x="446.1" y="375.0" width="5" height="5" fill="#243B5E"/>
+<text x="457.1" y="384" font-size="14.5" fill="#3E4A5E">고객 DB 기반</text>
+<text x="457.1" y="405" font-size="14.5" fill="#3E4A5E">유저 확보</text>
+<rect x="446.1" y="417.0" width="5" height="5" fill="#243B5E"/>
+<text x="457.1" y="426" font-size="14.5" fill="#3E4A5E">매물 호가 데이터</text>
+<text x="457.1" y="447" font-size="14.5" fill="#3E4A5E">확보</text>
+<path d="M568.428,252 h187.6 l22,32.0 l-22,32.0 H568.428 l22,-32.0 z" fill="#3C5C8C"/>
+<text x="673" y="279" font-size="15.5" fill="#FFFFFF" text-anchor="middle" font-weight="700">확장 준비</text>
+<text x="673" y="299" font-size="12.5" fill="#FFFFFF" text-anchor="middle" opacity="0.85">2027.02~08</text>
+<text x="592.4" y="342" font-size="14.5" fill="#1F3864" font-weight="700">시제품 제작</text>
+<rect x="592.4" y="354.0" width="5" height="5" fill="#243B5E"/>
+<text x="603.4" y="363" font-size="14.5" fill="#3E4A5E">일반인용 빌탐정 시스템</text>
+<rect x="592.4" y="375.0" width="5" height="5" fill="#243B5E"/>
+<text x="603.4" y="384" font-size="14.5" fill="#3E4A5E">호가 기반 광고 시스템</text>
+<rect x="592.4" y="396.0" width="5" height="5" fill="#243B5E"/>
+<text x="603.4" y="405" font-size="14.5" fill="#3E4A5E">해외 고객용 시스템</text>
+<rect x="592.4" y="417.0" width="5" height="5" fill="#243B5E"/>
+<text x="603.4" y="426" font-size="14.5" fill="#3E4A5E">경험과학 기반 진단</text>
+<text x="603.4" y="447" font-size="14.5" fill="#3E4A5E">시스템</text>
+<path d="M756.028,252 h181.97199999999998 l22,32.0 l-22,32.0 H756.028 l22,-32.0 z" fill="#243B5E"/>
+<text x="858" y="279" font-size="15.5" fill="#FFFFFF" text-anchor="middle" font-weight="700">확장</text>
+<text x="858" y="299" font-size="12.5" fill="#FFFFFF" text-anchor="middle" opacity="0.85">2027.09~</text>
+<text x="780.0" y="342" font-size="14.5" fill="#1F3864" font-weight="700">기대 효과</text>
+<rect x="780.0" y="354.0" width="5" height="5" fill="#243B5E"/>
+<text x="791.0" y="363" font-size="14.5" fill="#3E4A5E">잠재고객 증가, 매출액</text>
+<text x="791.0" y="384" font-size="14.5" fill="#3E4A5E">상승 기대</text>
+<rect x="780.0" y="396.0" width="5" height="5" fill="#243B5E"/>
+<text x="791.0" y="405" font-size="14.5" fill="#3E4A5E">광고 수익 발생</text>
+<rect x="780.0" y="417.0" width="5" height="5" fill="#243B5E"/>
+<text x="791.0" y="426" font-size="14.5" fill="#3E4A5E">호가 데이터 축적으로</text>
+<text x="791.0" y="447" font-size="14.5" fill="#3E4A5E">플랫폼 가치 상승 기대</text>
+</svg>

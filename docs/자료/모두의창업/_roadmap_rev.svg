@@ -1,0 +1,44 @@
+<svg width="960" height="318" viewBox="0 0 960 318" xmlns="http://www.w3.org/2000/svg" font-family="Apple SD Gothic Neo, sans-serif">
+<rect width="960" height="318" fill="#ffffff"/>
+<line x1="170.5" y1="6" x2="170.5" y2="312" stroke="#C6CCD6" stroke-width="1.2" stroke-dasharray="4 4"/>
+<line x1="461.2" y1="6" x2="461.2" y2="312" stroke="#C6CCD6" stroke-width="1.2" stroke-dasharray="4 4"/>
+<line x1="695.7" y1="6" x2="695.7" y2="312" stroke="#C6CCD6" stroke-width="1.2" stroke-dasharray="4 4"/>
+<line x1="827.1" y1="6" x2="827.1" y2="312" stroke="#C6CCD6" stroke-width="1.2" stroke-dasharray="4 4"/>
+<text x="2" y="24" font-size="13" fill="#C9762E" font-weight="700">월 매출(만원)</text>
+<polyline points="90.7,156.0 315.8,155.7 578.5,150.4 761.4,141.0 888.0,62.2" fill="none" stroke="#E8873A" stroke-width="2.6"/>
+<line x1="90.7" y1="156.0" x2="90.7" y2="156" stroke="#F0C89E" stroke-width="1.2"/>
+<circle cx="90.7" cy="156.0" r="4.5" fill="#E8873A"/>
+<text x="90.7" y="145.0" font-size="13.5" fill="#C9762E" text-anchor="middle" font-weight="700">0</text>
+<line x1="315.8" y1="155.7" x2="315.8" y2="156" stroke="#F0C89E" stroke-width="1.2"/>
+<circle cx="315.8" cy="155.7" r="4.5" fill="#E8873A"/>
+<text x="315.8" y="144.7" font-size="13.5" fill="#C9762E" text-anchor="middle" font-weight="700">90</text>
+<line x1="578.5" y1="150.4" x2="578.5" y2="156" stroke="#F0C89E" stroke-width="1.2"/>
+<circle cx="578.5" cy="150.4" r="4.5" fill="#E8873A"/>
+<text x="578.5" y="139.4" font-size="13.5" fill="#C9762E" text-anchor="middle" font-weight="700">1500</text>
+<line x1="761.4" y1="141.0" x2="761.4" y2="156" stroke="#F0C89E" stroke-width="1.2"/>
+<circle cx="761.4" cy="141.0" r="4.5" fill="#E8873A"/>
+<text x="761.4" y="130.0" font-size="13.5" fill="#C9762E" text-anchor="middle" font-weight="700">4000</text>
+<line x1="888.0" y1="62.2" x2="888.0" y2="156" stroke="#F0C89E" stroke-width="1.2"/>
+<circle cx="888.0" cy="62.2" r="4.5" fill="#E8873A"/>
+<text x="888.0" y="51.2" font-size="13.5" fill="#C9762E" text-anchor="middle" font-weight="700">25000</text>
+<path d="M0,184 h159.45999999999998 l22,32.0 l-22,32.0 H0 l22,-32.0 z" fill="#DCE4F0"/>
+<text x="91" y="211" font-size="15.5" fill="#1F3864" text-anchor="middle" font-weight="700">기획 및 개발</text>
+<text x="91" y="231" font-size="12.5" fill="#1F3864" text-anchor="middle" opacity="0.85">2026.07~08</text>
+<path d="M159.45999999999998,184 h290.78 l22,32.0 l-22,32.0 H159.45999999999998 l22,-32.0 z" fill="#C3CEE0"/>
+<text x="316" y="211" font-size="15.5" fill="#1F3864" text-anchor="middle" font-weight="700">베타테스트</text>
+<text x="316" y="231" font-size="12.5" fill="#1F3864" text-anchor="middle" opacity="0.85">2026.08~11</text>
+<text x="316" y="272" font-size="12.5" fill="#6B7688" text-anchor="middle">1차 30명</text>
+<path d="M450.23999999999995,184 h234.5 l22,32.0 l-22,32.0 H450.23999999999995 l22,-32.0 z" fill="#7E93B5"/>
+<text x="578" y="211" font-size="15.5" fill="#FFFFFF" text-anchor="middle" font-weight="700">출시</text>
+<text x="578" y="231" font-size="12.5" fill="#FFFFFF" text-anchor="middle" opacity="0.85">2026.12~2027.05</text>
+<text x="578" y="272" font-size="12.5" fill="#6B7688" text-anchor="middle">2차 100명</text>
+<text x="578" y="290" font-size="12.5" fill="#6B7688" text-anchor="middle">3차 5,000명</text>
+<path d="M684.74,184 h131.32 l22,32.0 l-22,32.0 H684.74 l22,-32.0 z" fill="#3C5C8C"/>
+<text x="761" y="211" font-size="15.5" fill="#FFFFFF" text-anchor="middle" font-weight="700">확장 준비</text>
+<text x="761" y="231" font-size="12.5" fill="#FFFFFF" text-anchor="middle" opacity="0.85">2027.06~08</text>
+<text x="761" y="272" font-size="12.5" fill="#6B7688" text-anchor="middle">전 분야 확장</text>
+<path d="M816.06,184 h121.94 l22,32.0 l-22,32.0 H816.06 l22,-32.0 z" fill="#243B5E"/>
+<text x="888" y="211" font-size="15.5" fill="#FFFFFF" text-anchor="middle" font-weight="700">확장</text>
+<text x="888" y="231" font-size="12.5" fill="#FFFFFF" text-anchor="middle" opacity="0.85">2027.09~</text>
+<text x="888" y="272" font-size="12.5" fill="#6B7688" text-anchor="middle">해외·진단</text>
+</svg>

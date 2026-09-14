@@ -1,0 +1,30 @@
+<svg width="960" height="158" viewBox="0 0 960 158" xmlns="http://www.w3.org/2000/svg" font-family="Apple SD Gothic Neo, sans-serif">
+<rect width="960" height="158" fill="#ffffff"/>
+<rect x="0" y="8" width="448" height="142" rx="8" fill="#EEF2F8" stroke="#243B5E" stroke-width="2.2"/>
+<path d="M1,16 a7,7 0 0 1 7,-7 h432 a7,7 0 0 1 7,7 v38 H1 z" fill="#243B5E"/>
+<text x="20" y="38" font-size="17" fill="#ffffff" font-weight="700">이승욱</text>
+<text x="428" y="38" font-size="14" fill="#DCE4F0" text-anchor="end">대표 · 개발</text>
+<text x="20" y="80" font-size="14" fill="#5B6B84" font-weight="700">학력</text>
+<rect x="108" y="71" width="4" height="4" fill="#7E93B5"/>
+<text x="118" y="80" font-size="14.5" fill="#1a1a1a">경기대학교 수원캠퍼스 컴퓨터공학전공 4학년 재학</text>
+<text x="20" y="110" font-size="14" fill="#5B6B84" font-weight="700">수상</text>
+<rect x="108" y="101" width="4" height="4" fill="#7E93B5"/>
+<text x="118" y="110" font-size="14.5" fill="#1a1a1a">교내 기초 캡스톤디자인 경진대회 우수상</text>
+<rect x="108" y="123" width="4" height="4" fill="#7E93B5"/>
+<text x="118" y="132" font-size="14.5" fill="#1a1a1a">교내 심화 캡스톤디자인 경진대회 우수상</text>
+<rect x="512" y="8" width="448" height="142" rx="8" fill="#EEF2F8" stroke="#C3CEE0" stroke-width="1.6"/>
+<path d="M513,16 a7,7 0 0 1 7,-7 h432 a7,7 0 0 1 7,7 v38 H513 z" fill="#7E93B5"/>
+<text x="532" y="38" font-size="17" fill="#ffffff" font-weight="700">The 두꺼비부동산중개사무소</text>
+<text x="940" y="38" font-size="14" fill="#DCE4F0" text-anchor="end">협력 기관</text>
+<text x="532" y="80" font-size="14" fill="#5B6B84" font-weight="700">담당</text>
+<rect x="620" y="71" width="4" height="4" fill="#7E93B5"/>
+<text x="630" y="80" font-size="14.5" fill="#1a1a1a">이사 김정돈</text>
+<text x="532" y="110" font-size="14" fill="#5B6B84" font-weight="700">협력 내용</text>
+<rect x="620" y="101" width="4" height="4" fill="#7E93B5"/>
+<text x="630" y="110" font-size="14.5" fill="#1a1a1a">도메인 지식 및 데이터 제공</text>
+<rect x="620" y="123" width="4" height="4" fill="#7E93B5"/>
+<text x="630" y="132" font-size="14.5" fill="#1a1a1a">마케팅 담당</text>
+<line x1="448" y1="79.0" x2="512" y2="79.0" stroke="#243B5E" stroke-width="2.4"/>
+<rect x="462" y="66.0" width="36" height="26" rx="13" fill="#ffffff" stroke="#243B5E" stroke-width="1.6"/>
+<text x="480.0" y="84.0" font-size="13.5" fill="#243B5E" text-anchor="middle" font-weight="700">협력</text>
+</svg>

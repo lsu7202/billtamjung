@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
 """규제 레이어 공간교차 (강남 11680 기준).
+
+## 2026-09-01 — 파이프라인에서 뺐다. 원장이 정본이다
+
+이 스크립트는 필지에 겹치는 규제 레이어를 폴리곤 교차로 찾는다. 그런데 실제로 나오는
+플래그는 **지구단위계획 하나뿐**이고(252,789필지), 원장은 지역·지구를 전부 + 저촉여부
+(포함·접함·저촉) + 코드까지 적어 준다:
+
+    우리   {"지구단위계획": "경복궁서측지구단위계획구역"}
+    원장   [["도시지역","포함","UQA01X"], ["지구단위계획구역","포함","UQQ300"],
+            ["토지거래계약에관한허가구역","포함","UQQ600"], ["상대보호구역","포함","UOA120"],
+            ["역사문화환경보존지역","포함","UOC800"], ["중점경관관리구역","포함","ZQ0001"], …]
+
+**지우지 않고 남긴다.** 레이어 목록과 교차 판정은 원장을 검증할 때 쓴다.
+
 필지(지적도 5174) ∩ 고도지구·지구단위·정비·재정비·경관·방화·문화재.
 5186 레이어는 5174로 재투영. 출력: _regulations_{sgg}.json (PNU→규제 플래그).
 사용: python build_regulations.py [sgg5]  (기본 11680)
@@ -10,6 +24,10 @@ from shapely.geometry import shape
 from shapely import STRtree, make_valid, intersection
 from shapely.ops import transform as shp_transform
 from pyproj import Transformer
+from paths import LDREG
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from build_report import Report   # noqa: E402
 
 _T = Transformer.from_crs(5186, 5174, always_xy=True)
 def to5174(g): return shp_transform(lambda x,y,z=None:_T.transform(x,y), g)
@@ -51,14 +69,22 @@ LAYERS=[
 def main():
     sgg=sys.argv[1] if len(sys.argv)>1 else '11680'
     # 강남 필지 (지적도 5174)
-    r=shapefile.Reader("data/raw/LSMD_CONT_LDREG_5174_서울/LSMD_CONT_LDREG_5174_11_202606",encoding='cp949')
+    # 처리결과 문서 — 이 파일은 `rep` 를 이미 「대표 필드명」으로 쓰므로 문서는 doc.
+    # 규제 플래그는 화면의 「규제·특례」로 그대로 나간다. 못 읽은 필지가 몇인지 남겨야 한다.
+    doc = Report(f"build_regulations_{sgg}", src="연속지적도 ∩ 고도·지구단위·정비·경관·방화·문화재")
+    r=shapefile.Reader(LDREG,encoding='cp949')
     pidx=[f[0] for f in r.fields[1:]].index('PNU')
     parcels=[]
     for sr in r.iterShapeRecords():
         pnu=sr.record[pidx]
         if not pnu.startswith(sgg): continue
-        g=shape(sr.shape.__geo_interface__)
+        doc.read()
+        try:
+            g=shape(sr.shape.__geo_interface__)
+        except Exception:
+            doc.drop("필지 도형을 못 읽음", pnu); continue
         parcels.append((pnu, make_valid(g) if not g.is_valid else g))
+        doc.write()
     print(f"[{sgg}] 필지 {len(parcels):,}")
     reg={pnu:{} for pnu,_ in parcels}
     pgeoms=[g for _,g in parcels]
@@ -78,6 +104,9 @@ def main():
         n_pnu=sum(1 for p in reg if name in reg[p])
         print(f"  {name}: {n_pnu:,} 필지 ({len(polys)} 폴리곤)")
     json.dump(reg, open(f"data/tools/_regulations_{sgg}.json",'w'), ensure_ascii=False)
+    for name, _f, _v, _r in LAYERS:
+        doc.note(f"{name}: {sum(1 for p in reg if name in reg[p]):,} 필지")
+    doc.finish()
     print(f"저장: _regulations_{sgg}.json")
 
 if __name__=='__main__': main()

@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<title>빌탐정 사용 매뉴얼</title>
+<style>
+@font-face { font-family:"Pretendard"; font-weight:45 920; font-style:normal;
+  src:url("../ad/remotion/public/fonts/PretendardVariable.woff2") format("woff2"); }
+@page { size:A4; margin:0; }
+:root{ --ink:#262320; --muted:#6E675E; --line:#E4DED4; --terra:#C2571C; --gold:#B8912E;
+  --gold-soft:#FAF3E2; --soft:#FAF8F5; }
+*{ box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+html,body{ margin:0; padding:0; background:#8a8a8a; }
+body{ font-family:"Pretendard",-apple-system,"Apple SD Gothic Neo",sans-serif; color:var(--ink); line-height:1.6; }
+.page{ position:relative; width:210mm; height:297mm; background:#fff; margin:0 auto;
+  padding:16mm 15mm 14mm; overflow:hidden; page-break-after:always; }
+.page:last-child{ page-break-after:auto; }
+@media print{ html,body{ background:#fff; } .page{ margin:0; } }
+
+.cover{ padding:0; display:flex; flex-direction:column; background:#1A1714; color:#F2ECDF; }
+.cover .top{ flex:1; display:flex; flex-direction:column; justify-content:center; padding:0 20mm; }
+.cover .brand{ display:flex; align-items:center; gap:8mm; margin-bottom:13mm; }
+.cover h1{ font-size:33pt; font-weight:800; letter-spacing:-.03em; line-height:1.18; margin:0 0 5mm; }
+.cover .sub{ font-size:11pt; color:#B5AB9C; line-height:1.7; }
+.cover .foot{ padding:8mm 20mm; border-top:1px solid #3A342C; font-size:8.5pt; color:#8E8578;
+  display:flex; justify-content:space-between; }
+
+.ph{ display:flex; align-items:baseline; gap:4mm; border-bottom:2px solid var(--ink); padding-bottom:2.5mm; margin-bottom:4.5mm; }
+.ph .no{ font-size:9pt; font-weight:800; letter-spacing:.1em; color:var(--terra); }
+.ph h2{ font-size:15.5pt; font-weight:800; letter-spacing:-.02em; margin:0; }
+.ph .cap{ margin-left:auto; font-size:8.5pt; color:var(--muted); }
+h3{ font-size:10.5pt; font-weight:800; margin:5mm 0 1.5mm; padding-left:2mm; border-left:2.5px solid var(--terra); }
+p{ margin:0 0 2mm; font-size:9.5pt; }
+b{ font-weight:750; }
+.k{ font-weight:750; background:var(--soft); border:1px solid var(--line); border-radius:1mm; padding:.2mm 1.4mm; font-size:9pt; }
+.shot{ width:100%; max-height:84mm; object-fit:contain; object-position:top; border:1px solid var(--line);
+  border-radius:2mm; display:block; margin:2mm 0 1.2mm; background:#fff; }
+.figure{ position:relative; display:block; margin:2mm auto 1.2mm; aspect-ratio:1440/900;
+  max-width:100%; border:1px solid var(--line); border-radius:2mm; overflow:hidden; background:#fff; }
+.figure img{ margin:0 !important; width:100%; height:100%; object-fit:fill; border:0 !important;
+  border-radius:0 !important; max-height:none !important; display:block; }
+.mk{ position:absolute; box-sizing:border-box; border:1.4pt solid var(--terra); border-radius:1mm;
+  background:rgba(194,87,28,.055); }
+.mk .b{ position:absolute; left:-2.6mm; top:-2.6mm; width:5.2mm; height:5.2mm; border-radius:50%;
+  background:var(--terra); color:#fff; font-size:8pt; font-weight:800; display:flex;
+  align-items:center; justify-content:center; line-height:1; }
+.cap{ font-size:8.5pt; color:var(--muted); margin:0 0 3mm; }
+.cap b{ color:var(--terra); font-weight:800; }
+table{ border-collapse:collapse; width:100%; font-size:9pt; margin:1.5mm 0 3mm; }
+th{ text-align:left; font-size:8pt; color:var(--muted); font-weight:700; border-bottom:1.5px solid var(--ink); padding:1.6mm 2mm; }
+td{ border-bottom:1px solid var(--line); padding:1.8mm 2mm; vertical-align:top; }
+td:first-child{ font-weight:750; }
+ol.how{ counter-reset:s; margin:2mm 0 3mm; padding:0; }
+ol.how li{ counter-increment:s; position:relative; padding-left:8mm; margin-bottom:2mm; font-size:9.5pt; list-style:none; }
+ol.how li::before{ content:counter(s); position:absolute; left:0; top:.4mm; width:5.4mm; height:5.4mm; border-radius:50%;
+  background:var(--terra); color:#fff; font-size:7.5pt; font-weight:800; display:flex; align-items:center; justify-content:center; }
+.box{ background:var(--soft); border:1px solid var(--line); border-radius:2mm; padding:3mm 4mm; margin:2.5mm 0; font-size:9pt; }
+.box.tip{ background:var(--gold-soft); border-color:#EADFC0; }
+.box .t{ font-size:8pt; font-weight:800; letter-spacing:.08em; color:var(--gold); display:block; margin-bottom:.8mm; }
+.pfoot{ position:absolute; left:15mm; right:15mm; bottom:8mm; display:flex; justify-content:space-between;
+  font-size:8pt; color:#9A9186; border-top:1px solid var(--line); padding-top:2mm; }
+</style></head><body>
+
+<!-- 표지 -->
+<section class="page cover">
+  <div class="top">
+    <div class="brand">
+      <svg width="70" height="88" viewBox="10 6.5 28 35">
+        <rect x="11.5" y="8" width="8" height="32" rx="2.6" fill="#C2571C"/>
+        <rect x="28.5" y="8" width="8" height="32" rx="2.6" fill="#C2571C"/>
+        <rect x="11.5" y="20.5" width="25" height="7" rx="2.6" fill="#C2571C"/>
+        <rect x="11.5" y="33" width="25" height="7" rx="2.6" fill="#C2571C"/>
+        <rect x="13.6" y="11.5" width="3.8" height="3.8" rx="1" fill="#E7C876"/>
+      </svg>
+      <span style="font-size:29pt;font-weight:800;letter-spacing:-.035em">빌탐정<span style="color:#E7C876">.</span></span>
+    </div>
+    <h1>사용 매뉴얼</h1>
+    <div class="sub">검색 · 필터 · 영역 그리기 · 상세 분석 · 리포트 생성<br>화면별 조작 안내</div>
+  </div>
+  <div class="foot"><span>베타 테스터용 · 2026년 8월</span><span>billtamjung.web.app</span></div>
+</section>
+
+<!-- 1 검색 -->
+<section class="page">
+  <div class="ph"><span class="no">01</span><h2>주소로 찾기</h2><span class="cap">매물 검색</span></div>
+  <span class="figure" style="height:68mm"><img class="shot" src="img/01-검색.png" alt="검색 자동완성"><span class="mk" style="left:3.9%;top:8.7%;width:29.0%;height:3.4%"><span class="b">1</span></span><span class="mk" style="left:0.3%;top:25.0%;width:24.6%;height:68.0%"><span class="b">2</span></span><span class="mk" style="left:1.11%;top:94.5%;width:22.85%;height:4.6%"><span class="b">3</span></span></span>
+  <p class="cap"><b>①</b> 검색어 입력 &nbsp; <b>②</b> 요약 카드 &nbsp; <b>③</b> 상세보기</p>
+  <ol class="how">
+    <li>주소·동 이름·역 이름을 입력 — 띄어쓰기 없어도 되고 지번 일부만 쳐도 됩니다.<br>
+      <span style="color:var(--muted);font-size:9pt">"번지"는 빼세요: <span class="k">역삼동 659번지</span> ✗ · <span class="k">역삼동 659</span> ✓</span></li>
+    <li>자동완성에서 건물을 고르면 지도가 이동하고 왼쪽에 요약 카드가 뜹니다.</li>
+    <li><span class="k">상세보기 →</span>로 상세 화면(새 탭)을 엽니다.</li>
+  </ol>
+
+  <h3>지도 도구</h3>
+  <p>거리재기 · 면적 · 반경 · 지적도(필지 경계) · 로드뷰 · 위성 — 검색과 무관하게 언제든 사용합니다.</p>
+
+  <div class="pfoot"><span>01 주소로 찾기</span><span>1</span></div>
+</section>
+
+<!-- 2 필터 -->
+<section class="page">
+  <div class="ph"><span class="no">02</span><h2>조건으로 발굴하기</h2><span class="cap">상세검색 필터</span></div>
+  <span class="figure" style="height:76mm"><img class="shot" src="img/12-조건팝오버.png" alt="상세검색 필터 화면"><span class="mk" style="left:20.14%;top:13.89%;width:59.72%;height:9.28%"><span class="b">1</span></span><span class="mk" style="left:20.21%;top:40.17%;width:10.83%;height:36.89%"><span class="b">2</span></span><span class="mk" style="left:32.29%;top:48.72%;width:46.25%;height:4.02%"><span class="b">3</span></span><span class="mk" style="left:70.26%;top:53.41%;width:23.61%;height:18.67%"><span class="b">4</span></span><span class="mk" style="left:20.14%;top:29.61%;width:59.72%;height:5.56%"><span class="b">5</span></span><span class="mk" style="left:18.75%;top:78.94%;width:62.5%;height:7.44%"><span class="b">6</span></span></span>
+  <p class="cap">화면의 번호가 아래 순서와 같습니다.</p>
+
+  <ol class="how">
+    <li><b>지역을 먼저 정합니다.</b> <span class="k">시/군/구</span>를 고르면 그 구 전체가 대상이 되고,
+      <span class="k">법정동</span>을 추가로 고르면 동 단위로 좁혀집니다(여러 개 가능).</li>
+    <li><b>카테고리를 고릅니다.</b> 왼쪽 목록에서 분야를 선택 — 항목 옆 숫자는 그 카테고리에 걸린 조건 수입니다.</li>
+    <li><b>조건 칩을 누릅니다.</b> 예: 건물정보 › <span class="k">사용승인일</span>.</li>
+    <li><b>값을 넣습니다.</b> 슬라이더를 끌거나, 숫자를 직접 입력하거나, 아래 <b>프리셋 버튼</b>을 누릅니다
+      (<span class="k">신축 5년↓</span> <span class="k">준신축 10년↓</span> <span class="k">구옥 20년↑</span>).</li>
+    <li>지정한 조건이 <b>적용된 조건</b> 줄에 칩으로 쌓입니다. 칩의 <span class="k">×</span>로 개별 해제,
+      <span class="k">전체 초기화</span>로 모두 해제.</li>
+    <li>하단 <span class="k">적용</span>을 누르면 결과가 갱신됩니다.</li>
+  </ol>
+
+  <div class="box tip"><span class="t">슬라이더 범위 밖의 값</span>
+    슬라이더 최대가 200억이어도 <b>숫자를 직접 입력하면 그 값이 그대로 적용</b>됩니다 — 매매가 800억, 연면적 5,000평 모두 가능.
+    한쪽만 채우면 "이상"·"이하" 단방향 조건이 됩니다.</div>
+
+  <div class="box"><b>평 ↔ ㎡</b> — 면적 조건은 우측 상단 <span class="k">평</span> <span class="k">㎡</span> 토글에 따라 입력 단위가 바뀝니다.</div>
+
+  <div class="pfoot"><span>02 조건으로 발굴하기</span><span>2</span></div>
+</section>
+
+<section class="page">
+  <div class="ph"><span class="no">02</span><h2>조건으로 발굴하기 <span style="font-weight:400;color:var(--muted);font-size:10.5pt">— 카테고리별 조건</span></h2></div>
+  <span class="figure" style="height:58mm"><img class="shot" src="img/11-필터카테고리.png" alt="카테고리별 조건 칩"><span class="mk" style="left:20.21%;top:40.17%;width:10.83%;height:36.89%"><span class="b">1</span></span><span class="mk" style="left:32.29%;top:48.72%;width:46.25%;height:4.02%"><span class="b">2</span></span><span class="mk" style="left:32.29%;top:57.69%;width:46.25%;height:14.07%"><span class="b">3</span></span><span class="mk" style="left:20.14%;top:24.28%;width:59.72%;height:3.78%"><span class="b">4</span></span></span>
+  <p class="cap"><b>①</b> 카테고리 목록 &nbsp; <b>②</b> 대표조건(자주 쓰는 것) &nbsp; <b>③</b> 세부조건 &nbsp; <b>④</b> 지도에서 영역 그리기</p>
+
+  <table>
+    <tr><th style="width:20%">카테고리</th><th>주요 조건</th></tr>
+    <tr><td>자주 찾는 조건</td><td>대표 조건만 모아둔 화면 — 여기서 대부분 해결됩니다</td></tr>
+    <tr><td>입지정보</td><td>역과의 거리 · 유동인구</td></tr>
+    <tr><td>건물정보</td><td>대지/연면적/건축면적 · 엘리베이터 · 주차 · 사용승인일 · 건폐율/용적률 · <b>여유분</b> · 규모(지상/지하) · 대수선 경과연수 · 주용도</td></tr>
+    <tr><td>토지정보</td><td>토지면적 · 지목 · 토지이용상황 · 지형형상 · 도로접면 · 지세</td></tr>
+    <tr><td>금액정보</td><td>매매가 · 수익률(만실/공실제외) · 평단가(대지·연면적) · 총보증금/임대료/관리비 · 공실</td></tr>
+    <tr><td>상세정보</td><td>건물용도(수익형·신축용·사옥용·리모델링용) · 등급 · 입지 · 명도 · 용도변경 · 멸실</td></tr>
+    <tr><td>공시지가·실거래</td><td>공시지가와 5·10년 상승률 · 공시지가/매매가 비율 · 실거래가 · 실거래일 · 거래 횟수</td></tr>
+    <tr><td>업무</td><td>진행상태 · 담당자 · 긴급도 · 소유자타입 · 매물번호 · 접수일 (팀이 입력한 정보)</td></tr>
+  </table>
+
+  <h3>알아두면 강력한 조건</h3>
+  <table>
+    <tr><td style="width:30%">용적률 여유분</td><td>법정 용적률 − 현재 용적률. <b>증축·신축 여지가 남은 건물</b>을 찾을 때(예: 여유 100%p 이상)</td></tr>
+    <tr><td>공시지가/매매가</td><td>이 비율이 높으면 <b>땅값 대비 저평가</b> 신호로 볼 수 있습니다</td></tr>
+    <tr><td>실거래일</td><td><span class="k">10년↑ 미거래</span>로 걸면 오랫동안 손바뀜이 없던 건물이 나옵니다</td></tr>
+    <tr><td>대수선 경과연수</td><td>리모델링한 지 얼마나 됐는지 — 노후 건물 중 관리된 물건 선별</td></tr>
+  </table>
+
+  <div class="box tip"><span class="t">조건 저장 · 불러오기</span>
+    조건을 다 지정한 뒤 우측 상단 <span class="k">조건저장</span>에 이름을 붙여두면(예: "강남 여유용적 100↑"),
+    다음부터 <span class="k">불러오기</span>로 한 번에 재적용됩니다.</div>
+
+  <div class="pfoot"><span>02 조건으로 발굴하기</span><span>3</span></div>
+</section>
+
+<!-- 3 영역 그리기 -->
+<section class="page">
+  <div class="ph"><span class="no">03</span><h2>지도에 영역 그리기</h2><span class="cap">행정경계 밖의 범위</span></div>
+  <p>대로 하나를 사이에 둔 두 블록, 역세권 안쪽만 — 행정동으로 자를 수 없는 범위를 직접 그립니다.
+  그린 영역은 <b>지역 선택을 대체</b>하며 다른 조건과 함께 적용됩니다.</p>
+  <span class="figure" style="height:72mm"><img class="shot" src="img/13-그리기도구.png" alt="영역 그리기 결과"><span class="mk" style="left:25.2%;top:95.0%;width:18.0%;height:4.4%"><span class="b">1</span></span><span class="mk" style="left:50.0%;top:39.0%;width:25.0%;height:36.0%"><span class="b">2</span></span><span class="mk" style="left:7.9%;top:13.9%;width:7.6%;height:3.6%"><span class="b">3</span></span></span>
+  <p class="cap"><b>①</b> 그리기 도구 줄 &nbsp; <b>②</b> 그린 영역 &nbsp; <b>③</b> 「그린 영역」 칩 — 결과는 그 안쪽만 남습니다.</p>
+
+  <table>
+    <tr><th style="width:24%">도구</th><th>사용법</th></tr>
+    <tr><td>자유곡선</td><td>지도를 <b>누른 채 드래그</b>해 원하는 모양을 그립니다. 손을 떼면 그 궤적이 영역이 됩니다. 이어 그리면 영역이 확장됩니다.</td></tr>
+    <tr><td>다각형</td><td>꼭짓점을 <b>하나씩 클릭</b>하고 마지막에 <b>더블클릭</b>으로 닫습니다. 직선 경계를 정확히 잡을 때.</td></tr>
+    <tr><td>자석 올가미</td><td>대충 그리면 <b>필지 경계에 자동으로 달라붙습니다</b>. 블록 단위로 정확히 자를 때 가장 편합니다.</td></tr>
+    <tr><td>원 반경</td><td>중심을 누르고 바깥으로 드래그하면 원이 그려집니다. "이 지점에서 300m" 같은 범위.</td></tr>
+    <tr><td>자</td><td>직선 가이드 — 그릴 때 자 가장자리에 대면 선이 반듯하게 붙습니다.</td></tr>
+  </table>
+
+  <div class="box"><b>영역 지우기</b> — 상단 <span class="k">그린 영역 ×</span> 칩을 지우거나 지도 도구의 삭제(빨간 아이콘). 다시 그리면 이전 영역은 대체됩니다.</div>
+
+  <div class="box tip"><span class="t">검색 결과 읽기</span>
+    <b>내 매물 / 일반</b> 두 열로 나뉘며, 팀이 담당자를 지정한 건물이 내 매물 열로 갑니다.
+    정렬은 매매가순·수익률순. 카드의 가격은 팀이 매매가를 적어두지 않았다면 <b>빌탐정 적정가</b>가 표시됩니다.
+    지도의 검은 원 안 숫자는 그 구역의 건물 수로, 확대하면 개별 핀으로 나뉩니다.</div>
+
+  <div class="pfoot"><span>03 지도에 영역 그리기</span><span>4</span></div>
+</section>
+
+<!-- 4 상세 -->
+<section class="page">
+  <div class="ph"><span class="no">04</span><h2>매물 상세 읽기</h2><span class="cap">리포트 요약</span></div>
+  <span class="figure" style="height:66mm"><img class="shot" src="img/02-리포트요약.png" alt="매물 상세 리포트 요약"><span class="mk" style="left:2.6%;top:18.6%;width:33.5%;height:11.0%"><span class="b">1</span></span><span class="mk" style="left:36.6%;top:14.9%;width:36.5%;height:21.0%"><span class="b">2</span></span><span class="mk" style="left:2.6%;top:39.2%;width:70.5%;height:18.5%"><span class="b">3</span></span><span class="mk" style="left:2.6%;top:65.3%;width:70.5%;height:22.0%"><span class="b">4</span></span><span class="mk" style="left:89.5%;top:8.8%;width:9.4%;height:4.4%"><span class="b">5</span></span></span>
+  <p class="cap"><b>①</b> 적정가 &nbsp; <b>②</b> 가격 비교 &nbsp; <b>③</b> 예상수익률 &nbsp; <b>④</b> 매력도 &nbsp; <b>⑤</b> 리포트 만들기</p>
+  <p>상단 <b>표시 범위</b>에서 <span class="k">리포트 요약</span> <span class="k">전체</span> <span class="k">매물</span>
+  <span class="k">건물·토지</span>를 골라 필요한 만큼만 봅니다.</p>
+
+  <table>
+    <tr><th style="width:22%">지표</th><th>의미</th></tr>
+    <tr><td>① 적정가</td><td>주변 실거래를 토지·건물 가치로 나눠 비교하고 연식·시점·규모를 보정한 값. 상업·업무용만 산출</td></tr>
+    <tr><td>② 가격 비교</td><td>적정가 · 실거래 · 공시지가 총액을 나란히</td></tr>
+    <tr><td>③ 예상수익률</td><td>연 임대수익 ÷ 매매가. 주변 평균과 비교</td></tr>
+    <tr><td>④ 매력도</td><td>S~D 등급 + 8축 레이더(도로접면·역거리·용도지역 등)</td></tr>
+    <tr><td>아래로 계속</td><td>투자 유형(신축용·리모델링용·수익형) · 미래가치 · 상권 지도</td></tr>
+  </table>
+
+  <div class="box"><b>가격 3층</b> — 매도희망가(건물주) · 매매가(중개인 판단, 비우면 적정가 사용) · 빌탐정 적정가.
+  앞의 둘을 적으면 협의 필요금액이 자동 계산됩니다.</div>
+
+  <div class="pfoot"><span>04 매물 상세 읽기</span><span>5</span></div>
+</section>
+
+<!-- 5 수정·임대 -->
+<section class="page">
+  <div class="ph"><span class="no">05</span><h2>정보 고치기 · 임대 입력</h2><span class="cap">팀 공유</span></div>
+
+  <h3>값 수정 — 클릭하면 바로 편집</h3>
+  <ol class="how">
+    <li>고칠 값을 <b>클릭</b>합니다(금액·면적·용도·상태 등 대부분의 항목).</li>
+    <li>숫자·텍스트는 입력, 정해진 항목은 목록에서 선택합니다.</li>
+    <li>입력을 마치면 <b>자동 저장</b>됩니다 — 별도 저장 버튼이 없습니다.</li>
+    <li>되돌리려면 항목의 되돌리기, 전부 되돌리려면 화면 하단 <span class="k">↺ 전체 되돌리기</span>.</li>
+  </ol>
+  <div class="box"><b>수정은 우리 팀에게만 보입니다.</b> 공공데이터 원본은 그대로 남고 팀 화면에만 덮어써집니다.
+  고친 값은 <b>적정가·평단가·수익률 계산에도 즉시 반영</b>됩니다.</div>
+
+  <h3>층별 임대 입력 — 수익률을 실측으로</h3>
+  <span class="figure" style="height:58mm"><img class="shot" src="img/15-층별임대.png" alt="층별 임대정보"><span class="mk" style="left:0.5%;top:59.0%;width:30.0%;height:4.4%"><span class="b">1</span></span><span class="mk" style="left:12.0%;top:63.5%;width:34.0%;height:9.5%"><span class="b">2</span></span><span class="mk" style="left:46.0%;top:63.5%;width:20.0%;height:9.5%"><span class="b">3</span></span><span class="mk" style="left:66.0%;top:63.5%;width:9.0%;height:9.5%"><span class="b">4</span></span></span>
+  <p class="cap"><b>①</b> 층 클릭 → 호실 펼침 &nbsp; <b>②</b> 호실별 면적 &nbsp; <b>③</b> 보증금·임대료 입력 &nbsp; <b>④</b> 상태(공실 지정)</p>
+  <ol class="how">
+    <li>대장 기준 층·호실이 미리 채워져 있고, 보증금·임대료에는 <b>추정치</b>가 들어가 있습니다.</li>
+    <li>실제 계약을 아는 호실은 <b>보증금 · 임대료 · 관리비 · 전용/계약 면적</b>을 직접 입력합니다.</li>
+    <li>비어 있는 호실은 <b>상태</b>를 공실로 지정합니다 — 수익률(공실제외)이 따로 계산됩니다.</li>
+    <li>입력한 층은 추정치 대신 실측값이 쓰이고, 총임대료·수익률이 즉시 갱신됩니다.</li>
+  </ol>
+
+  <div class="pfoot"><span>05 정보 고치기 · 임대 입력</span><span>6</span></div>
+</section>
+
+<!-- 6 상권 -->
+<section class="page">
+  <div class="ph"><span class="no">06</span><h2>주변 상권 정하기</h2><span class="cap">비교 기준 설정</span></div>
+  <p>적정가와 주변시세는 <b>"주변"의 범위</b>로 달라집니다. 기본은 반경 500m이며, 직접 그리면 그 범위로 다시 계산됩니다.
+  설정은 <b>팀 전체에 공유</b>되고 이후 만드는 리포트에도 적용됩니다.</p>
+  <span class="figure" style="height:68mm"><img class="shot" src="img/03-상권정의.png" alt="주변 상권 정의"><span class="mk" style="left:44.0%;top:42.0%;width:12.0%;height:16.0%"><span class="b">1</span></span><span class="mk" style="left:60.0%;top:48.0%;width:8.0%;height:10.0%"><span class="b">2</span></span><span class="mk" style="left:43.1%;top:90.44%;width:13.79%;height:3.11%"><span class="b">3</span></span><span class="mk" style="left:95.0%;top:1.0%;width:4.4%;height:4.0%"><span class="b">4</span></span></span>
+  <p class="cap"><b>①</b> 중심 점 = 위치 이동 &nbsp; <b>②</b> 가장자리 = 반경 조절 &nbsp; <b>③</b> 반경·면적 실시간 표시 &nbsp; <b>④</b> 완료</p>
+  <ol class="how">
+    <li>지도 우측 상단 <span class="k">주변상권 정의하기</span>를 누릅니다(지도가 전체화면으로 커집니다).</li>
+    <li><b>원 가장자리를 끌면 반경</b>이, <b>가운데 점을 끌면 위치</b>가 바뀝니다. 하단에 반경·면적이 실시간 표시됩니다.</li>
+    <li>좌측 상단 도구에서 <b>자유곡선</b>을 고르면 원 대신 임의 모양으로 그릴 수 있습니다.</li>
+    <li><span class="k">완료</span>를 누르면 저장되고 주변 매물·임대시세가 새 범위로 갱신됩니다.</li>
+  </ol>
+
+  <img class="shot" style="max-height:54mm" src="img/04-주변매물.png" alt="주변 임대시세와 실거래">
+  <table>
+    <tr><td style="width:26%">주변 임대시세</td><td>범위 안 건물들의 <b>층별 평당 보증금·임대료</b> 평균. 본 매물의 층 구성에 맞춰 표시됩니다.</td></tr>
+    <tr><td>주변 실거래</td><td>최근 5년, 매물별 최근 거래. 거리·거래일·실거래가·연면적 평단가. <b>주소 클릭 시 그 건물 상세로 이동</b>.</td></tr>
+  </table>
+
+  <div class="pfoot"><span>06 주변 상권 정하기</span><span>7</span></div>
+</section>
+
+<!-- 7 리포트 -->
+<section class="page">
+  <div class="ph"><span class="no">07</span><h2>리포트 만들기</h2><span class="cap">검토 → 생성</span></div>
+  <p>생성 전에 <b>근거 사례를 직접 검토</b>합니다. 여기서 조정한 내용이 리포트의 적정가에 그대로 반영됩니다.</p>
+  <span class="figure" style="height:68mm"><img class="shot" src="img/06-검토.png" alt="분석 검토 화면"><span class="mk" style="left:15.21%;top:43.22%;width:48.89%;height:42.0%"><span class="b">1</span></span><span class="mk" style="left:15.21%;top:43.22%;width:48.89%;height:4.11%"><span class="b">2</span></span><span class="mk" style="left:65.42%;top:38.33%;width:19.44%;height:31.22%"><span class="b">3</span></span><span class="mk" style="left:74.95%;top:92.6%;width:9.91%;height:4.4%"><span class="b">4</span></span></span>
+  <p class="cap"><b>①</b> 사례 목록(체크 해제 = 제외) &nbsp; <b>②</b> 행 클릭 → 그 사례 정보 편집 &nbsp; <b>③</b> 실시간 적정가·수익률 &nbsp; <b>④</b> 생성 확정</p>
+
+  <ol class="how">
+    <li><b>사례를 고릅니다.</b> 체크를 해제하면 그 거래가 계산에서 빠집니다. <b>이상치</b> 표시가 붙은 사례는 처음부터 해제되어 있습니다.</li>
+    <li><b>정보를 고칩니다.</b> 사례 행을 클릭하면 도로접면·역거리·용도지역·형상·사용승인일·엘리베이터를 그 자리에서 수정할 수 있습니다.</li>
+    <li><b>결과를 확인합니다.</b> 조정할 때마다 우측 적정매매가가 즉시 갱신됩니다. <b>여기까지 크레딧은 들지 않습니다.</b></li>
+    <li><span class="k">생성 확정 (크레딧 30)</span>을 누르면 리포트가 만들어집니다. 실패 시 차감되지 않습니다.</li>
+  </ol>
+
+  <div class="box tip"><span class="t">사진을 먼저 올리세요</span>
+    상세 화면의 <span class="k">업로드 사진</span> 탭에서 <span class="k">+</span>로 현장 사진을 추가합니다.
+    <b>첫 번째 사진이 리포트 표지</b>에 들어갑니다.</div>
+
+  <div class="pfoot"><span>07 리포트 만들기</span><span>8</span></div>
+</section>
+
+<section class="page">
+  <div class="ph"><span class="no">07</span><h2>리포트 만들기 <span style="font-weight:400;color:var(--muted);font-size:10.5pt">— 결과물</span></h2></div>
+  <img class="shot" style="max-height:70mm" src="img/07-리포트1.png" alt="리포트 화면">
+  <p class="cap">왼쪽 썸네일로 페이지 이동, 좌우 방향키로도 넘길 수 있습니다.</p>
+
+  <table>
+    <tr><th style="width:26%">구성 (10장)</th><th>내용</th></tr>
+    <tr><td>표지 · 핵심 요약</td><td>사진과 리포트 번호, 적정가·수익률·등급 요약</td></tr>
+    <tr><td>기본정보 · 매력도</td><td>대장 정보와 위치, 8축 가치점수</td></tr>
+    <tr><td>가격분석 · 근거 사례</td><td>적정가 산출 과정과 실제로 쓰인 주변 거래 목록</td></tr>
+    <tr><td>공시지가 · 임대현황</td><td>공시지가 흐름, 층별 임대 구성</td></tr>
+    <tr><td>수익률 · 투자유형 · 미래가치</td><td>수익성 위치, 활용 방향, 상승 잠재력</td></tr>
+  </table>
+
+  <table>
+    <tr><th style="width:26%">기능</th><th>설명</th></tr>
+    <tr><td>애니메이션 모드</td><td>발표용 — 요소가 순서대로 나타납니다</td></tr>
+    <tr><td>전체화면</td><td>미팅 화면 공유용</td></tr>
+    <tr><td>보관</td><td><b>마이페이지 › 내 산출물</b>에 계속 남습니다</td></tr>
+  </table>
+
+  <div class="box"><b>리포트는 만든 순간으로 고정됩니다.</b> 이후 시세가 변해도 그때의 근거가 보존됩니다 — 최신 값이 필요하면 새로 생성하세요.</div>
+
+  <div class="pfoot"><span>07 리포트 만들기</span><span>9</span></div>
+</section>
+
+
+
+</body></html>

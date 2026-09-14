@@ -6,9 +6,9 @@ from pptx.util import Inches as I, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 
-AC=RGBColor(0x1A,0x4F,0xC0); INK=RGBColor(0x1C,0x24,0x30); SUB=RGBColor(0x6B,0x76,0x84)
-LINE=RGBColor(0xE6,0xEA,0xEF); PH=RGBColor(0xE9,0xEE,0xF3); CARD=RGBColor(0xF7,0xF9,0xFC)
-WHITE=RGBColor(0xFF,0xFF,0xFF); GREEN=RGBColor(0x2A,0x7D,0x46); RED=RGBColor(0xC0,0x39,0x2B)
+AC=RGBColor(0x1E,0x5A,0xF0); INK=RGBColor(0x0F,0x1A,0x2E); SUB=RGBColor(0x3A,0x46,0x57)  # 디자인토큰 정렬 2026-07-21
+LINE=RGBColor(0xE3,0xE8,0xF0); PH=RGBColor(0xE9,0xEE,0xF3); CARD=RGBColor(0xF5,0xF8,0xFC)
+WHITE=RGBColor(0xFF,0xFF,0xFF); GREEN=RGBColor(0x12,0x80,0x5C); RED=RGBColor(0xDC,0x2F,0x30)
 
 p=Presentation(); p.slide_width=I(13.333); p.slide_height=I(7.5)
 BLANK=p.slide_layouts[6]
@@ -58,7 +58,7 @@ foot(s); txt(s,W-6.55,7.14,6,0.25,"Report No. BT-2026-000118 · 2026.07.18",9,Fa
 s=slide(); band(s,"01","매물 기본정보"); head(s,"01 매물 기본정보","매물 기본정보")
 rows=[("매매가","100억 원"),("대지면적","71.9평 (237.8㎡)"),("연면적","143평 · 건축 37.8평"),
 ("용도지역","제3종일반주거"),("건축물용도","제2종근린생활시설"),("규모","지하 1층 / 지상 3층"),
-("사용승인","1995.11.13"),("건폐율 / 용적률","52.5% / 149%"),("주차 / 승강기","4대 / 0대"),("총보증금 / 총월세","8억 / 2,250만")]
+("사용승인","1995.11.13"),("건폐율 / 용적률","52.5% / 149%"),("주차 / 승강기","4대 / 0대"),("총보증금 / 총월세","7억 / 2,250만")]
 tb=s.shapes.add_table(len(rows),2,I(0.55),I(1.95),I(6.0),I(4.6)).table
 tb.columns[0].width=I(2.3); tb.columns[1].width=I(3.7)
 for i,(k,v) in enumerate(rows):
@@ -97,8 +97,8 @@ foot(s)
 s=slide(); band(s,"04","임대 내역"); head(s,"04 임대 내역","층별 임대 내역")
 hdr=["층","호실","계약면적","보증금","월임대료","월관리비","상태"]
 data=[["3층","301호","62평","2억","600만","80만","임대중"],["2층","201호","67평","2억","650만","85만","임대중"],
-["1층","101호","65평","3억","1,000만","100만","임대중"],["지하1층","B101호","65평","1억","400만","60만","공실"],
-["합계","","","8억","2,250만","265만",""]]
+["1층","101호","65평","3억","1,000만","100만","임대중"],["지하1층","B101호","65평","0","0","0","공실"],
+["합계","","","7억","2,250만","265만",""]]
 tb=s.shapes.add_table(len(data)+1,len(hdr),I(0.55),I(1.95),I(12.2),I(3.4)).table
 for j,h in enumerate(hdr):
     c=tb.cell(0,j); c.fill.solid(); c.fill.fore_color.rgb=RGBColor(0xFA,0xFB,0xFC)

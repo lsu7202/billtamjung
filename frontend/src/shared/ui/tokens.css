@@ -1,0 +1,161 @@
+/* 정밀 데이터 랩 디자인 토큰 — specs/02-screens/_mockups/wireframe.css 이식 */
+@font-face {
+  font-family: "Pretendard";
+  font-weight: 45 920;   /* variable */
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/PretendardVariable.woff2") format("woff2");
+}
+:root {
+  /* 뉴트럴 모노 — 흰 바탕 + 진짜 회색. 근거·원칙은 specs/02-screens/색-체계.md
+     (웜 베이지 폐기 2026-08-13: 화면에서 누렇게 보였다. 색을 더한 게 아니라 노란기를 뺐다.) */
+  --ink: #262320;        /* 웜 니어블랙 — 헤더·주요텍스트·강조. 브랜드의 얼굴이라 유지 */
+  --ink-2: #474C55;      /* 뉴트럴 슬레이트 — 보조 텍스트 */
+  --muted: #868D97;      /* 뉴트럴 그레이 — 라벨 */
+  --bg: #F6F7F9;         /* 캔버스 — 패널을 띄우는 역할만 */
+  --panel: #FFFFFF;
+  --surface: #FFFFFF;
+  --surface-2: #F1F3F6;  /* 옅은 면 — 입력 배경·hover */
+  --line: #E5E8EC;       /* hairline */
+  --line-2: #D2D7DE;
+  /* 강조 = 잉크 하나. 컬러는 뜻이 있을 때만 쓴다(의미색). */
+  --signal: #262320;
+  --signal-ink: #000000;
+  --signal-bg: #EDEFF3;
+  --green: #0E8A5F;  --green-bg: #E6F4EE;
+  --blue: #2563C7;   --blue-bg: #E8EFFB;
+  --purple: #6B54E0; --purple-bg: #EDEAFC;
+  --up: #C2352B;  --up-bg: #FBEBE9;  --down: #5B6675;   /* 거절·경고·상승 / 하락 */
+  --c-real: #C2571C; --c-gongsi: #2563C7; --c-ad: #6B54E0; --c-rent: #0E8A5F;  /* 차트 계열색 */
+  --accent: #262320;  --lease: #0E8A5F;  --vacant: #C2571C;
+  --radius: 8px; --radius-sm: 6px;
+  /* 플랫 정밀 원칙: 카드는 그림자 없이 hairline 경계만. --shadow는 지도 위 떠있는 오버레이(레전드·툴바)에만. */
+  --shadow: 0 1px 2px rgba(15,26,46,.04), 0 2px 6px rgba(15,26,46,.06);
+  --shadow-lg: 0 8px 28px rgba(15,26,46,.14);
+  --mono: "SF Mono","JetBrains Mono","Cascadia Mono",ui-monospace,Consolas,"D2Coding",monospace;
+  /* 브랜드/아이콘 듀오톤 — 아이콘 시스템(#bt-*) & 브랜드 마크. UI 강조로는 안 쓴다. */
+  --gold: #E7C876; --gold-ink: #A8841F; --paper: #FFFFFF;
+  --terra: #C2571C; --terra-t: #F6E1D2;
+  --amber: #B77B06; --amber-t: #F7EBCB;
+  --red: #C2352B;   --red-t: #FBEBE9;
+  --green-t: #CDE9DC; --blue-t: #D6E3F8; --purple-t: #E1DBFA;
+  --seal: #C2352B;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: "Pretendard",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+  font-size: 14px; line-height: 1.5; letter-spacing: -.01em;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+.num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* 차트 등장 애니메이션 — 컬럼 자라남·라인 그려짐·페이드인. 접근성: reduced-motion 시 무효. */
+@keyframes bt-col-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes bt-line-draw { to { stroke-dashoffset: 0; } }
+@keyframes bt-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes bt-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes bt-radar-in { from { opacity: 0; transform: scale(.55); } to { opacity: 1; transform: scale(1); } }
+/* S02 리포트 요약 — 아래서 위로 순차 등장 */
+@keyframes rv-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.rv-in { animation: rv-rise .55s cubic-bezier(.22,1,.36,1) both; animation-delay: var(--rvd, 0ms); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0s !important; }
+}
+
+/* 공통 GNB */
+/* 헤더 — 흰 바 + hairline(2026-08-28 개편).
+   검은 바에 금색 밑줄이었는데, 아래가 전부 회색 바탕 위 흰 카드라 머리만 따로 놀았다.
+   금색은 로고에만 남긴다 — 선택 표시는 어디서나 파랑 하나다. */
+.appbar {
+  background: #fff; color: var(--ink); display: flex; align-items: center;
+  gap: 22px; padding: 0 max(18px, calc(50vw - 652px)); height: 58px;
+  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 50;
+}
+.appbar .sp { flex: 1; }
+/* 브랜드 로고(ㅂ 심볼 + 워드마크) */
+.bt-logo { display: inline-flex; align-items: center; gap: 8px; }
+.bt-wordmark { font-family: "Pretendard", sans-serif; font-weight: 800; letter-spacing: -.035em; color: var(--ink); line-height: 1; font-size: 19px; }
+.bt-dot { color: var(--gold); }
+.appbar .bt-wordmark { font-size: 18px; }
+/* 왼쪽은 일(검색·업무), 오른쪽은 나(크레딧·마이페이지·나가기) */
+.appbar .gnb { display: flex; gap: 2px; }
+.appbar .gnb a { color: var(--muted); text-decoration: none; font-weight: 700; font-size: 14.5px;
+  letter-spacing: -.02em; padding: 19px 13px 17px; border-bottom: 2px solid transparent; }
+.appbar .gnb a:hover { color: var(--ink-2); }
+.appbar .gnb a.on { color: #191F28; border-bottom-color: #3182F6; }
+.appbar .gnb.me a { font-size: 13.5px; }
+.appbar .credit { background: #F2F4F6; border-radius: 999px; padding: 6px 14px;
+  font-size: 12.5px; font-weight: 700; color: #6B7684; }
+.appbar .credit b { font-family: var(--mono); margin-left: 6px; color: #191F28; }
+/* 폰(2026-09-08). 「건물 검색」이 세로로 한 글자씩 쌓였다 — 조작 글자는 줄이 바뀌면
+   조작이 아니다. 글자를 안 접고, 좁으면 메뉴 줄이 가로로 밀린다.
+   앱 전체 폰 대응은 따로 잡는다(10-AI-어시스턴트 §20 딸린 일감). 여기선 머리만 세운다. */
+.appbar .gnb a { white-space: nowrap; }
+@media (max-width: 720px) {
+  .appbar { gap: 10px; padding: 0 12px; }
+  .appbar .bt-wordmark { display: none; }
+  .appbar .gnb { overflow-x: auto; scrollbar-width: none; }
+  .appbar .gnb::-webkit-scrollbar { display: none; }
+  .appbar .gnb a { font-size: 13.5px; padding: 19px 9px 17px; }
+  .appbar .credit { display: none; }
+  .appbar .sp { flex: 0 0 auto; }
+}
+.appbar .gnb-out { width: 32px; height: 32px; margin-left: 2px; border: 0; border-radius: 9px;
+  background: none; color: #B0B8C1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+.appbar .gnb-out:hover { background: #F2F4F6; color: #4E5968; }
+
+/* 패널·버튼·입력 */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }   /* 플랫: 그림자 없음, hairline 경계만 */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line-2); background: #fff; border-radius: var(--radius-sm); padding: 8px 14px; font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer; }
+.btn svg { flex: 0 0 auto; }
+.btn:hover { border-color: var(--signal); color: var(--signal); }
+.btn.primary { background: var(--signal); border-color: var(--signal); color: #fff; }
+.btn.primary:hover { background: var(--signal-ink); color: #fff; }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.sm { padding: 4px 12px; font-size: 12px; }
+.input { border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 9px 12px; background: #fff; font: inherit; color: var(--ink); width: 100%; }
+.input:focus { outline: 2px solid var(--signal-bg); border-color: var(--signal); }
+
+/* 자동완성 */
+.ac-wrap { position: relative; }
+.ac-drop { position: absolute; top: calc(100% + 5px); left: 0; right: 0; z-index: 60; background: #fff; border: 1px solid var(--line-2); border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); overflow: hidden; }
+.ac-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 13px; }
+.ac-item:hover, .ac-item.active { background: var(--signal-bg); }
+
+/* 태그·배지 */
+.tag { font-size: 11px; font-weight: 700; border-radius: 4px; padding: 2px 8px; }
+.tag.mine { background: var(--blue-bg); color: var(--blue); }
+.tag.ad { background: var(--green-bg); color: var(--green); }
+.tag.stale { background: var(--up-bg); color: var(--up); }
+.tag.fresh { background: var(--green-bg); color: var(--green); }
+
+/* 선택 칩(.chips-in) 은 shared/ui/row.css 가 정본이다(2026-08-25).
+   여기 있던 흰 알약·먹색 선택 규칙은 나중에 실려 모달 결(연파랑)을 덮고 있었다 — 옮겼다. */
+
+/* KV 그리드(S02) */
+.kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; padding: 6px 14px 12px; }
+.kv { display: flex; justify-content: space-between; gap: 12px; padding: 9px 2px; border-bottom: 1px solid var(--line); }
+.kv .k { color: var(--ink-2); }
+.kv .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+.kv .v.edited { color: var(--signal-ink); }
+/* 실측 도로폭 — 전/측/후 세 값을 한 줄에. 라벨이 줄바꿈되면 칸이 늘어난다. */
+.kv .rw-row { display: flex; gap: 3px; align-items: center; justify-content: flex-end; white-space: nowrap; }
+.kv .rw { color: var(--muted); font-size: 11px; }
+
+/* 영업에서 쌓인 답 — 금액정보 아래 한 줄. 제안이 없으면 아예 안 그린다. */
+.rn { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px;
+  margin: 0 14px 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; }
+.rn .k { color: var(--muted); }
+.rn b { font-variant-numeric: tabular-nums; }
+.rn .t { color: var(--ink-2); }
+.rn .w { margin-left: auto; color: var(--up); font-variant-numeric: tabular-nums; }
+
+.sec-head { font-weight: 800; font-size: 14px; padding: 13px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); letter-spacing: -.01em; }
+table.wf { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.wf th { text-align: left; color: var(--muted); font-size: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line-2); }
+table.wf td { padding: 9px 12px; border-bottom: 1px solid var(--line); }
+table.wf .num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }

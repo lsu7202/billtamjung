@@ -1,0 +1,23 @@
+{
+  "name": "billtamjung-ad",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render src/index.ts Main ../빌탐정-광고-15s.mp4 --gl=angle"
+  },
+  "dependencies": {
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
+    "@remotion/cli": "^4.0.220",
+    "@remotion/three": "^4.0.506",
+    "@types/three": "^0.185.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.220",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "typescript": "^5.5.4"
+  }
+}

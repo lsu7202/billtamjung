@@ -12,7 +12,13 @@ tools/_sales_*.json
 빌탐정.db
 tools/_regulations_*.json
 tools/_legal_*.json
-exports/
+# 폴더를 통째로 막으면(exports/) git 이 안을 안 훑어 안쪽 예외가 안 먹는다 — 파일로 막는다
+exports/**
+# 예외 — 상권 구획도(부동산원 72칸)는 **원본을 못 받는다**(2026-09-07: 포털이 0바이트를 준다.
+# 같은 경로로 승강기는 33MB 가 정상으로 온다 → 그쪽 파일 문제). 이 gz 가 유일한 원천이고
+# 갱신도 거의 없다(포털판 2024-10). 66KB 라 저장소에 두는 편이 잃는 것보다 낫다.
+!exports/sanggwon/
+!exports/sanggwon/sanggwon.csv.gz
 tools/_annex_*.json
 강남.db
 tools/_frontage_*.json

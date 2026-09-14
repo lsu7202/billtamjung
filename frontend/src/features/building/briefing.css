@@ -1,0 +1,220 @@
+/* 브리핑 자료 — 사실만 담는 기초자료. 리포트 덱(reportslide.css)의 틀을 쓰되
+   표와 서류 슬롯이 주인공이라 여백·비율을 다르게 잡는다. */
+
+.bf-slide .rs-sec { padding-bottom: .8cqw; }
+.bf-thumb { display: flex; align-items: center; justify-content: center; height: 46px; }
+.bf-thumb-t { font-size: 11.5px; font-weight: 700; color: var(--navy); }
+.bf-thumb.on .bf-thumb-t { color: var(--blue); }
+
+/* ── 표지 ── 빌탐정 리포트 표지와 같은 틀(BuildingArt + 로고 + 직인).
+   다른 점은 발행 주체 하나다: 리포트는 빌탐정, 브리핑은 중개사무소. */
+.bf-cover3 { position: relative; overflow: hidden; color: #fff; }
+.bf-cover3-art { position: absolute; inset: 0; }
+.bf-cover3-veil { position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(8,12,22,.5) 0%, rgba(8,12,22,.12) 34%, rgba(8,12,22,.82) 100%); }
+.bf-cover3-in { position: relative; height: 100%; display: flex; flex-direction: column;
+  padding: 2.8cqw 3.4cqw; box-sizing: border-box; }
+.bf-cover3-top { display: flex; align-items: center; }
+.bf-cover3-rno { margin-left: auto; font-size: 1cqw; color: #c7d3e6; }
+.bf-cover3-mid { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.bf-cover3-eyebrow { font-size: 1.15cqw; letter-spacing: .24em; color: #8fb0e0; font-weight: 700;
+  margin-bottom: 1cqw; }
+.bf-cover3-addr { font-size: 4.8cqw; font-weight: 800; letter-spacing: -.02em; line-height: 1.04;
+  text-shadow: 0 2px 26px rgba(0,0,0,.55); }
+.bf-cover3-sub { font-size: 1.5cqw; color: #c7d3e6; margin-top: .9cqw; }
+.bf-cover3-foot { display: flex; align-items: center; gap: 1.4cqw; }
+.bf-cover3-office { display: flex; flex-direction: column; gap: .25cqw;
+  font-size: .95cqw; color: #aab6cc; line-height: 1.55; }
+.bf-cover3-office b { color: #fff; font-size: 1.35cqw; font-weight: 800; letter-spacing: -.01em; }
+
+/* ── (구) 표지·마무리 — 등각 SVG 폴백 등에서 여전히 쓰는 틀 ── */
+.bf-cover { background: linear-gradient(160deg, #191F28 0%, #14181F 60%, #0F1218 100%); color: #fff; }
+.bf-cover-in { height: 100%; display: flex; flex-direction: column; justify-content: center;
+  padding: 3cqw 4cqw; box-sizing: border-box; }
+.bf-office { font-size: 1.45cqw; letter-spacing: .18em; color: #8FB0E0; font-weight: 700; }
+.bf-cover-addr { font-size: 4.6cqw; font-weight: 800; letter-spacing: -.02em; margin: 1cqw 0 .5cqw; }
+.bf-cover-sub { font-size: 1.7cqw; color: #C7D3E6; }
+.bf-cover-meta { margin-top: 2.4cqw; font-size: 1.3cqw; line-height: 1.9; color: #AAB6CC; }
+.bf-cover-rno { margin-top: 2cqw; font-size: 1.1cqw; color: #7F8CA6; }
+.bf-cover.end .bf-end-1 { font-size: 2.4cqw; color: #8FB0E0; font-weight: 700; }
+.bf-cover.end .bf-end-2 { font-size: 3.6cqw; font-weight: 800; margin-top: .6cqw; }
+
+/* ── 01 매물 기본정보 ──
+   원본의 짙은 그룹 헤더 표는 무거워서 값이 눈에 안 들어온다.
+   핵심 세 값을 먼저 세우고 나머지는 묶음별 스펙시트로 — 정렬과 여백으로 신뢰를 만든다. */
+.bf-slide .rs-body:has(.bf-basic) { display: block; }
+.bf-basic { display: flex; gap: 2.2cqw; align-items: stretch; }
+.bf-basic-photo { flex: 0 0 26%; border-radius: .8cqw; overflow: hidden; background: #EEF0F4; }
+.bf-basic-photo img { width: 100%; height: 100%; }
+.bf-basic-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.bf-addr { font-size: 2.3cqw; font-weight: 800; color: var(--navy); letter-spacing: -.02em; }
+.bf-chips { display: flex; gap: .5cqw; margin-top: .5cqw; flex-wrap: wrap; }
+.bf-chips span { font-size: 1.1cqw; color: var(--navy); background: #EEF2F8;
+  border-radius: .3cqw; padding: .18cqw .6cqw; }
+.bf-chips span.q { background: transparent; color: var(--rmuted); }
+
+.bf-spec { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.2cqw;
+  margin-top: 1.5cqw; padding-top: 1.2cqw; border-top: 1px solid var(--rl); }
+.bf-spec h4 { margin: 0 0 .5cqw; font-size: 1.1cqw; font-weight: 800; color: var(--blue);
+  letter-spacing: .06em; }
+.bf-spec .r { display: flex; justify-content: space-between; gap: .8cqw; align-items: baseline;
+  padding: .38cqw 0; border-bottom: 1px solid #F0F2F6; font-size: 1.2cqw; }
+.bf-spec .r .k { color: var(--rmuted); flex: 0 0 auto; }
+.bf-spec .r .v { color: var(--rink); font-weight: 600; text-align: right;
+  font-variant-numeric: tabular-nums; }
+/* 이 장에서 제일 중요한 값 하나만 크게 — 위아래로 되풀이하지 않는다 */
+.bf-spec .r.lead { align-items: baseline; padding: .1cqw 0 .55cqw; border-bottom-color: var(--rl); }
+.bf-spec .r.lead .k { color: var(--navy); font-weight: 700; }
+.bf-spec .r.lead .v { font-size: 1.85cqw; font-weight: 800; color: var(--navy); letter-spacing: -.02em; }
+
+/* ── 04 층별 임대정보 ── */
+/* rs-body가 flex라 표가 내용폭으로 줄고 각주가 옆으로 밀렸다 — 이 장은 세로 스택 */
+.bf-slide .rs-body:has(.bf-table.rent) { display: block; }
+/* 층이 많으면 16:9 아래로 잘렸다(삼성동 78, 15줄에서 아랫줄 절단 · 2026-08-28).
+   층수는 데이터가 정하는 값이라 표를 줄일 게 아니라 **글자를 슬라이드에 맞춘다** —
+   cqw 라 컨테이너 폭 기준으로 함께 줄어든다. 줄 수가 아주 많은 건물은
+   패딩·행높이가 먼저 줄고, 그래도 넘치면 아래 여백부터 먹는다. */
+.bf-table.rent { width: 100%; table-layout: fixed; font-size: .92cqw; }
+.bf-table.rent th { padding: .34cqw .6cqw; }
+/* 13줄부터 한 눈금 더 — 삼성동 78(층 15)이 이 층계에서 정확히 들어맞는다 */
+.bf-table.rent:has(tbody tr:nth-child(13)) { font-size: .78cqw; }
+.bf-table.rent:has(tbody tr:nth-child(13)) td { padding: .2cqw .6cqw; }
+.bf-table.rent:has(tbody tr:nth-child(13)) th { padding: .26cqw .6cqw; }
+.bf-table.rent th { background: var(--navy); color: #fff; text-align: center; font-weight: 700; }
+.bf-table.rent th:first-child, .bf-table.rent td:first-child { width: 22%; }
+.bf-table.rent td { padding: .3cqw .6cqw; }
+.bf-table.rent .n { text-align: right; font-variant-numeric: tabular-nums; }
+.bf-table.rent tr.sum td { background: #F2F4F8; font-weight: 800; color: var(--navy); }
+.bf-est, .bf-vac { font-size: .95cqw; border-radius: .3cqw; padding: .08cqw .38cqw; margin-left: .4cqw;
+  vertical-align: middle; }
+.bf-est { background: #EEF1F6; color: #6B7484; }
+.bf-vac { background: var(--peach-bg); color: var(--peach-tx); }
+
+/* ── 서류·사진 슬롯 ── */
+.bf-docs { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6cqw; height: 100%; }
+.bf-doc { display: flex; flex-direction: column; min-height: 0; }
+.bf-doc-t { font-size: 1.25cqw; font-weight: 700; color: var(--navy); margin-bottom: .5cqw; }
+.bf-doc-img { flex: 1; border: 1px solid var(--rl); border-radius: .5cqw; overflow: hidden; background: #F6F7F9; }
+.bf-doc-img img { width: 100%; height: 100%; }
+
+.bf-wide { height: 100%; border: 1px solid var(--rl); border-radius: .5cqw; overflow: hidden; background: #F6F7F9; }
+.bf-wide img { width: 100%; height: 100%; }
+
+.bf-photos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.4cqw; height: 100%; }
+/* 장수에 맞춰 칸을 채운다 — 빈 칸이 남으면 자료가 덜 준비된 것처럼 보인다 */
+.bf-photos[data-n="1"] { grid-template-columns: 1fr; }
+.bf-photos[data-n="3"] figure:first-child { grid-column: 1 / -1; }
+.bf-photos figure { margin: 0; display: flex; flex-direction: column; min-height: 0; }
+.bf-ph { flex: 1; border-radius: .5cqw; overflow: hidden; background: #EEF0F4; }
+.bf-ph img { width: 100%; height: 100%; }
+.bf-photos figcaption { font-size: 1.1cqw; color: var(--rmuted); margin-top: .4cqw; }
+
+.bf-empty { display: grid; place-items: center; height: 100%; color: #9AA3B2; font-size: 1.25cqw; }
+.bf-note { font-size: 1.05cqw; color: var(--rmuted); margin-top: .8cqw; line-height: 1.6; }
+
+/* ── 03 위치도 — 실지도 + 입체 지적도 ── */
+.bf-slide .rs-body:has(.bf-loc) { display: block; }
+.bf-loc { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6cqw; height: 100%; }
+.bf-loc figure { margin: 0; display: flex; flex-direction: column; min-height: 0; }
+.bf-loc figure > *:first-child { flex: 1; border-radius: .6cqw; overflow: hidden;
+  border: 1px solid var(--rl); background: #0E1524; }
+.bf-loc figcaption { font-size: 1cqw; color: var(--rmuted); margin-top: .5cqw; }
+.bf-scene { background: linear-gradient(165deg, #131C2E 0%, #0C1220 100%); display: grid; place-items: center; }
+/* 입체 지적도 전용 장 — 한 장을 통째로 */
+.bf-slide .rs-body:has(.bf-scene.wide) { display: block; }
+.bf-scene.wide { height: 100%; border-radius: .6cqw; overflow: hidden; border: 1px solid var(--rl); }
+.ps { width: 100%; height: 100%; display: block; }
+.ps-empty { display: grid; place-items: center; height: 100%; color: #7F8CA6; font-size: 1.05cqw; }
+
+/* ── 입체 지적도(3D) ── 캔버스 위에 HUD·치수를 얹는다 */
+.ps3 { position: relative; width: 100%; height: 100%; overflow: hidden; }
+.ps3 > canvas { position: absolute; inset: 0; }
+.ps3-hud { position: absolute; z-index: 2; top: 1.1cqw; padding: .8cqw 1cqw; border-radius: .5cqw;
+  background: rgba(11,17,28,.74); backdrop-filter: blur(2px); pointer-events: none; }
+.ps3-hud.left { left: 1.1cqw; }
+.ps3-hud.right { right: 1.1cqw; text-align: right; }
+.ps3-zone { color: #C7D3E6; font-size: .95cqw; font-weight: 700; letter-spacing: .04em; margin-bottom: .5cqw; }
+.ps3-k { color: #9FB3D4; font-size: .82cqw; margin-top: .45cqw; }
+.ps3-v { color: #fff; font-size: 1.15cqw; font-weight: 800; letter-spacing: -.01em; }
+.ps3-h { color: #8FB0E0; font-size: .95cqw; font-weight: 700; }
+
+/* 현재 vs 법정 — 나란히 놓으면 넘는지 남는지 한 줄로 읽힌다 */
+.ps3-tbl { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.ps3-tbl th, .ps3-tbl td { padding: .18cqw .5cqw; text-align: right; font-weight: 400; }
+.ps3-tbl thead th { color: #7F8CA6; font-size: .78cqw; font-weight: 700; letter-spacing: .04em; }
+.ps3-tbl tbody th { color: #9FB3D4; font-size: .85cqw; text-align: left; padding-left: 0; }
+.ps3-tbl td { color: #fff; font-size: 1.05cqw; font-weight: 800; letter-spacing: -.01em; }
+.ps3-tbl td:last-child { color: #8FB0E0; font-weight: 700; padding-right: 0; }
+.ps3-tbl td.over { color: #FF9E7A; }   /* 법정 초과 = 기존 건축물. 신축하면 줄어든다 */
+
+/* 치수 — 점선 끝에 숫자만. 색으로 무엇의 치수인지 구분한다(선 색과 같다) */
+.ps3-dim { position: absolute; z-index: 2; transform: translate(-50%, -50%); pointer-events: none;
+  white-space: nowrap; font-size: 1.05cqw; font-weight: 800; letter-spacing: -.01em;
+  text-shadow: 0 0 .35cqw #070C14, 0 0 .8cqw #070C14, 0 .1cqw .2cqw rgba(0,0,0,.9); }
+.ps3-dim.front { color: #FFA23C; }   /* 전면도로 */
+.ps3-dim.road  { color: #C6D6EE; }   /* 그 밖의 접도 */
+.ps3-dim.mass  { color: #9BC0FF; }   /* 건물 높이 */
+.ps3-dim.plate { color: #39E0C8; }   /* 대지 */
+
+.ps3-hint { position: absolute; z-index: 2; left: 1.1cqw; bottom: .9cqw; pointer-events: none;
+  color: #4E5F79; font-size: .8cqw; }
+.ps .ps-v { fill: #fff; font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
+.ps .ps-k { fill: #9FB3D4; font-size: 11px; }
+.ps .ps-h { fill: #8FB0E0; font-size: 12px; font-weight: 700; }
+.ps .ps-road { font-size: 11px; font-weight: 800; }
+.ps .ps-zone { fill: #C7D3E6; font-size: 12.5px; font-weight: 700; letter-spacing: .04em; }
+/* 순차 등장 — 도로 → 대지 → 현재 용적 → 여유 → 수치 */
+.ps-fade { transition: opacity .5s ease; }
+.ps-rise { transition: opacity .55s ease; }
+@media (prefers-reduced-motion: reduce) { .ps-fade, .ps-rise { transition: none; } }
+
+/* ── 중개인 코멘트 ── */
+.bf-comment { margin-top: 1.2cqw; padding: .9cqw 1.1cqw; border-left: .25cqw solid var(--blue);
+  background: #F5F8FC; border-radius: 0 .4cqw .4cqw 0; display: grid; gap: .35cqw; }
+.bf-comment div { font-size: 1.15cqw; color: var(--rink); line-height: 1.55; }
+
+/* 지도 칸 — 캡션 자리를 남긴다(지도에 height:100%를 주면 캡션이 밖으로 밀린다) */
+.bf-mapbox { flex: 1; min-height: 0; border-radius: .6cqw; overflow: hidden;
+  border: 1px solid var(--rl); background: #0E1524; }
+
+/* ── 01 건물 개요 ── 빌탐정 리포트의 어법을 그대로 쓴다(.rs-sc 지표 카드 · .rs-tbl · .rs-callout).
+   금액을 라벨-값 한 줄로 늘어놓으면 글줄로 읽혀 눈에 안 들어온다 → 큰 숫자 네 개로 세운다.
+   소재지는 섹션 부제(rs-desc)로 올려 본문 높이를 사진에 넘긴다. */
+.bf-slide .rs-body:has(.bf-ov) { display: block; }
+.bf-ov { display: grid; height: 100%; min-height: 0;
+  grid-template-columns: 38% 1fr;
+  grid-template-rows: auto 1fr auto auto;
+  grid-template-areas:
+    "photo mt"
+    "photo kv"
+    "cmt   cmt"
+    "note  note";
+  column-gap: 2.2cqw; }
+
+/* 사진 — 슬롯 비율 4:3 고정. 칸 모양대로 늘리면 위아래가 잘린다.
+   폭이 남으면 왼쪽에 붙이고, 폭이 모자라면 높이가 줄어 비율은 유지된다. */
+.bf-ov-photo { grid-area: photo; min-height: 0; height: 100%; aspect-ratio: 4 / 3;
+  max-width: 100%; justify-self: start; overflow: hidden; border-radius: .5cqw;
+  background: #EEF0F4; }
+.bf-ov-photo img { width: 100%; height: 100%; }
+
+/* 지표 카드 넷 — 매매가만 크게. 아래에 굵은 괘선을 둬서 표 머리처럼 받친다 */
+.bf-mt { grid-area: mt; display: grid; grid-template-columns: 1.35fr 1fr 1fr 1fr;
+  gap: 1.4cqw; padding-bottom: 1cqw; margin-bottom: 1cqw;
+  border-bottom: 1.5px solid var(--navy); }
+.bf-mt .rs-sc .v { font-size: 2cqw; color: var(--rink); font-variant-numeric: tabular-nums; }
+.bf-mt .rs-sc.lead .v { font-size: 3cqw; color: var(--navy); letter-spacing: -.03em; }
+.bf-mt .rs-sc.lead .k { color: var(--navy); font-weight: 700; }
+
+/* 토지 / 건물 — 리포트의 라벨-값 표 두 벌 */
+.bf-kv2 { grid-area: kv; display: grid; grid-template-columns: 1fr 1fr; gap: 1.6cqw;
+  align-content: start; min-height: 0; }
+.bf-kv2 .rs-tbl { font-size: 1.02cqw; }
+.bf-kv2 .rs-tbl th { padding: .3cqw .8cqw .28cqw; }
+.bf-kv2 .rs-tbl td { padding: .26cqw .8cqw; }
+.bf-kv2 .rs-kv td:first-child { width: 46%; }
+
+.bf-cmt { grid-area: cmt; display: grid; gap: .3cqw; margin-top: 1cqw; }
+.bf-cmt .rs-callout { font-size: 1.08cqw; padding: .2cqw 0 .2cqw 1.2cqw; }
+.bf-ov .bf-note { grid-area: note; margin-top: .6cqw; }

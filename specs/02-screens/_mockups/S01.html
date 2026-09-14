@@ -6,54 +6,178 @@
 <title>S01 · 매물 통합검색 — 빌탐정 와이어프레임</title>
 <link rel="stylesheet" href="wireframe.css">
 <style>
-/* 지도 뷰 (네이버 지도 + 핀 + 동기 리스트) */
-.map-split{display:grid; grid-template-columns:1fr 320px; gap:0; height:600px; border:1px solid var(--line); border-radius:10px; overflow:hidden}
-.map-canvas{position:relative; background:#e9eef3 repeating-linear-gradient(45deg,transparent,transparent 22px,rgba(0,0,0,.015) 22px,rgba(0,0,0,.015) 44px)}
-.map-canvas .center-note{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#a6b0bb; font-size:13px; font-weight:600}
-.pin{position:absolute; transform:translate(-50%,-100%); font-size:12px; font-weight:800; color:#fff; padding:4px 9px; border-radius:999px 999px 999px 2px; white-space:nowrap; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,.25)}
-.pin.ad{background:var(--green)}      /* 광고 */
-.pin.mine{background:var(--blue)}    /* 내 매물 */
-.pin.normal{background:var(--purple)}  /* 일반 */
-.pin.cluster{background:#111; border-radius:50%; width:34px; height:34px; padding:0; display:flex; align-items:center; justify-content:center; transform:translate(-50%,-50%)}
-.map-legend{position:absolute; left:12px; bottom:12px; background:#fff; border:1px solid var(--line); border-radius:8px; padding:8px 11px; font-size:12px; display:flex; gap:12px}
-.map-legend b{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; vertical-align:middle}
-.map-refresh{position:absolute; top:12px; left:50%; transform:translateX(-50%); background:#fff; border:1px solid var(--line); border-radius:999px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,.12)}
+/* 지도 뷰 — 풀블리드(부동산플래닛식): 넓은 지도 + 우측 플로팅 리스트 */
+.map-split{display:grid; grid-template-columns:360px 1fr; gap:0; height:calc(100vh - 210px); min-height:560px;
+  border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow)}
+.map-split .map-canvas{order:2}          /* 지도 = 우측 (넓게) */
+.map-split .map-list{order:1}            /* 사이드바 = 좌측 (디스코·부플·빌딩샵 표준) */
+.map-canvas{position:relative; overflow:hidden;
+  background:
+    linear-gradient(rgba(15,26,46,.05) 1px,transparent 1px) 0 0/56px 56px,
+    linear-gradient(90deg,rgba(15,26,46,.05) 1px,transparent 1px) 0 0/56px 56px,
+    radial-gradient(circle at 30% 40%, #e8efe6 0 90px, transparent 160px),
+    radial-gradient(circle at 72% 66%, #e6eef6 0 120px, transparent 200px),
+    #eef2f6}
+.map-canvas .center-note{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#9aa6b4; font-size:12px; font-weight:600; letter-spacing:0}
+.pin{position:absolute; transform:translate(-50%,-100%); font-size:12px; font-weight:800; color:#fff; padding:5px 10px; border-radius:999px 999px 999px 3px; white-space:nowrap; cursor:pointer; box-shadow:0 3px 8px rgba(15,26,46,.3); font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:0}
+.pin.ad{background:var(--green)}
+.pin.mine{background:var(--blue)}
+.pin.normal{background:var(--purple)}
+.pin.cluster{background:var(--ink); border-radius:50%; width:40px; height:40px; padding:0; display:flex; align-items:center; justify-content:center; transform:translate(-50%,-50%); box-shadow:0 3px 10px rgba(15,26,46,.35); border:2px solid #fff}
+.map-legend{position:absolute; left:14px; bottom:14px; background:#fff; border:1px solid var(--line); border-radius:8px; padding:9px 12px; font-size:12px; display:flex; gap:14px; box-shadow:var(--shadow); font-weight:600}
+.map-legend b{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:middle}
+/* 레이어 툴바 — 썸네일 미리보기(부동산플래닛식) */
+.map-layers{position:absolute; top:14px; right:14px; display:flex; gap:7px; z-index:4}
+.map-layers button{width:56px; padding:0; border:2px solid #fff; border-radius:9px; overflow:hidden; cursor:pointer; background:#fff; box-shadow:var(--shadow); transition:all .12s}
+.map-layers button:hover{transform:translateY(-1px)}
+.map-layers button.on{border-color:var(--signal); box-shadow:0 0 0 1px var(--signal),0 3px 8px rgba(30,90,240,.25)}
+.map-layers .thumb{display:block; height:36px}
+.map-layers .thumb.base{background:linear-gradient(135deg,#e8efe6,#dde8f0)}
+.map-layers .thumb.sat{background:linear-gradient(135deg,#2d3b2a,#38434f)}
+.map-layers .thumb.cad{background:repeating-linear-gradient(0deg,#fbe8d6,#fbe8d6 8px,#e89a4d 8px,#e89a4d 9px),repeating-linear-gradient(90deg,transparent,transparent 10px,#e89a4d 10px,#e89a4d 11px)}
+.map-layers .thumb.rv{background:linear-gradient(#7d8894,#5a6572);position:relative}
+.map-layers .thumb.rv::after{content:"🧍";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:15px}
+.map-layers .lbl{display:block; font-size:10px; font-weight:700; padding:3px 0; background:#fff; color:var(--ink-2); text-align:center}
+.map-layers button.on .lbl{color:var(--signal)}
+/* 영역 그리기 검색 (Draw-to-Search, 2026-07-21) */
+.map-draw{position:absolute; top:14px; left:14px; z-index:5; display:flex; flex-direction:column; gap:6px}
+.map-draw .draw-toggle{background:#fff; border:1px solid var(--line-2); border-radius:9px; padding:8px 12px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:var(--shadow); color:var(--ink)}
+.map-draw .draw-toggle.on{border-color:var(--signal); color:var(--signal); box-shadow:0 0 0 1px var(--signal),var(--shadow)}
+.map-draw .draw-modes{display:none; background:#fff; border:1px solid var(--line-2); border-radius:9px; box-shadow:var(--shadow-lg); overflow:hidden; width:168px}
+.map-draw .draw-modes.on{display:block}
+.map-draw .draw-modes button{display:block; width:100%; border:0; border-bottom:1px solid var(--line); background:none; padding:9px 12px; font-size:12px; cursor:pointer; color:var(--ink-2); text-align:left; white-space:nowrap}
+.map-draw .draw-modes button:last-child{border-bottom:0}
+.map-draw .draw-modes button.on{background:var(--signal-bg); color:var(--signal); font-weight:700}
+.map-draw .draw-modes .draw-clear{color:var(--up)}
+/* 검색 범위 시각화 — 법정동·그린영역 공통 디자인 언어 */
+.range-area{position:absolute; inset:0; pointer-events:none; z-index:3}
+.range-area svg{position:absolute; inset:0; width:100%; height:100%}
+.range-area polygon{fill:rgba(30,90,240,.12); stroke:var(--signal); stroke-width:1.4; vector-effect:non-scaling-stroke}
+.range-area.dong polygon{stroke-dasharray:none}        /* 법정동 = 실선(행정경계) */
+.range-area.drawn polygon{stroke-dasharray:3 2}        /* 그린 영역 = 점선(자유 그림) */
+.range-badge{position:absolute; background:var(--ink); color:#fff; font-size:11px; font-weight:700; font-family:var(--mono); padding:5px 10px; border-radius:7px; box-shadow:var(--shadow); white-space:nowrap; transform:translate(-50%,-120%)}
+.draw-area{display:none}
+.draw-area.on{display:block}
+.dong-area.hidden{display:none}
+.map-canvas.drawing .pin{opacity:.3; filter:grayscale(.4)}
+.map-canvas.drawing .pin.inarea{opacity:1; filter:none}
+.chip.range-chip{background:var(--signal-bg); border-color:#c3d4fb; color:var(--signal-ink); font-weight:700}
+/* 지적도 오버레이(placeholder) — 네이버 CadastralLayer 흉내 */
+.cadastre{position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .2s;
+  background-image:linear-gradient(rgba(200,120,26,.4) 1px,transparent 1px),linear-gradient(90deg,rgba(200,120,26,.4) 1px,transparent 1px);
+  background-size:78px 62px}
+.cadastre.on{opacity:1}
+/* 로드뷰 패널(placeholder) */
+.roadview{position:absolute; inset:0; z-index:6; background:#2a2f36; display:none; align-items:center; justify-content:center; color:#c7ced6; font-size:13px; flex-direction:column; gap:6px}
+.roadview.on{display:flex}
+.roadview .rv-close{position:absolute; top:12px; right:12px; background:rgba(255,255,255,.15); color:#fff; border:0; border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer}
+/* 클러스터 펼침 목록 */
+.cluster-pop{position:absolute; width:230px; max-height:260px; overflow-y:auto; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.18); z-index:7}
+.cluster-pop .cp-head{padding:9px 12px; font-size:12px; font-weight:700; border-bottom:1px solid var(--line); position:sticky; top:0; background:#fff}
+.cluster-pop .cp-row{padding:8px 12px; border-bottom:1px solid #f0f2f5; font-size:12px; display:flex; justify-content:space-between; cursor:pointer}
+.cluster-pop .cp-row:hover{background:#f7f9fc}
 /* 핀 팝오버(요약) */
 .pin-pop{position:absolute; width:210px; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.18); padding:11px 13px; z-index:5}
 .pin-pop .pp-addr{font-weight:700; font-size:13px; margin-bottom:6px}
 .pin-pop .pp-row{display:flex; justify-content:space-between; font-size:12px; color:#555; margin:2px 0}
 .pin-pop .btn{margin-top:8px; width:100%; text-align:center}
 /* 우측 동기 리스트 */
-.map-list{background:#fff; border-left:1px solid var(--line); overflow-y:auto}
-.map-list .ml-head{padding:10px 13px; font-size:12px; color:#888; border-bottom:1px solid var(--line); position:sticky; top:0; background:#fff}
-.ml-row{padding:10px 13px; border-bottom:1px solid #f0f2f5; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px}
-.ml-row:hover{background:#f7f9fc}
-.ml-row .ml-a{font-size:13px}
+.map-list{background:#fff; border-right:1px solid var(--line); overflow-y:auto; display:flex; flex-direction:column}
+/* ── 선택 매물 요약 카드 (S02 헤더 축약 + 시계열 스파크라인) ── */
+.sel-card{border-bottom:8px solid var(--surface-2)}
+.sel-road{height:150px; position:relative; background:linear-gradient(150deg,#8a97a6,#5f6b7a)}
+.sel-road::after{content:"로드뷰"; position:absolute; left:10px; bottom:8px; font-size:10px; font-weight:700; color:#fff; background:rgba(15,26,46,.55); padding:2px 8px; border-radius:5px}
+.sel-body{padding:13px 15px}
+.sel-addr{font-size:15px; font-weight:800; letter-spacing:-.02em; display:flex; align-items:center; gap:7px}
+.sel-addr .star{font-size:17px; margin-left:auto}
+.sel-meta{font-size:11px; color:var(--muted); display:flex; gap:12px; flex-wrap:wrap; margin-top:5px}
+.sel-meta b{color:var(--ink-2); font-weight:600}
+.sel-metrics{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:8px; overflow:hidden; margin-top:12px}
+.sel-metrics .m{background:#fff; padding:9px 11px}
+.sel-metrics .m.wide{grid-column:1/-1}
+.sel-metrics .mk{font-size:10.5px; color:var(--muted); font-weight:600}
+.sel-metrics .mv{font-size:15px; font-weight:800; font-family:var(--mono); font-variant-numeric:tabular-nums; margin-top:2px; letter-spacing:-.01em}
+.sel-metrics .mv small{font-size:11px; color:var(--muted); font-weight:600}
+.sel-area{display:flex; gap:11px; font-size:13px; font-weight:700; font-family:var(--mono)}
+.sel-area i{font-style:normal; font-size:10px; color:var(--muted); font-weight:600; margin-right:2px}
+/* 시계열 3종 스파크라인 (실거래·공시지가·광고가) */
+.sel-spark{margin-top:12px; border:1px solid var(--line); border-radius:8px; padding:12px 13px}
+.sel-spark .sh{display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:700; margin-bottom:10px}
+.sel-spark .lgd{display:flex; gap:9px; font-size:10px; color:var(--muted); font-weight:600}
+.sel-spark .lgd b{display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:3px; vertical-align:middle}
+.spark-wrap{position:relative}
+.spark-guide{position:absolute; top:0; bottom:0; width:1px; background:var(--line-2); opacity:0; pointer-events:none}
+.spark-tip{position:absolute; z-index:5; background:var(--ink); color:#fff; font-size:11px; line-height:1.55; font-family:var(--mono);
+  padding:7px 10px; border-radius:7px; pointer-events:none; opacity:0; transition:opacity .1s; white-space:nowrap; transform:translate(-50%,-112%); box-shadow:var(--shadow-lg)}
+.spark-tip .yr{color:#9fb0cc; font-weight:700; margin-bottom:2px; display:block}
+.spark-tip .r{display:flex; justify-content:space-between; gap:12px}
+.spark-tip .r b{width:7px;height:7px;border-radius:2px;display:inline-block;margin-right:4px}
+.spark-dot{cursor:pointer}
+.sel-detail{display:block; width:100%; margin-top:12px; text-align:center; background:var(--signal); color:#fff; border:0; border-radius:8px; padding:11px; font-size:13px; font-weight:700; cursor:pointer}
+.sel-detail:hover{background:var(--signal-ink)}
+/* ── 미니 리스트 (썸네일 없이) ── */
+.ml-head{padding:10px 14px; font-size:12px; color:var(--muted); border-bottom:1px solid var(--line); position:sticky; top:0; background:#fff; font-weight:600}
+.ml-row{padding:10px 14px; border-bottom:1px solid #f0f2f5; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px}
+.ml-row:hover{background:var(--signal-bg)}
+.ml-row.on{background:var(--signal-bg); box-shadow:inset 3px 0 0 var(--signal)}
+.ml-row .ml-a{font-size:13px; font-weight:600; display:flex; align-items:center; gap:6px}
 .ml-row .ml-tag{font-size:10px; font-weight:700; padding:1px 6px; border-radius:4px; color:#fff}
 .ml-tag.ad{background:var(--green)} .ml-tag.mine{background:var(--blue)} .ml-tag.normal{background:var(--purple)}
-.ml-row .ml-nums{font-size:12px; color:#555; text-align:right; white-space:nowrap}
+.ml-row .ml-nums{font-size:12px; color:var(--ink); text-align:right; white-space:nowrap; font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:700}
+.ml-row .ml-nums small{color:var(--muted); font-weight:600}
+/* ★ 즐겨찾기 — 행 맨 앞에 별 열 추가 */
+.wf-list .wf-head,.wf-list .wf-row{grid-template-columns:20px 1fr 58px 48px}
+.star{cursor:pointer; color:#d8dde3; font-size:14px; line-height:1; user-select:none}
+.star:hover{color:#f5c877}
+.star.on{color:#f5a623}
+/* 3열 카드 이어붙이기(마진 제거) — 매물 뷰 */
+#view-list.result-cols{gap:0}
+#view-list .col-card{border-radius:0}
+#view-list .col-card:first-child{border-radius:var(--radius) 0 0 var(--radius)}
+#view-list .col-card:last-child{border-radius:0 var(--radius) var(--radius) 0}
+#view-list .col-card:not(:first-child){border-left:0}
+/* 빈 상태 · 열별 페이징 · 추정 고지 (2026-07-21) */
+.col-empty{padding:34px 16px; text-align:center; color:var(--muted); font-size:13px; line-height:1.6}
+.col-empty small{display:block; margin-top:5px; color:#aab2bf; font-size:12px}
+.col-pager{display:flex; align-items:center; justify-content:center; gap:12px; padding:9px; border-top:1px solid var(--line); font-size:12px; color:var(--muted)}
+.col-pager button{border:1px solid var(--line-2); background:#fff; border-radius:6px; width:26px; height:26px; cursor:pointer; color:var(--ink-2); font-size:13px; line-height:1}
+.col-pager button:disabled{opacity:.4; cursor:default}
+.col-pager .pg{font-family:var(--mono); font-variant-numeric:tabular-nums}
+.wf-head .est{font-size:10px; color:#aab2bf; font-weight:600; margin-left:3px}
+.wf-row .dash{color:#c0c6d0}
 </style>
 </head>
 <body>
 <div class="screen">
+  <div class="appbar">
+    <div class="gnb-left">
+      <div class="brand">빌탐정</div>
+      <nav class="gnb"><a class="on">매물 검색</a><a>마이페이지</a></nav>
+    </div>
+    <div class="gnb-right">
+      <span class="credit-chip">크레딧 <b>660</b></span>
+      <span class="user">이승욱 <span class="avatar"></span></span>
+    </div>
+  </div>
+
+  <!-- 상단 앱바 -->
 
   <div class="spec-note">
     <b>S01 · 매물 통합검색</b> — 저충실도 레이아웃 목업. 실제 디자인 아님(골격 확인용).
     행 클릭 → S02 매물상세 이동(예정). [필터] → S01b 상세검색(별도).
   </div>
 
-  <!-- 상단 앱바 -->
-  <div class="appbar">
-    <div class="brand">빌탐정 <small>매물 통합검색</small></div>
-    <div class="user"><span>이승욱 회원님</span><span class="avatar"></span></div>
-  </div>
-
   <!-- 검색바 + 필터 -->
   <div class="panel">
     <div class="toolbar">
-      <input class="input" placeholder="주소 입력 (예: 강남구 역삼동 123-4)">
+      <div class="ac-wrap">
+        <input class="input" id="acInput" placeholder="주소 입력 (예: 강남구 역삼동 123-4)" autocomplete="off"
+               oninput="acFilter(this.value)" onkeydown="acKey(event)" onfocus="acFilter(this.value)">
+        <div class="ac-drop" id="acDrop" role="listbox"></div>
+      </div>
       <button class="btn">필터</button>
       <button class="btn primary">검색</button>
+      <button class="btn" id="favBtn" onclick="toggleFavFilter(this)" title="즐겨찾기한 매물만 보기">★ 즐겨찾기</button>
       <span style="flex:1"></span>
       <div class="segmented">
         <button class="active" onclick="setView('list',this)">매물</button>
@@ -62,6 +186,8 @@
     </div>
     <!-- 적용된 필터 칩 -->
     <div class="chips">
+      <span class="chip range-chip" id="dongChip">강남구 역삼동 <span class="x">×</span></span>
+      <span class="chip range-chip" id="drawChip" hidden>✏️ 그린 영역 <span class="x" onclick="clearDraw()">×</span></span>
       <span class="chip">대지면적 300㎡~500㎡ <span class="x">×</span></span>
       <span class="chip">지하 3층 이상 <span class="x">×</span></span>
       <span class="chip">지상 3층 이하 <span class="x">×</span></span>
@@ -93,7 +219,9 @@
           <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
         <div class="wf-row" data-price="120" data-roi="2.0" data-viewed="2026-06-20"><span>강남구 삼성동 7-2</span><span class="num">120억</span><span class="num">2.0%</span>
           <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+        <div class="col-empty" hidden>표시할 광고 매물이 없습니다</div>
       </div>
+      <div class="col-pager"><button disabled>‹</button><span class="pg">1 / 1</span><button disabled>›</button></div>
     </div>
 
     <div class="col-card">
@@ -104,13 +232,15 @@
           <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
         <div class="wf-row" data-price="75" data-roi="2.8" data-viewed="2026-06-10"><span>강남구 대치동 900-1</span><span class="num">75억</span><span class="num">2.8%</span>
           <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+        <div class="col-empty" hidden>아직 등록한 매물이 없습니다<small>매물 상세에서 담당자를 지정하면 내 매물이 됩니다</small></div>
       </div>
+      <div class="col-pager"><button disabled>‹</button><span class="pg">1 / 1</span><button disabled>›</button></div>
     </div>
 
     <div class="col-card">
       <div class="col-head normal">일반 <span class="count">240</span></div>
       <div class="col-body">
-        <div class="wf-head"><span>주소</span><span class="num">매매가</span><span class="num">수익률</span></div>
+        <div class="wf-head"><span>주소</span><span class="num">매매가<span class="est">추정</span></span><span class="num">수익률</span></div>
         <div class="wf-row" data-price="42" data-roi="3.5" data-viewed="2026-06-27"><span>광진구 자양동 33-7</span><span class="num">42억</span><span class="num">3.5%</span>
           <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
         <div class="wf-row" data-price="95" data-roi="2.9" data-viewed="2026-06-25"><span>성동구 성수동 12-3</span><span class="num">95억</span><span class="num">2.9%</span>
@@ -127,7 +257,11 @@
           <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
         <div class="wf-row" data-price="72" data-roi="2.7" data-viewed="2026-06-02"><span>강서구 화곡동 22-9</span><span class="num">72억</span><span class="num">2.7%</span>
           <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+        <div class="wf-row" data-price="0" data-roi="0" data-viewed="2026-06-01"><span>양천구 목동 55-3</span><span class="num dash" title="추정 실거래가 없음">—</span><span class="num dash">—</span>
+          <span class="row-actions"><button class="btn primary">상세보기</button><button class="btn">지도위치</button></span></div>
+        <div class="col-empty" hidden>검색 결과가 없습니다</div>
       </div>
+      <div class="col-pager"><button disabled>‹</button><span class="pg">1 / 12</span><button>›</button></div>
     </div>
 
   </div>
@@ -138,22 +272,57 @@
       <!-- 좌: 지도 -->
       <div class="map-canvas">
         <span class="center-note">네이버 지도 — 결과 매물 핀</span>
-        <button class="map-refresh">↻ 이 지역 재검색</button>
+        <div class="cadastre" id="cadastre"></div>
+        <!-- 영역 그리기 도구 (Draw-to-Search) -->
+        <div class="map-draw">
+          <button class="draw-toggle" id="drawToggle" onclick="toggleDraw()">✏️ 영역 그리기</button>
+          <div class="draw-modes" id="drawModes">
+            <button class="on" onclick="setDrawMode(this)">✎ 자유곡선</button>
+            <button onclick="setDrawMode(this)">▱ 다각형</button>
+            <button onclick="setDrawMode(this)">🧲 자석 올가미 · 필지 스냅</button>
+            <button class="draw-clear" onclick="clearDraw()">✕ 영역 지우기</button>
+          </div>
+        </div>
+        <!-- 검색 범위 시각화: 법정동(기본·실선) / 그린 영역(그리기·점선) — 공통 디자인 -->
+        <div class="range-area dong dong-area" id="dongArea">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="14,20 40,13 70,21 83,44 74,71 46,81 19,66 9,42"/></svg>
+          <div class="range-badge" style="left:45%;top:13%">강남구 역삼동 · 128건</div>
+        </div>
+        <div class="range-area drawn draw-area" id="drawArea">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="20,26 40,19 58,25 66,42 60,60 40,66 24,56 17,40"/></svg>
+          <div class="range-badge" style="left:40%;top:19%">✏️ 그린 영역 · 0.42㎢ · 34건</div>
+        </div>
+        <!-- 레이어 툴바 (썸네일 미리보기) -->
+        <div class="map-layers">
+          <button class="on" onclick="setLayer('base',this)"><span class="thumb base"></span><span class="lbl">일반</span></button>
+          <button onclick="setLayer('sat',this)"><span class="thumb sat"></span><span class="lbl">위성</span></button>
+          <button onclick="toggleCadastre(this)"><span class="thumb cad"></span><span class="lbl">지적도</span></button>
+          <button onclick="openRoadview()"><span class="thumb rv"></span><span class="lbl">로드뷰</span></button>
+        </div>
         <!-- 핀들 (광고/내매물/일반) -->
-        <div class="pin ad" style="left:30%;top:34%">60억</div>
-        <div class="pin mine" style="left:52%;top:28%">60억</div>
-        <div class="pin normal" style="left:44%;top:52%">42억</div>
+        <div class="pin ad inarea" style="left:30%;top:34%">60억</div>
+        <div class="pin mine inarea" style="left:52%;top:28%">60억</div>
+        <div class="pin normal inarea" style="left:44%;top:52%">42억</div>
         <div class="pin normal" style="left:66%;top:46%">95억</div>
         <div class="pin ad" style="left:24%;top:62%">88억</div>
-        <div class="pin cluster" style="left:72%;top:66%">12</div>
-        <!-- 열린 핀 팝오버 -->
-        <div class="pin-pop" style="left:52%;top:12%">
-          <div class="pp-addr">강남구 역삼동 601-5</div>
-          <div class="pp-row"><span>매매가</span><b>60억</b></div>
-          <div class="pp-row"><span>수익률</span><b>2.4%</b></div>
-          <div class="pp-row"><span>연면적</span><b>143평</b></div>
-          <button class="btn primary">상세보기</button>
+        <div class="pin cluster" style="left:72%;top:66%" onclick="openCluster(this)">12</div>
+        <!-- 클러스터 펼침 목록 -->
+        <div class="cluster-pop hidden" id="cluster-pop" style="left:60%;top:52%">
+          <div class="cp-head">이 위치 12건 <span style="float:right;color:#8a929b;font-weight:400">가까운 순</span></div>
+          <div class="cp-row"><span>대치동 901-2 <span class="ml-tag normal" style="color:#fff">일반</span></span><b>48억 · 3.0%</b></div>
+          <div class="cp-row"><span>대치동 901-5 <span class="ml-tag ad" style="color:#fff">광고</span></span><b>62억 · 2.6%</b></div>
+          <div class="cp-row"><span>대치동 902-1 <span class="ml-tag normal" style="color:#fff">일반</span></span><b>55억 · 2.9%</b></div>
+          <div class="cp-row"><span>대치동 902-7 <span class="ml-tag mine" style="color:#fff">내</span></span><b>70억 · 2.5%</b></div>
+          <div class="cp-row" style="color:#8a929b;justify-content:center">⋯ 8건 더 · 확대해서 보기</div>
         </div>
+        <!-- 로드뷰 패널 -->
+        <div class="roadview" id="roadview">
+          <button class="rv-close" onclick="closeRoadview()">✕ 닫기</button>
+          <div style="font-size:15px">🧍 네이버 파노라마(거리뷰)</div>
+          <div>선택 지점 최근접 파노라마 · 드래그로 회전</div>
+        </div>
+        <!-- 열린 핀 팝오버 -->
+        <!-- 핀 팝오버 폐기(2026-07-21): 핀 클릭 → 좌측 사이드바 요약 카드 갱신 -->
         <div class="map-legend">
           <span><b style="background:var(--green)"></b>광고</span>
           <span><b style="background:var(--blue)"></b>내 매물</span>
@@ -162,13 +331,39 @@
       </div>
       <!-- 우: 지도 영역 내 매물 동기 리스트 -->
       <div class="map-list">
+        <!-- 선택 매물 요약 카드 (S02 헤더 축약) — 핀/행 클릭 시 표시 -->
+        <div class="sel-card">
+          <div class="sel-road"></div>
+          <div class="sel-body">
+            <div class="sel-addr">역삼동 601-5 <span class="ml-tag mine" style="color:#fff">내 매물</span><span class="star">★</span></div>
+            <div class="sel-meta"><span>매물번호 <b>11718</b></span><span>접수 <b>2026-06-06</b></span><span>담당 <b>이승욱</b></span></div>
+            <div class="sel-metrics">
+              <div class="m"><div class="mk">매매가</div><div class="mv">60억</div></div>
+              <div class="m"><div class="mk">수익률(만실/공실제외)</div><div class="mv">3.2% <small>/ 2.1%</small></div></div>
+              <div class="m"><div class="mk">평단가(대지)</div><div class="mv">1.39억</div></div>
+              <div class="m"><div class="mk">층수</div><div class="mv">B1F/3F</div></div>
+              <div class="m wide"><div class="mk">면적 (평)</div><div class="sel-area"><span><i>대지</i>71.9</span><span><i>연면적</i>143</span><span><i>건축</i>37.8</span></div></div>
+            </div>
+            <!-- 시계열 3종 하나의 그래프 (크게 + 호버 툴팁) -->
+            <div class="sel-spark">
+              <div class="sh"><span>가격 추이 <small style="color:var(--muted);font-weight:600">2019~2026</small></span>
+                <span class="lgd"><span><b style="background:var(--ink)"></b>실거래</span><span><b style="background:var(--signal)"></b>공시지가</span><span><b style="background:var(--purple)"></b>광고가</span></span></div>
+              <div class="spark-wrap"><svg id="spark" viewBox="0 0 320 150" preserveAspectRatio="none" style="width:100%;height:150px;display:block"></svg>
+                <div class="spark-tip" id="spark-tip"></div>
+                <div class="spark-guide" id="spark-guide"></div>
+              </div>
+            </div>
+            <button class="sel-detail">상세보기 →</button>
+          </div>
+        </div>
+        <!-- 미니 리스트 (텍스트, 클릭 → 위 카드 갱신) -->
         <div class="ml-head">이 지도 영역 <b>18</b>건 · 핀과 동기화</div>
-        <div class="ml-row"><span class="ml-a">역삼동 601-5 <span class="ml-tag mine">내</span></span><span class="ml-nums">60억 · 2.4%</span></div>
-        <div class="ml-row"><span class="ml-a">역삼동 123-4 <span class="ml-tag ad">광고</span></span><span class="ml-nums">60억 · 2.4%</span></div>
-        <div class="ml-row"><span class="ml-a">논현동 55-1 <span class="ml-tag ad">광고</span></span><span class="ml-nums">88억 · 3.1%</span></div>
-        <div class="ml-row"><span class="ml-a">삼성동 7-2 <span class="ml-tag normal">일반</span></span><span class="ml-nums">120억 · 2.0%</span></div>
-        <div class="ml-row"><span class="ml-a">대치동 900-1 <span class="ml-tag mine">내</span></span><span class="ml-nums">75억 · 2.8%</span></div>
-        <div class="ml-row"><span class="ml-a">역삼동 812-3 <span class="ml-tag normal">일반</span></span><span class="ml-nums">42억 · 3.5%</span></div>
+        <div class="ml-row on"><span class="ml-a">역삼동 601-5 <span class="ml-tag mine">내</span></span><span class="ml-nums">60억 <small>· 2.4%</small></span></div>
+        <div class="ml-row"><span class="ml-a">역삼동 123-4 <span class="ml-tag ad">광고</span></span><span class="ml-nums">60억 <small>· 2.4%</small></span></div>
+        <div class="ml-row"><span class="ml-a">논현동 55-1 <span class="ml-tag ad">광고</span></span><span class="ml-nums">88억 <small>· 3.1%</small></span></div>
+        <div class="ml-row"><span class="ml-a">삼성동 7-2 <span class="ml-tag normal">일반</span></span><span class="ml-nums">120억 <small>· 2.0%</small></span></div>
+        <div class="ml-row"><span class="ml-a">대치동 900-1 <span class="ml-tag mine">내</span></span><span class="ml-nums">75억 <small>· 2.8%</small></span></div>
+        <div class="ml-row"><span class="ml-a">역삼동 812-3 <span class="ml-tag normal">일반</span></span><span class="ml-nums">42억 <small>· 3.5%</small></span></div>
       </div>
     </div>
   </div>
@@ -194,6 +389,206 @@ function sortAll(key){
     rows.forEach(r=>body.appendChild(r));
   });
 }
+
+/* ───────── ★ 즐겨찾기 (S01 §3.2a) ─────────
+   개인 북마크 · 계정 귀속 · 팀 공유 X. 내 매물(담당자 지정)과 별개.
+   목업에서는 별 열을 JS로 주입한다. */
+const FAV_SEED = ['강남구 역삼동 123-4', '중구 충무로5가 20-29', '성동구 성수동 12-3'];
+
+document.querySelectorAll('#view-list .wf-head').forEach(h =>
+  h.insertAdjacentHTML('afterbegin', '<span></span>'));
+
+document.querySelectorAll('#view-list .wf-row').forEach(r => {
+  const addr = r.querySelector('span').textContent.trim();
+  const s = document.createElement('span');
+  s.className = 'star' + (FAV_SEED.includes(addr) ? ' on' : '');
+  s.textContent = '★';
+  s.title = '즐겨찾기';
+  s.onclick = e => { e.stopPropagation(); s.classList.toggle('on'); syncFav(); };
+  r.insertBefore(s, r.firstChild);
+});
+
+function favOnly() { return document.getElementById('favBtn').classList.contains('primary'); }
+
+function toggleFavFilter(b) { b.classList.toggle('primary'); syncFav(); }
+
+/* 필터 상태에 맞춰 행 표시 + 열별 건수·전체 건수 갱신 */
+function syncFav() {
+  const only = favOnly();
+  document.querySelectorAll('#view-list .col-card').forEach(col => {
+    let shown = 0;
+    col.querySelectorAll('.wf-row').forEach(r => {
+      const fav = r.querySelector('.star').classList.contains('on');
+      const vis = !only || fav;
+      r.style.display = vis ? '' : 'none';
+      if (vis) shown++;
+    });
+    // 즐겨찾기 필터 중에는 실제 표시 건수, 아니면 원래 총건수
+    const cnt = col.querySelector('.col-head .count');
+    if (only) { cnt.dataset.full ??= cnt.textContent; cnt.textContent = shown; }
+    else if (cnt.dataset.full) { cnt.textContent = cnt.dataset.full; }
+    // 빈 상태 안내 · 페이저 표시/숨김
+    const empty = col.querySelector('.col-empty');
+    if (empty) {
+      empty.dataset.base ??= empty.innerHTML;
+      empty.innerHTML = only ? '즐겨찾기한 매물이 없습니다' : empty.dataset.base;
+      empty.hidden = shown > 0;
+    }
+    const pager = col.querySelector('.col-pager');
+    if (pager) pager.style.display = shown > 0 ? '' : 'none';
+  });
+  const total = document.querySelectorAll('#view-list .wf-row:not([style*="none"])').length;
+  const bar = document.querySelector('#results-bar b');
+  if (only) { bar.dataset.full ??= bar.textContent; bar.textContent = total; }
+  else if (bar.dataset.full) { bar.textContent = bar.dataset.full; }
+}
+/* ───────── 지도 레이어 툴바 (2026-07-21) ───────── */
+function setLayer(kind, btn){
+  // 일반/위성 배타 토글 (지적도·로드뷰는 별도)
+  btn.parentNode.querySelectorAll('button').forEach(b=>{
+    if(b.textContent.includes('일반')||b.textContent.includes('위성')) b.classList.remove('on');
+  });
+  btn.classList.add('on');
+  const cv=document.querySelector('.map-canvas');
+  cv.style.filter = kind==='sat' ? 'brightness(.7) saturate(1.3) hue-rotate(70deg)' : 'none';
+}
+function toggleCadastre(btn){
+  btn.classList.toggle('on');
+  document.getElementById('cadastre').classList.toggle('on');
+}
+function openRoadview(){ document.getElementById('roadview').classList.add('on'); }
+function closeRoadview(){ document.getElementById('roadview').classList.remove('on'); }
+function openCluster(el){
+  const pop=document.getElementById('cluster-pop');
+  pop.classList.toggle('hidden');
+}
+document.querySelector('.map-canvas')?.addEventListener('click', e=>{
+  // 빈 지도 클릭 시 팝오버·클러스터 닫기
+  if(e.target.classList.contains('map-canvas')||e.target.classList.contains('center-note')){
+    document.getElementById('cluster-pop')?.classList.add('hidden');
+  }
+});
+/* ───────── 가격 추이 스파크 차트 (호버 툴팁) 2026-07-21 ───────── */
+(function(){
+  const svg=document.getElementById('spark'); if(!svg) return;
+  const W=320,H=150,PL=6,PR=6,PT=10,PB=10;
+  const years=[2019,2020,2021,2022,2023,2024,2025,2026];
+  // 만원/㎡ 단위 샘플 (실거래·공시지가·광고가)
+  const series={
+    실거래:{c:'#0F1A2E',dash:0,v:[48,49,52,50,58,62,66,69]},
+    공시지가:{c:'#1E5AF0',dash:0,v:[40,42,45,47,50,54,58,60]},
+    광고가:{c:'#6E56E8',dash:1,v:[null,null,null,null,58,60,62,62]},
+  };
+  const all=[].concat(...Object.values(series).map(s=>s.v)).filter(v=>v!=null);
+  const mn=Math.min(...all)*0.96, mx=Math.max(...all)*1.02;
+  const X=i=>PL+(W-PL-PR)*i/(years.length-1);
+  const Y=v=>PT+(H-PT-PB)*(1-(v-mn)/(mx-mn));
+  let html='';
+  // grid
+  for(let g=0;g<=2;g++){const y=PT+(H-PT-PB)*g/2; html+=`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="#eef2f7" stroke-width="1"/>`;}
+  for(const [name,s] of Object.entries(series)){
+    const pts=s.v.map((v,i)=>v==null?null:`${X(i)},${Y(v)}`).filter(Boolean).join(' ');
+    html+=`<polyline fill="none" stroke="${s.c}" stroke-width="2" ${s.dash?'stroke-dasharray="4 3"':''} points="${pts}"/>`;
+  }
+  // 마지막 점
+  for(const [name,s] of Object.entries(series)){const li=s.v.length-1; if(s.v[li]!=null) html+=`<circle cx="${X(li)}" cy="${Y(s.v[li])}" r="3" fill="${s.c}"/>`;}
+  svg.innerHTML=html;
+  // 호버
+  const tip=document.getElementById('spark-tip'), guide=document.getElementById('spark-guide'), wrap=svg.parentElement;
+  wrap.addEventListener('mousemove',e=>{
+    const r=wrap.getBoundingClientRect(); const px=(e.clientX-r.left)/r.width*W;
+    let i=Math.round((px-PL)/((W-PL-PR)/(years.length-1))); i=Math.max(0,Math.min(years.length-1,i));
+    const gx=X(i)/W*r.width;
+    guide.style.left=gx+'px'; guide.style.opacity=1;
+    let rows='';
+    for(const [name,s] of Object.entries(series)){ if(s.v[i]==null) continue;
+      rows+=`<div class="r"><span><b style="background:${s.c}"></b>${name}</span><span>${(s.v[i]/1).toLocaleString()}만/㎡</span></div>`;}
+    tip.innerHTML=`<span class="yr">${years[i]}년</span>${rows}`;
+    tip.style.left=gx+'px'; tip.style.top=(PT/H*r.height)+'px'; tip.style.opacity=1;
+  });
+  wrap.addEventListener('mouseleave',()=>{tip.style.opacity=0; guide.style.opacity=0;});
+})();
+
+/* ───────── 영역 그리기 검색 (Draw-to-Search) 2026-07-21 ─────────
+   목업: 도구 토글 → 모드 선택 + 그려진 영역(데모) 표시. 실제는 지도에 마우스로 그림. */
+function toggleDraw(){
+  const on = document.getElementById('drawToggle').classList.toggle('on');
+  document.getElementById('drawModes').classList.toggle('on', on);
+  document.getElementById('drawArea').classList.toggle('on', on);
+  document.querySelector('#view-map .map-canvas').classList.toggle('drawing', on);
+  // 영역 = 지역범위 대체 → 법정동 폴리곤·칩 숨기고 그린 영역·칩 표시
+  document.getElementById('dongArea').classList.toggle('hidden', on);
+  document.getElementById('dongChip').hidden = on;
+  document.getElementById('drawChip').hidden = !on;
+}
+function setDrawMode(b){
+  b.parentNode.querySelectorAll('button:not(.draw-clear)').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+}
+function clearDraw(){   // 그린 영역 제거 → 법정동 범위로 복귀
+  ['drawToggle','drawModes','drawArea'].forEach(id=>document.getElementById(id).classList.remove('on'));
+  document.querySelector('#view-map .map-canvas').classList.remove('drawing');
+  document.getElementById('dongArea').classList.remove('hidden');
+  document.getElementById('dongChip').hidden = false;
+  document.getElementById('drawChip').hidden = true;
+}
+
+/* ───────── 주소 자동완성(타입어헤드) 2026-07-21 — 우리 통합뷰 주소 인덱스 ─────────
+   입력 → 공백 무시 매칭 → 접두일치 우선, 동률이면 매물보유(내매물>광고) 우선. ↑↓/Enter/Esc. */
+const AC_INDEX=[
+  {addr:'강남구 역삼동 601-5',  price:'60억',  tag:'mine'},
+  {addr:'강남구 역삼동 601-12', price:'',      tag:''},
+  {addr:'강남구 역삼동 123-4',  price:'',      tag:''},
+  {addr:'강남구 역삼동 823-1',  price:'',      tag:''},
+  {addr:'강남구 논현동 55-1',   price:'88억',  tag:'ad'},
+  {addr:'강남구 삼성동 144-6',  price:'100억', tag:'mine'},
+  {addr:'강남구 삼성동 7-2',    price:'120억', tag:'ad'},
+  {addr:'서초구 서초동 1330-5', price:'64억',  tag:''},
+  {addr:'중구 충무로5가 20-29', price:'60억',  tag:'mine'},
+  {addr:'성동구 성수동 12-3',   price:'95억',  tag:''},
+  {addr:'마포구 합정동 8-8',    price:'51억',  tag:''},
+  {addr:'용산구 한강로3가 40-1',price:'110억', tag:''}
+];
+let acShown=[], acActive=-1;
+function acEsc(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function acRank(t){return t==='mine'?2:t==='ad'?1:0;}
+function acScore(q,addr){const a=addr.replace(/\s/g,''),s=q.replace(/\s/g,'');if(!s)return -1;const i=a.indexOf(s);return i<0?-1:(i===0?0:1);}
+function acRender(addr,q){
+  const s=q.replace(/\s/g,'');if(!s)return acEsc(addr);
+  const map=[];for(let i=0;i<addr.length;i++)if(addr[i]!==' ')map.push(i);
+  const at=addr.replace(/\s/g,'').indexOf(s);if(at<0)return acEsc(addr);
+  const from=map[at],to=map[at+s.length-1];let out='';
+  for(let i=0;i<addr.length;i++){if(i===from)out+='<mark>';out+=acEsc(addr[i]);if(i===to)out+='</mark>';}
+  return out;
+}
+function acFilter(q){
+  const drop=document.getElementById('acDrop'),s=(q||'').replace(/\s/g,'');
+  if(!s){acClose();return;}
+  acShown=AC_INDEX.map(it=>({it,sc:acScore(q,it.addr)})).filter(x=>x.sc>=0)
+    .sort((a,b)=>a.sc-b.sc||acRank(b.it.tag)-acRank(a.it.tag)||a.it.addr.localeCompare(b.it.addr,'ko'))
+    .slice(0,7).map(x=>x.it);
+  acActive=-1;
+  if(!acShown.length){drop.innerHTML='<div class="ac-empty">일치하는 주소가 없습니다</div>';drop.classList.add('open');return;}
+  drop.innerHTML='<div class="ac-head">주소 후보 '+acShown.length+'건</div>'+acShown.map((it,i)=>{
+    const tag=it.tag==='mine'?'<span class="ac-tag mine">내 매물</span>':it.tag==='ad'?'<span class="ac-tag ad">광고</span>':'';
+    const meta=it.price?'<span class="ac-meta">'+it.price+'</span>':'';
+    return `<div class="ac-item" role="option" onmousedown="acPick(${i})" onmouseenter="acHover(${i})"><span class="ac-addr">${acRender(it.addr,q)}</span>${meta}${tag}</div>`;
+  }).join('');
+  drop.classList.add('open');
+}
+function acPaint(){const items=document.querySelectorAll('#acDrop .ac-item');items.forEach((el,i)=>el.classList.toggle('active',i===acActive));if(acActive>=0&&items[acActive])items[acActive].scrollIntoView({block:'nearest'});}
+function acHover(i){acActive=i;acPaint();}
+function acKey(e){
+  const drop=document.getElementById('acDrop');if(!drop.classList.contains('open'))return;
+  const n=document.querySelectorAll('#acDrop .ac-item').length;if(!n)return;
+  if(e.key==='ArrowDown'){e.preventDefault();acActive=Math.min(acActive+1,n-1);acPaint();}
+  else if(e.key==='ArrowUp'){e.preventDefault();acActive=Math.max(acActive-1,0);acPaint();}
+  else if(e.key==='Enter'&&acActive>=0){e.preventDefault();acPick(acActive);}
+  else if(e.key==='Escape'){acClose();}
+}
+function acPick(i){const it=acShown[i];if(!it)return;document.getElementById('acInput').value=it.addr;acClose();/* 목업: 실제로는 해당 건물 S02 이동 또는 지도 포커스 */}
+function acClose(){const d=document.getElementById('acDrop');if(d){d.classList.remove('open');d.innerHTML='';}acActive=-1;}
+document.addEventListener('click',e=>{if(!e.target.closest('.ac-wrap'))acClose();});
 </script>
 </body>
 </html>

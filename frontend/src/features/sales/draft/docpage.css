@@ -1,0 +1,183 @@
+/* 문서 페이지 — A4 종이(아티팩트 「계약 문서 양식」 이식). 파랑=씨앗 · 점선=손 칸 · 인쇄는 종이만 */
+.dp{min-height:100vh; background:#E7E9EC; padding-bottom:60px;
+  font-family:"Pretendard",-apple-system,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+  color:#111; font-size:15px; line-height:1.6; overflow-y:auto; height:100vh}
+.dp .sp{flex:1}
+.dp-bar{width:210mm; max-width:96vw; margin:0 auto; padding:16px 0 4px; display:flex; gap:7px; align-items:center}
+.dp-chip{border:0; background:#FFFFFF; color:#6B7684; font:inherit; font-size:13px; font-weight:700;
+  padding:7px 15px; border-radius:12px; cursor:pointer; transition:all .13s; box-shadow:0 1px 3px rgba(0,19,43,.06)}
+.dp-chip:hover{color:#333D4B}
+.dp-chip.on{background:#EBF4FF; color:#3182F6; font-weight:800}
+.dp-ic{border:0; background:#FFFFFF; color:#333D4B; width:36px; height:36px; border-radius:12px; cursor:pointer;
+  display:grid; place-items:center; box-shadow:0 1px 3px rgba(0,19,43,.06); transition:all .13s}
+.dp-ic:hover{background:#3182F6; color:#fff}
+.dp-ic.ok{background:#3182F6; color:#fff}
+.dp-ic.off{opacity:.4; pointer-events:none}
+.dp-exp{position:relative; display:inline-flex}
+.dp-menu{position:absolute; top:42px; right:0; background:#FFFFFF; border-radius:14px; padding:6px;
+  display:flex; flex-direction:column; gap:4px; box-shadow:0 12px 32px rgba(0,19,43,.16); z-index:5; min-width:132px}
+.dp-menu .dp-chip{box-shadow:none; text-align:left}
+.dp-add{border:0; background:#FFFFFF; border-radius:999px; padding:8px 15px; font:inherit; font-size:12.5px;
+  outline:none; color:#191F28; flex:1; min-width:180px; box-shadow:0 1px 3px rgba(0,19,43,.05)}
+.dp-add::placeholder{color:#B0B8C1}
+.dp-add:focus{box-shadow:0 0 0 2px #3182F6}
+.bank{width:210mm; max-width:96vw; margin:0 auto 14px; display:flex; gap:6px; flex-wrap:wrap; align-items:center}
+.dp-rk{display:flex; gap:6px; justify-content:center; margin:0 0 6mm}
+
+.dp .sheet{width:210mm; max-width:96vw; min-height:297mm; background:#fff; margin:14px auto; padding:14mm 12mm;
+  box-shadow:0 1px 4px rgba(0,0,0,.18); position:relative}
+.doc{font-size:10pt; line-height:1.6; color:#111; text-align:left}
+.doc h2{text-align:center; font-size:18pt; font-weight:800; letter-spacing:.32em; text-indent:.32em; margin:2mm 0 6mm}
+.doc h2.sm{font-size:14.5pt; letter-spacing:.12em; margin-bottom:2mm}
+.doc .sub{text-align:center; font-size:9.5pt; margin:-1mm 0 5mm}
+.doc .head{font-size:8.5pt; margin-bottom:2mm}
+.doc .pg{position:absolute; top:7mm; right:12mm; font-size:8.5pt}
+.doc .art{font-size:10.5pt; font-weight:800; margin:3.2mm 0 .8mm}
+.doc p{margin:0 0 1.6mm; text-align:justify}
+.doc p.big{margin:5mm 0 4mm; font-size:12pt; font-weight:800; text-align:center}
+.doc .artp{text-align:justify}
+.doc .sect{font-size:11pt; font-weight:800; margin:4.2mm 0 1.6mm; letter-spacing:.02em}
+.doc .c{text-align:center}
+.doc table{border-collapse:collapse; width:100%; font-size:9.5pt; margin:0 0 2.5mm}
+.doc td,.doc th{border:1px solid #444; padding:1.6mm 2.2mm; vertical-align:middle; line-height:1.5}
+.doc .lab{background:#F4F5F6; font-weight:700; text-align:center; width:24mm}
+.doc .lab.w{width:27mm} .doc .lab.n{width:17mm}
+.doc .note{font-size:8.5pt; line-height:1.6; color:#333}
+.doc .sign td{height:9mm}
+.doc .stamp{color:#777; font-size:8.5pt; white-space:nowrap}
+.won{font-size:9pt; color:#444; margin-left:1.5mm; letter-spacing:.01em}
+
+/* 값 — 씨앗은 파랑, 손 값은 잉크, 빈 칸은 점선 */
+.dp .dv{cursor:text; border-radius:2px; padding:0 1px; font-weight:700}
+.dp .dv:hover{background:#EBF4FF}
+.dp .dv.fill{color:#0B4EA2}
+.dp .dv.lock{cursor:default}
+.dp .dv.lock:hover{background:none}
+.dp .b{display:inline-block; min-width:44px; height:4.6mm; border:1px dashed #9AA0A6; border-radius:2px;
+  vertical-align:-1.2mm; cursor:text}
+.dp .b:hover{border-color:#3182F6}
+.dp .b.w{min-width:98px} .dp .b.xw{min-width:150px}
+.dp .b.full{display:block; min-width:0; width:100%}
+.din{border:0; background:#EBF4FF; border-radius:2px; font:inherit; color:#111; padding:0 3px; outline:none; width:110px}
+.din.w{width:150px} .din.xw{width:240px} .din.full{width:100%}
+.din.vol{background:none; border-bottom:1px dashed #8A8F96; border-radius:0; width:118px; letter-spacing:.03em}
+.dp .ckb{cursor:pointer; user-select:none}
+.dp .ckb:hover{background:#EBF4FF}
+.dp .ckb .fill{color:#0B4EA2}
+.dp .fill{color:#0B4EA2; font-weight:700}
+
+/* 특약 — 쓰는 만큼 늘어난다. 마지막 줄이 곧 입력 자리 */
+.terms{border:1px solid #333; padding:3mm}
+.terms .tl{min-height:7.5mm; border-bottom:1px dashed #9AA0A6; font-size:9.5pt; display:flex; align-items:flex-start; gap:2mm; padding:1mm 0}
+.terms .tl:last-child{border-bottom:0}
+.terms .tl.tx{cursor:text}
+.terms .tl.tx:hover{background:#F7F8FA}
+.terms .tno{flex:0 0 auto; font-weight:700}
+.tdel{border:0; background:none; color:#B0B8C1; font-size:9px; cursor:pointer; margin-left:auto; padding:1mm}
+.tdel:hover{color:#C2352B}
+.tadd{border:0; background:none; outline:none; font:inherit; font-size:9.5pt; flex:1; padding:0}
+.tta{width:100%; border:0; background:#EBF4FF; border-radius:2px; font:inherit; font-size:9.5pt; line-height:1.5;
+  padding:1mm 2mm; outline:none; resize:vertical}
+.tbank{display:flex; gap:5px; flex-wrap:wrap; margin-top:2mm;
+  font-family:"Pretendard",-apple-system,"Apple SD Gothic Neo",sans-serif}
+.tbank .dp-chip{background:#F2F4F6; box-shadow:none; font-size:12px}
+.tbank .dp-chip:hover{background:#EBF4FF; color:#3182F6}
+.tbank .dp-chip.dyn{background:#EBF4FF; color:#3182F6}
+.dc-sub2{font-size:8.5pt; color:#555; margin-left:2mm}
+/* 조항 도구 — 종이 왼쪽에 떠서 화면과 같이 움직인다 */
+.aacts{position:fixed; left:max(16px, calc((100vw - 210mm) / 2 - 148px)); top:42%;
+  display:flex; flex-direction:column; gap:6px; z-index:4;
+  font-family:"Pretendard",-apple-system,"Apple SD Gothic Neo",sans-serif}
+.aacts .dp-chip{background:#FFFFFF; box-shadow:0 2px 10px rgba(0,19,43,.1); font-size:12.5px;
+  writing-mode:vertical-rl; padding:16px 9px; border-radius:999px; letter-spacing:3px; text-align:center}
+.aacts .dp-chip:hover{background:#EBF4FF; color:#3182F6}
+@media (max-width:1020px){
+  .aacts{left:12px; top:auto; bottom:18px; flex-direction:row}
+  .aacts .dp-chip{writing-mode:horizontal-tb; padding:7px 15px; border-radius:12px; letter-spacing:0}
+}
+.artw{position:relative}
+.artw .apen{color:#0B4EA2; font-size:9pt; margin-left:2mm}
+.artw .adel{border:0; background:none; color:#B0B8C1; font-size:9px; font-weight:900; cursor:pointer;
+  margin-left:2mm; opacity:0; transition:opacity .12s; vertical-align:middle}
+.artw:hover .adel{opacity:1}
+.artw .adel:hover{color:#C2352B}
+
+/* 날짜 골격 — 빈 칸도 년·월·일 자리인 것이 보인다 */
+.dsk{cursor:text; white-space:nowrap}
+.dsk .b{min-width:26px; margin-right:1px}
+.dsk .b.yr{min-width:40px}
+.dsk:hover .b{border-color:#3182F6}
+
+/* 조문 — 문단 클릭 = 통째 수정 */
+.artp{cursor:text; border-radius:2px}
+.artp:hover{background:#F7F8FA}
+
+/* 영수증 */
+.dp .rc{border:1.5px solid #111; padding:8mm 9mm; position:relative}
+.dp .rc .t{text-align:center; font-size:16pt; font-weight:800; letter-spacing:.6em; text-indent:.6em; margin:0 0 5mm}
+.dp .rc .kind{position:absolute; top:8mm; right:9mm; font-size:10pt; font-weight:700; color:#444}
+.dp .rc .amt{border:1.5px solid #111; padding:3.6mm 4mm; text-align:center; font-size:13.5pt; font-weight:800;
+  margin-bottom:4.5mm}
+.dp .rc .amt .won{font-size:10.5pt; font-weight:700}
+.dp .rc .say{font-size:11pt; text-align:center; margin:4.5mm 0}
+.dp .rc .dt{text-align:center; font-size:11pt; font-weight:700; margin:4.5mm 0}
+.seal{color:#C2352B; font-weight:800}
+.cutline{position:relative; text-align:center; margin:7mm 0; border-top:1px dashed #666}
+.cutline span{background:#fff; padding:0 4mm; font-size:9pt; color:#666; position:relative; top:-1.7em}
+
+@media print{
+  /* 전체화면 래퍼(100vh·hidden)와 스크롤 조상이 인쇄를 한 장으로 자르던 것 — 종이에선 전부 흐르게 */
+  html, body, #root{height:auto !important; overflow:visible !important}
+  .fullview{height:auto !important; overflow:visible !important; display:block !important}
+  body{background:#fff !important}
+  .dp{background:#fff; padding:0; height:auto !important; min-height:0 !important; overflow:visible !important}
+  .dp-bar,.bank,.tbank,.dp-rk,.tdel,.tl.tin,.aacts,.adel,.pn,.apen{display:none}
+  .hidep{display:none}   /* 빈 융자금·합의금·중도금 줄 — 값이 없으면 그 돈이 없다는 뜻이니 종이에 안 나온다 */
+  /* 쪽은 우리가 나눈다(.pgbrk) — @page 여백은 0(브라우저 머리말·꼬리말이 설 자리가 없다).
+     종이 여백은 시트 패딩(첫 쪽)과 나눔 블록의 패딩(다음 쪽 머리)이 새긴다. */
+  .dp .sheet{box-shadow:none; margin:0; width:210mm; max-width:none; min-height:0; height:auto;
+    box-sizing:border-box; padding:14mm 12mm; page-break-after:always; break-after:page}
+  .dp .sheet:last-child{page-break-after:auto; break-after:auto}
+  /* 표·조항·특약 줄·영수증은 쪽 경계에서 두 동강 나지 않는다 */
+  .doc table, .artw, .terms .tl, .rc, .sign tr{page-break-inside:avoid; break-inside:avoid}
+  .dp .dv.fill,.dp .fill,.dp .ckb .fill{color:#000}
+  .dp .b{border-color:transparent}
+  .din.vol{border-bottom-color:transparent}
+  .terms .tl{border-bottom:0}
+  @page{ size:A4; margin:0 }
+}
+
+/* ── 상업용 계약서(원본 2026-08-31 최종본) · 확인설명서 4쪽(별지 20호의2) ── */
+.doc .subt{text-align:center; font-size:10.5pt; font-weight:700; margin:-4mm 0 5mm; letter-spacing:.04em}
+.doc div.artp{cursor:text; border-radius:2px}
+.doc div.artp:hover{background:#F7F8FA}
+.doc div.artp > p{text-align:justify}
+.doc p.artp{white-space:pre-line}
+/* 원본 표 — 머리줄 있음(구분·금액·지급일·지급방법), 숫자는 오른쪽 */
+.doc table.cx th{background:#F4F5F6; font-weight:700; text-align:center; padding:1.4mm 2mm}
+.doc table.cx td.r,.doc table.cx th.r{text-align:right; font-variant-numeric:tabular-nums}
+.doc table.cx .lab{width:22mm}
+.doc table.tn{font-size:8.8pt}
+.doc table.tn td,.doc table.tn th{padding:1.2mm 1.4mm}
+.doc table.sign.cx td{height:11mm; vertical-align:middle}
+/* 낱말 고르기 — 「포함·별도」 자리. 씨앗과 같은 파랑, 클릭하면 다음 것 */
+.dp .dv.pk{text-decoration:underline dotted; text-underline-offset:2px}
+/* 확인설명서 — 4쪽을 원본 크기에 맞춘다. 표가 촘촘해 글자를 한 단 줄인다 */
+/* 1쪽이 ①②③까지 한 장에 들어가야 한다(원본과 같은 쪽 나눔). 8.2pt·여백 1mm 로 원본 활자 크기에 맞춘다 */
+.doc.ds{font-size:8.6pt; line-height:1.45}
+.doc.ds h2.sm{font-size:13pt; margin:1mm 0 1.5mm}
+.doc.ds .sub{margin:0 0 3mm; font-size:8.6pt}
+.doc.ds .head{margin-bottom:1mm}
+.doc.ds table{font-size:8.2pt; margin-bottom:1.3mm}
+.doc.ds td,.doc.ds th{padding:.9mm 1.4mm; line-height:1.35}
+.doc.ds .lab{width:auto}
+.doc.ds .lab.n{width:16mm}
+.doc.ds .note{font-size:7.6pt; line-height:1.4}
+.doc.ds .sect{margin:2.4mm 0 1.2mm; font-size:10pt}
+.doc.ds .dc-sub2{font-size:7.4pt}
+.doc.ds .b{height:4mm}
+.doc.ds .own{height:10mm; vertical-align:top}
+.doc.guide{font-size:8.6pt; line-height:1.55}
+.doc.guide .gh{font-weight:800; margin:3mm 0 1mm}
+.doc.guide ol{margin:0 0 2mm; padding-left:6mm}
+.doc.guide li{margin-bottom:1.2mm; text-align:justify}

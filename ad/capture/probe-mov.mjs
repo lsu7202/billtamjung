@@ -1,0 +1,10 @@
+import { chromium } from "playwright";
+const SRC = "/Users/iseung-ug/Desktop/빌탐정 프로젝트/빌탐정가이드.mov";
+const b = await chromium.launch({ headless: true });
+const p = await b.newPage({ viewport: { width: 640, height: 400 } });
+await p.setContent(`<body style="margin:0"><video id=v muted></video></body>`);
+await p.evaluate((s) => { document.getElementById("v").src = s; }, "file://" + encodeURI(SRC));
+await p.waitForFunction(() => { const v = document.getElementById("v"); return v && v.readyState >= 1; }, null, { timeout: 180000 });
+const i = await p.evaluate(() => { const v = document.getElementById("v"); return { d: v.duration, w: v.videoWidth, h: v.videoHeight }; });
+console.log(`길이 ${Math.floor(i.d / 60)}분 ${Math.round(i.d % 60)}초 · ${i.w}x${i.h}`);
+await b.close();

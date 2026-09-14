@@ -1,0 +1,38 @@
+# 로컬 개발 스택: PostGIS + api + worker. 프론트는 `npm run dev`(Vite 5173).
+# 사용: docker compose -f infra/docker/docker-compose.yml up --build
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: billtamjung
+    ports: ["55432:5432"]
+    volumes:
+      - ../../db/migrations:/docker-entrypoint-initdb.d:ro   # 최초 부팅 시 자동 적용
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: { context: ../../backend }
+    environment:
+      BT_DATABASE_URL: postgresql://postgres:test@db:5432/billtamjung
+      # bt_ai 롤(0167). .env 는 호스트 꼴(localhost:55432)이고 컨테이너는 여기서 덮는다
+      BT_AI_DATABASE_URL: postgresql://bt_ai:bt_ai_dev@db:5432/billtamjung
+      APP_MODULE: app.main
+      PORT: "8000"
+    ports: ["8000:8000"]
+    depends_on:
+      db: { condition: service_healthy }
+
+  worker:
+    build: { context: ../../backend }
+    environment:
+      BT_DATABASE_URL: postgresql://postgres:test@db:5432/billtamjung
+      APP_MODULE: app.worker
+      PORT: "8080"
+    ports: ["8080:8080"]
+    depends_on:
+      db: { condition: service_healthy }

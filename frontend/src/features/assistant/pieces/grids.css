@@ -1,0 +1,143 @@
+/* 그릇 다섯. 폭에 반응한다.
+   글자색: 값은 --ink, 라벨·머리글은 --ink-2. --muted 는 꼬리말(출처·등급)에만 —
+   라벨까지 --muted(#868D97) 로 두니 11px 에서 전부 흐린 회색으로 읽혔다(2026-09-09 대표).
+   폭에 반응한다 — 채팅(좁다) · 문서(중간) · 슬라이드(넓다). 정본 §12-1-1 */
+.gd{container-type:inline-size; background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:14px}
+.gd-t{font-size:12.5px; font-weight:800; color:var(--ink); margin:0 0 9px}
+.gd-f{margin-top:10px; padding-top:8px; border-top:1px solid var(--line-2);
+  font-size:11px; color:var(--muted); display:flex; gap:6px; align-items:center; flex-wrap:wrap}
+.gd-g{font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:999px; background:var(--blue-bg); color:var(--blue)}
+.gd-g.r{background:var(--amber-t, #FFF6D6); color:var(--amber, #8A6D00)}
+.gd-u{font-size:11px; color:var(--muted); text-align:right; margin-top:4px}
+
+/* kv */
+.gd-kv{display:grid; grid-template-columns:auto 1fr; gap:8px 16px; font-size:13.5px; margin:0}
+.gd-kv dt{color:var(--ink-2); font-weight:600; white-space:nowrap}
+.gd-kv dd{margin:0; color:var(--ink); font-weight:600; text-align:right; font-variant-numeric:tabular-nums;
+  overflow-wrap:anywhere}
+@container (min-width:520px){ .gd-kv.two{grid-template-columns:auto 1fr auto 1fr} }
+
+/* stats */
+.gd-st{display:grid; grid-template-columns:repeat(2,1fr); gap:1px; background:var(--line-2);
+  border-radius:11px; overflow:hidden}
+@container (min-width:420px){ .gd-st{grid-template-columns:repeat(var(--n,4),1fr)} }
+.gd-s{background:var(--paper); padding:11px 13px; min-width:0}
+.gd-s .l{font-size:11.5px; color:var(--ink-2); font-weight:600; margin-bottom:2px}
+.gd-s .v{font-size:21px; color:var(--ink); font-weight:800; letter-spacing:-.03em; font-variant-numeric:tabular-nums; line-height:1.15}
+.gd-s .v i{font-style:normal; font-size:12.5px; font-weight:700; color:var(--muted); margin-left:2px}
+.gd-s .n{font-size:11px; color:var(--ink-2); margin-top:2px}
+
+/* table */
+.gd-wrap{overflow-x:auto; margin:0 -4px}
+.gd-tb{border-collapse:collapse; width:100%; font-size:13px}
+.gd-tb th{font-size:11px; color:var(--ink-2); font-weight:700; text-align:left; padding:6px 9px;
+  border-bottom:1px solid var(--line); white-space:nowrap}
+.gd-tb td{padding:7px 9px; color:var(--ink); border-bottom:1px solid var(--line-2); font-variant-numeric:tabular-nums; white-space:nowrap}
+.gd-tb tr:last-child td{border-bottom:0}
+.gd-tb th.r, .gd-tb td.r{text-align:right}
+
+/* list */
+.gd-li{display:flex; flex-direction:column; gap:1px; background:var(--line-2); border-radius:11px; overflow:hidden}
+.gd-l{background:var(--paper); padding:9px 12px; display:flex; gap:9px; align-items:baseline; flex-wrap:wrap}
+.gd-l .g{font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:999px;
+  background:var(--blue-bg); color:var(--blue); white-space:nowrap; flex:0 0 auto}
+.gd-l .t{flex:1; color:var(--ink); font-size:13.5px; font-weight:600; min-width:120px}
+.gd-l .s{font-size:11.5px; color:var(--ink-2); white-space:nowrap}
+
+/* chart */
+.gd-ch{width:100%; height:auto; display:block}
+.gd-lb{font-size:11px; fill:var(--ink); font-family:inherit}
+.gd-vl{font-size:10.5px; fill:var(--ink); font-weight:700; font-family:var(--mono)}
+.gd-ax{font-size:10px; fill:var(--ink-2); font-family:var(--mono)}
+.gd-mk{font-size:10.5px; fill:var(--red); font-weight:700; font-family:var(--mono)}
+
+/* ── 지도 · 사진 · 묶음 · 층별 · 달력(2026-09-09) ─────────────────────────
+   같은 결로 잇는다: 값은 --ink, 라벨·머리글은 --ink-2, --muted 는 꼬리말에만.
+   높이·열 수는 방향이 아니라 캔버스 폭이 정한다(@container). */
+
+/* map — 좁으면 220, 넓어지면 300. 지도는 폭이 좁을수록 볼 게 없다 */
+.gd-map{height:220px; border-radius:11px; overflow:hidden; background:var(--surface-2)}
+@container (min-width:520px){ .gd-map{height:300px} }
+.gd-map-sel{margin-top:8px}
+/* 핀 — 소식 지도와 같은 아이콘, 색은 앱 파랑 하나. 고른 핀만 진해진다 */
+.gd-pin{width:26px; height:26px; border-radius:999px; background:var(--blue); color:#fff;
+  border:2px solid #fff; box-shadow:0 1px 5px rgba(0,0,0,.35); display:flex;
+  align-items:center; justify-content:center; cursor:pointer}
+.gd-pin.dot{width:16px; height:16px; margin:5px}
+.gd-pin.on{background:var(--ink); transform:scale(1.12)}
+
+/* media — 여럿이면 나란히, 좁으면 하나씩. 캡션은 작게 아래 */
+.gd-md{display:grid; grid-template-columns:1fr; gap:10px}
+@container (min-width:420px){ .gd-md{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))} }
+.gd-mi{margin:0; min-width:0}
+/* 4:3 만 두면 한 장짜리가 폭 700에서 530px 로 자라 답을 밀어낸다(2026-09-09 화면 확인).
+   지도와 같은 키에서 멈춘다 — 사진은 답의 곁가지지 본문이 아니다 */
+.gd-mi .b{position:relative; aspect-ratio:4/3; max-height:300px; border-radius:11px; overflow:hidden;
+  background:var(--surface-2)}
+.gd-mi .b img{width:100%; height:100%; object-fit:cover; display:block}
+/* 로드뷰는 제 뿌리에 인라인 position:relative 를 달고 온다 — 절대배치로 덮으면 인라인이 이겨
+   높이가 0이 된다(빈 흰 칸). 폭·높이를 채워 준다 */
+.gd-mi .b .rv{width:100%; height:100%}
+.gd-mi figcaption{margin-top:5px; font-size:11.5px; color:var(--ink-2)}
+
+/* panel — 테두리 없음. 제목과 간격만 준다(안쪽이 이미 카드다) */
+.gd-pn{display:flex; flex-direction:column; gap:8px; min-width:0}
+.gd-pt{font-size:13px; font-weight:800; color:var(--ink)}
+.gd-pn.row{flex-direction:row; flex-wrap:wrap; align-items:flex-start}
+.gd-pn.row > .gd-pt{flex:1 0 100%}
+.gd-pn.row > .gd-pp{flex:1 1 260px; min-width:0}
+.gd-pp{min-width:0}
+/* 묶음 안의 묶음은 한 겹까지 — 들여쓰기 대신 간격만 좁힌다 */
+.gd-pn .gd-pn{gap:6px}
+
+/* floors — 층이 쌓이는 게 정보다. 위가 높은 층, 아래가 지하 */
+.gd-fl{display:flex; flex-direction:column; gap:1px; background:var(--line-2);
+  border-radius:11px; overflow:hidden}
+.gd-fr{background:var(--paper); display:grid; grid-template-columns:64px minmax(0,1fr); gap:8px;
+  padding:8px 10px; align-items:start}
+.gd-fr .f{display:flex; flex-direction:column; gap:1px}
+.gd-fr .f b{font-size:13px; font-weight:800; color:var(--ink)}
+.gd-fr .f i{font-style:normal; font-size:11px; color:var(--ink-2); font-variant-numeric:tabular-nums}
+.gd-fr .u{display:flex; flex-direction:column; gap:3px; min-width:0}
+.gd-fu{display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; justify-content:flex-end;
+  padding:3px 6px; border-radius:7px}
+.gd-fu.vac{background:var(--surface-2)}
+/* 좁으면 이름이 한 줄을 다 쓰고 돈은 아랫줄 오른쪽에 모인다 — 돈이 이름 사이에 끼면 자릿수가 들쭉날쭉해진다 */
+.gd-fu .n{flex:1 1 100%; min-width:0; display:flex; align-items:baseline; gap:5px; flex-wrap:wrap}
+@container (min-width:520px){ .gd-fu .n{flex:1 1 130px} }
+.gd-fu .n em{font-style:normal; font-size:11.5px; color:var(--ink-2); font-variant-numeric:tabular-nums}
+.gd-fu .n b{font-size:13px; font-weight:700; color:var(--ink)}
+.gd-fu.vac .n b{color:var(--ink-2)}
+.gd-fu .n .biz{font-size:11.5px; color:var(--ink-2)}
+/* 돈·면적은 폭 고정 — 자릿수가 어긋나면 층끼리 견주는 맛이 죽는다(FloorRows 와 같은 이유) */
+.gd-fu .m{width:74px; text-align:right; font-size:12.5px; color:var(--ink);
+  font-variant-numeric:tabular-nums; white-space:nowrap}
+@container (min-width:520px){ .gd-fu .m{width:92px} }
+.gd-fx{background:var(--paper); padding:8px 10px; font-size:12px; color:var(--ink);
+  line-height:1.6; overflow-wrap:anywhere}
+
+/* calendar — 넓은 자리는 월 격자, 좁은 자리는 날짜별 목록. 폭이 고른다 */
+.gd-cal{display:none}
+.gd-cald{display:flex; flex-direction:column; gap:1px; background:var(--line-2);
+  border-radius:11px; overflow:hidden}
+@container (min-width:720px){ .gd-cal{display:block} .gd-cald{display:none} }
+.gd-cal .mo{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:1px;
+  background:var(--line-2); border-radius:11px; overflow:hidden}
+.gd-cal .mo .wd{background:var(--paper); padding:5px 7px; font-size:11px; font-weight:700; color:var(--ink-2)}
+.gd-cal .mo .wd.we{color:var(--muted)}
+.gd-cal .mo .c{background:var(--paper); min-height:44px; padding:4px}
+.gd-cal .mo .c.out{background:var(--surface-2)}
+.gd-cal .mo .c.on{background:var(--blue-bg)}
+.gd-cal .mo .c .n{font-size:12px; color:var(--ink-2); font-variant-numeric:tabular-nums}
+.gd-cal .mo .c button{display:flex; flex-direction:column; align-items:flex-start; gap:4px;
+  width:100%; border:0; background:none; padding:0; font:inherit; cursor:pointer}
+.gd-cal .mo .c button .n{color:var(--ink); font-weight:700}
+.gd-cal .mo .c .dot{width:6px; height:6px; border-radius:999px; background:var(--blue)}
+.gd-cal .gd-li{margin-top:8px}
+.gd-cald .r{background:var(--paper); display:grid; grid-template-columns:44px minmax(0,1fr);
+  gap:8px; padding:7px 10px; align-items:start}
+.gd-cald .d{display:flex; align-items:baseline; gap:4px}
+.gd-cald .d b{font-size:14px; font-weight:800; color:var(--ink); font-variant-numeric:tabular-nums}
+.gd-cald .d i{font-style:normal; font-size:11px; color:var(--ink-2)}
+.gd-cald .v{display:flex; flex-direction:column; gap:2px; min-width:0}
+.gd-cald .gd-l{padding:0; background:none}

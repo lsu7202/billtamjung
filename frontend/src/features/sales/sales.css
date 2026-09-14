@@ -1,0 +1,1541 @@
+/* S04 영업관리 — 제안 보드 · 매수자 */
+
+/* 거래 페이지 여백 — 카드가 화면 끝에 물려 오른쪽 테두리가 잘리고, 마지막 줄이 바닥에
+   붙어 있었다. 페이지에 한 번만 준다(카드마다 margin을 붙이면 탭마다 어긋난다). */
+.page.sales { padding: 0 18px 36px; }
+
+/* 누를 수 있는 글자 = 글자여야 한다. 기본 button 껍데기가 남아 있어 회색 상자로 보였다. */
+.sales .lnk { border: 0; background: none; padding: 0; font: inherit; color: inherit;
+  cursor: pointer; text-align: left; }
+.sales .lnk:hover { color: var(--blue); }
+
+.sales-empty { padding: 40px 24px; text-align: center; color: var(--muted); font-size: 14px; }
+.sales-empty small { display: block; margin-top: 6px; font-size: 12px; }
+
+/* 보드 — 열 = 상태. 첫 열(후보)이 오늘 할 일이다. */
+.board { display: grid; grid-template-columns: repeat(5, minmax(180px, 1fr)); gap: 10px; align-items: start; }
+.bd-col { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.bd-head { display: flex; align-items: center; gap: 6px; padding: 8px 10px;
+  font-size: 12.5px; font-weight: 700; color: var(--ink); background: var(--surface); border-bottom: 1px solid var(--line); }
+.bd-head span { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; }
+.bd-head.off { color: var(--muted); }
+.bd-body { display: grid; gap: 6px; padding: 6px; min-height: 60px; }
+
+.bd-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 9px; }
+.bd-card .a { font-size: 12.5px; font-weight: 700; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bd-card .a:hover { color: var(--blue); }
+.bd-card .m { display: flex; align-items: baseline; gap: 6px; margin-top: 3px; white-space: nowrap; }
+.bd-card .m b { font-size: 13px; font-variant-numeric: tabular-nums; }
+.bd-card .m span { font-size: 11px; color: var(--muted); }
+.bd-card .b { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 11.5px; }
+.bd-card .who { color: var(--ink-2); }
+.bd-card .rep { margin-left: auto; color: var(--muted); font-size: 10.5px; }
+.bd-card .stall { font-style: normal; font-variant-numeric: tabular-nums; }
+.bd-card .stall.bad { color: var(--up); font-weight: 700; }
+.bd-card .rj { margin-top: 4px; font-size: 11px; color: var(--up); }
+
+/* 상태 이동 — 칩 하나(드롭다운). 숨은 hover 버튼 6개는 있는 줄도 몰랐다(2026-08-10 점검). */
+.bd-card .st-row { display: flex; justify-content: flex-end; margin-top: 7px; }
+
+/* 카드 값 판단 — 추정가 대비 · 등급. 색은 방향만 말한다(위/아래). 숫자는 mono. */
+.bd-card .m b, .bd-card .m em { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.bd-card .m em { font-style: normal; font-size: 11px; }
+.bd-card .m em.up { color: var(--up); }
+.bd-card .m em.dn { color: var(--down); }
+.bd-card .m em.est { color: var(--muted); }
+.bd-card .sg { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+.bd-card .sg .ar { margin-left: auto; font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.bd-card .ut { font-size: 11px; color: var(--ink-2); }
+/* 매력도 등급 = tag 틴트 어법(앱 공통). S·A만 강조 틴트. */
+.gd { font-size: 10.5px; font-weight: 800; line-height: 1; padding: 2.5px 6px; border-radius: 4px;
+  background: var(--surface-2); color: var(--muted); }
+.gd.g-S, .gd.g-A { background: var(--signal-bg); color: var(--signal); }
+
+/* 하위 탭은 shared/ui/components.css 의 .subnav 로 옮겼다(2026-08-28).
+   마이페이지도 같은 줄을 쓰는데 이름이 sales-nav 면 어긋난다 — 옛 이름은 거기서 별칭으로 받는다. */
+
+/* 오늘 — 턴 구조. 내 차례(좌·크게) / 기다리는 중·시작해볼 곳(우·조용히).
+   왼쪽이 큰 이유: 오늘의 일은 내 차례뿐, 나머지는 눈에만 걸리면 된다. */
+.td-turn { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; align-items: start; }
+@media (max-width: 900px) { .td-turn { grid-template-columns: 1fr; } }
+.td-side { display: grid; gap: 14px; }
+.td-card .sec-head .tag { margin-left: auto; }
+.td-note { font-weight: 400; font-size: 12px; color: var(--muted); }
+.td-body { padding: 4px 16px 10px; }
+.sp { flex: 1; }
+.td-r { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 9px 0;
+  border-bottom: 1px solid var(--line); min-width: 0; cursor: pointer; }
+.td-r:hover .goto { opacity: 1; }
+.td-r .body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.td-r .l1 { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.td-r .l1 b { font-size: 13px; white-space: nowrap; }
+.td-r .l1 .adr { color: var(--ink-2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-r .l1 .adr:hover { color: var(--blue); }
+.td-r .l1 .pr { font-style: normal; font-size: 12px; color: var(--ink-2); }
+.td-r .l2 { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-r .goto { flex: 0 0 auto; font-size: 11.5px; color: var(--muted); opacity: 0; transition: opacity .12s; }
+.td-body > .td-r:last-child, .td-body > div:last-child .td-r { border-bottom: 0; }
+/* 매도/매수 표식 — 섞인 목록에서 줄의 소속을 말한다. 색은 뜻 하나씩만(매도=초록, 매수=테라코타) */
+.td-r .side { flex: 0 0 30px; font-size: 10.5px; font-weight: 800; text-align: center;
+  border-radius: 4px; padding: 2px 0; }
+.td-r .side.s { background: var(--green-bg); color: var(--green); }
+.td-r .side.b { background: var(--terra-t); color: var(--terra); }
+.td-r .lnk { font-weight: 700; white-space: nowrap; }
+.td-r .lnk.dim2 { font-weight: 600; color: var(--ink-2); }
+.td-r .dim { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-r .act { flex: 0 0 auto; font-size: 12px; font-weight: 700; border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm); padding: 3px 11px; background: #fff; color: var(--ink); cursor: pointer; }
+.td-r .act:hover { border-color: var(--signal); color: var(--signal); }
+.td-body.quiet .td-r { padding: 6px 0; }
+.td-hint { font-size: 11.5px; color: var(--muted); padding: 8px 0 2px; }
+.td-bars { display: grid; gap: 8px; padding: 4px 0 12px 38px; }
+.td-bars .bar { display: grid; grid-template-columns: 108px 1fr 40px; gap: 10px; align-items: center; font-size: 12.5px; }
+.td-bars .t { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-bars .g { height: 6px; border-radius: 3px; background: var(--signal-bg); overflow: hidden; }
+.td-bars .g i { display: block; height: 100%; background: var(--signal); border-radius: 3px; }
+.td-bars .v { text-align: right; color: var(--muted); font-size: 12px; }
+
+/* 대시보드 지표 — 값 크게·라벨 작게(매물 상세 헤더 어법) */
+.td-stats { display: flex; align-items: center; gap: 26px; padding: 13px 18px; margin-bottom: 14px; }
+.td-stats .st { display: flex; flex-direction: column; gap: 1px; padding-right: 26px; border-right: 1px solid var(--line); }
+.td-stats .st b { font-size: 19px; letter-spacing: -.01em; }
+.td-stats .st span { font-size: 11px; color: var(--muted); font-weight: 600; }
+
+/* 매수자 — 명단(좌) + 프로필(우). 사람을 다루는 화면이라 한 명을 펼쳐 놓고 본다. */
+.by-split { display: grid; grid-template-columns: 240px 1fr; gap: 10px; align-items: start; }
+@media (max-width: 900px) { .by-split { grid-template-columns: 1fr; } }
+.by-list { padding: 8px; display: grid; gap: 1px; max-height: calc(100vh - 160px); overflow: auto; }
+/* 목록 머리 — 찾기와 더하기가 한 줄. 더하는 버튼은 더해질 자리 옆에 선다. */
+.by-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.by-q { flex: 1; min-width: 0; margin: 0; padding: 5px 9px; font-size: 12.5px; }
+.by-add { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border: 0; border-radius: 8px; background: var(--signal);
+  color: #fff; cursor: pointer; transition: filter .12s, transform .06s; }
+.by-add:hover { filter: brightness(1.15); }
+.by-add:active { transform: scale(.92); }
+.sales-empty .by-add { margin-top: 12px; }
+.by-item { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left;
+  padding: 7px 9px; border: 0; border-radius: 7px; background: transparent; cursor: pointer; font-size: 13px; }
+.by-item:hover { background: var(--surface-2); }
+.by-item.on { background: var(--signal-bg); }
+.by-item.on .n { font-weight: 700; }
+.by-item .sp { flex: 1; }
+.by-item .ct { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.by-item .tag { margin-left: 4px; font-size: 10px; padding: 1px 4px; border-radius: 4px;
+  background: var(--surface-2); color: var(--muted); }
+.by-item.two { align-items: flex-start; }
+.by-item .col { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.by-item .s2 { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.by-rj { margin-top: 10px; font-size: 12px; color: var(--up); background: var(--up-bg);
+  border-radius: 7px; padding: 7px 11px; }
+
+.by-detail { padding: 14px 16px 16px; }
+.by-top { display: flex; align-items: baseline; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.by-top h2 { margin: 0; font-size: 17px; }
+.by-top .sp { flex: 1; }
+.by-top .ph { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink-2);
+  text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 2px; }
+.by-top a.ph:hover { color: var(--blue); text-decoration-color: var(--blue); }
+.by-top .ph.off { color: var(--muted); }
+.by-top .del { color: var(--up); font-size: 12px; }
+.by-kv { display: grid; gap: 2px; margin: 10px 0 8px; }
+.by-kv label { display: flex; align-items: baseline; gap: 12px; font-size: 12.5px; color: var(--ink-2);
+  padding: 7px 0; border-bottom: 1px solid var(--line); }
+.by-kv label > :first-child { }
+.by-kv label { justify-content: space-between; }
+.by-kv label .k { flex: 0 0 auto; white-space: nowrap; color: var(--muted); }
+.by-kv label:last-child { border-bottom: 0; }
+.by-memo { width: 100%; font-size: 12.5px; }
+.by-sec { display: flex; align-items: center; gap: 6px; margin: 14px 0 2px;
+  font-size: 12px; font-weight: 700; color: var(--muted); }
+.by-sec span { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+.by-detail .cd-wrap { padding: 4px 0 0; }
+.by-detail .ct-wrap { padding: 14px 0 0; }
+.by-props { display: grid; gap: 1px; }
+.by-props .r { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; line-height: 1.9; }
+.by-props .a { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.by-props .pr { font-variant-numeric: tabular-nums; }
+.by-props .up { color: var(--up); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.by-props .dn { color: var(--down); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.by-props .st { flex: 0 0 42px; text-align: right; font-size: 11.5px; color: var(--ink-2); }
+.by-props .st.off { color: var(--muted); }
+.by-go { margin-top: 14px; }
+
+/* 모달 */
+.nb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-bottom: 8px; }
+.nb-grid label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+.nb-grid label.chk { grid-template-columns: auto 1fr; align-items: center; gap: 6px; color: var(--ink-2); }
+.rj-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+.rj-grid button { border: 1px solid var(--line); background: var(--surface); border-radius: 7px;
+  padding: 7px 4px; font-size: 12px; cursor: pointer; }
+.rj-grid button.on { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700; }
+.rj-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+
+/* 맞는 매물 — 매수자 행 아래 펼침 */
+.mt-wrap { padding: 8px 12px 12px; }
+.mt-head { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.mt-head b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.mt-none { font-size: 12.5px; color: var(--muted); padding: 14px 12px; }
+.mt-tbl { background: var(--surface); border-radius: 8px; }
+
+/* 조건 세트 */
+.cd-wrap { padding: 8px 12px 12px; }
+.cd-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12.5px; }
+.cd-row .nm { font-weight: 700; }
+.cd-row .ct { color: var(--muted); font-size: 11.5px; }
+.cd-row .sp { flex: 1; }
+.cd-row .del { color: var(--up); }
+.cd-none { font-size: 12.5px; color: var(--muted); padding: 4px 0; }
+
+/* 매수자 펼침 — 조건 · 접촉이력 두 칸 */
+.bx-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 0 18px; align-items: start; }
+@media (max-width: 900px) { .bx-grid { grid-template-columns: 1fr; } }
+
+.bd-card .who.lnk { cursor: pointer; text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 2px; }
+.bd-card .who.lnk:hover { color: var(--blue); text-decoration-color: var(--blue); }
+.ct-err, .sales-err { color: var(--up); font-size: 11.5px; margin: 2px 0 6px; }
+.sales-err { margin: 0 2px 8px; font-size: 12.5px; }
+
+/* 내 방식 설정(F-23) */
+.pf-desc { margin: 2px 0 12px; font-size: 12.5px; color: var(--muted); }
+.pf-sec { font-size: 12px; font-weight: 700; color: var(--ink-2); margin: 14px 0 6px; }
+.pf-sec small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+.pf-gu { display: flex; flex-wrap: wrap; gap: 4px; }
+.pf-gu button { padding: 3px 10px; font-size: 12px; font-weight: 600; border-radius: 999px;
+  border: 1px solid var(--line-2); background: #fff; color: var(--ink-2); cursor: pointer; }
+.pf-gu button.on { background: var(--signal); border-color: var(--signal); color: #fff; font-weight: 700; }
+.pf-hint { margin: 6px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+.pf-price { display: flex; align-items: center; gap: 8px; }
+.pf-price .input { width: 110px; text-align: right; }
+
+/* 매수자 프로필 — 역할별 카드 4장(구분감). 한 덩어리에 섞여 복잡해 보이던 것을 가른다. */
+.by-right { min-width: 0; }
+/* 프로필은 명함 폭(오른쪽 여백), 제안 리스트·접촉은 오른쪽 끝까지. */
+.byp { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: start; }
+.byp-col { display: grid; gap: 12px; min-width: 0; }
+.byp .bcard { max-width: 720px; }
+.byp-body { padding: 8px 16px 12px; }
+.byp-card .sec-head .del { color: var(--up); }
+.byp-card .cd-wrap { padding: 0; }
+.byp .by-kv { margin: 8px 0 6px; }
+.byp .by-memo { margin-top: 4px; }
+.dim2 { color: var(--muted); font-size: 12px; }
+
+/* 추천 행 */
+.byp-r { display: flex; align-items: baseline; gap: 10px; font-size: 13px; padding: 8px 0;
+  border-bottom: 1px solid var(--line); min-width: 0; }
+.byp-r:last-child { border-bottom: 0; }
+.byp-r .a { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.byp-r .pr { font-weight: 700; }
+.byp-r .act { font-size: 12px; font-weight: 700; border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm); padding: 3px 11px; background: #fff; color: var(--ink); cursor: pointer; }
+.byp-r .act:hover { border-color: var(--signal); color: var(--signal); }
+
+/* 제안 리스트 행 — 2줄: 매물·가격·상태 / 사유·판단 메모 */
+.byp-p { padding: 9px 0; border-bottom: 1px solid var(--line); }
+.byp-p:last-child { border-bottom: 0; }
+.byp-p.off .a, .byp-p.off .pr { color: var(--muted); }
+.byp-p .l1 { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 13px; }
+.byp-p .l1 .a { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.byp-p .l1 .pr { font-weight: 700; }
+.byp-p .l1 .up { color: var(--up); font-size: 11.5px; }
+.byp-p .l1 .dn { color: var(--down); font-size: 11.5px; }
+.byp-p .l2 { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.byp-p .l2 .rj { flex: 0 0 auto; font-size: 11.5px; color: var(--up); background: var(--up-bg);
+  border-radius: 5px; padding: 2px 8px; }
+.byp-p .l2 .note { flex: 1; min-width: 0; border: 0; border-bottom: 1px solid var(--line);
+  background: none; font: inherit; font-size: 12px; color: var(--ink-2); padding: 2px 1px; }
+.byp-p .l2 .note::placeholder { color: var(--muted); opacity: .7; }
+.byp-p .l2 .note:focus { outline: none; border-bottom-color: var(--signal); }
+
+/* 프로필 명함 — 앞면=요약 문단, 뒤집으면 편집. 박스 나열이 아니라 카드 한 장. */
+.bcard { perspective: 1200px; perspective-origin: 50% 0; min-width: 0; }
+.bc-inner { position: relative; display: grid; transform-style: preserve-3d;
+  transition: transform .45s cubic-bezier(.4,.1,.2,1); }
+.bcard.back .bc-inner { transform: rotateX(180deg); }
+.bc-face { grid-area: 1 / 1; backface-visibility: hidden; -webkit-backface-visibility: hidden; min-width: 0; }
+.bc-back { transform: rotateX(180deg); }
+/* 보이지 않는 면은 높이에 관여하지 않는다 — 뒷면(편집기)이 앞면(명함)을 끌어늘리면 여백 벽이 생긴다 */
+.bcard:not(.back) .bc-back { position: absolute; inset: 0; overflow: hidden; }
+.bcard.back .bc-front { position: absolute; inset: 0; overflow: hidden; }
+.bcard:not(.back) .bc-back, .bcard.back .bc-front { pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .bc-inner { transition: none; } }
+
+.bc-front { padding: 18px 20px 14px; display: flex; flex-direction: column;
+  background: linear-gradient(160deg, var(--panel) 55%, var(--surface-2)); }
+.bc-name { display: flex; align-items: baseline; gap: 8px; }
+.bc-name h2 { margin: 0; font-size: 19px; letter-spacing: -.02em; }
+.bc-ex { font-size: 10.5px; font-weight: 800; color: var(--gold-ink); border: 1px solid var(--gold);
+  border-radius: 4px; padding: 1px 6px; background: #FBF6E7; }
+.bc-sum { margin: 12px 0 0; font-size: 14px; line-height: 1.75; color: var(--ink-2); max-width: 44ch; }
+.bc-sum.thin { color: var(--muted); }
+.bc-memo { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+.bc-foot { margin-top: auto; padding-top: 14px; display: flex; justify-content: flex-end; }
+
+/* 모달 껍데기 — 지금까지 정의가 없어서 인라인 블록으로 터져 나왔다(2026-08-10 발견).
+   검색 필터 모달과 같은 어법: 어두운 배경 · 중앙 · 라운드 패널. */
+.sales .overlay { position: fixed; inset: 0; z-index: 100; background: rgba(20, 18, 14, .42);
+  display: flex; align-items: flex-start; justify-content: center; padding: 8vh 16px 16px; overflow: auto; }
+.sales .mini { width: min(480px, 94vw); background: var(--panel); border-radius: 14px;
+  box-shadow: var(--shadow-lg); padding: 20px 22px; }
+.sales .mini h3 { margin: 0 0 8px; font-size: 16px; letter-spacing: -.01em; }
+.sales .mini-foot { display: flex; justify-content: flex-end; gap: 9px; margin-top: 16px; }
+.sales .mini-cancel { border: 1px solid var(--line-2); background: #fff; border-radius: 9px;
+  padding: 9px 15px; font-size: 13px; cursor: pointer; }
+.sales .mini .apply { border: 0; background: var(--signal); color: #fff; border-radius: 9px;
+  padding: 9px 18px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.sales .mini .apply:disabled { opacity: .45; cursor: default; }
+.sales .mini .by-kv label { padding: 6px 0; }
+
+/* 앞면 · 찾는 것 — 조건 이름 + 사람 말 요약 한 줄 */
+/* 조건·편집은 **선 위**에 있다(2026-08-20) — 사람을 말하는 부분(이름·요약·조건·편집)과
+   진행을 말하는 부분(레일)을 그 선이 가른다. */
+.bc-conds { margin-top: 14px; display: grid; gap: 2px; }
+.bc-conds .row { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; min-width: 0; padding: 3px 0; }
+.bc-conds .row b { flex: 0 0 auto; }
+.bc-conds .del { color: var(--up); }
+
+/* 제안 항목 — 앞면: 사진(1:1)·주소·가격·수익률·상태 / 펼치면: 상태·메모·거절 사유 */
+.pp-img { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; flex: 0 0 auto;
+  border: 1px solid var(--line); }
+.pp-img.none { background: var(--surface-2); }
+.pp-mid { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.pp-mid .a { font-weight: 700; font-size: 13.5px; text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-nums { display: flex; align-items: baseline; gap: 10px; font-size: 12.5px; }
+.pp-nums .up { color: var(--up); font-size: 11.5px; }
+.pp-nums .dn { color: var(--down); font-size: 11.5px; }
+.pp-note { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-st { flex: 0 0 auto; font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
+  background: var(--surface-2); color: var(--ink-2); }
+/* 합의 단계(words.ts NEGO) — 유채색은 파랑 하나 + 빨강(경고). 회색이 기본이다.
+   진행 중은 파랑, 끝난 것은 초록, 죽은 것은 빨강. 나머지는 회색으로 조용히 선다. */
+.pp-st.s-합의중   { background: var(--blue-bg); color: var(--blue); }
+.pp-st.s-계약예정 { background: var(--blue-bg); color: var(--blue); }
+.pp-st.s-계약완료 { background: var(--green-bg); color: var(--green); }
+.pp-st.s-중도금   { background: var(--green-bg); color: var(--green); }
+.pp-st.s-거래종료 { background: var(--green-bg); color: var(--green); }
+.pp-st.s-보류     { background: var(--up-bg); color: var(--up); }
+
+.pp-back { display: grid; gap: 10px; }
+.pp-back .r1 { display: flex; align-items: baseline; gap: 8px; font-size: 13.5px; }
+.pp-back .r2 { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.pp-back .k { flex: 0 0 34px; font-size: 12px; color: var(--muted); }
+.pp-back .rj { font-size: 12px; color: var(--up); }
+.pp-back .note { flex: 1; min-width: 0; border: 0; border-bottom: 1px solid var(--line);
+  background: none; font: inherit; font-size: 12.5px; color: var(--ink-2); padding: 2px 1px; }
+.pp-back .note:focus { outline: none; border-bottom-color: var(--signal); }
+
+/* 추천 3개 — 리스트의 머리, 한 세트 */
+.pp-rec { margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.pp-rec .t { font-size: 12px; font-weight: 700; color: var(--muted); margin: 2px 0 2px; }
+
+.pp-tl { font-size: 12px; color: var(--ink-2); line-height: 1.7; }
+
+/* 리스트에 담기 — 헤더 인라인 자동완성 */
+/* 담기 — 매물 상세·영업 양쪽이 쓰는 한 벌의 고르기 창 */
+.pick { position: relative; display: inline-flex; }
+.pick-open { border: 1px solid var(--line); background: none; border-radius: 8px;
+  padding: 6px 12px; font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer;
+  white-space: nowrap; }
+.pick-open:hover { border-color: var(--signal); color: var(--signal); }
+.pick-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; width: 290px;
+  display: grid; gap: 8px; padding: 10px; background: var(--surface);
+  border: 1px solid var(--line-2); border-radius: 10px; box-shadow: 0 12px 30px rgba(0,0,0,.13); }
+.pick-pop .input { width: 100%; padding: 6px 10px; font-size: 12.5px; font-weight: 400; }
+.pick-list { display: grid; max-height: 210px; overflow-y: auto; scrollbar-width: thin; }
+.pick-row { display: flex; align-items: baseline; gap: 8px; width: 100%; text-align: left;
+  border: 0; background: none; padding: 7px 6px; border-radius: 6px; cursor: pointer; font-size: 12.5px; }
+.pick-row:hover { background: var(--surface-2); }
+.pick-row.on { background: var(--signal-bg); }
+.pick-row.off { opacity: .45; cursor: default; }
+.pick-row .ck { flex: 0 0 13px; font-style: normal; font-size: 11px; font-weight: 800; color: var(--signal); }
+.pick-row b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-row span { font-size: 11.5px; color: var(--muted); }
+.pick-none { padding: 14px 6px; font-size: 12px; color: var(--muted); text-align: center; }
+.pick-foot { display: flex; justify-content: flex-end; }
+
+.pp-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.pp-acts .act { font-size: 12px; font-weight: 700; border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm); padding: 4px 12px; background: #fff; color: var(--ink); cursor: pointer; }
+.pp-acts .act:hover { border-color: var(--signal); color: var(--signal); }
+.pp-acts .act.primary { background: var(--signal); border-color: var(--signal); color: #fff; }
+
+/* 경위·활동 타임라인 — 세로. 최근이 위. */
+.tl { display: grid; gap: 4px; border-top: 1px solid var(--line); padding-top: 8px; }
+.tle { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; min-width: 0; line-height: 1.9; }
+.tle .d { flex: 0 0 40px; color: var(--muted); font-size: 12px; }
+.tle .x { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+
+/* 발행·관리 모달의 매물 요약 머리 */
+
+/* 활동 입력줄 */
+.atv-add { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.atv-add .input { flex: 1; min-width: 0; padding: 5px 10px; font-size: 12.5px; }
+
+.tle .tle-x { opacity: 0; transition: opacity .12s; padding: 0 2px; }
+.tle:hover .tle-x { opacity: 1; }
+
+/* 진행 기록 — 세로 레일 + 기록 점, 최근이 위. 현재 상태 = 맨 위 기록. */
+.gtl { margin-top: 4px; border-top: 2px solid var(--line-2); padding-top: 12px; }
+.gtl-head { display: flex; align-items: baseline; gap: 6px; font-size: 13.5px; color: var(--muted); }
+.gtl-head b { font-size: 14px; color: var(--ink); }
+.gtl-err { margin: 8px 0; padding: 7px 11px; border-radius: 7px; background: var(--up-bg); color: var(--up);
+  font-size: 12.5px; display: flex; align-items: baseline; gap: 10px; }
+.gtl-err .lnk { color: var(--up); margin-left: auto; }
+/* 답변(관심·거절)은 제안에 딸린 것 — 묶어서 라벨을 붙인다. 진행 버튼은 그 밖에. */
+.gtl-next { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0 14px; }
+.gtl-next .ans { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px;
+  border: 1px solid var(--line); border-radius: 999px; }
+.gtl-next .ans .k { font-size: 11.5px; color: var(--muted); font-weight: 700; }
+.gtl-next .done { font-size: 12.5px; color: var(--muted); }
+.gtl-rail { max-height: 186px; overflow-y: auto; scrollbar-width: thin; margin-top: 12px;
+  /* 위로 감춰진 기록이 반쯤 잘려 보이면 고장처럼 읽힌다 — 윗단을 흐리게 지운다 */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 16px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 16px);
+  position: relative; margin-left: 5px; border-left: 2px solid var(--line-2);
+  display: grid; gap: 0; padding: 2px 0; }
+.gc { position: relative; padding: 7px 0 7px 18px; }
+.gc .dot { position: absolute; left: -6px; top: 13px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--surface); border: 2px solid var(--line-2); }
+.gc.head .dot { background: var(--signal); border-color: var(--signal); }
+.gc-body { display: grid; gap: 2px; min-width: 0; }
+.gc-l1 { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 13px; }
+.gc-x { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gc-l2 { display: flex; align-items: baseline; gap: 10px; font-size: 11.5px; color: var(--muted); }
+.gc .gc-drop { opacity: 0; transition: opacity .12s; }
+.gc:hover .gc-drop { opacity: 1; }
+
+
+/* ── 제안 박스 — 탭 줄이 곧 이 박스의 머리다 ────────────────
+   따로 「제안 관리」 패널로 감싸지 않는다. 탭 + 본문이 한 덩어리고,
+   그 덩어리를 통째로 뒤집으면 담은 매물 전체의 판이 나온다. */
+.pbox { perspective: 1600px; perspective-origin: 50% 0; min-width: 0; }
+/* 할 말이 없으면 자리도 안 차지한다 — 빈 카드는 「뭔가 안 뜬 것」으로 읽힌다 */
+.pbox:empty { display: none; }
+.pbox-inner { position: relative; display: grid; transform-style: preserve-3d;
+  transition: transform .5s cubic-bezier(.2,.7,.2,1); }
+.pbox.back .pbox-inner { transform: rotateX(180deg); }
+.pbox-face { grid-area: 1 / 1; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  min-width: 0; display: grid; grid-template-rows: auto 1fr; align-content: start; }
+.pbox-back { transform: rotateX(180deg); }
+.pbox:not(.back) .pbox-back { position: absolute; inset: 0; overflow: hidden; }
+.pbox.back .pbox-front { position: absolute; inset: 0; overflow: hidden; }
+/* 안 보이는 면은 클릭도 안 먹어야 한다 — backface-visibility 는 그리기만 막고
+   포인터는 그대로 통과시킨다. 앞뒤 버튼이 같은 자리라 뒷면을 눌러도 앞면이 먹었다. */
+.pbox:not(.back) .pbox-back, .pbox.back .pbox-front { pointer-events: none; }
+.pbox-body { border-radius: 0 10px 10px 10px; padding: 14px 16px 12px; min-height: 120px; }
+
+/* 탭 — 라벨은 주소만. 상태를 얹으면 두꺼워져 「항상 같은 자리」라는 이점이 깨진다. */
+.ptabrow { display: flex; align-items: flex-end; gap: 10px; min-width: 0; }
+.ptabs { flex: 1 1 auto; min-width: 0; display: flex; align-items: flex-end; gap: 2px;
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; padding: 2px 0 0; }
+.ptab { flex: 0 0 auto; max-width: 190px; border: 1px solid var(--line); border-bottom: 0;
+  background: var(--surface-2); color: var(--muted); border-radius: 8px 8px 0 0;
+  padding: 8px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: -1px; position: relative; transition: background .12s, color .12s; }
+.ptab:hover { color: var(--ink); }
+.ptab.on { background: var(--surface); color: var(--ink); border-color: var(--line-2);
+  padding-bottom: 9px; z-index: 1; }
+.ptab.off { opacity: .5; }
+.ptab.off.on { opacity: 1; }
+.ptab.wide { max-width: none; }
+.ptab.add { padding: 8px 12px; font-size: 14px; max-width: none; }
+/* 열린 ＋ 는 「고르는 중」이지 「선택된 탭」이 아니다 — .on 과 색을 나눈다 */
+.ptab.add.open { background: var(--signal-bg); color: var(--signal); border-color: var(--signal); }
+.ptab-flip { flex: 0 0 auto; align-self: flex-end; white-space: nowrap; border: 0; background: none; cursor: pointer;
+  color: var(--muted); font-size: 12px; font-weight: 700; padding: 4px 6px; margin-bottom: 4px; }
+.ptab-flip:hover { color: var(--signal); }
+/* 담기 — 탭 줄의 마지막 탭 자리 */
+.ptabs .pick { flex: 0 0 auto; align-items: flex-end; }
+
+.ppane { min-width: 0; }
+.ppane-foot { display: flex; justify-content: flex-end; margin-top: 10px; }
+
+/* 매물 머리 — 무엇을 다루고 있나 */
+.phead { display: flex; align-items: center; gap: 12px; padding-bottom: 12px;
+  border-bottom: 1px solid var(--line); }
+.pc-mid { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.pc-mid .a { font-weight: 700; font-size: 14px; text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── 요약 카드(뒷면) — 이 **사람**에게 지금 뭘 해야 하나 ──────── */
+.sboard { display: grid; gap: 14px; }
+.sb-counts { display: flex; flex-wrap: wrap; gap: 6px; }
+.sb-ct { display: inline-flex; align-items: baseline; gap: 5px; font-size: 11.5px; font-weight: 700;
+  color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 999px; padding: 3px 11px; }
+.sb-ct b { font-size: 13px; font-variant-numeric: tabular-nums; }
+.sb-ct.s-제안 { color: var(--blue); background: var(--blue-bg); border-color: transparent; }
+.sb-ct.s-계약 { color: var(--green); background: var(--green-bg); border-color: transparent; }
+.sb-ct.s-거절 { color: var(--up); background: var(--up-bg); border-color: transparent; }
+
+.sb-sec { display: grid; gap: 7px; }
+.sb-h { font-size: 12px; font-weight: 800; color: var(--muted); letter-spacing: -.01em; }
+.sb-ok { margin: 0; font-size: 12.5px; color: var(--muted); }
+.sb-rj { margin: 2px 0 0; font-size: 12px; color: var(--up); }
+
+.sb-todo, .sb-feed { display: grid; gap: 1px; background: var(--line);
+  border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.sb-todo button, .sb-feed button { display: flex; align-items: center; gap: 8px; width: 100%;
+  text-align: left; border: 0; background: var(--surface); padding: 9px 11px;
+  cursor: pointer; font-size: 12.5px; min-width: 0; }
+.sb-todo button:hover, .sb-feed button:hover { background: var(--signal-bg); }
+.sb-todo b, .sb-feed b { font-weight: 700; white-space: nowrap; }
+.sb-todo .w { color: var(--up); font-weight: 700; font-size: 12px; }
+.sb-feed { max-height: 232px; overflow-y: auto; scrollbar-width: thin; }
+.sb-feed .dt { flex: 0 0 auto; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sb-feed .x { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+
+
+/* 단계가 없는 줄의 꼬리표 — 매도의 연락 수단(전화·문자·방문·메일) */
+.gc-tag { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--ink-2);
+  background: var(--surface-2); border-radius: 999px; padding: 2px 8px; }
+.clog { display: grid; gap: 10px; }
+.clog .gtl-rail { margin-top: 0; }
+
+/* 매도 단계 칩은 없앴다(0142) — 매물에 상태 칸이 없다. 매물의 지금은 담긴 짝들 중
+   가장 앞선 합의 단계이므로 위의 한 벌을 그대로 쓴다. 낱말이 하나면 색도 하나다. */
+/* 억 단위 금액 칸 — 눌러서 고친다(S02 가격 협의와 같은 어법) */
+.by-kv.lst { margin: 10px 0 0; padding: 10px 0 2px; border-bottom: 1px solid var(--line); }
+.eok-v { border: 0; background: none; cursor: pointer; font-weight: 700; font-size: 13px;
+  color: var(--ink); padding: 2px 4px; border-radius: 5px; text-align: left; }
+.eok-v:hover { background: var(--signal-bg); }
+.eok-edit { display: inline-flex; align-items: center; gap: 6px; }
+.eok-edit .input { width: 110px; text-align: right; padding: 4px 9px; }
+.eok-edit em { font-style: normal; font-size: 12.5px; color: var(--muted); }
+
+/* 자동으로 옮겨온 줄 — 계약·계약파기는 두 장부에 같이 선다(0067).
+   사람이 쓴 줄과 섞이면 「내가 언제 이걸 적었지」가 된다. */
+.gc.auto .gc-x { color: var(--muted); }
+.gc-auto { flex: 0 0 auto; font-size: 10.5px; font-weight: 700; color: var(--muted);
+  border: 1px solid var(--line-2); border-radius: 999px; padding: 1px 7px; }
+
+/* ── 매물 탭 — 건물 단위 한 판 ─────────────────────────── */
+.lp { display: grid; gap: 6px; align-content: start; }
+.lp-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.lp-row .k { flex: 0 0 64px; color: var(--muted); font-size: 12px; }
+.lp .by-sec { margin-top: 10px; }
+/* 관계 줄 — 매도자 누구 · 매수자 누구. 이름만, 상자 없이. */
+.lp-rel { display: flex; align-items: baseline; gap: 10px; font-size: 13px; padding: 3px 0; }
+.lp-rel .k { flex: 0 0 64px; color: var(--muted); font-size: 12px; }
+.lp-rel .names { display: flex; flex-wrap: wrap; gap: 4px 16px; min-width: 0; }
+.lp-rel .nm { font-weight: 700; white-space: nowrap; }
+.pp-st.sm { font-size: 10px; padding: 1px 7px; margin-left: 5px; vertical-align: 1px; }
+.lp-rail { max-height: 300px; }
+.lp-side { flex: 0 0 auto; font-size: 10.5px; font-weight: 800; border-radius: 4px; padding: 2px 6px; }
+.lp-side.buy { background: var(--blue-bg); color: var(--blue); }
+.lp-side.sell { background: var(--purple-bg); color: var(--purple); }
+.lp-who { font-size: 12.5px; white-space: nowrap; }
+/* 머리 숫자줄 안의 희망가 — 다른 숫자들과 같은 결(라벨 작게, 클릭-편집) */
+.pp-nums label { display: inline-flex; align-items: baseline; gap: 5px; }
+.pp-nums label .k { font-size: 11.5px; color: var(--muted); }
+.pp-nums .eok-v { font-size: 12.5px; padding: 0 3px; }
+.pp-nums .eok-edit .input { width: 90px; padding: 2px 8px; font-size: 12.5px; }
+
+/* ══════════ 캘린더(0070) — 손수 만든 달력. 커밋이 곧 일정이라 입력이 없다 ══════════ */
+.cal { display: grid; gap: 14px; }
+.cal-head { display: flex; align-items: center; gap: 10px; }
+.cal-head h2 { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -.01em; min-width: 108px; text-align: center; }
+.cal-nav { border: 1px solid var(--line-2); background: var(--panel); border-radius: var(--radius-sm);
+  width: 28px; height: 28px; font-size: 17px; line-height: 1; color: var(--ink-2); cursor: pointer; padding-bottom: 2px; }
+.cal-nav:hover { border-color: var(--signal); color: var(--signal); }
+.cal-today { font-size: 12.5px; }
+
+/* 판 — hairline 격자 하나로 42칸. 칸마다 테두리를 두르면 선이 두 겹으로 운다.
+   minmax(0,1fr) 이어야 한다 — 1fr의 기본 최소폭은 콘텐츠라, 긴 일정 이름 하나가
+   칸을 밀어 판 전체가 화면 밖으로 나간다(실제로 일요일 칸이 잘렸다). */
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+  background: var(--line); gap: 1px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.cal-wd { background: var(--surface-2); padding: 6px 8px; font-size: 11px; font-weight: 800; color: var(--ink-2); }
+.cal-wd.we { color: var(--muted); }
+.cal-cell { background: var(--panel); min-height: 88px; min-width: 0; padding: 5px 6px 6px;
+  display: flex; flex-direction: column; gap: 3px; align-items: stretch; }
+.cal-cell.out { background: var(--bg); }
+.cal-cell.out .cal-n { color: var(--line-2); }
+.cal-cell.past .cal-ev { opacity: .55; }
+.cal-n { font-size: 11.5px; font-weight: 700; color: var(--ink-2); line-height: 1.4; }
+.cal-n.we { color: var(--muted); }
+/* 오늘 — 숫자에 도장 하나. 칸을 통째로 칠하면 일정색과 싸운다 */
+.cal-cell.today .cal-n { align-self: flex-start; background: var(--ink); color: #fff;
+  border-radius: 999px; min-width: 18px; height: 18px; padding: 0 5px; text-align: center; line-height: 18px; }
+
+/* 일정 — 측색 왼줄만. 상자 아니라 표식(네모칸 금지 규칙의 정신) */
+.cal-ev-wrap { position: relative; }
+.cal-ev { display: block; width: 100%; text-align: left; cursor: pointer; border: 0; border-radius: 3px;
+  font-size: 11px; line-height: 1.5; padding: 1px 5px 1px 6px; color: var(--ink);
+  background: var(--surface-2); border-left: 2.5px solid var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-ev b { font-weight: 800; }
+.cal-ev .hm { font-style: normal; color: var(--ink-2); margin-right: 3px; font-size: 10.5px; }
+/* 담당자 — 알약 꼬리에 흐리게. 팀 전체로 볼 때 누구 약속인지가 이걸로 갈린다 */
+.cal-ev .by { font-style: normal; color: var(--muted); font-size: 10px; margin-left: 4px; }
+.td-pill .by { font-style: normal; color: var(--muted); font-size: 11px; }
+.cd-hm { font-size: 11.5px; color: var(--ink-2); background: var(--surface-2);
+  border-radius: 4px; padding: 1px 5px; }
+.td-pill .hm { font-style: normal; font-weight: 700; color: var(--ink-2); font-size: 12px; }
+.cal-ev.buy { border-left-color: var(--blue); background: var(--blue-bg); }
+.cal-ev.sell { border-left-color: var(--purple); background: var(--purple-bg); }
+.cal-ev:hover { filter: brightness(.96); }
+.cal-ev[draggable="true"]:active { cursor: grabbing; }
+/* 계약·계약파기 = 일어난 사건. 못 끌고 못 고친다 — 실선 대신 채운 왼줄로 구분 */
+/* 끝난 일 · 깨진 일 — 지난 칸이 참인지 거짓인지 한눈에 갈려야 한다 */
+.cal-ev.st-완료 { opacity: .5; }
+.cal-ev.st-완료 b, .cal-ev.st-완료 { text-decoration: line-through; }
+/* 끌어 놓는 자리 */
+.cal-cell.drop { background: var(--blue-bg); box-shadow: inset 0 0 0 2px var(--blue); }
+
+/* 약속 되비춤 — 입력줄 아래 한 줄. 저장 전에 「캘린더에 이렇게 선다」가 보인다 */
+.sched-note { font-size: 12px; color: var(--blue); }
+
+/* ══════════ 캘린더 좌우 — 달력 · 고른 날 ══════════ */
+/* 날짜만 봐서는 무슨 얘기 끝에 잡힌 약속인지 모른다. 오른쪽에 커밋 원문까지 세운다. */
+.cal-two { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start; }
+.cal-day { padding: 12px 14px; display: grid; gap: 12px; align-content: start;
+  position: sticky; top: 12px; max-height: calc(100vh - 140px); overflow-y: auto; }
+.cal-day .sec-head { margin: 0; }
+.cal-cell.pick { box-shadow: inset 0 0 0 2px var(--ink); }
+.cal-cell.pick .cal-n { font-weight: 800; }
+
+  background: var(--panel); padding: 8px 14px; font: inherit; font-size: 12.5px; color: var(--ink); }
+.cd-new-in:focus { outline: none; border-color: var(--signal); }
+.cd-new-in::placeholder { color: var(--line-2); }
+
+/* 지금 — 가는 선 하나에 시각. 이미 지난 것과 남은 것이 눈으로 갈린다 */
+.cd-now { display: flex; align-items: center; gap: 7px; margin: 2px 0 8px; }
+.cd-now::after { content: ""; flex: 1; height: 1px; background: var(--up); opacity: .45; }
+.cd-now span { font-size: 10.5px; font-weight: 800; color: var(--up); }
+.cd-now.last { margin-top: 10px; }
+
+/* 일정 한 건 — 시각·용무 / 고객 / 장소·매물·담당 / 커밋 원문 */
+.cd-item { display: grid; gap: 5px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.cd-item:last-child { border-bottom: 0; padding-bottom: 0; }
+.cd-item.off { opacity: .6; }
+.cd-l1 { display: flex; align-items: center; gap: 7px; }
+.cd-title { font-size: 14px; font-weight: 800; }
+.cd-hm { border: 0; background: var(--surface-2); border-radius: 4px; padding: 2px 7px;
+  font-size: 12px; color: var(--ink); cursor: pointer; }
+.cd-hm.none { background: none; color: var(--line-2); padding-left: 0; }
+.cd-hm:hover { background: var(--blue-bg); color: var(--blue); }
+.cd-mv { font-size: 11px; color: var(--muted); }
+.cd-st { font-size: 10.5px; font-weight: 800; color: var(--green);
+  background: var(--green-bg); border-radius: 4px; padding: 1px 6px; }
+/* 눌러서 고치는 입력 — 항상 떠 있지 않는다(클릭-편집) */
+.cd-in { border: 1px solid var(--blue); border-radius: 4px; padding: 2px 6px;
+  font: inherit; font-size: 12px; width: 96px; background: #fff; color: var(--ink); }
+.cd-l2 .cd-in { width: 150px; }
+
+/* 조작 — 아이콘으로 작게, 줄 오른쪽. 글자 네모버튼을 나열하지 않는다 */
+.cd-ic { margin-left: auto; display: inline-flex; gap: 2px; }
+.cd-ic button { border: 0; background: none; padding: 3px; border-radius: 4px;
+  cursor: pointer; opacity: .35; display: inline-flex; }
+.cd-item:hover .cd-ic button { opacity: .75; }
+.cd-ic button:hover { opacity: 1; background: var(--surface-2); }
+.cd-ic button.on { opacity: 1; }
+
+/* 오는 사람들 — 여럿일 수 있다. 이름 모르는 사람도 한 자리 차지한다 */
+.cd-who { display: flex; flex-wrap: wrap; gap: 4px; }
+.cd-p { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 2px 7px; }
+.cd-p.buyer { background: var(--blue-bg); color: var(--blue); }
+.cd-p.owner { background: var(--purple-bg); color: var(--purple); }
+.cd-p.guest { background: var(--surface-2); color: var(--ink-2); }
+.cd-p.none { background: none; color: var(--line-2); padding-left: 0; font-weight: 400; }
+
+.cd-l2 { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.cd-place { border: 0; background: none; padding: 0; cursor: pointer; color: var(--ink-2); font: inherit; }
+.cd-place:hover { color: var(--blue); }
+.cd-place.none { color: var(--line-2); }
+.cd-addr { color: var(--muted); }
+.cd-addr:hover { color: var(--blue); }
+.cd-by { font-size: 11px; color: var(--ink-2); background: var(--surface-2);
+  border-radius: 4px; padding: 1px 6px; font-weight: 700; }
+.cd-by.me { background: var(--signal-bg); color: var(--ink); }   /* 내 약속 */
+
+/* 커밋 원문 — 파서가 이 문장에서 약속을 읽었다. 사람이 쓴 말이라 인용으로 세운다 */
+.cd-src { margin: 2px 0 0; padding: 7px 10px; background: var(--surface-2);
+  border-radius: var(--radius-sm); font-size: 12.5px; line-height: 1.55; color: var(--ink); }
+.cd-src cite { display: block; margin-top: 3px; font-style: normal;
+  font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.cd-note { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+
+/* 약속 되비춤 — 입력줄 아래 한 줄. 저장 전에 「캘린더에 이렇게 선다」가 보인다 */
+.sched-note { font-size: 12px; color: var(--blue); }
+
+/* ══════════ 대시보드 — 돈 · 오늘 · 흐름 ══════════ */
+/* 돈 세 층은 숫자를 크게, 라벨은 작게. 「얼마짜리 일을 하고 있나」가 먼저 읽혀야 한다 */
+.td-stats .st.money b { font-size: 19px; letter-spacing: -.02em; }
+.td-stats .st.money span em { font-style: normal; font-weight: 700; color: var(--ink-2); }
+
+/* 밀린 약속 — 왼쪽에 붉은 줄. 오늘 것과 섞여 있어도 눈이 먼저 간다 */
+.td-r.late { border-left: 2px solid var(--up); padding-left: 8px; }
+.td-r.late .l2 { color: var(--up); }
+.td-r .adr2 { font-size: 12px; color: var(--muted); margin-left: 6px; }
+
+/* 진행 단계 — 막대 셋. 어디서 막혔는지 */
+.fl { display: flex; align-items: flex-end; gap: 8px; padding: 7px 2px; }
+.fl .side { flex: 0 0 30px; margin-bottom: 2px; }
+.fl-step { flex: 1; display: grid; gap: 3px; }
+.fl-n { font-size: 15px; font-weight: 800; line-height: 1; }
+.fl-b { display: block; height: 3px; background: var(--surface-2); border-radius: 2px; overflow: hidden; }
+.fl-b i { display: block; height: 100%; background: var(--ink-2); }
+.fl-t { font-size: 11px; color: var(--muted); }
+.fl-lost { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+.fl-lost em { font-style: normal; font-weight: 700; }
+
+/* 대시보드가 「오늘」 하나일 때 — 한 칸을 다 쓴다(알약이 옆으로 흐르니 넓을수록 좋다) */
+.sec-head .td-note { margin-left: 8px; }
+.sec-head .td-cnt { margin-left: auto; display: inline-flex; gap: 10px; font-size: 12px; color: var(--muted); font-weight: 700; }
+.sec-head .td-cnt .late { font-style: normal; color: var(--up); }
+.td-grp { font-size: 11.5px; font-weight: 800; color: var(--muted); margin: 10px 0 6px; }
+.td-grp:first-child { margin-top: 2px; }
+.td-grp.late { color: var(--up); }
+
+/* 오늘 할 일 — 세로로 쌓지 않고 옆으로 흘린다. 30건이어도 서너 줄이면 끝난다 */
+.td-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.td-pill { display: inline-flex; align-items: baseline; gap: 6px; cursor: pointer;
+  border: 1px solid var(--line); border-left: 2.5px solid var(--muted);
+  border-radius: var(--radius-sm); background: var(--panel);
+  padding: 7px 11px; font-size: 13px; color: var(--ink); max-width: 100%; }
+.td-pill b { font-weight: 800; }
+.td-pill .t { color: var(--ink-2); }
+.td-pill .a { font-size: 11.5px; color: var(--muted); }
+.td-pill:hover { border-color: var(--line-2); border-left-color: var(--signal); background: var(--surface-2); }
+.td-pill.buy { border-left-color: var(--blue); }
+.td-pill.sell { border-left-color: var(--purple); }
+.td-pill.late { border-left-color: var(--up); background: var(--up-bg); border-color: var(--red-t); }
+.td-pill.late .d { font-style: normal; font-weight: 800; color: var(--up); font-size: 11.5px; }
+
+/* ══════════ 캘린더 좌우 — 달력 · 고른 날 ══════════ */
+/* 날짜만 봐서는 무슨 얘기 끝에 잡힌 약속인지 모른다. 오른쪽에 커밋 원문까지 세운다. */
+.cal-two { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start; }
+.cal-day { padding: 12px 14px; display: grid; gap: 12px; align-content: start;
+  position: sticky; top: 12px; max-height: calc(100vh - 140px); overflow-y: auto; }
+.cal-day .sec-head { margin: 0; }
+.cal-cell.pick { box-shadow: inset 0 0 0 2px var(--ink); }
+.cal-cell.pick .cal-n { font-weight: 800; }
+
+/* 시각 있는 것과 없는 것이 한 날에 섞인다 — 없는 것을 뒤로 미는 것만으로는
+   왜 뒤에 있는지가 안 읽힌다. 얇은 경계를 한 번만 세운다(줄마다 「미정」을 쓰지 않는다). */
+
+.cd-item { display: grid; gap: 5px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.cd-item:last-child { border-bottom: 0; padding-bottom: 0; }
+.cd-item.off { opacity: .55; }
+.cd-l1 { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 13.5px; }
+.cd-l1 b { font-weight: 800; }
+.cd-t { color: var(--ink-2); }
+.cd-st { font-size: 10.5px; font-weight: 800; color: var(--muted);
+  background: var(--surface-2); border-radius: 4px; padding: 1px 6px; }
+.cd-mv { font-size: 11px; color: var(--muted); }
+.cd-addr { font-size: 12px; color: var(--muted); text-align: left; }
+.cd-addr:hover { color: var(--blue); }
+
+/* 커밋 원문 — 파서가 이 문장에서 약속을 읽었다. 사람이 쓴 말이라 인용으로 세운다 */
+.cd-src { margin: 2px 0 0; padding: 7px 10px; background: var(--surface-2);
+  border-radius: var(--radius-sm); font-size: 12.5px; line-height: 1.55; color: var(--ink); }
+.cd-src cite { display: block; margin-top: 3px; font-style: normal;
+  font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.cd-note { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+.cd-acts { display: flex; gap: 4px; }
+.cd-acts button { flex: 1; border: 1px solid var(--line-2); background: #fff; border-radius: 4px;
+  padding: 4px 0; font-size: 11.5px; font-weight: 700; color: var(--ink); cursor: pointer; }
+.cd-acts button:hover { border-color: var(--signal); }
+.cd-acts button.del { color: var(--up); }
+
+/* ══════════ 약속 확정 창 ══════════
+   칸이 아니라 **줄**이다. 아이콘이 줄머리를 잡고 값은 그냥 글자로 놓인다.
+   빈 자리는 「참석자 추가」처럼 할 일로 읽히고, 누르면 그 자리에서 글자를 친다.
+   네모칸 여섯 개를 쌓으면 서식이 되고, 서식은 채우기 전엔 아무것도 안 알려준다. */
+.gm { width: 420px; max-width: calc(100vw - 32px); background: var(--panel);
+  border-radius: 12px; box-shadow: var(--shadow-lg); padding: 22px 22px 14px;
+  display: grid; gap: 2px; align-content: start; margin-top: 8vh; }
+
+/* 용무 = 제목. 창에서 제일 큰 글자, 밑줄 하나만 */
+.gm-title { border: 0; border-bottom: 1.5px solid var(--line-2); background: none;
+  font: inherit; font-size: 21px; font-weight: 800; letter-spacing: -.02em;
+  color: var(--ink); padding: 4px 2px 8px; margin-bottom: 12px; outline: none; }
+.gm-title:focus { border-bottom-color: var(--ink); }
+.gm-title::placeholder { color: var(--line-2); font-weight: 700; }
+
+.gm-row { display: flex; align-items: flex-start; gap: 14px; padding: 7px 2px; min-height: 34px; }
+.gm-row.quiet { color: var(--muted); }
+.gm-i { flex: 0 0 17px; color: var(--muted); margin-top: 3px; }
+.gm-body { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.gm-body.wrap { flex-wrap: wrap; }
+.gm-txt { color: var(--ink-2); }
+
+/* 날짜 — 글자를 누르면 달력이 열린다(네이티브 피커를 글자 뒤에 숨긴다) */
+.gm-date { position: relative; cursor: pointer; color: var(--ink); border-radius: 5px; padding: 2px 5px; margin-left: -5px; }
+.gm-date:hover { background: var(--surface-2); }
+.gm-date input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+
+/* 빈 자리 = 할 일. 값이 없을 때 이게 곧 안내다(따로 설명글씨를 안 쓴다) */
+/* **줄이지 않는다**(2026-09-05). flex 항목이라 자리가 좁으면 글자가 접혔다 —
+   「시각 추가」가 42px 칸에서 한 글자씩 세로로 쌓였다. 조작 글자는 줄이 바뀌면 조작이 아니다. */
+.gm-add, .gm-clear, .gm-row .act { flex: 0 0 auto; white-space: nowrap; }
+.gm-add { border: 0; background: none; padding: 2px 5px; margin-left: -5px; border-radius: 5px;
+  font: inherit; font-size: 14px; color: var(--muted); cursor: pointer; }
+.gm-add:hover { background: var(--surface-2); color: var(--ink-2); }
+.gm-clear { border: 0; background: none; font-size: 12px; color: var(--muted); cursor: pointer; }
+.gm-clear:hover { color: var(--up); }
+
+/* 값 입력 — 테두리 없이 글자만. 포커스에서만 밑줄 */
+.gm-in { border: 0; border-bottom: 1px solid transparent; background: none; outline: none;
+  font: inherit; font-size: 14px; color: var(--ink); padding: 2px 0; min-width: 0; flex: 1; }
+.gm-in:focus { border-bottom-color: var(--ink); }
+.gm-in.tm { flex: 0 0 auto; width: 124px; }
+
+/* 참석자 — 매수=파랑 · 매도=보라 · 이름만 아는 손님=회색(캘린더와 같은 색) */
+.gm-p { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700;
+  border-radius: 5px; padding: 3px 8px; }
+.gm-p.buyer { background: var(--blue-bg); color: var(--blue); }
+.gm-p.owner { background: var(--purple-bg); color: var(--purple); }
+.gm-p.guest { background: var(--surface-2); color: var(--ink-2); }
+.gm-p button { border: 0; background: none; padding: 0; cursor: pointer; opacity: .5;
+  font: inherit; font-size: 13px; line-height: 1; }
+.gm-p button:hover { opacity: 1; }
+/* 이 매물 사람들 — 아직 참석자가 아닌 후보. 「+」가 붙어 있어 더하는 것임이 읽힌다 */
+.gm-cand { border: 1px solid var(--line); background: none; border-radius: 5px;
+  padding: 3px 8px; font: inherit; font-size: 13px; color: var(--muted); cursor: pointer; }
+.gm-cand:hover { border-style: solid; color: var(--ink); background: var(--surface-2); }
+.gm-cand.buyer:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-bg); }
+.gm-cand.owner:hover { border-color: var(--purple); color: var(--purple); background: var(--purple-bg); }
+
+.gm-find { position: relative; flex: 1; min-width: 140px; display: flex; }
+.gm-hits { position: absolute; top: 100%; left: 0; z-index: 5; margin-top: 6px; padding: 6px;
+  background: var(--panel); border: 1px solid var(--line-2); border-radius: 8px;
+  box-shadow: var(--shadow-lg); display: flex; flex-wrap: wrap; gap: 4px; }
+.gm-hits button { border: 0; background: none; padding: 0; cursor: pointer; }
+
+/* 담당 — 팀원 이름을 그대로. 고른 사람만 진하다 */
+.gm-me { border: 0; background: none; padding: 3px 9px; border-radius: 999px;
+  font: inherit; font-size: 13px; color: var(--muted); cursor: pointer; }
+.gm-me:hover { background: var(--surface-2); }
+.gm-me.on { background: var(--ink); color: #fff; font-weight: 700; }
+
+.gm-foot { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+/* 기록만 — 저장 옆에 나란히. 약속이 아니라고 판단했을 때의 출구다 */
+.gm-ghost { border: 1px solid var(--line-2); background: #fff; border-radius: 999px;
+  padding: 8px 18px; font: inherit; font-size: 14px; font-weight: 700; color: var(--ink-2); cursor: pointer; }
+.gm-ghost:hover { border-color: var(--signal); color: var(--ink); }
+/* 취소 — 아무것도 안 하고 닫는다. 세 단추 중 제일 약하게 */
+.gm-ghost.quiet { border-color: transparent; color: var(--muted); padding: 8px 14px; }
+.gm-ghost.quiet:hover { border-color: var(--line-2); color: var(--ink-2); }
+.gm-save { border: 0; background: var(--ink); color: #fff; border-radius: 999px;
+  padding: 9px 26px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.gm-save:hover { opacity: .88; }
+
+/* 메모 — 단계를 안 옮기는 기록. 단계 칩들과 달리 색을 안 쓴다(사건이 아니라 말이라서) */
+.pp-st.s-메모 { background: var(--surface-2); color: var(--muted); font-weight: 700; }
+
+/* ══════════ 오늘 ══════════
+   지금 시각 기준으로 접은 하루. 다음에 할 것이 제일 크고, 나머지는 한 줄씩 흐른다.
+   그리드(24칸 시간축)를 안 쓰는 이유: 우리 약속엔 시각이 없는 것이 많다. */
+.td1 { max-width: 760px; display: grid; gap: 2px; }
+.td1-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+.td1-head h2 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
+.td1-head h2 span { color: var(--muted); font-weight: 700; }
+.td1-n { font-size: 12px; color: var(--muted); display: inline-flex; gap: 8px; align-items: baseline; }
+.td1-n i, .td1-n em { font-style: normal; }
+.td1-n em { color: var(--up); font-weight: 700; }
+.td1-none { padding: 34px 2px; color: var(--muted); font-size: 14px; }
+.td1-none small { display: block; margin-top: 6px; font-size: 12.5px; color: var(--line-2); }
+
+/* 다음 — 하루에서 제일 큰 글자. 시각이 지나면 저절로 다음 줄로 넘어간다 */
+.td1-next { border: 1px solid var(--line); border-left-width: 3px; border-radius: var(--radius);
+  background: var(--panel); padding: 16px 18px; margin: 4px 0 14px;
+  display: grid; grid-template-columns: auto auto 1fr auto; gap: 4px 12px; align-items: baseline; }
+.td1-next.buy { border-left-color: var(--blue); }
+.td1-next.sell { border-left-color: var(--purple); }
+.td1-next .k { grid-column: 1 / -1; font-size: 11px; font-weight: 800; color: var(--muted); }
+.td1-next .t { font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
+.td1-next .w { font-size: 18px; font-weight: 800; }
+.td1-next .g { justify-self: end; font-size: 12.5px; color: var(--muted); }
+.td1-next .who { grid-column: 1 / -1; border: 0; background: none; padding: 0; text-align: left;
+  font: inherit; font-size: 13.5px; color: var(--ink-2); cursor: pointer;
+  display: flex; align-items: baseline; gap: 8px; }
+.td1-next .who i { font-style: normal; color: var(--muted); }
+.td1-next .who .a { color: var(--muted); font-size: 12.5px; }
+.td1-next .who:hover { color: var(--blue); }
+
+.td1-grp { font-size: 11px; font-weight: 800; color: var(--muted); margin: 14px 0 4px;
+  font-variant-numeric: tabular-nums; }
+.td1-grp.late { color: var(--up); }
+
+/* 나머지 줄 — Things 처럼 세로 목록. 상자 없이 hairline 만 */
+.tl { display: flex; align-items: baseline; gap: 10px; width: 100%; text-align: left;
+  border: 0; border-bottom: 1px solid var(--line); background: none; cursor: pointer;
+  padding: 9px 4px; font: inherit; font-size: 13.5px; color: var(--ink); }
+.tl:hover { background: var(--surface-2); }
+.tl-d { flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; align-self: center; background: var(--line-2); }
+.tl-d.buy { background: var(--blue); } .tl-d.sell { background: var(--purple); }
+.tl-t { flex: 0 0 74px; color: var(--ink-2); font-size: 12.5px; }
+.tl-w { font-weight: 800; }
+.tl-p { color: var(--ink-2); }
+.tl-l { color: var(--muted); font-size: 12.5px; }
+.tl-by { font-size: 11px; color: var(--muted); background: var(--surface-2);
+  border-radius: 4px; padding: 1px 6px; font-weight: 700; }
+.tl.late .tl-t { color: var(--up); font-weight: 700; }
+.tl.done { opacity: .45; }
+
+/* 사람 등록 창 — 약속 창과 같은 뼈대(.gm). 칩만 여러 줄로 흐른다 */
+.np-chips { gap: 6px 10px; }
+.np-chips .chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+/* 칩 상자에 **폭을 준다**(2026-09-05).
+   펼침 칩(Chips mode="inline")의 겉 span 이 폭을 안 잡고 줄어들어, 240px 자리에서
+   89px 로 쪼그라들었다 — 사유 열한 개가 세로로 쌓이고 글자가 두 줄로 접혔다.
+   flex 항목의 shrink-to-fit 이 min-content(제일 긴 칩 한 개)로 떨어진 것이다. */
+.np-chips > span { flex: 1 1 auto; width: 100%; min-width: 0; }
+.gm-save:disabled { opacity: .35; cursor: default; }
+
+
+/* ══════════ 하단 대화창 ══════════
+   대화형 AI 가 들어올 자리다(2026-08-29). 도우미 줄·후보 칩·영수증·되비침은 전부
+   규칙 시절의 것이라 같이 걷었다 — 대화가 들어서면 어차피 다시 그린다. */
+.tb { position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 40;
+  width: min(680px, calc(100vw - 32px)); display: grid; gap: 8px; }
+
+/* 입력 pill — 검색바와 같은 pill 어법. 포커스에서만 또렷해진다 */
+.tb-pill { background: var(--panel); border: 1px solid var(--line-2); border-radius: 22px;
+  padding: 7px 8px 7px 14px; box-shadow: var(--shadow-lg); transition: border-color .15s; }
+.tb-pill.on { border-color: var(--signal); }
+.tb-line { display: flex; align-items: center; gap: 8px; }
+.tb-in { flex: 1; min-width: 0; border: 0; background: none; outline: none;
+  font: inherit; font-size: 13.5px; color: var(--ink); }
+.tb-in::placeholder { color: var(--line-2); }
+.tb-go { flex: 0 0 auto; width: 30px; height: 30px; border: 0; border-radius: 50%;
+  background: var(--ink); color: #fff; cursor: pointer; display: inline-flex;
+  align-items: center; justify-content: center; }
+.tb-go:disabled { opacity: .25; cursor: default; }
+
+/* 바가 마지막 줄을 가리지 않게 — 거래 화면만 바닥을 띄운다 */
+.page.sales { padding-bottom: 104px; }
+
+/* 머리의 「다음 일정 + 상태」 — 상태는 파생값 하나, 다음 움직임은 그 옆에(2026-08-15) */
+.pp-next { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+
+/* 약속 종류 세그먼트(모달) — 두 갈래는 슬라이딩 토글 어법 */
+.gm-seg { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 2px; }
+.gm-seg button { border: 0; background: transparent; border-radius: 999px; padding: 4px 14px;
+  font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer; }
+.gm-seg button.on { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+
+/* 거절 창 — 제목이 입력이 아닌 사실일 때(누구의 거절인가) */
+.gm-title-fix { font-size: 19px; font-weight: 800; color: var(--ink);
+  padding: 2px 0 10px; border-bottom: 1.5px solid var(--line-2); margin-bottom: 12px; }
+.gm-cand.on { background: var(--signal); border-color: var(--signal); color: #fff; }
+
+/* 프로필 편집(명함 뒷면) — 약속 창과 같은 어법: 네모칸 대신 밑줄 글자(2026-08-15).
+   칸을 여섯 개 쌓으면 서식이 된다 — 값은 글자로 놓이고, 누르면 그 자리에서 고친다. */
+.bc-back .input { border: 0; border-bottom: 1px solid transparent; background: none;
+  border-radius: 0; padding: 2px 0; font-size: 13.5px; box-shadow: none; }
+.bc-back .input:focus { border-bottom-color: var(--ink); box-shadow: none; outline: none; }
+.bc-back textarea.input { border-bottom: 1px solid var(--line); }
+.bc-back .btn { border: 0; border-radius: 999px; background: var(--ink); color: var(--panel);
+  font-weight: 800; font-size: 13px; padding: 7px 18px; }
+
+/* 제안·거절 창 머리 — 이름(사실) + 면 토글이 한 줄 */
+.gm-head { display: flex; align-items: center; gap: 10px;
+  padding-bottom: 10px; border-bottom: 1.5px solid var(--line-2); margin-bottom: 12px; }
+
+/* 답글 줄 — 거절은 제안에 대한 답이다(0085). 들여쓰고 ↳ 가 줄머리를 잡는다 */
+.gc.reply { margin-left: 22px; }
+.gc.reply .gc-x::before { content: "\21B3  "; color: var(--muted); font-weight: 700; }
+/* 왕복 창의 거절 블록 — 제안 밑에 답처럼 들여 선다 */
+.gm-thread { margin-left: 22px; border-left: 2px solid var(--line); padding-left: 10px; }
+
+/* 담기 팝오버 검색 — 모달과 같은 밑줄 어법(네모칸 대신) */
+.pick-pop .input { border: 0; border-bottom: 1px solid var(--line); border-radius: 0;
+  background: none; box-shadow: none; padding: 6px 2px; }
+.pick-pop .input:focus { border-bottom-color: var(--ink); box-shadow: none; outline: none; }
+
+/* 오늘 — 왼쪽 일정 · 오른쪽 연락할 차례. 파이프라인은 머리의 사실 한 줄 */
+.td1-cols { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 26px; align-items: start; }
+@media (max-width: 1100px) { .td1-cols { grid-template-columns: 1fr; } }
+.td1-pipe { font-size: 12px; color: var(--muted); margin-left: 14px; }
+.tl.turn .tl-t { color: var(--muted); font-weight: 700; font-size: 11.5px; flex: 0 0 auto; }
+.tl.turn .tl-p { font-size: 11.5px; }
+
+/* 제안의 갈래 칩(0086 파생) — 수락=매수 파랑 진하게 · 거절=경고 빨강(기존 거절 색) */
+.pp-st.s-제안수락 { background: var(--buy, #2563eb); color: #fff; }
+.pp-st.s-제안거절 { background: var(--up-bg); color: var(--up); }
+/* 검토 — 아직 답이 아니다. 색을 안 쓴다(수락·거절만 결론) */
+.pp-st.s-제안검토 { background: var(--surface-2); color: var(--ink-2); font-weight: 700; }
+
+/* 찾는 조건 — 누르면 그 조건으로 건물 검색이 열린다(명함 앞면·2026-08-16) */
+.bc-conds .row.lnk { display: flex; align-items: baseline; gap: 8px; width: 100%;
+  text-align: left; padding: 6px 2px; border-radius: var(--radius-sm); cursor: pointer; }
+.bc-conds .row.lnk:hover { background: var(--surface-2); }
+.bc-conds .row.lnk .go { font-size: 11.5px; color: var(--muted); opacity: 0; flex: 0 0 auto; }
+.bc-conds .row.lnk:hover .go { opacity: 1; }
+.bc-conds .row.lnk .ck { display: inline-flex; color: var(--muted); opacity: 0; flex: 0 0 auto; }
+.bc-conds .row.lnk:hover .ck { opacity: .8; }
+.bc-conds .row.add { color: var(--muted); font-size: 12px; }
+/* 명함이 한 면뿐일 때 — 뒤집기 구조(bc-inner) 없이 그대로 선다 */
+.bcard.flat { perspective: none; height: auto; }
+.bcard.flat .bc-face { position: static; transform: none; backface-visibility: visible; }
+
+/* 매물 카드의 소유자 줄 — 매도 탭을 흡수한 자리(2026-08-16). 이름·전화·성격이 한 줄 */
+.lp-owner { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  margin: 10px 0 0; padding-top: 9px; border-top: 1px solid var(--line); font-size: 12.5px; }
+.lp-owner .k { flex: 0 0 auto; color: var(--muted); font-size: 11.5px; }
+.lp-owner .nm { font-weight: 800; font-size: 13.5px; color: var(--ink); }
+.lp-owner .ph { font-variant-numeric: tabular-nums; }
+
+/* 일정 종류(0088) — 색은 「돈이 오가는 단계」 하나만 뜻한다. 일반은 색을 안 쓴다.
+   계약·잔금은 하루의 무게가 다르므로 굵기·크기로도 갈린다(중개인 요청 2026-08-16). */
+.cal-ev.c-계약   { color: var(--green);  font-weight: 800; font-size: 12.5px;
+  box-shadow: inset 2px 0 0 var(--green); }
+.cal-ev.c-중도금 { color: var(--blue);   font-weight: 800; box-shadow: inset 2px 0 0 var(--blue); }
+.cal-ev.c-잔금   { color: var(--purple); font-weight: 800; font-size: 12.5px;
+  box-shadow: inset 2px 0 0 var(--purple); }
+.cal-ev.st-완료  { opacity: .5; }
+.cd-item.c-계약   .cd-title { color: var(--green); }
+.cd-item.c-중도금 .cd-title { color: var(--blue); }
+.cd-item.c-잔금   .cd-title { color: var(--purple); }
+/* 모달의 종류 토글 — 고른 값이 그 색을 미리 보여준다 */
+.gm-seg button.on.c-계약   { background: var(--green);  color: #fff; }
+.gm-seg button.on.c-중도금 { background: var(--blue);   color: #fff; }
+.gm-seg button.on.c-잔금   { background: var(--purple); color: #fff; }
+
+/* 창의 삭제 — 저장·취소와 같은 pill 어법. 색만 경고로(2026-08-16) */
+.gm-ghost.del { border-color: transparent; color: var(--up); padding: 8px 14px; }
+.gm-ghost.del:hover { border-color: var(--up); background: var(--up-bg); }
+
+.lp-owner.sub { border-top: 0; padding-top: 2px; margin-top: 4px; font-size: 12px; }
+.lp-owner.sub .a { font-weight: 700; }
+
+/* 창 안의 구획 — 매물(대목) 아래 소유자가 붙는다. hairline 하나 + 조용한 라벨 */
+.gm-sep { display: flex; align-items: center; gap: 8px; margin: 16px 0 4px;
+  font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.gm-sep span { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.gm-title-find { display: block; position: relative; }
+.gm-title-find .gm-title { width: 100%; }
+
+/* ── 멈춤(S04b §2.3) — 「지금은 못 간다 + 언제 다시」. 철회와 다르다 ── */
+.st-chip { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto;
+  border: 1px solid var(--up); background: var(--up-bg); color: var(--up);
+  border-radius: 999px; padding: 1px 8px 1px 6px; font-size: 11px; font-weight: 700;
+  cursor: pointer; font-family: var(--mono); letter-spacing: -.02em; }
+.st-chip:hover { filter: brightness(.92); }
+/* 깨울 때가 지났다 = 「잠든 것」 — 채워서 더 세게 */
+.st-chip.over { background: var(--up); color: #fff; }
+
+/* ── 사다리(S04b §7.2) — 목차이자 진행 표시이자 할 일 목록 ── */
+.rail { display: flex; align-items: stretch; gap: 0; overflow-x: auto; }
+.rail button { flex: 1 1 0; min-width: 62px; display: flex; flex-direction: column;
+  align-items: center; gap: 3px; padding: 6px 2px 5px; border: 0; background: none;
+  cursor: pointer; position: relative; }
+/* 칸 사이를 잇는 선 — 사다리로 읽히게 */
+.rail button::before { content: ""; position: absolute; top: 11px; left: 0; right: 50%;
+  height: 1px; background: var(--line-2); }
+.rail button::after { content: ""; position: absolute; top: 11px; left: 50%; right: 0;
+  height: 1px; background: var(--line-2); }
+.rail button:first-child::before, .rail button:last-child::after { display: none; }
+.rail i { width: 9px; height: 9px; border-radius: 999px; background: var(--panel);
+  border: 1.5px solid var(--line-2); position: relative; z-index: 1; }
+.rail b { font-size: 10.5px; font-weight: 700; color: var(--muted); white-space: nowrap;
+  letter-spacing: -.02em; }
+.rail .done i { background: var(--green); border-color: var(--green); }
+.rail .done b { color: var(--ink-2); }
+/* 지금 칸 — 첫 번째 미완. 여기가 곧 「할 일」이다 */
+/* 지금 칸 — **테두리를 바꾸지 않는다**(2026-08-19). 점의 테두리는 「색=상태」 한 가지만
+   말해야 하는데, 강조까지 테두리로 하니 회색 점에 검은 테두리가 겹쳐 두 종류가 생겼다.
+   강조는 글자로 한다(굵게·진하게). */
+.rail .now b { color: var(--ink); font-weight: 800; }
+.rail em { font-style: normal; font-size: 9.5px; font-family: var(--mono); color: var(--muted); }
+/* 창 머리의 채움 표시 — 필드가 늘어도 「안 찍은 게 몇 개」가 보인다(S04b §7.4) */
+.gm-fill { float: right; font-size: 12px; font-weight: 700; color: var(--muted); }
+/* 준비도 칩 — 사다리 단계(파생·S04b). 단계는 뜻이 하나라 색을 나누지 않는다.
+   거래 배지(계약·파기·철회)는 다른 층이라 기존 의미색 그대로 옆에 선다. */
+.pp-st.stg { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); }
+/* 서류 체크리스트(0093) — 항목은 서버가 조합으로 판정한다. 체크는 그 자리에서 저장 */
+.dd-item { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.dd-item input { accent-color: var(--green); }
+.dd-item .done { color: var(--muted); text-decoration: line-through; }
+/* 지주작업 상태 배지 — 소유자 구분선 위. 파생값이라 사람이 못 찍는다 */
+.gm-state { font-style: normal; font-size: 11px; font-weight: 700; color: var(--muted);
+  border: 1px solid var(--line-2); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.gm-state.ok { color: var(--green); border-color: var(--green); background: var(--green-bg); }
+.gm-state.hold { color: var(--amber); border-color: var(--amber); background: var(--amber-t); }
+/* 지주작업 기록 목록 — 최근 위 · 넘치면 스크롤. 문장이 정본이라 여기 다 보인다 */
+.gm-tries { margin: 2px 0 6px 27px; max-height: 118px; overflow-y: auto;
+  border-left: 2px solid var(--line); padding-left: 10px; }
+.gm-tries .row { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; font-size: 12px; }
+.gm-tries .num { flex: 0 0 auto; color: var(--muted); }
+.gm-tries .tx { color: var(--ink-2); }
+/* 소유자 찾기 상태 점 — 글자 대신 색(2026-08-17 확정 팔레트):
+   시작 전=회색 빈 점 · 진행 중=**노랑** 펄스 · 멈춤=**빨강** · 확보=**초록**.
+   깨울 날이 지난 멈춤은 빨강이 깜빡인다 — 잠든 것이 여기 있다는 신호. */
+.hunt-dot { width: 11px; height: 11px; border-radius: 999px; flex: 0 0 auto;
+  border: 2px solid var(--line-2); background: var(--panel); }
+.hunt-dot.doing { border-color: var(--amber); background: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-t); animation: huntpulse 2s ease-in-out infinite; }
+.hunt-dot.hold { border-color: var(--up); background: var(--up); box-shadow: 0 0 0 3px var(--up-bg); }
+.hunt-dot.over { border-color: var(--up); background: var(--up);
+  box-shadow: 0 0 0 3px var(--up-bg); animation: huntpulse 1.2s ease-in-out infinite; }
+.hunt-dot.ok { border-color: var(--green); background: var(--green); box-shadow: 0 0 0 3px var(--green-bg); }
+@keyframes huntpulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .hunt-dot.doing, .hunt-dot.over { animation: none; } }
+/* 결론 칩 — 멈춤은 빨강(확정 팔레트) */
+.chips-in button.hold { color: var(--up); }
+.chips-in button.on.hold { background: var(--up-bg); border-color: var(--up); color: var(--up); }
+/* 멈춘 칸 — 사다리에서도 빨강(카드만 봐도 어디가 왜 서 있는지) */
+.rail .held i { border-color: var(--up); background: var(--up-bg); }
+.rail .held b { color: var(--up); }
+/* 단계 칩의 상태색(2026-08-17) — 시작 전=회색(기본) · 진행 중=노랑 · 멈춤=빨강 */
+.pp-st.stg.doing { background: var(--amber-t); border-color: var(--amber); color: var(--amber); }
+.pp-st.stg.hold { background: var(--up-bg); border-color: var(--up); color: var(--up); }
+/* 초안 기록 — 아직 커밋이 아니다(저장 때 태어난다). 옅게 + 버리기 × */
+.gm-tries .row.draft { opacity: .55; }
+.gm-tries .row .rm { border: 0; background: none; color: var(--muted); cursor: pointer;
+  padding: 0 2px; font-size: 13px; line-height: 1; }
+.gm-tries .row .rm:hover { color: var(--up); }
+
+/* ── 소유자 찾기 창 — 왼쪽 인덱스 탭(2026-08-17) ──
+   지금 보는 탭이 크고 굵고, 몸통과 한 몸이 되어 위에 떠 있는 것처럼 읽힌다. */
+.gm.gm-wide { width: min(560px, calc(100vw - 48px)); }
+.gm-tabs { display: flex; align-items: stretch; margin-top: 10px; }
+.gm-tabrail { display: flex; flex-direction: column; gap: 5px; padding-top: 12px; z-index: 1; }
+.gm-tab { text-align: right; border: 1px solid var(--line); border-right: 0;
+  background: var(--surface-2); color: var(--muted); font-weight: 600; font-size: 11.5px;
+  line-height: 1.25; padding: 7px 10px; border-radius: 8px 0 0 8px; cursor: pointer;
+  margin-right: 0; transition: all .12s; }
+.gm-tab.on { background: var(--panel); color: var(--ink); font-weight: 800; font-size: 13px;
+  border-color: var(--line-2); padding: 10px 12px; margin-right: -1px; }
+.gm-tabbody { flex: 1; min-width: 0; min-height: 240px; background: var(--surface);
+  border: 0; border-radius: 0 10px 10px 10px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 8px; }
+
+/* 이름·전화 — 프로필 탭의 주인공 */
+.gm-in.gm-big { font-size: 17px; font-weight: 750; padding: 10px 12px; letter-spacing: -.02em; }
+
+/* 라벨 줄 — 아이콘만으론 무슨 칸인지 안 읽혔다. 라벨은 값이 아니라 이름표(설명글씨 아님) */
+.gm-row.lab { padding: 2px 0; }
+.gm-row.lab .gm-body .chips-in { display: flex; flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-start; }
+.gm-lab { flex: 0 0 58px; font-size: 11px; font-weight: 700; color: var(--muted); padding-top: 7px; }
+
+/* 메모 탭의 기록 — 창의 주인공이라 더 크게 */
+.gm-tries.tall { max-height: 230px; margin-left: 0; flex: 1; }
+/* 실패 동안 얼어붙은 프로필 — 상태가 화면의 모양으로 말한다(회색·수정 불가) */
+.gm-fields { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.gm-fields.frozen { opacity: .42; pointer-events: none; filter: grayscale(.4); }
+/* 기록 탭 — 카드의 기록 레일과 같은 타임라인 어법. 초안 점은 점선(아직 커밋이 아니다) */
+.lm-log .gtl-rail { max-height: 232px; margin-top: 0; }
+.lm-pill { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line-2);
+  border-radius: 999px; padding: 4px 6px 4px 14px; background: var(--panel); }
+.lm-pill input { flex: 1; border: 0; outline: 0; background: none; font: inherit; font-size: 13px;
+  color: var(--ink); min-width: 0; }
+.lm-pill .go { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 999px; border: 0;
+  background: var(--green-bg); color: var(--green); font-weight: 800; cursor: pointer; }
+.lm-pill .go:disabled { opacity: .35; cursor: default; }
+/* 진행 칩 — 노랑(진행 중 팔레트 그대로) */
+.chips-in button.doing { color: var(--amber); }
+.chips-in button.on.doing { background: var(--amber-t); border-color: var(--amber); color: var(--amber); }
+/* 상태 줄(탭 위·공통) — 상태는 칸 전체의 것. 실패 펼침은 옅은 면 위에 */
+.gm-state-bar { margin: 8px 0 0; }
+.gm-state-panel { margin: 6px 0 0; padding: 4px 10px 6px; background: var(--surface-2);
+  border-radius: 8px; }
+/* 실패사유 탭 — 빨강 톤. 실패일 때만 나타난다 */
+.gm-tab.fail { color: var(--up); border-color: var(--up-bg); }
+.gm-tab.fail.on { color: var(--up); border-color: var(--up); background: var(--up-bg); }
+.gm-tab:disabled { opacity: .4; cursor: default; }
+/* 상태 줄 — 라벨 + 라디오 칩 한 줄 */
+.gm-state-bar { display: flex; align-items: flex-start; gap: 10px; }
+/* 확보 칩 — 초록(파생 상태와 같은 색) */
+.chips-in button.ok { color: var(--green); }
+.chips-in button.on.ok { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+/* 상태 칩 팝오버 — 칩(목록과 같은 모습)을 누르면 상태 넷이 열린다 */
+.stg-wrap { position: relative; display: inline-flex; }
+.stg-wrap > .pp-st.stg { cursor: pointer; font-size: 12.5px; padding: 4px 12px; }
+.pp-st.stg.ok { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+.stg-pop { position: absolute; top: 50%; transform: translateY(-50%); left: calc(100% + 8px); z-index: 40;
+  display: flex; gap: 4px; padding: 6px; background: var(--panel);
+  border: 1px solid var(--line-2); border-radius: 9px; box-shadow: var(--shadow-lg); white-space: nowrap; }
+
+/* 매물 창 제목 줄 — 주소 왼쪽 · 소유자 찾기 칩 오른쪽. 칩은 표시등(파생)이라 안 눌린다 */
+.gm-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.gm-title-row .pp-st.stg { flex: 0 0 auto; font-size: 12.5px; padding: 4px 12px; }
+
+/* 레일의 지금 칸 = 칩(2026-08-18) — 점·라벨 대신 상태색 칩 하나. 잇는 선은 칩 뒤로 지난다 */
+.rail .now .pp-st.stg { position: relative; z-index: 1; font-size: 10.5px; padding: 3px 10px; white-space: nowrap; }
+.rail .now .pp-st.stg em { margin-left: 4px; }
+
+/* 매물 카드 개편(2026-08-18) — 본 카드(신원·가격·레일) + 오른쪽 소유자 카드 */
+.byp .bcard.flat { max-width: 960px; display: flex; align-items: stretch; gap: 12px; }
+.byp .bcard.flat .bc-front { flex: 1 1 auto; min-width: 0; }
+.lp-ownercard { flex: 0 0 300px; padding: 14px 16px; display: flex; flex-direction: column;
+  gap: 6px; align-items: flex-start; }
+.lp-ownercard > .k { font-size: 11px; font-weight: 700; color: var(--muted); }
+.lp-ownercard .oc-name { display: flex; align-items: center; gap: 6px; }
+.lp-ownercard .oc-name .nm { font-size: 15px; }
+.lp-ownercard .oc-sum { font-size: 12.5px; margin: 2px 0 0; }
+.lp-ownercard .bc-memo { margin: 2px 0 0; }
+.lp-ownercard .lp-owner.sub { margin-top: auto; padding-top: 8px; }
+/* 머리 — 주소 옆에 매물번호·접수·담당이 붙는다(바닥 요약줄을 올렸다) */
+.lp-head { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.lp-head .lp-meta { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 레일 — 하단에 여유를 두고, 칸 폭을 줄여 카드 가로가 준다 */
+.lp-railwrap { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+.byp .rail button { min-width: 36px; }
+.byp .rail b { font-size: 10px; }
+
+/* 프로필 탭 — 아이콘이 칸의 정체를 말한다(이름·전화) */
+.gm-bigrow { display: flex; align-items: center; gap: 8px; }
+.gm-bigrow .gm-in { flex: 1; min-width: 0; }
+
+/* 접촉 창 — 통화 결과 줄이 기록의 머리(흐름의 입구). 기록과 같은 왼쪽 기준선 */
+.tm-call { padding-bottom: 8px; margin-bottom: 4px; }
+.tm-call .chips-in { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 4px; }
+.tm-call { display: flex; flex-direction: column; gap: 6px; }
+
+.tm-call.am-facts { flex-direction: row; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
+/* 사실 pill — 파생값 + 정본으로 가는 문. 칩과 같은 문법이되 「고르는 것」이 아니라
+   「읽고 건너가는 것」이라 화살표가 붙는다. 정적 값(.still)은 화살표 없이 눌리지도 않는다 */
+.gm-fact { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
+  font: inherit; font-size: 12px; font-weight: 600; border-radius: 999px;
+  border: 1px solid var(--line-2); background: #fff; color: var(--ink-2); cursor: pointer; line-height: 1.5; }
+.gm-fact:hover { border-color: var(--signal); color: var(--signal); }
+.gm-fact b { font-weight: 700; }
+.gm-fact.still { cursor: default; }
+.gm-fact.still:hover { border-color: var(--line-2); color: var(--ink-2); }
+
+/* 의사 창 — 시기 줄(막연 칩 + 날짜). 날짜 입력은 칩과 같은 높이의 pill */
+.im-when { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.im-when .im-date input { border: 1px solid var(--line-2); border-radius: 999px; background: none;
+  font: inherit; font-size: 12px; padding: 2px 10px; color: var(--ink-2); }
+.gm-fact-in { max-width: 110px; border-radius: 999px; padding: 3px 11px; font-size: 12.5px; }
+
+/* 매칭 창 — 쌍 목록(이름 + 단계 꼬리표) · 죽은 쌍은 흐리게(지우지 않는다) */
+.mm-pairs .gm-fact b { margin-left: 5px; font-size: 11px; color: var(--muted); }
+.mm-pairs .gm-fact.dead { opacity: .45; }
+.mm-find { max-width: 130px; border-radius: 999px; padding: 3px 11px; font-size: 12.5px; }
+/* 완료 칩은 값이 만든 상태 — 눌러도 안 바뀐다(안내는 title) */
+.pp-st.stg:disabled { cursor: default; opacity: 1; }
+
+/* 매칭 창의 쌍 줄 — 이름 · 브리핑 방식 · 일정 · 오간 값 · 단계가 한 줄에 */
+.mm-pair { display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 5px 0; border-bottom: 1px solid var(--line); width: 100%; }
+.mm-pair:last-child { border-bottom: 0; }
+.mm-pair .nm { font-size: 13px; min-width: 54px; }
+.mm-pair .st { font-size: 11px; color: var(--muted); font-weight: 600; margin-left: auto; }
+.mm-pair.dead { opacity: .45; }
+.mm-log { font-size: 11.5px; color: var(--ink-2); }
+
+/* 매칭 창 — 매수자 탭(누구와의 일인가) */
+.mm-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 10px 0 2px; }
+.mm-tab { padding: 5px 12px; border-radius: 999px; border: 0;
+  background: none; font: inherit; font-size: 12.5px;
+  color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+.mm-tab:hover { color: var(--ink-2); }
+.mm-tab.on { background: var(--surface-2); color: var(--ink); font-weight: 700; }
+.mm-tab.dead { opacity: .45; }
+.mm-tab .dot.ok { width: 6px; height: 6px; border-radius: 999px; background: var(--green); }
+.mm-body { padding-top: 10px; }
+.mm-stop { margin-top: 10px; }
+.gm-fact.done { color: var(--green); border-color: var(--green); }
+
+/* 매칭 창 안쪽 탭 — 지금 값 / 오간 값 */
+.mm-inner { display: flex; gap: 4px; margin: 8px 0 2px; }
+.mm-inner button { padding: 3px 12px; border-radius: 999px; border: 0;
+  background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.mm-inner button.on { background: var(--surface-2); color: var(--ink); }
+.mm-loglist { display: grid; gap: 3px; font-size: 12.5px; }
+.mm-loglist .sell b { color: var(--purple); }
+.mm-loglist .buy b { color: var(--blue); }
+
+/* 호가판 — 매도자 한 줄 + 매수자들. 값이 한 판에 서야 누가 가까운지 보인다 */
+.mm-board { display: grid; gap: 4px; padding: 4px 0; }
+.mm-board .row { display: flex; align-items: center; gap: 8px; padding: 4px 0;
+  border-bottom: 1px solid var(--line); }
+.mm-board .row:last-child { border-bottom: 0; }
+.mm-board .row.head { border-bottom: 1px solid var(--line-2); }
+.mm-board .who { min-width: 66px; font-size: 13px; font-weight: 700; text-align: left; }
+.mm-board .gap { font-size: 11.5px; color: var(--muted); }
+.mm-board .row.dead { opacity: .45; }
+/* 호가판의 지나온 값 — 사람 줄 아래 작게, 매도=보라 · 매수=파랑(색 체계 그대로) */
+.mm-board .grp { border-bottom: 1px solid var(--line); padding: 5px 0; }
+.mm-board .grp:last-child { border-bottom: 0; }
+.mm-board .grp .row { border-bottom: 0; padding: 0; }
+.mm-board .hist { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 4px 0 0 66px;
+  font-size: 11.5px; color: var(--ink-2); }
+.mm-board .hist i { font-style: normal; color: var(--muted); margin-right: 3px; }
+.mm-board .hist .sell { color: var(--purple); }
+.mm-board .hist .buy { color: var(--blue); }
+
+/* 호가판 차트 — 매도=보라 · 매수=파랑. 축·값·이름만 남긴다(설명글씨 없음) */
+.ob { display: grid; gap: 6px; }
+.ob-sum { display: flex; gap: 12px; align-items: baseline; font-size: 13px; }
+.ob-sum .buy { color: var(--blue); }
+.ob-sum span { color: var(--muted); font-size: 12px; }
+.ob-svg { width: 100%; height: auto; }
+.ob-svg polyline { fill: none; stroke-width: 1.6; }
+.ob-svg .sell polyline { stroke: var(--purple); }
+.ob-svg .sell circle { fill: var(--purple); }
+.ob-svg .sell text { fill: var(--purple); font-size: 10px; }
+.ob-svg .buy polyline { stroke: var(--blue); }
+.ob-svg .buy circle { fill: var(--blue); }
+.ob-svg .buy text { fill: var(--blue); font-size: 10px; }
+.ob-svg .ax { fill: var(--muted); font-size: 9.5px; }
+.ob-svg .ax.end { text-anchor: end; }
+
+/* 매도 쪽 값 — 탭 밖 머리(매물 하나의 값이라 매수자 탭과 무관하다) */
+.mm-sell { display: flex; align-items: center; gap: 8px; padding: 8px 0 2px; }
+.mm-sell .k { font-size: 11px; font-weight: 700; color: var(--muted); }
+/* 호가판 표 — 행=참여자 · 열=값이 움직인 날 · 빈칸이 곧 「그날은 안 움직였다」 */
+.ob-tw { overflow-x: auto; }
+.ob-t { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ob-t th { font-weight: 700; color: var(--muted); font-size: 10.5px; padding: 4px 6px;
+  border-bottom: 1px solid var(--line-2); text-align: right; white-space: nowrap; }
+.ob-t th.who { text-align: left; }
+.ob-t td { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: right;
+  color: var(--muted); white-space: nowrap; }
+.ob-t td.who { text-align: left; font-weight: 700; color: var(--ink); }
+.ob-t td.hit { color: var(--ink-2); }
+.ob-t tr.sell td.who { color: var(--purple); }
+.ob-t tr.buy td.who { color: var(--blue); }
+.ob-t td.now { font-weight: 800; color: var(--ink); }
+.ob-t td.gap, .ob-t th.gap { color: var(--muted); }
+/* 호가판은 탭 오른쪽 끝으로 */
+.mm-tabs { align-items: flex-end; }
+.mm-tabs .sp { flex: 1; }
+.mm-tab.board { color: var(--muted); }
+/* 매도자 탭 — 색은 매도(보라). 매수자 탭들과 한 줄에 선다 */
+.mm-tab.sell { color: var(--purple); }
+.mm-tab.sell.on { color: var(--purple); font-weight: 800; }
+/* 위험한 조작 — 같은 pill 어법이되 빨강(누르기 전에 한 번 더 읽히게) */
+.gm-fact.danger { color: var(--up); border-color: var(--line-2); }
+.gm-fact.danger:hover { border-color: var(--up); color: var(--up); }
+/* 담기 ＋ 는 탭 줄에 손이 올라왔을 때만 · 빼기는 그 탭 위에서 이름이 × 로 바뀐다 */
+.mm-add { width: 26px; height: 26px; border-radius: 999px; border: 1px solid var(--line);
+  background: none; color: var(--muted); font: inherit; cursor: pointer; align-self: center;
+  opacity: 0; transition: opacity .12s; }
+.mm-tabs:hover .mm-add, .mm-add:focus-visible { opacity: 1; }
+.mm-add:hover { border-color: var(--ink); color: var(--ink); }
+.mm-tabwrap { position: relative; display: inline-flex; }
+.mm-tabwrap.on .mm-tab { background: var(--panel); color: var(--ink); font-weight: 700; }
+.mm-tabwrap.dead { opacity: .45; }
+.mm-addbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 6px 0 0; }
+
+/* ── 매칭 창 새 어법(2026-08-19) — 테두리는 「누를 수 있는 것」에만 ───────────── */
+/* 값 — 읽는 것이라 테두리가 없다. 누르면 그 자리에서 편집(밑줄만 살짝) */
+.val { border: 0; background: none; padding: 1px 2px; font: inherit; font-size: 15px;
+  font-weight: 700; color: var(--ink); cursor: pointer; border-bottom: 1px solid transparent; }
+.val:hover { border-bottom-color: var(--line-2); }
+.val.still { cursor: default; }
+.val.ok { color: var(--green); }
+/* 일정 — 값 줄(읽는 것) */
+.sched { font-size: 12.5px; color: var(--ink-2); margin-right: 10px; }
+.sched b { font-weight: 700; color: var(--ink); }
+.sched i { font-style: normal; color: var(--green); margin-left: 4px; }
+.sched.done b { color: var(--muted); }
+/* 동작 — 글씨 버튼 하나(테두리 없이, 밑줄로 눌린다는 걸 말한다) */
+.act { border: 0; background: none; padding: 2px 0; font: inherit; font-size: 12.5px;
+  color: var(--ink-2); cursor: pointer; border-bottom: 1px solid var(--line-2); }
+.act:hover { color: var(--ink); border-bottom-color: var(--ink); }
+
+/* 바닥 왼쪽 삭제 — 저장과 같은 급(같은 높이·같은 무게), 색만 위험을 말한다 */
+.gm-del { border: 1px solid var(--line-2); background: var(--panel); color: var(--up);
+  border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.gm-del:hover { border-color: var(--up); background: var(--up-bg); }
+/* 개별 토글 — 여러 개를 동시에 켤 수 있는 것(배타 선택인 슬라이딩 토글과 다르다) */
+.multi { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.multi button { border: 1px solid var(--line-2); background: var(--panel); color: var(--muted);
+  border-radius: 7px; padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+.multi button:hover { border-color: var(--ink); color: var(--ink); }
+.multi button.on { background: var(--surface-2); border-color: var(--ink); color: var(--ink); font-weight: 700; }
+.multi button.on::before { content: "✓ "; font-size: 10px; }
+/* 약속 카드 — 「아직 안 한 것」이라 값과 다르게(테두리 없이 노랑 점) */
+.due { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-2); }
+.due::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: var(--amber); }
+.due b { font-weight: 800; color: var(--ink); }
+.multi.one button.on { border-color: var(--ink); }
+/* 부가 동작 — 본 기능(칩) 옆에서 조용히 */
+.act.quiet { color: var(--muted); border-bottom-color: var(--line); font-size: 12px; }
+.act.quiet:hover { color: var(--ink-2); border-bottom-color: var(--line-2); }
+/* 채택된 매수자 — 탭에서 한눈에 */
+.mm-tabwrap.picked .mm-tab { color: var(--ok); font-weight: 600; }
+.mm-tabwrap.picked .mm-tab::before { content: "✓ "; }
+/* 금액 단위 — 「142」만 있으면 억인지 만인지 모른다. 값 바로 뒤에 붙는다 */
+.gm-row.amt .gm-body { display: flex; align-items: baseline; gap: 4px; }
+.gm-row.amt .gm-in.num { flex: 0 0 auto; width: 7ch; }
+.gm-unit { color: var(--muted); font-size: 13px; }
+/* 딸린 약속 줄머리 — 중도금·잔금 */
+/* 라벨과 뒤 글자가 붙어 「중도금일날짜 잡기」로 읽혔다 — `.gm-add` 의 -5px 왼쪽 여백이
+   `.gm-body` 의 gap 을 먹는다. 라벨 쪽에서 그만큼 벌린다(2026-09-05). */
+.gm-lab2 { color: var(--muted); font-size: 13px; min-width: 34px;
+  flex: 0 0 auto; white-space: nowrap; margin-right: 5px; }
+/* 소화한 약속 — 점이 초록으로 바뀐다(노란 점은 아직 안 한 일이라는 뜻) */
+.due.done::before { background: var(--ok); }
+.due.done b { color: var(--ink-2); }
+
+/* 단계 표시 — **읽는 자리는 점**(2026-08-19). 레일의 점과 같은 물건이라 목록·카드·레일이
+   한 어법으로 읽힌다. 누르는 상태 칩(창 안)만 알약으로 남는다 — 모양이 곧 「만질 수 있나」다. */
+.stg-dot { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px;
+  font-weight: 700; color: var(--muted); letter-spacing: -.02em; white-space: nowrap; }
+.stg-dot i { width: 8px; height: 8px; border-radius: 999px; background: var(--panel);
+  border: 1.5px solid var(--line-2); }
+.stg-dot.doing i { background: var(--amber); border-color: var(--amber); }
+.stg-dot.doing { color: var(--ink-2); }
+.stg-dot.ok i { background: var(--green); border-color: var(--green); }
+.stg-dot.ok { color: var(--ink-2); }
+.stg-dot.hold i { background: var(--red); border-color: var(--red); }
+.stg-dot.hold { color: var(--up); }
+/* 누를 수 있는 점 — 창 머리의 상태(회색→노랑→빨강 순환). 초록은 값이 만들어 못 누른다 */
+.stg-dot.act { border: 0; background: none; cursor: pointer; padding: 2px 0; font-size: 12.5px; }
+.stg-dot.act:hover i { border-color: var(--ink-2); }
+.stg-dot.act:disabled { cursor: default; }
+.stg-dot.act:disabled:hover i { border-color: var(--green); }
+/* 레일 — 색은 칸마다(상태), 강조는 지금 칸의 테두리·글자 */
+.rail .doing i { background: var(--amber); border-color: var(--amber); }
+.rail .doing b { color: var(--ink-2); }
+.rail .hold i { background: var(--red); border-color: var(--red); }
+.rail .hold b { color: var(--up); }
+/* 회색 채움 — **손댔지만 답이 없다**(빈 원은 시작조차 안 한 것) */
+.stg-dot.half i { background: var(--line-2); border-color: var(--line-2); }
+.stg-dot.half { color: var(--ink-2); }
+.rail .half i { background: var(--line-2); border-color: var(--line-2); }
+.rail .half b { color: var(--ink-2); }
+/* 창 안의 탭 줄 — 계약 창의 매수자 탭과 같은 물건, 크기만 줄인다 */
+.mm-tabs.in-gm { display: inline-flex; flex-wrap: wrap; gap: 4px; border: 0; }
+.mm-tabs.in-gm .mm-tab { font-size: 12.5px; padding: 3px 9px; }
+/* 사람 창의 탭 줄 — 제목 바로 아래 */
+.gm-tabs { margin: 2px 0 6px; }
+
+
+/* 브리핑 — **한 그룹박스**(2026-08-20). 어디서·무엇을·약속이 한 세트라 묶어 두면
+   줄이 셋으로 흩어져 보이지 않는다. 테두리는 아주 옅게(입력칸으로 안 읽히게). */
+.gm-body.col { display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+  border: 0; border-radius: 10px; padding: 8px 11px 9px;
+  background: var(--surface-2); }
+.br-top { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.gm-body.col > .act, .gm-body.col > .gm-in { align-self: flex-start; }
+/* 무엇을 보여줬나 — 이 줄이 브리핑의 본문이다. 방식 칩보다 크게 읽힌다 */
+.gm-body.col > .act, .gm-body.col > .gm-in { font-size: 15px; }
+.gm-body.col > .act.quiet { color: var(--muted); }
+.gm-body.col > .gm-in { min-width: 260px; }
+
+
+/* ── 현황 — **지금 무엇을 하나**. 단계가 얼굴을 바꾼다(브리핑 → 가격 차이 → 계약) ──── */
+.cur { display: flex; flex-direction: column; gap: 4px; width: 100%; text-align: left;
+  cursor: pointer; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--panel); padding: 16px 18px 17px; }
+.cur:hover { border-color: var(--line-2); }
+.cur-t { font-size: 11.5px; font-weight: 700; color: var(--muted); letter-spacing: .02em; }
+.cur-m.big { font-size: 30px; font-weight: 800; letter-spacing: -.035em; color: var(--ink);
+  line-height: 1.15; }
+.cur-s { font-size: 14px; color: var(--ink-2); }
+
+/* 값 셋 — 이 짝의 전부. 나란히 크게 */
+.cur-nums { display: flex; flex-wrap: wrap; gap: 28px; margin-top: 12px; }
+.cur-nums > span { display: flex; flex-direction: column; gap: 1px;
+  font-size: 27px; font-weight: 800; letter-spacing: -.035em; color: var(--muted); }
+.cur-nums > span.hi, .cur-nums > span.ok { color: var(--ink); }
+.cur-nums > span.ok { color: var(--green); }
+.cur-nums i { font-style: normal; font-size: 11.5px; font-weight: 700; color: var(--muted);
+  letter-spacing: 0; }
+/* 문장 — 중개사가 읽는 말투 그대로 */
+.cur-say { font-size: 15px; line-height: 1.55; color: var(--ink-2); }
+.cur-say.big { font-size: 20px; font-weight: 700; color: var(--ink); letter-spacing: -.02em; }
+.cur-say.todo { color: var(--up); margin-top: 2px; }
+/* 서류 — 계약이 선 뒤의 진짜 할 일. **전부** 세운다(개수로 줄이면 뭐가 남았는지 모른다) */
+.cur-docs { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 4px 14px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.cur-docs em { display: flex; align-items: center; gap: 7px; font-style: normal;
+  font-size: 13px; color: var(--muted); }
+.cur-docs em i { font-style: normal; width: 15px; height: 15px; flex: 0 0 15px;
+  border: 1.5px solid var(--line-2); border-radius: 4px; display: inline-flex;
+  align-items: center; justify-content: center; font-size: 10px; font-weight: 900;
+  color: transparent; }
+.cur-docs em.on { color: var(--ink-2); }
+.cur-docs em.on i { background: var(--green); border-color: var(--green); color: #fff; }
+/* 서류 체크리스트 — 창에서도 격자로(한 줄에 하나씩 늘어놓으면 창이 길어진다) */
+.dd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 4px 14px; }
+/* 아직 안 한 것 — 현황의 마지막 한 줄. 목록보다 먼저 읽힌다 */
+.cur-left { margin-top: 8px; font-size: 13.5px; color: var(--up); }
+/* 매수자 칸의 세 걸음 — 프로필 · 조건 · 담기 */
+.cur-steps { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--line); }
+.cur-steps em { display: inline-flex; align-items: center; gap: 7px; font-style: normal;
+  font-size: 13.5px; color: var(--muted); }
+.cur-steps em i { font-style: normal; width: 16px; height: 16px; border: 1.5px solid var(--line-2);
+  border-radius: 5px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 900; color: transparent; }
+.cur-steps em.on { color: var(--ink-2); }
+.cur-steps em.on i { background: var(--green); border-color: var(--green); color: #fff; }
+/* 창 안의 조건 줄 — 이름 + 그 조건이 무엇인지 한 줄 */
+.gm-cond { display: flex; align-items: baseline; gap: 8px; width: 100%; text-align: left;
+  border: 0; background: none; padding: 3px 0; cursor: pointer; font: inherit; }
+.gm-cond b { font-size: 14px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+.gm-cond span { font-size: 13px; color: var(--muted); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.gm-cond:hover b { text-decoration: underline; }
+/* 끝난 자리 — 한 문장만. 회색으로 가라앉힌다 */
+.cur.done { background: var(--surface-2); }
+.cur.done .cur-say.big { color: var(--muted); font-weight: 700; }
+
+/* 명함 맨 아래 레일 — 위에 가르는 선 하나 */
+.bc-front > .rail { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+
+/* ── 담기 창(2026-08-20) — 한 벌로 두 방향. 창 어법 그대로: 선은 제목 아래 하나, 점선 없음 ── */
+.pk-find { margin: 8px 0 2px; }
+.pk-q { width: 100%; border: 0; background: var(--surface-2); border-radius: 999px;
+  padding: 8px 14px; font: inherit; font-size: 13px; color: var(--ink); outline: none; }
+.pk-q::placeholder { color: var(--muted); }
+.pk-list { display: flex; flex-direction: column; gap: 1px; max-height: 44vh; overflow-y: auto;
+  scrollbar-width: thin; margin-top: 6px; }
+.pk-row { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  border: 0; background: none; border-radius: 8px; padding: 8px 9px; cursor: pointer;
+  font: inherit; color: var(--ink); }
+.pk-row:hover { background: var(--surface-2); }
+.pk-row.on { background: var(--surface-2); }
+.pk-row.off { opacity: .45; cursor: default; }
+.pk-row .ck { flex: 0 0 16px; width: 16px; height: 16px; border-radius: 5px;
+  background: var(--surface-2); color: transparent; font-size: 10px; font-weight: 900;
+  display: inline-flex; align-items: center; justify-content: center; font-style: normal; }
+.pk-row.on .ck { background: var(--green); color: #fff; }
+.pk-row .nm { flex: 0 0 auto; font-size: 14px; font-weight: 700; min-width: 132px; }
+.pk-row .nm em { font-style: normal; font-size: 10.5px; font-weight: 700; margin-left: 6px;
+  padding: 1px 6px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.pk-row .nm em.mine { background: var(--green-bg); color: var(--green); }
+.pk-row .sub { font-size: 12.5px; color: var(--ink-2); }
+/* 근거 — 「왜 맞나」. 점수(87점)는 안 쓴다: 근거 없는 숫자는 안 읽히거나 잘못 읽힌다 */
+.pk-why { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.pk-why em { font-style: normal; font-size: 11px; font-weight: 700; color: var(--muted);
+  background: var(--surface-2); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+.pk-why em.ok { color: var(--green); background: var(--green-bg); }
+.pk-none { padding: 18px 4px; font-size: 13px; color: var(--muted); }
+/* 조건이 없을 때만 서는 두 줄 — 예산과 지역. 창 안이라 입력을 허용하되 pill 어법으로 */
+.pk-cond { display: flex; align-items: center; gap: 8px; padding: 6px 2px 2px; }
+.pk-cond .lab { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.pk-cond .tilde, .pk-cond .unit { font-size: 13px; color: var(--muted); }
+.pk-n { width: 64px; border: 0; background: var(--surface-2); border-radius: 999px;
+  padding: 6px 12px; font: inherit; font-size: 14px; font-weight: 700; color: var(--ink);
+  outline: none; text-align: right; }
+.pk-gus { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 2px 2px; max-height: 96px;
+  overflow-y: auto; scrollbar-width: thin; }
+.pk-gus .chip { border: 0; background: var(--surface-2); border-radius: 999px; padding: 4px 11px;
+  font: inherit; font-size: 12px; color: var(--ink-2); cursor: pointer; }
+.pk-gus .chip.on { background: var(--ink); color: #fff; font-weight: 700; }
+/* 주소 = 건물 상세로 가는 문(새 탭). 담기와 다른 일이라 밑줄로만 구분한다 */
+.pk-row .nm .go { border: 0; background: none; padding: 0; font: inherit; font-weight: 700;
+  color: var(--ink); cursor: pointer; text-decoration: underline;
+  text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+.pk-row .nm .go:hover { text-decoration-color: var(--signal); color: var(--signal); }
+/* 담기 칩 — 탭 줄의 마지막에 서는 「＋ 매수자」·「＋ 매물」. 탭 모양 ＋는 줄에서 붕 떴다 */
+.mm-tab.add { color: var(--muted); font-weight: 700; }
+.mm-tab.add:hover { color: var(--ink); background: var(--surface-2); }
+/* 막혔다는 사실 — 창 안에서 한 줄. 빨강이되 상자를 두르지 않는다(경고지 오류가 아니다) */
+.warn { font-size: 12.5px; font-weight: 700; color: var(--up); }
+
+/* 일정 창 안의 조작 — 끝냄·삭제. 글자 네모버튼이 아니라 아이콘이다(2026-08-28) */
+.gm-ico { border: 0; background: none; color: var(--muted); width: 30px; height: 30px;
+  border-radius: 9px; display: grid; place-items: center; cursor: pointer; }
+.gm-ico:hover { background: var(--blue-bg, #EBF4FF); color: var(--blue); }
+.gm-ico.del:hover { background: #FDECEE; color: #F04452; }
+
+/* 담은 매물 줄의 주소 — 눌러 그 매물로 간다. 줄 전체(모달)와 다른 자리라 밑줄로 갈라 준다(2026-08-28) */
+.orow .who.lnk { cursor: pointer; }
+.orow .who.lnk:hover { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }

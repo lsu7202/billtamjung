@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<iStudioExport ReportCode="REP7FD258CF6E1845AD85FC38392013A7BA">
+		<Controls>
+				<Control Type="0" Name="GRID" ConnectionCode="DBF15C463C94AB4FF583D817B4DD50766C" DSCode="DS81C077421B734A71860FAD00F155C8E2" UseCache="false" TextExportColSeparator="\t" TextExportRowSeparator="\n">
+						<Columns>
+								<Column Name="PLOT_PSTN" Caption="대지위치" Type="String" Width="250" />
+								<Column Name="SGG_CD" Caption="시군구코드" Type="String" Width="130" />
+								<Column Name="STDG_CD" Caption="법정동코드" Type="String" Width="130" />
+								<Column Name="PLOT_SE_CD" Caption="대지구분코드" Type="String" Width="130" />
+								<Column Name="MNO" Caption="번" Type="String" Width="130" />
+								<Column Name="SNO" Caption="지" Type="String" Width="130" />
+								<Column Name="BDRG_SN" Caption="관리건축물대장PK" Type="String" Width="130" />
+								<Column Name="ROAD_NM_PLOT_PSTN" Caption="도로명대지위치" Type="String" Width="300" />
+								<Column Name="SPAREA_NM" Caption="특수지명" Type="String" Width="250" />
+								<Column Name="BLCK" Caption="블록" Type="String" Width="130" />
+								<Column Name="LOT" Caption="로트" Type="String" Width="130" />
+								<Column Name="JIJIGU_SE_CD" Caption="지역지구구역구분코드" Type="String" Width="150" />
+								<Column Name="JIJIGU_SE_CD_NM" Caption="지역지구구역구분코드명" Type="String" Width="150" />
+								<Column Name="JIJIGU_CD" Caption="지역지구구역코드" Type="String" Width="130" />
+								<Column Name="JIJIGU_CD_NM" Caption="지역지구구역코드명" Type="String" Width="130" />
+								<Column Name="RPRS_YN" Caption="대표여부" Type="String" Width="130" />
+								<Column Name="ETC_JIJIGU" Caption="기타지역지구구역" Type="String" Width="180" />
+								<Column Name="FRST_CRT_DT" Caption="생성일자" Type="String" Width="150" />
+						</Columns>
+						<ParamGroups>
+								<ParamGroup Code="DS81C077421B734A71860FAD00F155C8E2">
+										<Params>
+												<Param Name=":VS_SIGUNGU" ParamType="String">
+														<Value>11110</Value>
+												</Param>
+												<Param Name=":VS_BJDONG" ParamType="String">
+														<Value>14600</Value>
+												</Param>
+												<Param Name=":VS_PLAT_GB" ParamType="String">
+														<Value />
+												</Param>
+												<Param Name=":VS_MNO" ParamType="String" />
+												<Param Name=":VS_SNO" ParamType="String" />
+												<Param Name=":VS_JIJIGU_SE_CD" ParamType="String" />
+												<Param Name="VS_SIDO" ParamType="String">
+														<Value>11000</Value>
+												</Param>
+												<Param Name="VS_CRT_DATE" ParamType="String">
+														<Value>2026 년 07 월 </Value>
+												</Param>
+												<Param Name="VS_CRT_DATE2" ParamType="String">
+														<Value>기준</Value>
+												</Param>
+												<Param Name="VS_COL_PLOT_PSTN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SGG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_STDG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PLOT_SE_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MNO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SNO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_BDRG_SN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_ROAD_NM_PLOT_PSTN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SPAREA_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_BLCK" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_LOT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_JIJIGU_SE_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_JIJIGU_SE_CD_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_JIJIGU_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_FRST_CRT_DT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_JIJIGU_CD_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_RPRS_YN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_ETC_JIJIGU" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_JSON_COLUMN" ParamType="String" />
+												<Param Name="VS_JSON_CNT" ParamType="String" />
+												<Param Name="VS_JSON_CNT_ALL" ParamType="String">
+														<Value>18</Value>
+												</Param>
+												<Param Name="VS_JSON_COLUMN_ALL" ParamType="String">
+														<Value>PLOT_PSTN||SGG_CD||STDG_CD||PLOT_SE_CD||MNO||SNO||BDRG_SN||ROAD_NM_PLOT_PSTN||SPAREA_NM||BLCK||LOT||JIJIGU_SE_CD||JIJIGU_SE_CD_NM||JIJIGU_CD||JIJIGU_CD_NM||RPRS_YN||ETC_JIJIGU||FRST_CRT_DT</Value>
+												</Param>
+												<Param Name="VS_USER_CODE" ParamType="String">
+														<Value>default_user</Value>
+												</Param>
+												<Param Name="VS_REPORT_GBN" ParamType="String">
+														<Value>03</Value>
+												</Param>
+												<Param Name="VS_REPORT_CODE" ParamType="String">
+														<Value>0310</Value>
+												</Param>
+												<Param Name="VS_USER_NAME" ParamType="String">
+														<Value>대표사용자</Value>
+												</Param>
+												<Param Name="VS_DOWNLOAD_GBN" ParamType="String">
+														<Value>CSV</Value>
+												</Param>
+												<Param Name="VS_RADIO_GBN" ParamType="String">
+														<Value>1</Value>
+												</Param>
+										</Params>
+										<SQL Encrypted="true" DSType="2"><![CDATA[]]></SQL>
+								</ParamGroup>
+						</ParamGroups>
+						<Filters />
+						<Orders />
+				</Control>
+		</Controls>
+</iStudioExport>

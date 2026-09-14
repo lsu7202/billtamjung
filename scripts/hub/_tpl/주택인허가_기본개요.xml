@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<iStudioExport ReportCode="REP225BF21205FD417A96DE9BBA4A16E2B0">
+		<Controls>
+				<Control Type="0" Name="GRID" ConnectionCode="DBF15C463C94AB4FF583D817B4DD50766C" DSCode="DS81C077421B734A71860FAD00F155C8E2" UseCache="false" TextExportColSeparator="\t" TextExportRowSeparator="\n">
+						<Columns>
+								<Column Name="PLOT_PSTN" Caption="대지위치" Type="String" Width="250" />
+								<Column Name="SGG_CD" Caption="시군구명" Type="String" Width="130" />
+								<Column Name="STDG_CD" Caption="법정동명" Type="String" Width="130" />
+								<Column Name="PLOT_SE_CD" Caption="대지구분코드" Type="String" Width="130" />
+								<Column Name="MNO" Caption="번" Type="String" Width="130" />
+								<Column Name="SNO" Caption="지" Type="String" Width="130" />
+								<Column Name="HSPMSLG_SN" Caption="관리주택대장PK" Type="String" Width="180" />
+								<Column Name="BLDG_NM" Caption="건물명" Type="String" Width="250" />
+								<Column Name="SPAREA_NM" Caption="특수지명" Type="String" Width="250" />
+								<Column Name="BLCK" Caption="블록" Type="String" Width="130" />
+								<Column Name="LOT" Caption="로트" Type="String" Width="130" />
+								<Column Name="USG_CD" Caption="용도코드" Type="String" Width="130" />
+								<Column Name="USG_CD_NM" Caption="용도코드명" Type="String" Width="130" />
+								<Column Name="STRCT_CD" Caption="구조코드" Type="String" Width="130" />
+								<Column Name="STRCT_CD_NM" Caption="구조코드명" Type="String" Width="180" />
+								<Column Name="MBLD_CNT" Caption="주건축물수" Type="String" Width="130" />
+								<Column Name="GFA" Caption="연면적" Type="String" Width="130" />
+								<Column Name="TOL_HH_CNT" Caption="총세대수(세대)" Type="String" Width="130" />
+								<Column Name="DMLTN_DEVTON_SE_CD" Caption="철거멸실구분코드" Type="String" Width="130" />
+								<Column Name="DMLTN_DEVTON_SE_CD_NM" Caption="철거멸실구분코드명" Type="String" Width="130" />
+								<Column Name="DMLTN_BGNG_DAY" Caption="철거시작일" Type="String" Width="130" />
+								<Column Name="DMLTN_END_DAY" Caption="철거종료일" Type="String" Width="130" />
+								<Column Name="DMLTN_DEVTON_DAY" Caption="철거멸실일" Type="String" Width="130" />
+								<Column Name="APRV_DAY" Caption="승인일" Type="String" Width="130" />
+								<Column Name="BGNCST_PRNMNT_DAY" Caption="착공예정일" Type="String" Width="130" />
+								<Column Name="BGNCST_DAY" Caption="착공일" Type="String" Width="130" />
+								<Column Name="USE_INSP_PRNMNT_DAY" Caption="사용검사예정일" Type="String" Width="130" />
+								<Column Name="USE_INSP_DAY" Caption="사용검사일" Type="String" Width="130" />
+								<Column Name="FRST_CRT_DT" Caption="생성일자" Type="String" Width="150" />
+						</Columns>
+						<ParamGroups>
+								<ParamGroup Code="DS81C077421B734A71860FAD00F155C8E2">
+										<Params>
+												<Param Name=":VS_SIGUNGU" ParamType="String">
+														<Value>11680</Value>
+												</Param>
+												<Param Name=":VS_BJDONG" ParamType="String">
+														<Value>10300</Value>
+												</Param>
+												<Param Name=":VS_PLAT_GB" ParamType="String">
+														<Value />
+												</Param>
+												<Param Name=":VS_MNO" ParamType="String" />
+												<Param Name=":VS_SNO" ParamType="String" />
+												<Param Name=":VS_USG_CD" ParamType="String" />
+												<Param Name=":VS_STRCT_CD" ParamType="String" />
+												<Param Name=":VS_DMLTN_DEVTON_SE_CD" ParamType="String" />
+												<Param Name=":VS_BGNCST_PRNMNT_DAY_F" ParamType="String" />
+												<Param Name=":VS_BGNCST_PRNMNT_DAY_T" ParamType="String" />
+												<Param Name=":VS_BGNCST_DAY_F" ParamType="String" />
+												<Param Name=":VS_BGNCST_DAY_T" ParamType="String" />
+												<Param Name=":VS_DMLTN_END_DAY_F" ParamType="String" />
+												<Param Name=":VS_DMLTN_END_DAY_T" ParamType="String" />
+												<Param Name=":VS_APRV_DAY_F" ParamType="String" />
+												<Param Name=":VS_APRV_DAY_T" ParamType="String" />
+												<Param Name=":VS_USE_INSP_PRNMNT_DAY_F" ParamType="String" />
+												<Param Name=":VS_USE_INSP_PRNMNT_DAY_T" ParamType="String" />
+												<Param Name=":VS_GFA_F" ParamType="String" />
+												<Param Name=":VS_GFA_T" ParamType="String" />
+												<Param Name=":VS_DMLTN_BGNG_DAY_F" ParamType="String" />
+												<Param Name=":VS_DMLTN_BGNG_DAY_T" ParamType="String" />
+												<Param Name=":VS_DMLTN_DEVTON_DAY_F" ParamType="String" />
+												<Param Name=":VS_DMLTN_DEVTON_DAY_T" ParamType="String" />
+												<Param Name="VS_SIDO" ParamType="String">
+														<Value>11000</Value>
+												</Param>
+												<Param Name="VS_CRT_DATE" ParamType="String">
+														<Value>2026 년 07 월 </Value>
+												</Param>
+												<Param Name="VS_CRT_DATE2" ParamType="String">
+														<Value>기준</Value>
+												</Param>
+												<Param Name="VS_COL_PLOT_PSTN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SGG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_STDG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PLOT_SE_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MNO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SNO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_HSPMSLG_SN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_BLDG_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SPAREA_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_BLCK" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_LOT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_USG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_USG_CD_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_STRCT_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_STRCT_CD_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MBLD_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_GFA" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_TOL_HH_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_DMLTN_DEVTON_SE_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_DMLTN_DEVTON_SE_CD_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_DMLTN_BGNG_DAY" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_DMLTN_END_DAY" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_DMLTN_DEVTON_DAY" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_APRV_DAY" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_BGNCST_PRNMNT_DAY" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_BGNCST_DAY" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_USE_INSP_PRNMNT_DAY" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_USE_INSP_DAY" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_FRST_CRT_DT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_JSON_COLUMN" ParamType="String" />
+												<Param Name="VS_JSON_CNT" ParamType="String" />
+												<Param Name="VS_JSON_CNT_ALL" ParamType="String">
+														<Value>29</Value>
+												</Param>
+												<Param Name="VS_JSON_COLUMN_ALL" ParamType="String">
+														<Value>PLOT_PSTN||SGG_CD||STDG_CD||PLOT_SE_CD||MNO||SNO||HSPMSLG_SN||BLDG_NM||SPAREA_NM||BLCK||LOT||USG_CD||USG_CD_NM||STRCT_CD||STRCT_CD_NM||MBLD_CNT||GFA||TOL_HH_CNT||DMLTN_DEVTON_SE_CD||DMLTN_DEVTON_SE_CD_NM||DMLTN_BGNG_DAY||DMLTN_END_DAY||DMLTN_DEVTON_DAY||APRV_DAY||BGNCST_PRNMNT_DAY||BGNCST_DAY||USE_INSP_PRNMNT_DAY||USE_INSP_DAY||FRST_CRT_DT</Value>
+												</Param>
+												<Param Name="VS_USER_CODE" ParamType="String">
+														<Value>default_user</Value>
+												</Param>
+												<Param Name="VS_REPORT_GBN" ParamType="String">
+														<Value>02</Value>
+												</Param>
+												<Param Name="VS_REPORT_CODE" ParamType="String">
+														<Value>0201</Value>
+												</Param>
+												<Param Name="VS_USER_NAME" ParamType="String">
+														<Value>대표사용자</Value>
+												</Param>
+												<Param Name="VS_DOWNLOAD_GBN" ParamType="String">
+														<Value>CSV</Value>
+												</Param>
+												<Param Name="VS_RADIO_GBN" ParamType="String">
+														<Value>1</Value>
+												</Param>
+										</Params>
+										<SQL Encrypted="true" DSType="2"><![CDATA[]]></SQL>
+								</ParamGroup>
+						</ParamGroups>
+						<Filters />
+						<Orders />
+				</Control>
+		</Controls>
+</iStudioExport>

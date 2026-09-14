@@ -9,9 +9,13 @@ import shapefile
 from shapely.geometry import shape, Point
 from shapely import STRtree
 from pyproj import Transformer
+from paths import LDREG
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from build_report import Report   # noqa: E402
 
 T=Transformer.from_crs(4326, 5174, always_xy=True)  # (lon,lat)→(x,y)
-LDREG="data/raw/LSMD_CONT_LDREG_5174_서울/LSMD_CONT_LDREG_5174_11_202606"
+LDREG=LDREG
 
 def load_subway():
     d=json.load(open("data/raw/서울시 역사마스터 정보.json",encoding='utf-8'))['DATA']
@@ -39,15 +43,19 @@ def run(sgg):
     subtree=STRtree(sub_g); bustree=STRtree(bus_g)
     r=shapefile.Reader(LDREG,encoding='cp949')
     flds=[f[0] for f in r.fields[1:]]; idx={f:i for i,f in enumerate(flds)}
+    # 처리결과 문서 — 도형이 깨진 필지를 조용히 건너뛰던 자리가 있었다
+    doc = Report(f"build_transit_{sgg}", src="연속지적도 + 지하철·버스 정류소")
     out=open(f"data/tools/_transit_{sgg}.jsonl","w")
     N=0
     import time; t=time.time()
     for sr in r.iterShapeRecords():
         rec=sr.record
         if sgg!='ALL' and rec[idx['COL_ADM_SE']]!=sgg: continue
+        doc.read()
         pnu=rec[idx['PNU']]
         try: c=shape(sr.shape.__geo_interface__).centroid
-        except: continue
+        except Exception:
+            doc.drop("필지 도형을 못 읽음", pnu); continue
         N+=1
         # 최단 지하철
         ni=subtree.nearest(c); nd=c.distance(sub_g[ni])
@@ -65,8 +73,11 @@ def run(sgg):
         buses.sort(key=lambda z:z['거리'])
         out.write(json.dumps({'PNU':pnu,'역과의거리':round(nd),
             '주변지하철':subs,'주변버스':buses},ensure_ascii=False)+"\n")
+        doc.write()
         if N%50000==0: print(f"  {N:,} ({time.time()-t:.0f}s)")
     out.close()
+    doc.also_read("지하철역", len(sub_g)); doc.also_read("버스정류소", len(bus_g))
+    doc.finish()
     print(f"[{sgg}] {N:,} 필지 → _transit_{sgg}.jsonl ({time.time()-t:.0f}s)")
 
 if __name__=='__main__':

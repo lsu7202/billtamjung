@@ -1,0 +1,292 @@
+/* 시그니처 컴포넌트 — specs/02-screens/_mockups/wireframe.css 이식(정본).
+   tokens.css에 이미 있는 .panel/.btn/.input/.tag/.wf/.kv/.sec-head/.appbar는 제외.
+   화면 JSX 리팩터(Phase 1~3)가 이 클래스들을 사용한다. */
+
+.toolbar{display:flex; gap:9px; align-items:center; flex-wrap:wrap}
+
+/* 자동완성 리치 표시(S01) */
+.ac-head{font-size:11px; color:var(--muted); font-weight:600; padding:8px 12px 5px; letter-spacing:.02em}
+.ac-addr{flex:1; font-family:var(--mono); font-size:13px; color:var(--ink); font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.ac-addr mark{background:none; color:var(--signal); font-weight:700}
+.ac-meta{font-size:12px; color:var(--ink-2); font-family:var(--mono); font-weight:700; white-space:nowrap}
+.ac-tag{font-size:10px; font-weight:700; border-radius:4px; padding:2px 6px; white-space:nowrap}
+.ac-tag.mine{background:var(--blue-bg); color:var(--blue)}
+.ac-tag.ad{background:var(--green-bg); color:var(--green)}
+.ac-empty{padding:14px 12px; font-size:13px; color:var(--muted); text-align:center}
+
+/* 조건 칩 — 테두리 없는 알약(2026-08-27 개편). 선을 걷고 바탕색으로만 가른다. */
+.chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:11px}
+.chip{display:inline-flex; align-items:center; gap:6px; background:#EBF4FF; border-radius:999px;
+  padding:5px 11px; font-size:11.5px; color:#3182F6; font-weight:700}
+.chip .x{color:#8BB6F5; cursor:pointer; font-size:10px}
+.chip .x:hover{color:#3182F6}
+
+/* 세그먼트 토글 — 회색 바탕 위 흰 알약. 켜진 칸이 떠 보인다. */
+.segmented{display:inline-flex; background:var(--surface-2); border-radius:10px; padding:2px; gap:1px}
+.segmented button{border:0; background:none; padding:6px 13px; cursor:pointer; font-size:12px;
+  color:var(--muted); font-weight:800; border-radius:8px; font:inherit; font-size:12px; font-weight:800}
+.segmented button:hover{color:var(--ink-2)}
+.segmented button.active{background:#fff; color:var(--ink); box-shadow:0 1px 3px rgba(0,19,43,.12)}
+
+/* S01 3열 결과 */
+.result-cols{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px}
+.col-card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden}
+.col-head{padding:11px 14px; font-weight:700; color:#fff; text-align:center; font-size:13px; letter-spacing:-.01em}
+.col-head.ad{background:var(--green)}
+.col-head.mine{background:var(--blue)}
+.col-head.normal{background:var(--purple)}
+.col-head .count{font-weight:600; opacity:.9; font-size:12px; margin-left:6px; font-variant-numeric:tabular-nums}
+.col-body{max-height:58vh; overflow-y:auto}
+.wf-list .wf-head,.wf-list .wf-row{display:grid; grid-template-columns:1fr 58px 48px; align-items:center; gap:8px; padding:9px 12px}
+.wf-list .wf-head{color:var(--muted); font-size:11px; font-weight:600; background:var(--surface-2); position:sticky; top:0; z-index:1; border-bottom:1px solid var(--line-2)}
+.wf-list .wf-row span:first-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.wf-list .wf-row{position:relative; cursor:pointer; border-bottom:1px solid var(--line)}
+.wf-list .wf-row:hover{background:var(--signal-bg)}
+.wf-list .wf-row .num{text-align:right; font-family:var(--mono)}
+.row-actions{position:absolute; right:8px; top:50%; transform:translateY(-50%); display:none; gap:6px; background:#fff; box-shadow:-8px 0 12px -4px rgba(15,26,46,.12); padding-left:8px}
+.wf-list .wf-row:hover .row-actions{display:flex}
+.row-actions .btn{padding:4px 10px; font-size:12px}
+.empty{color:var(--muted); text-align:center; padding:26px 12px; font-size:13px}
+
+/* 등급·임대/공실 배지 */
+.grade{display:inline-flex; align-items:center; justify-content:center; min-width:26px; height:24px; padding:0 8px; border-radius:6px; font-weight:800; font-size:13px; font-variant-numeric:tabular-nums; letter-spacing:0}
+.grade.s{background:#efe9ff; color:#5b3fd6} .grade.a{background:var(--signal-bg); color:var(--signal-ink)}
+.grade.b{background:#eef2f7; color:#4a5768} .grade.c{background:#fdeee3; color:var(--vacant)}
+.tag-lease{color:var(--lease); background:#e4f2ec; border-radius:5px; padding:2px 8px; font-size:11px; font-weight:700}
+.tag-vac{color:var(--vacant); background:#fbeadd; border-radius:5px; padding:2px 8px; font-size:11px; font-weight:700}
+
+/* ★ 가치점수 게이지 — 브랜드 시그니처(S00·S0M·보고서) */
+.value-gauge{display:flex; align-items:flex-end; gap:14px}
+.vg-num{display:flex; align-items:baseline; gap:4px; font-family:var(--mono); font-variant-numeric:tabular-nums}
+.vg-num .score{font-size:52px; font-weight:800; line-height:.9; letter-spacing:-.03em}
+.vg-num .max{font-size:20px; font-weight:700; color:var(--muted)}
+.vg-meta{display:flex; flex-direction:column; gap:7px; padding-bottom:4px}
+.vg-grade{display:inline-flex; align-items:center; justify-content:center; width:34px; height:30px; border-radius:8px; font-weight:800; font-size:17px; font-family:var(--mono)}
+.vg-grade.s{background:#efe9ff;color:#5b3fd6} .vg-grade.a{background:var(--signal-bg);color:var(--signal-ink)}
+.vg-grade.b{background:#eef2f7;color:#4a5768} .vg-grade.c{background:#fdeee3;color:var(--vacant)}
+.vg-bars{display:flex; gap:3px; align-items:flex-end; height:22px}
+.vg-bars i{width:5px; background:var(--signal); border-radius:2px; opacity:.85}
+.on-dark .vg-num .score{color:#fff} .on-dark .vg-num .max{color:#7f8ea8}
+.on-dark .vg-bars i{background:#4d8bff}
+.on-dark .vg-grade.a{background:rgba(30,90,240,.22);color:#93b4ff}
+
+/* S02 헤더·계기판·탭 */
+.detail-top{display:flex; justify-content:space-between; align-items:flex-start; gap:16px}
+.detail-top h2{margin:0; font-size:19px; font-weight:800; letter-spacing:-.02em}
+.meta-line{color:var(--muted); font-size:12px; display:flex; gap:14px; flex-wrap:wrap; margin-top:6px}
+.meta-line b{color:var(--ink-2); font-weight:600}
+.star{font-size:22px; color:#f5b81f; cursor:pointer; user-select:none}
+.metrics{display:flex; margin:14px 0; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; background:#fff; box-shadow:var(--shadow)}
+.metric{flex:1; padding:13px 16px; border-right:1px solid var(--line)}
+.metric:last-child{border-right:0}
+.metric .k{font-size:11px; color:var(--muted); font-weight:600; letter-spacing:.01em}
+.metric .v{font-size:19px; font-weight:800; margin-top:4px; font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.01em}
+.metric .v small{font-size:12px; color:var(--muted); font-weight:600}
+.tabs{display:flex; gap:4px; margin-bottom:0}
+.tabs button{border:1px solid var(--line); border-bottom:0; background:var(--surface-2); padding:9px 18px; border-radius:var(--radius) var(--radius) 0 0; cursor:pointer; font-size:13px; color:var(--ink-2); font-weight:600}
+.tabs button.active{background:#fff; color:var(--ink); font-weight:800}
+.tabpane{display:none} .tabpane.active{display:block}
+.block{background:#fff; border:1px solid var(--line); border-radius:var(--radius); margin-bottom:14px; overflow:hidden; box-shadow:var(--shadow)}
+.pos{color:var(--up); font-weight:700; font-size:13px}
+.neg{color:var(--down); font-weight:700; font-size:13px}
+.detail-body{display:grid; grid-template-columns:1fr 372px; gap:14px; align-items:start}
+.sidebar{position:sticky; top:14px; align-self:start; max-height:calc(100vh - 28px); overflow:auto}
+@media(max-width:1100px){.detail-body{grid-template-columns:1fr} .sidebar{position:static; max-height:none}}
+
+/* 차트(SeriesBlock 정합) */
+.svg-chart{display:block; width:100%; height:auto; background:var(--surface-2)}
+.svg-chart .axis{stroke:var(--line-2); stroke-width:1}
+.svg-chart .grid{stroke:var(--line); stroke-width:1}
+.svg-chart .line{fill:none; stroke-width:2.5; stroke:var(--c-gongsi)}
+.svg-chart .dot{stroke:#fff; stroke-width:1.5; fill:var(--c-gongsi); cursor:pointer}
+.svg-chart text{fill:var(--muted); font-size:13px; font-family:var(--mono)}
+.svg-chart .rate{font-size:16px; font-weight:700}
+.chart-tip{position:fixed; z-index:60; background:var(--ink); color:#fff; font-size:12px; line-height:1.5; padding:8px 11px; border-radius:6px; pointer-events:none; opacity:0; transition:opacity .1s; white-space:nowrap; transform:translate(-50%,-118%); font-family:var(--mono)}
+.chart-tip.show{opacity:1}
+.chart-tip .up{color:#ff8f8a; font-weight:700} .chart-tip .down{color:#93b4ff; font-weight:700}
+.matrix th:first-child,.matrix td:first-child{background:var(--surface-2); font-weight:600}
+
+/* 모달·하단바 */
+.modal-bg{position:fixed; inset:0; background:rgba(15,26,46,.42); display:none; align-items:flex-start; justify-content:center; padding:40px 16px; overflow:auto; z-index:50; backdrop-filter:blur(2px)}
+.modal-bg.open{display:flex}
+.modal{background:#fff; border-radius:12px; width:min(900px,100%); padding:20px; box-shadow:var(--shadow-lg)}
+.modal h3{margin:0 0 14px; display:flex; align-items:center; font-weight:800}
+.modal h3 .right{margin-left:auto; display:flex; gap:8px}
+.bottombar{position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line); box-shadow:0 -3px 12px rgba(15,26,46,.07); padding:11px 22px; display:flex; align-items:center; gap:8px; z-index:40}
+.bottombar .icon-btn{min-width:40px; height:38px; border:1px solid var(--line-2); border-radius:8px; background:#fff; cursor:pointer; font-size:15px; line-height:1; font-weight:600; color:var(--ink-2)}
+.bottombar .icon-btn:hover{background:var(--signal-bg); border-color:var(--signal); color:var(--signal)}
+.bottombar .sep{width:1px; height:24px; background:var(--line-2); margin:0 6px}
+.bottombar .right{margin-left:auto; display:flex; gap:10px}
+.bottombar small{color:var(--muted); font-size:11px; margin-left:2px}
+
+/* ★ 추정값 통일 정보 컴포넌트 — ⓘ 호버 툴팁(S02b·S02 공용) */
+.info-i{display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; border-radius:50%; background:var(--muted); color:#fff; font-size:10px; font-weight:800; font-style:normal; cursor:help; position:relative; vertical-align:middle; margin-left:4px; line-height:1}
+.info-i:hover{background:var(--signal)}
+.info-i .info-pop{display:none; position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%); width:220px; background:var(--ink); color:#fff; font-size:11px; font-weight:400; line-height:1.55; text-align:left; padding:9px 11px; border-radius:7px; box-shadow:var(--shadow-lg); z-index:9; white-space:normal}
+.info-i .info-pop::after{content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:5px solid transparent; border-top-color:var(--ink)}
+.info-i:hover .info-pop{display:block}
+
+/* 네이버 로드뷰(파노라마) 동서남북 이동 화살표 숨김 — 더블클릭/지도드래그 이동 사용 */
+[class^="arrow_container"], .arrow_image { display: none !important; }
+
+/* 지도 그리기/측정 모드 커서 — naver 내부 pane까지 덮어씀 */
+.map-crosshair, .map-crosshair * { cursor: crosshair !important; }
+
+/* 지도 도구 아이콘 버튼 — 무테 · 호버 배경 · 활성 시그널 (세련된 툴바) */
+.tool-btn { display:inline-flex; align-items:center; justify-content:center; gap:5px; height:32px; min-width:32px; padding:0 8px; border:none; border-radius:8px; background:transparent; color:var(--ink-2); font-size:15px; line-height:1; cursor:pointer; transition:background .12s, color .12s, transform .06s; }
+.tool-btn:hover { background:var(--surface-2); color:var(--ink); }
+.tool-btn:active { transform:scale(.92); }
+.tool-btn.on { background:var(--signal-bg); color:var(--signal); }
+.tool-sep { width:1px; height:20px; background:var(--line); margin:0 5px; flex:0 0 auto; }
+
+/* 지도 매물 태그(핀) — 호버 시 확대·부양(애니메이션). 앵커=좌하단 꼬리 기준 */
+.map-pin { transition: transform .16s cubic-bezier(.34,1.56,.64,1), box-shadow .16s ease; transform-origin: 0 100%; cursor: pointer; }
+.map-pin:hover { transform: scale(1.22); box-shadow: 0 8px 20px rgba(15,26,46,.5); position: relative; z-index: 20; }
+
+/* ── 로딩(재사용): Spinner / Loading / LoadingOverlay ── */
+.bt-spinner { display: inline-block; box-sizing: border-box; border-style: solid; border-color: var(--line); border-top-color: var(--signal); border-radius: 50%; animation: bt-spin .7s linear infinite; }
+@keyframes bt-spin { to { transform: rotate(360deg); } }
+.bt-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; width: 100%; }
+.bt-loading-label { font-size: 13px; color: var(--muted); font-weight: 500; letter-spacing: .01em; }
+.bt-loading-overlay { position: absolute; inset: 0; z-index: 30; background: color-mix(in srgb, var(--surface, #fff) 72%, transparent); backdrop-filter: blur(1px); }
+@media (prefers-reduced-motion: reduce) { .bt-spinner { animation-duration: 1.6s; } }
+
+/* ── 출처 태그(호버 팝오버) + 추정 주의(호버 툴팁) ── */
+.bt-src { position: relative; display: inline-flex; }
+.bt-src-tag { display: inline-flex; align-items: center; gap: 4px; background: rgba(255,255,255,.85);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); border: 1px solid var(--line);
+  border-radius: 999px; padding: 3px 9px 3px 7px; font-size: 11px; color: var(--ink-2); cursor: help; }
+.bt-src-pop { position: absolute; bottom: calc(100% + 8px); right: 0; background: var(--ink); color: #fff;
+  font-size: 12px; line-height: 1.5; padding: 11px 13px; border-radius: 9px; width: 234px; opacity: 0;
+  transform: translateY(5px); pointer-events: none; transition: .15s; box-shadow: var(--shadow-lg);
+  z-index: 40; display: flex; flex-direction: column; gap: 5px; }
+.bt-src:hover .bt-src-pop { opacity: 1; transform: translateY(0); }
+.bt-src-pop b { color: var(--gold); font-weight: 600; margin-bottom: 3px; }
+.bt-src-row { display: inline-flex; align-items: center; gap: 6px; }
+.bt-src-row em { color: #fff; font-style: normal; font-weight: 600; }
+.bt-src-tos { margin-top: 9px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.15);
+  color: var(--gold); font-family: var(--mono); font-size: 10.5px; letter-spacing: .02em; }
+
+.bt-caution { position: relative; display: inline-flex; align-items: center; vertical-align: middle; cursor: help; }
+.bt-caution-ic { display: block; }
+.bt-caution-pop { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%) translateY(5px);
+  background: var(--ink); color: #fff; font-size: 11.5px; line-height: 1.5; padding: 9px 11px; border-radius: 8px;
+  width: 222px; opacity: 0; pointer-events: none; transition: .15s; box-shadow: var(--shadow-lg); z-index: 40; text-align: left; }
+.bt-caution:hover .bt-caution-pop, .bt-caution:focus .bt-caution-pop { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── 세그먼트 토글(슬라이딩 노브) — 상태 전환 애니메이션. Segmented.tsx ── */
+.bt-seg { position: relative; display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px; user-select: none; }
+.bt-seg-knob { position: absolute; top: 3px; left: 3px; bottom: 3px; width: calc((100% - 6px) / var(--seg-n)); border-radius: 999px; background: var(--panel); box-shadow: 0 1px 2px rgba(38,35,32,.12), 0 1px 3px rgba(38,35,32,.08); transform: translateX(calc(var(--seg-i) * 100%)); transition: transform .32s cubic-bezier(.34,1.4,.5,1); }
+.bt-seg button { position: relative; z-index: 1; flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 0; background: none; cursor: pointer; color: var(--muted); font-weight: 700; font-size: 13px; line-height: 1; padding: 7px 15px; white-space: nowrap; transition: color .22s; }
+.bt-seg button.on { color: var(--signal); }
+.bt-seg button:not(.on):hover { color: var(--ink-2); }
+.bt-seg button svg { opacity: .85; }
+.bt-seg-sm button { padding: 5px 11px; font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { .bt-seg-knob { transition: none; } }
+
+/* ── S01 통합 검색 필드 — 돋보기 인라인 · 필드=버튼 일체(부동산플래닛/Compass식) ── */
+.s01-search { position: relative; display: flex; align-items: center; gap: 4px; height: 44px; padding: 0 5px 0 6px; background: var(--panel); border: 1.5px solid var(--line-2); border-radius: 999px; transition: border-color .15s, box-shadow .15s; }
+.s01-search:focus-within { border-color: var(--signal); box-shadow: 0 0 0 3px var(--signal-bg); }
+.s01-search .s01-go { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 0; border-radius: 999px; background: transparent; cursor: pointer; transition: background .12s, transform .06s; }
+.s01-search .s01-go:hover { background: var(--signal-bg); }
+.s01-search .s01-go:active { transform: scale(.9); }
+.s01-search input { flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: none; font: inherit; font-size: 15px; color: var(--ink); padding: 0 4px; }
+.s01-search input::placeholder { color: var(--muted); }
+.s01-search .s01-clear { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: 999px; background: transparent; cursor: pointer; color: var(--muted); transition: background .12s; }
+.s01-search .s01-clear:hover { background: var(--surface-2); }
+.s01-search .ac-drop { top: calc(100% + 7px); }
+
+/* ── 슬라이딩 언더라인 탭(사이드바 업무/위키/힌트/메모) ── */
+.bt-tabs { position: relative; display: flex; border-bottom: 1px solid var(--line); }
+.bt-tabs button { flex: 1; border: 0; background: none; padding: 12px 0; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; transition: color .2s; }
+/* 선택 표시는 어디서나 파랑 하나다(2026-08-28) — 잉크 밑줄이면 「고른 것」과
+   「그냥 글자」가 같은 색이라, 탭 줄에서 지금 어디인지가 두께로만 남는다. */
+.bt-tabs button.on { color: #191F28; }
+.bt-tabs button:not(.on):hover { color: var(--ink-2); }
+.bt-tabs-ink { position: absolute; bottom: -1px; left: 0; height: 2px; width: calc(100% / var(--tab-n)); background: #3182F6; border-radius: 2px; transform: translateX(calc(var(--tab-i) * 100%)); transition: transform .3s cubic-bezier(.4,0,.2,1); }
+@media (prefers-reduced-motion: reduce) { .bt-tabs-ink { transition: none; } }
+
+/* 스페이스 팬(피그마식) — Space 홀드 시 grab 커서 */
+.map-spacepan, .map-spacepan * { cursor: grab !important; }
+
+/* 상권을 그리는 동안은 지도만 남는다(2026-08-26).
+   지도 오버레이가 z 1000 인데도 앱바·머리줄·하단 바가 위에 남았다 — 각자 다른
+   stacking context 라 z 로는 안 덮인다. 그리는 동안만 걷어내고, 나오면 되돌아온다. */
+/* .bt-page 의 직계 .panel 은 머리줄과 하단 바 둘뿐이다 — 본문 카드는 .bt-cols 안에 있다 */
+/* 머리줄·하단 바는 인라인 style 로 display 를 잡고 있어 !important 로만 덮인다 */
+body.map-full .appbar,
+body.map-full .bt-page > .panel { display: none !important }
+
+
+/* 글자 버튼 — 테두리 없는 링크(2026-08-27 전역화).
+   원래 `.sales .lnk` 로만 있어서 업무 탭 밖에서는 규칙이 안 걸렸다. 그래서 건물 상세의
+   「업무에서 관리 →」·전화번호가 **브라우저 기본 버튼**(2px outset 회색 네모)으로 떴다 —
+   네모 버튼을 인라인에 두지 않는다는 규칙을 코드가 아니라 CSS 누락이 어긴 셈이다.
+   검색 필터·지도 판도 같은 클래스를 쓰므로 한곳에 둔다. */
+.lnk{border:0; background:none; padding:0; font:inherit; color:inherit;
+  cursor:pointer; text-align:left; border-radius:6px}
+.lnk:hover{color:#3182F6}
+.lnk.num{color:#3182F6; font-weight:800}
+.lnk.dim2{color:#8B95A1; font-weight:700}
+.lnk.dim2:hover{color:#333D4B}
+
+/* ── 하위 탭(subnav) ── 화면 이동은 밑줄 텍스트, GNB와 같은 어법. 알약은 상태 전환 전용.
+   층위가 다른 두 컨트롤이 같은 모양이면 첫인상부터 복잡해진다(2026-08-10).
+   2026-08-28: 활성 밑줄을 골드→파랑으로. 금색은 로고에만 남기고 선택은 어디서나 파랑 하나다.
+   sales-nav 는 옛 이름 — 마이페이지도 같은 줄을 쓴다. */
+.subnav, .sales-nav { display: flex; align-items: baseline; gap: 4px; margin: 6px 2px 16px;
+  border-bottom: 1px solid var(--line); }
+.subnav button, .sales-nav button { border: 0; background: none; cursor: pointer; font: inherit;
+  font-size: 14px; font-weight: 700; color: var(--muted); padding: 8px 6px 11px; margin-right: 18px;
+  border-bottom: 2px solid transparent; }
+.subnav button:hover, .sales-nav button:hover { color: var(--ink-2); }
+.subnav button.on, .sales-nav button.on { color: #191F28; border-bottom-color: #3182F6; }
+/* 성격이 다른 탭은 띄워 세운다 — 「무엇을」 무리와 「언제」가 붙어 있으면 흐름이 안 읽힌다.
+   금 긋지 않고 여백만으로 가른다: 선을 하나 더 그으면 탭 줄에 선이 두 겹이 된다. */
+.subnav button.apart, .sales-nav button.apart { margin-left: 30px; }
+.subnav button.lead, .sales-nav button.lead { font-size: 15.5px; font-weight: 800; letter-spacing: -.02em; }
+
+/* 소식 지도 핀(2026-09-06) — 건물 상세 사이드바 지도와 건물 검색 지도가 같이 쓴다. — 흰 동그라미에 파란 선 아이콘. 기타(sm)는 작고 회색.
+   고른 것(on)은 파랗게 차고 파문이 돈다 — 목록↔지도가 같은 것을 가리킨다는 표시 */
+.ev-pin{width:22px;height:22px;border-radius:50%;background:#fff;border:1.5px solid #3182F6;color:#3182F6;
+  display:grid;place-items:center;box-shadow:0 1px 4px rgba(0,0,0,.28);cursor:pointer;position:relative;box-sizing:border-box}
+.ev-pin svg{width:13px;height:13px;display:block}
+.ev-pin.sm{width:16px;height:16px;border-color:#B0B8C1;color:#8B95A1}
+.ev-pin.sm svg{width:9px;height:9px}
+.ev-pin.on{background:#3182F6;color:#fff;border-color:#fff}
+.ev-pin.on::after{content:"";position:absolute;inset:-7px;border-radius:50%;border:2px solid #3182F6;
+  animation:ev-ripple 1.4s ease-out infinite}
+@keyframes ev-ripple{0%{transform:scale(.55);opacity:.9}100%{transform:scale(1.5);opacity:0}}
+@media (prefers-reduced-motion: reduce){.ev-pin.on::after{animation:none;opacity:.6}}
+.ev-all{border:0;font:inherit;font-size:11px;font-weight:700;color:#4E5968;background:rgba(255,255,255,.94);
+  padding:4px 10px;border-radius:999px;box-shadow:0 1px 4px rgba(0,0,0,.2);cursor:pointer}
+.ev-all:hover{color:#3182F6}
+
+/* 검색 지도 핀 말풍선 */
+.ev-pop{font:600 12px/1.4 Pretendard,-apple-system,sans-serif;color:#191F28;background:#fff;border-radius:10px;padding:8px 11px;
+  box-shadow:0 2px 10px rgba(0,19,43,.18);max-width:260px}
+.ev-pop b{display:block;font-weight:800;font-size:13px;margin-bottom:2px}
+.ev-pop span{color:#8B95A1;font-size:11px}
+.ev-pop a{display:inline-block;margin-top:4px;color:#3182F6;font-weight:700;text-decoration:none;font-size:11.5px}
+.ev-pop .ev-links{display:flex;justify-content:space-between;gap:14px;margin-top:2px}   /* 소식에서 보기 ← → 출처 */
+.ev-bar{display:flex;gap:4px}
+.ev-all.on{color:#3182F6;background:#EBF3FE}
+/* 지도 소식 판(2026-09-06 대표 확정) — 「소식」 버튼 위로 열린다. 고른 줄은 파랑 */
+.ev-pan{background:#fff;border-radius:14px;box-shadow:0 6px 24px rgba(0,19,43,.18);padding:10px 10px 8px;width:224px;box-sizing:border-box}
+.ev-pan.compact{width:196px;padding:8px 8px 6px}
+.ev-ph{font-size:13px;font-weight:800;color:#191F28;padding:0 4px 8px}
+.ev-yrs{display:flex;gap:4px;padding:0 0 8px;border-bottom:1px solid #F0F2F4;margin-bottom:6px}
+.ev-yrs button{border:0;font:inherit;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:#F2F4F6;color:#4E5968;cursor:pointer}
+.ev-yrs button.on{background:#EBF3FE;color:#3182F6}
+.ev-ty{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;font:inherit;font-size:12.5px;font-weight:700;
+  color:#B0B8C1;padding:4px 6px;border-radius:8px;cursor:pointer;text-align:left}
+.ev-ty .i{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#F2F4F6;color:#B0B8C1;flex:0 0 auto}
+.ev-ty .i svg{width:13px;height:13px}
+.ev-ty .l{flex:1 1 auto;white-space:nowrap}
+.ev-ty .n{font-family:ui-monospace,"SF Mono",monospace;font-size:11px;font-weight:700;color:#C6CBD1}
+.ev-ty:hover{background:#F7F8FA}
+.ev-ty.on{background:#EBF3FE;color:#3182F6}
+.ev-ty.on .i{background:#3182F6;color:#fff}
+.ev-ty.on .n{color:#3182F6}
+.ev-pan.compact .ev-ty{font-size:12px;padding:3px 5px}
+.ev-pan.compact .ev-ty .i{width:20px;height:20px}

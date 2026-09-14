@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<iStudioExport ReportCode="REPBA2C652698A042AFAF236467B6FCAF61">
+		<Controls>
+				<Control Type="0" Name="GRID" ConnectionCode="DBF15C463C94AB4FF583D817B4DD50766C" DSCode="DS81C077421B734A71860FAD00F155C8E2" UseCache="false" TextExportColSeparator="\t" TextExportRowSeparator="\n">
+						<Columns>
+								<Column Name="PLOT_PSTN" Caption="대지위치" Type="String" Width="250" />
+								<Column Name="SGG_CD" Caption="시군구코드" Type="String" Width="130" />
+								<Column Name="STDG_CD" Caption="법정동코드" Type="String" Width="130" />
+								<Column Name="PLOT_SE_CD" Caption="대지구분코드" Type="String" Width="130" />
+								<Column Name="MNO" Caption="번" Type="String" Width="130" />
+								<Column Name="SNO" Caption="지" Type="String" Width="130" />
+								<Column Name="APTCPX_LDGR_SN" Caption="관리공동주택대장PK" Type="String" Width="130" />
+								<Column Name="SPAREA_NM" Caption="특수지명" Type="String" Width="250" />
+								<Column Name="BLCK" Caption="블록" Type="String" Width="130" />
+								<Column Name="LOT" Caption="로트" Type="String" Width="130" />
+								<Column Name="GRND_PKLT_CNTOM" Caption="지상주차장대수(대)" Type="String" Width="130" />
+								<Column Name="UDGD_PKLT_CNTOM" Caption="지하주차장대수(대)" Type="String" Width="130" />
+								<Column Name="TOL_PKLT_CNTOM" Caption="총주차장대수(대)" Type="String" Width="130" />
+								<Column Name="PKLT_CCTV_CNT" Caption="주차CCTV수" Type="String" Width="130" />
+								<Column Name="RPRS_MTGRM_AREA" Caption="대표회의실면적(㎡)" Type="String" Width="130" />
+								<Column Name="MNG_OFFC_AREA" Caption="관리관리소면적(㎡)" Type="String" Width="130" />
+								<Column Name="PLYGR_CCTV_CNT" Caption="놀이터CCTV수" Type="String" Width="130" />
+								<Column Name="WTTNK_CPCTY" Caption="저수조용량" Type="String" Width="130" />
+								<Column Name="LDARCT_AREA" Caption="조경면적(㎡)" Type="String" Width="130" />
+								<Column Name="SEOF_FCLT_CNT" Caption="경비실개소" Type="String" Width="130" />
+								<Column Name="HSFHG_AREA" Caption="노인정면적(㎡)" Type="String" Width="130" />
+								<Column Name="LVLH_CNVNNC_FCLT_AREA" Caption="생활편익시설면적(㎡)" Type="String" Width="130" />
+								<Column Name="NRTR_FCLT_AREA" Caption="보육시설면적(㎡)" Type="String" Width="130" />
+								<Column Name="INHB_SPORTS_FCLT_CNT" Caption="주민운동시설개소" Type="String" Width="130" />
+								<Column Name="KNDRGR_NOFL" Caption="유치원층수" Type="String" Width="130" />
+								<Column Name="KNDRGR_LT_AREA" Caption="유치원부지면적(㎡)" Type="String" Width="130" />
+								<Column Name="KNDRGR_USG_DSCTN" Caption="유치원용도" Type="String" Width="130" />
+								<Column Name="MDLCR_FCLT_AREA" Caption="의료시설면적(㎡)" Type="String" Width="130" />
+								<Column Name="PLYGR_FCLT_CNT" Caption="놀이터개소" Type="String" Width="130" />
+								<Column Name="FRST_CRT_DT" Caption="생성일자" Type="String" Width="150" />
+						</Columns>
+						<ParamGroups>
+								<ParamGroup Code="DS81C077421B734A71860FAD00F155C8E2">
+										<Params>
+												<Param Name=":VS_SIGUNGU" ParamType="String">
+														<Value>11680</Value>
+												</Param>
+												<Param Name=":VS_BJDONG" ParamType="String">
+														<Value>10300</Value>
+												</Param>
+												<Param Name=":VS_PLAT_GB" ParamType="String">
+														<Value />
+												</Param>
+												<Param Name=":VS_MNO" ParamType="String" />
+												<Param Name=":VS_SNO" ParamType="String" />
+												<Param Name=":VS_GRND_PKLT_CNTOM_F" ParamType="String" />
+												<Param Name=":VS_GRND_PKLT_CNTOM_T" ParamType="String" />
+												<Param Name=":VS_UDGD_PKLT_CNTOM_F" ParamType="String" />
+												<Param Name=":VS_UDGD_PKLT_CNTOM_T" ParamType="String" />
+												<Param Name=":VS_TOL_PKLT_CNTOM_F" ParamType="String" />
+												<Param Name=":VS_TOL_PKLT_CNTOM_T" ParamType="String" />
+												<Param Name=":VS_PKLT_CCTV_CNT_F" ParamType="String" />
+												<Param Name=":VS_PKLT_CCTV_CNT_T" ParamType="String" />
+												<Param Name=":VS_PLYGR_CCTV_CNT_F" ParamType="String" />
+												<Param Name=":VS_PLYGR_CCTV_CNT_T" ParamType="String" />
+												<Param Name=":VS_SEOF_FCLT_CNT_F" ParamType="String" />
+												<Param Name=":VS_SEOF_FCLT_CNT_T" ParamType="String" />
+												<Param Name=":VS_INHB_SPORTS_FCLT_CNT_F" ParamType="String" />
+												<Param Name=":VS_INHB_SPORTS_FCLT_CNT_T" ParamType="String" />
+												<Param Name=":VS_PLYGR_FCLT_CNT_F" ParamType="String" />
+												<Param Name=":VS_PLYGR_FCLT_CNT_T" ParamType="String" />
+												<Param Name="VS_SIDO" ParamType="String">
+														<Value>11000</Value>
+												</Param>
+												<Param Name="VS_CRT_DATE" ParamType="String">
+														<Value>2026 년 07 월 </Value>
+												</Param>
+												<Param Name="VS_CRT_DATE2" ParamType="String">
+														<Value>기준</Value>
+												</Param>
+												<Param Name="VS_COL_PLOT_PSTN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SGG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_STDG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PLOT_SE_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MNO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SNO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_APTCPX_LDGR_SN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SPAREA_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_BLCK" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_LOT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_UDGD_PKLT_CNTOM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_TOL_PKLT_CNTOM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PKLT_CCTV_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_GRND_PKLT_CNTOM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_RPRS_MTGRM_AREA" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MNG_OFFC_AREA" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PLYGR_CCTV_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_WTTNK_CPCTY" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_LDARCT_AREA" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SEOF_FCLT_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_HSFHG_AREA" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_LVLH_CNVNNC_FCLT_AREA" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_NRTR_FCLT_AREA" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_INHB_SPORTS_FCLT_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_KNDRGR_NOFL" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_KNDRGR_LT_AREA" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_KNDRGR_USG_DSCTN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MDLCR_FCLT_AREA" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PLYGR_FCLT_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_FRST_CRT_DT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_JSON_COLUMN" ParamType="String" />
+												<Param Name="VS_JSON_CNT" ParamType="String" />
+												<Param Name="VS_JSON_CNT_ALL" ParamType="String">
+														<Value>30</Value>
+												</Param>
+												<Param Name="VS_JSON_COLUMN_ALL" ParamType="String">
+														<Value>PLOT_PSTN||SGG_CD||STDG_CD||PLOT_SE_CD||MNO||SNO||APTCPX_LDGR_SN||SPAREA_NM||BLCK||LOT||GRND_PKLT_CNTOM||UDGD_PKLT_CNTOM||TOL_PKLT_CNTOM||PKLT_CCTV_CNT||RPRS_MTGRM_AREA||MNG_OFFC_AREA||PLYGR_CCTV_CNT||WTTNK_CPCTY||LDARCT_AREA||SEOF_FCLT_CNT||HSFHG_AREA||LVLH_CNVNNC_FCLT_AREA||NRTR_FCLT_AREA||INHB_SPORTS_FCLT_CNT||KNDRGR_NOFL||KNDRGR_LT_AREA||KNDRGR_USG_DSCTN||MDLCR_FCLT_AREA||PLYGR_FCLT_CNT||FRST_CRT_DT</Value>
+												</Param>
+												<Param Name="VS_USER_CODE" ParamType="String">
+														<Value>default_user</Value>
+												</Param>
+												<Param Name="VS_USER_NAME" ParamType="String">
+														<Value>대표사용자</Value>
+												</Param>
+												<Param Name="VS_REPORT_GBN" ParamType="String">
+														<Value>02</Value>
+												</Param>
+												<Param Name="VS_REPORT_CODE" ParamType="String">
+														<Value>0213</Value>
+												</Param>
+												<Param Name="VS_DOWNLOAD_GBN" ParamType="String">
+														<Value>CSV</Value>
+												</Param>
+												<Param Name="VS_RADIO_GBN" ParamType="String">
+														<Value>1</Value>
+												</Param>
+										</Params>
+										<SQL Encrypted="true" DSType="2"><![CDATA[]]></SQL>
+								</ParamGroup>
+						</ParamGroups>
+						<Filters />
+						<Orders />
+				</Control>
+		</Controls>
+</iStudioExport>

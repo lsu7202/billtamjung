@@ -1,0 +1,23 @@
+<svg width="960" height="212" viewBox="0 0 960 212" xmlns="http://www.w3.org/2000/svg" font-family="Apple SD Gothic Neo, sans-serif">
+<rect width="960" height="212" fill="#ffffff"/>
+<line x1="170.0" y1="36" x2="170.0" y2="162" stroke="#E4E8EF" stroke-width="1"/>
+<text x="170.0" y="182" font-size="14" fill="#8A94A6" text-anchor="middle">-40%</text>
+<line x1="352.5" y1="36" x2="352.5" y2="162" stroke="#E4E8EF" stroke-width="1"/>
+<text x="352.5" y="182" font-size="14" fill="#8A94A6" text-anchor="middle">-20%</text>
+<line x1="535.0" y1="36" x2="535.0" y2="162" stroke="#B8C4D9" stroke-width="2"/>
+<text x="535.0" y="182" font-size="14" fill="#8A94A6" text-anchor="middle">0</text>
+<line x1="717.5" y1="36" x2="717.5" y2="162" stroke="#E4E8EF" stroke-width="1"/>
+<text x="717.5" y="182" font-size="14" fill="#8A94A6" text-anchor="middle">+20%</text>
+<line x1="900.0" y1="36" x2="900.0" y2="162" stroke="#E4E8EF" stroke-width="1"/>
+<text x="900.0" y="182" font-size="14" fill="#8A94A6" text-anchor="middle">+40%</text>
+<text x="535.0" y="28" font-size="14.5" fill="#243B5E" text-anchor="middle" font-weight="700">실제 거래가 · 임대료</text>
+<text x="148" y="90" font-size="15.5" fill="#1F3864" text-anchor="end" font-weight="700">매매 적정가</text>
+<rect x="379.9" y="66" width="310.2" height="34" rx="4" fill="#C3CEE0"/>
+<text x="370.9" y="90" font-size="14.5" fill="#5B6B84" text-anchor="end" font-weight="700">-17.0%</text>
+<text x="699.1" y="90" font-size="14.5" fill="#5B6B84" font-weight="700">+17.0%</text>
+<text x="148" y="146" font-size="15.5" fill="#1F3864" text-anchor="end" font-weight="700">층별 임대료</text>
+<rect x="272.2" y="122" width="525.6" height="34" rx="4" fill="#C3CEE0"/>
+<text x="263.2" y="146" font-size="14.5" fill="#5B6B84" text-anchor="end" font-weight="700">-28.8%</text>
+<text x="806.8" y="146" font-size="14.5" fill="#5B6B84" font-weight="700">+28.8%</text>
+<line x1="535.0" y1="36" x2="535.0" y2="162" stroke="#243B5E" stroke-width="2"/>
+</svg>

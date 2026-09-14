@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S02b · 분석 보고서 — 빌탐정 와이어프레임</title>
+<link rel="stylesheet" href="wireframe.css">
+<style>
+.overlay{position:fixed; inset:0; background:rgba(20,26,34,.46); z-index:40; display:flex; align-items:flex-start; justify-content:center; padding:28px 16px; overflow:auto}
+.rmodal{width:min(1040px,100%); background:var(--panel); border-radius:var(--radius); box-shadow:var(--shadow-lg); display:flex; flex-direction:column; overflow:hidden}
+.rm-head{display:flex; align-items:center; gap:12px; padding:14px 18px; background:var(--ink); color:#fff}
+.rm-head h2{font-size:16px; margin:0}
+.rm-head .addr{font-family:var(--mono); font-size:12px; color:#9fb0cc}
+.rm-cred{margin-left:auto; font-size:12px; background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.16); border-radius:999px; padding:5px 12px; font-weight:700}
+.rm-cred b{font-family:var(--mono); margin-left:4px}
+.rm-x{border:0; background:none; font-size:18px; cursor:pointer; color:#9fb0cc; padding:2px 6px}
+.rm-x:hover{color:#fff}
+.rm-body{padding:16px 18px; display:grid; grid-template-columns:1fr 280px; gap:18px}
+.rm-foot{display:flex; align-items:center; gap:10px; padding:12px 18px; border-top:1px solid var(--line)}
+.rm-foot .note{flex:1; font-size:12px; color:var(--muted)}
+
+/* 상권 지도 = 반경·매물 위치 오버레이(읽기전용, 반경은 S02에서 설정) */
+.zone-area{grid-column:1/-1}
+.zone-map{position:relative; height:190px; border:1px solid var(--line); border-radius:8px; overflow:hidden;
+  background:linear-gradient(rgba(15,26,46,.05) 1px,transparent 1px) 0 0/42px 42px,
+    linear-gradient(90deg,rgba(15,26,46,.05) 1px,transparent 1px) 0 0/42px 42px, #eef2f6}
+.zm-radius{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:168px; height:168px;
+  border:1.5px dashed var(--signal); border-radius:50%; background:rgba(30,90,240,.06)}
+.zm-center{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; gap:2px}
+.zm-center i{width:12px; height:12px; border-radius:50%; background:var(--ink); border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.zm-center span{font-size:10px; font-weight:800; color:var(--ink); background:rgba(255,255,255,.85); padding:0 4px; border-radius:3px}
+.zm-pin{position:absolute; width:10px; height:10px; border-radius:50%; border:1.5px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.3); transform:translate(-50%,-50%)}
+.zm-pin.sale{background:var(--purple)}
+.zm-pin.rent{background:var(--green)}
+.zm-legend{position:absolute; left:10px; bottom:10px; background:#fff; border:1px solid var(--line); border-radius:7px; padding:6px 10px; font-size:11px; display:flex; gap:12px; box-shadow:var(--shadow); font-weight:600}
+.zm-legend b{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; vertical-align:middle}
+.zone-cap{margin-top:8px; font-size:13px; color:var(--muted)}
+.zone-cap b{color:var(--ink); font-family:var(--mono)}
+.zone-cap small{margin-left:8px; font-size:11px}
+
+.rsec{border:1px solid var(--line); border-radius:8px; overflow:hidden; margin-bottom:14px}
+.rsec-h{background:#fff; padding:11px 14px 10px 15px; font-weight:800; font-size:14px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); position:relative}
+.rsec-h::before{content:""; position:absolute; left:0; top:11px; bottom:10px; width:3px; background:var(--signal); border-radius:0 2px 2px 0}
+.rsec-h small{font-weight:400; color:var(--muted); font-size:12px}
+
+/* ★ 통일 정보 컴포넌트 — ⓘ 아이콘 + 호버 툴팁 */
+.info-i{display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; border-radius:50%;
+  background:var(--muted); color:#fff; font-size:10px; font-weight:800; font-style:normal; cursor:help;
+  position:relative; vertical-align:middle; margin-left:4px; line-height:1}
+.info-i:hover{background:var(--signal)}
+.info-i .info-pop{display:none; position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%);
+  width:220px; background:var(--ink); color:#fff; font-size:11px; font-weight:400; line-height:1.55; text-align:left;
+  padding:9px 11px; border-radius:7px; box-shadow:var(--shadow-lg); z-index:9; white-space:normal}
+.info-i .info-pop::after{content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:5px solid transparent; border-top-color:var(--ink)}
+.info-i:hover .info-pop{display:block}
+
+/* comp 리스트(div 기반 — 펼침 편집) */
+.cmp-list{display:flex; flex-direction:column}
+.cmp-row{border-bottom:1px solid var(--line)}
+.cmp-main{display:grid; grid-template-columns:26px 1.7fr 60px 78px 82px 26px; align-items:center; gap:8px; padding:9px 13px; font-size:12px; cursor:pointer}
+.cmp-main .num{text-align:right; font-family:var(--mono)}
+.cmp-main .addr{font-weight:700}
+.cmp-main .vs{text-align:right; font-family:var(--mono); font-weight:800}
+.cmp-main .exp{color:var(--muted); text-align:center; transition:transform .12s}
+.cmp-row.open .cmp-main .exp{transform:rotate(90deg); color:var(--signal)}
+.cmp-row.off{opacity:.5}
+.badge-out{font-size:10px; font-weight:700; color:#C2410C; background:#FDECEC; border-radius:3px; padding:1px 5px; margin-left:4px}
+
+/* 펼침 = 가치점수 입력 데이터 편집 */
+.cmp-edit{display:none; grid-template-columns:repeat(3,1fr); gap:9px 16px; padding:13px 15px 15px; background:var(--surface-2); border-top:1px dashed var(--line-2)}
+.cmp-row.open .cmp-edit{display:grid}
+.cmp-edit .f{display:flex; flex-direction:column; gap:3px}
+.cmp-edit .f label{font-size:11px; color:var(--muted); display:flex; align-items:center}
+.cmp-edit .f select,.cmp-edit .f input{font:inherit; font-size:12px; border:1px solid var(--line-2); border-radius:5px; padding:4px 7px; background:#fff}
+/* 용도지역 걸침(다지역+면적비율) */
+.zone-multi{grid-column:1/-1}
+.zwrap{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+.zrow{display:inline-flex; align-items:center; gap:4px; background:#fff; border:1px solid var(--line-2); border-radius:6px; padding:3px 6px}
+.zrow select{border:0!important; padding:2px 4px!important; font-size:12px}
+.zrow input{width:38px; text-align:right; border:0!important; border-bottom:1px solid var(--line-2)!important; border-radius:0!important; padding:2px!important; font-family:var(--mono)}
+.zrow .zx{color:var(--muted); cursor:pointer; font-size:12px; padding-left:2px}
+.addz{font-size:12px; color:var(--signal); background:none; border:1px dashed var(--line-2); border-radius:6px; cursor:pointer; padding:4px 9px}
+.cmp-edit .foot{grid-column:1/-1; display:flex; justify-content:space-between; align-items:center; margin-top:2px; padding-top:9px; border-top:1px solid var(--line)}
+.cmp-edit .foot .rescore{font-size:12px; color:var(--muted)}
+.cmp-edit .foot .rescore b{font-family:var(--mono); color:var(--signal-ink); font-weight:800; font-size:14px}
+
+/* 우측 미리보기 */
+.rcol{position:sticky; top:0; align-self:start}
+.preview{border:1px solid var(--signal); border-radius:8px; overflow:hidden}
+.preview .ph{background:var(--signal); color:#fff; font-weight:800; font-size:13px; padding:9px 13px}
+.pv-row{display:flex; justify-content:space-between; align-items:baseline; padding:11px 13px; border-bottom:1px solid var(--line)}
+.pv-row .k{font-size:12px; color:var(--muted)}
+.pv-row .v{font-family:var(--mono); font-weight:800; font-size:17px}
+.pv-row .v small{font-size:11px; color:var(--muted); font-weight:600}
+.pv-grade{font-size:13px; font-weight:800; color:#fff; background:var(--green); border-radius:5px; padding:1px 8px; margin-left:6px}
+.pv-note{font-size:11px; color:var(--muted); padding:10px 13px; line-height:1.5}
+.toggle{display:inline-flex; align-items:center; gap:6px; font-size:12px; cursor:pointer}
+.toggle input{width:34px; height:18px}
+
+/* 크레딧 명세 */
+.credit-box{border:1px solid var(--line); border-radius:8px; margin-top:14px; overflow:hidden}
+.credit-box .cb-h{background:var(--surface-2); font-weight:800; font-size:12px; padding:9px 13px; border-bottom:1px solid var(--line)}
+.cb-row{display:flex; justify-content:space-between; align-items:baseline; padding:9px 13px; font-size:13px}
+.cb-row .k{color:var(--ink-2)}
+.cb-row .k small{color:var(--muted); font-weight:400; margin-left:5px; font-size:11px}
+.cb-row .num{font-family:var(--mono); font-weight:700}
+.cb-row .minus{color:var(--up)}
+.cb-row.total{border-top:1px solid var(--line-2); font-weight:800}
+.cb-row.total .k{color:var(--ink)}
+.cb-row.total .num{font-size:16px; color:var(--signal-ink)}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="appbar">
+    <div class="gnb-left">
+      <div class="brand">빌탐정</div>
+      <nav class="gnb"><a>매물 검색</a><a class="on">매물 상세</a><a>마이페이지</a></nav>
+    </div>
+    <div class="gnb-right">
+      <span class="credit-chip">크레딧 <b>660</b></span>
+      <span class="user">이승욱 <span class="avatar"></span></span>
+    </div>
+  </div>
+
+  <div class="spec-note">
+    S02b · 분석 검토 — 본매물 값은 S02에서 이미 편집 → 여기선 <b>주변매물(comp)의 가치점수 입력 데이터를 수정</b>해 comp 가치점수·적정매매가를 정교화.
+    추정값엔 ⓘ(호버 설명). comp 행 클릭 → 펼쳐서 편집.
+  </div>
+
+  <div class="overlay">
+    <div class="rmodal">
+      <div class="rm-head">
+        <h2>분석 보고서 - 명세서</h2>
+        <span class="addr">서울특별시 강남구 역삼동 735-29</span>
+        <button class="rm-x" style="margin-left:auto">×</button>
+      </div>
+
+      <div class="rm-body">
+        <div class="zone-area">
+          <div class="zone-map">
+            <div class="zm-radius"></div>
+            <div class="zm-center"><i></i><span>본매물</span></div>
+            <span class="zm-pin sale" style="top:33%; left:47%"></span>
+            <span class="zm-pin sale" style="top:64%; left:53%"></span>
+            <span class="zm-pin sale" style="top:55%; left:45%"></span>
+            <span class="zm-pin sale" style="top:38%; left:54%"></span>
+            <span class="zm-pin rent" style="top:44%; left:51%"></span>
+            <span class="zm-pin rent" style="top:68%; left:48%"></span>
+            <span class="zm-pin rent" style="top:60%; left:56%"></span>
+            <div class="zm-legend"><span><b style="background:var(--purple)"></b>실거래사례</span><span><b style="background:var(--green)"></b>임대사례</span></div>
+          </div>
+          <div class="zone-cap">중심 본매물 · 반경 <b>500m</b> · 실거래 <b>7</b>건 · 임대 <b>12</b>건<small>반경은 매물 상세(S02)에서 설정</small></div>
+        </div>
+
+        <div>
+          <!-- 주변 실거래사례: 행 펼침 = 가치점수 입력 편집 -->
+          <div class="rsec">
+            <div class="rsec-h">주변 실거래사례</div>
+            <div class="cmp-list">
+              <!-- 헤더 -->
+              <div class="cmp-main" style="cursor:default; color:var(--muted); font-weight:600; border-bottom:1px solid var(--line-2)">
+                <span>포함</span><span>주소</span><span class="num">거리</span><span class="num">실거래가</span><span class="num">평단가</span><span></span>
+              </div>
+
+              <!-- comp 1 (펼침 예시) -->
+              <div class="cmp-row open">
+                <div class="cmp-main">
+                  <span><input type="checkbox" checked></span>
+                  <span class="addr">역삼동 720-1</span>
+                  <span class="num">180m</span><span class="num">96억</span><span class="num">1.72억</span>
+                  <span class="exp">▸</span>
+                </div>
+                <div class="cmp-edit">
+                  <div class="f"><label>도로접면</label><select><option selected>광대소각</option><option>광대세각</option><option>중로한면</option><option>세로한면(가)</option><option>맹지</option></select></div>
+                  <div class="f"><label>역과의거리</label><input value="200m"></div>
+                  <div class="f zone-multi">
+                    <label>용도지역</label>
+                    <div class="zwrap">
+                      <span class="zrow"><select><option selected>일반상업지역</option><option>중심상업지역</option><option>준주거지역</option><option>제3종일반주거지역</option></select><input value="60">%<span class="zx">×</span></span>
+                      <span class="zrow"><select><option>일반상업지역</option><option selected>준주거지역</option><option>제3종일반주거지역</option></select><input value="40">%<span class="zx">×</span></span>
+                      <button class="addz">+ 지역 추가</button>
+                    </div>
+                  </div>
+                  <div class="f"><label>지형형상</label><select><option selected>가로장방</option><option>정방형</option><option>부정형</option></select></div>
+                  <div class="f"><label>사용승인일</label><input value="2006/03"></div>
+                  <div class="f"><label>엘리베이터</label><select><option selected>있음</option><option>없음</option></select></div>
+                  <div class="f"><label>대수선</label><input value="없음"></div>
+                  <div class="f"><label>경사도</label><select><option selected>평지</option><option>완경사</option><option>급경사</option></select></div>
+                  <div class="f"><label>유동인구 <i class="info-i">i<span class="info-pop">도로접면·역거리 기반 <b>시스템 추정값</b>입니다. 법적 효력이 없으니 실제와 다르면 판단 하에 수정하세요.</span></i></label><select><option>매우높음</option><option selected>높음</option><option>보통</option><option>낮음</option><option>매우낮음</option></select></div>
+                  <div class="foot" style="justify-content:flex-end">
+                    <button class="btn" style="padding:4px 10px; font-size:12px">이 매물 초기화</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- comp 2~4 접힘 -->
+              <div class="cmp-row">
+                <div class="cmp-main">
+                  <span><input type="checkbox" checked></span><span class="addr">역삼동 812-3</span>
+                  <span class="num">340m</span><span class="num">61억</span><span class="num">1.55억</span>
+                  <span class="exp">▸</span>
+                </div>
+              </div>
+              <div class="cmp-row">
+                <div class="cmp-main">
+                  <span><input type="checkbox" checked></span><span class="addr">논현동 55-1</span>
+                  <span class="num">420m</span><span class="num">88억</span><span class="num">1.81억</span>
+                  <span class="exp">▸</span>
+                </div>
+              </div>
+              <div class="cmp-row off">
+                <div class="cmp-main">
+                  <span><input type="checkbox"></span><span class="addr">대치동 900-1 <span class="badge-out">이상치</span></span>
+                  <span class="num">480m</span><span class="num">210억</span><span class="num">3.9억</span>
+                  <span class="exp">▸</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 주변임대 -->
+          <div class="rsec">
+            <div class="rsec-h">주변임대시세</div>
+            <div style="padding:11px 13px; font-size:13px">
+              <label class="toggle"><input type="checkbox" checked> 주변임대시세 포함 (층별 평균 적용)</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- 우측: 미리보기 + 크레딧 명세 -->
+        <div class="rcol">
+          <div class="preview">
+            <div class="ph">실시간 산출 미리보기</div>
+            <div class="pv-row"><span class="k">가치점수</span><span class="v">87.4<span class="pv-grade">A</span></span></div>
+            <div class="pv-row"><span class="k">매도희망가</span><span class="v">110억</span></div>
+            <div class="pv-row"><span class="k">적정매매가</span><span class="v">96.2억</span></div>
+            <div class="pv-row"><span class="k">협의 필요금액</span><span class="v" style="color:var(--down)">−13.8억</span></div>
+            <div class="pv-row"><span class="k">예상수익률</span><span class="v">2.1<small>%</small></span></div>
+          </div>
+
+          <div class="credit-box">
+            <div class="cb-h">크레딧</div>
+            <div class="cb-row"><span class="k">현재 보유 크레딧</span><span class="num">660</span></div>
+            <div class="cb-row"><span class="k">차감 예정 <small>분석 보고서</small></span><span class="num minus">−30</span></div>
+            <div class="cb-row total"><span class="k">예상 잔여 크레딧</span><span class="num">630</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rm-foot" style="justify-content:flex-end">
+        <button class="btn">취소</button>
+        <button class="btn primary">생성 확정 (크레딧 30)</button>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

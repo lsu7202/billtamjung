@@ -1,8 +1,35 @@
 {
   "mcpServers": {
+    "hwpx": {
+      "command": "node",
+      "args": ["/Users/iseung-ug/mcp-servers/hwpx-mcp/mcp-server/dist/index.js"]
+    },
     "notion": {
       "type": "http",
       "url": "https://mcp.notion.com/mcp"
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem@latest",
+        "/Users/iseung-ug/Desktop"
+      ]
+    },
+    "postgres": {
+      "command": "/Users/iseung-ug/Desktop/빌탐정 프로젝트/data/.venv/bin/postgres-mcp",
+      "args": [
+        "--access-mode=restricted",
+        "postgresql://iseung-ug@localhost:5432/postgres"
+      ]
     }
   }
 }

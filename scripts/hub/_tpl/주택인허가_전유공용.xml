@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<iStudioExport ReportCode="REPB768B0B470EC4061956143FEEC32EB47">
+		<Controls>
+				<Control Type="0" Name="GRID" ConnectionCode="DBF15C463C94AB4FF583D817B4DD50766C" DSCode="DS81C077421B734A71860FAD00F155C8E2" UseCache="false" TextExportColSeparator="\t" TextExportRowSeparator="\n">
+						<Columns>
+								<Column Name="PLOT_PSTN" Caption="대지위치" Type="String" Width="250" />
+								<Column Name="SGG_CD" Caption="시군구코드" Type="String" Width="130" />
+								<Column Name="STDG_CD" Caption="법정동코드" Type="String" Width="130" />
+								<Column Name="PLOT_SE_CD" Caption="대지구분코드" Type="String" Width="130" />
+								<Column Name="MNO" Caption="번" Type="String" Width="130" />
+								<Column Name="SNO" Caption="지" Type="String" Width="130" />
+								<Column Name="HSPMSLG_EPCM_SN" Caption="관리전유공용PK" Type="String" Width="130" />
+								<Column Name="HSPMSLG_TPCB_OUN_SN" Caption="관리형별개요PK" Type="String" Width="130" />
+								<Column Name="HSPMSLG_HOCB_DTLS_SN" Caption="관리호별명세PK" Type="String" Width="130" />
+								<Column Name="EPCM_SE_CD" Caption="전유공용구분코드" Type="String" Width="130" />
+								<Column Name="EPCM_SE_CD_NM" Caption="전유공용구분코드명" Type="String" Width="130" />
+								<Column Name="MANX_SE_CD" Caption="주부속구분코드" Type="String" Width="130" />
+								<Column Name="MANX_SE_CD_NM" Caption="주부속구분코드명" Type="String" Width="130" />
+								<Column Name="FLR_SE_CD" Caption="층구분코드" Type="String" Width="130" />
+								<Column Name="FLR_SE_CD_NM" Caption="층구분코드명" Type="String" Width="130" />
+								<Column Name="FLR_NO" Caption="층번호" Type="String" Width="130" />
+								<Column Name="STRCT_CD" Caption="구조코드" Type="String" Width="130" />
+								<Column Name="STRCT_CD_NM" Caption="구조코드명" Type="String" Width="180" />
+								<Column Name="ETC_STRCT_INFO" Caption="기타구조" Type="String" Width="130" />
+								<Column Name="USG_CD" Caption="용도코드" Type="String" Width="130" />
+								<Column Name="USG_CD_NM" Caption="용도코드명" Type="String" Width="130" />
+								<Column Name="ETC_USG_CN" Caption="기타용도" Type="String" Width="130" />
+								<Column Name="AREA" Caption="면적(㎡)" Type="String" Width="130" />
+								<Column Name="FLR_NO_NM" Caption="층번호명" Type="String" Width="130" />
+								<Column Name="FRST_CRT_DT" Caption="생성일자" Type="String" Width="150" />
+						</Columns>
+						<ParamGroups>
+								<ParamGroup Code="DS81C077421B734A71860FAD00F155C8E2">
+										<Params>
+												<Param Name=":VS_SIGUNGU" ParamType="String">
+														<Value>11680</Value>
+												</Param>
+												<Param Name=":VS_BJDONG" ParamType="String">
+														<Value>10300</Value>
+												</Param>
+												<Param Name=":VS_PLAT_GB" ParamType="String">
+														<Value />
+												</Param>
+												<Param Name=":VS_MNO" ParamType="String" />
+												<Param Name=":VS_SNO" ParamType="String" />
+												<Param Name=":VS_EPCM_SE_CD" ParamType="String" />
+												<Param Name=":VS_FLR_SE_CD" ParamType="String" />
+												<Param Name=":VS_MANX_SE_CD" ParamType="String" />
+												<Param Name=":VS_STRCT_CD" ParamType="String" />
+												<Param Name=":VS_USG_CD" ParamType="String" />
+												<Param Name="VS_SIDO" ParamType="String">
+														<Value>11000</Value>
+												</Param>
+												<Param Name="VS_CRT_DATE" ParamType="String">
+														<Value>2026 년 07 월 </Value>
+												</Param>
+												<Param Name="VS_CRT_DATE2" ParamType="String">
+														<Value>기준</Value>
+												</Param>
+												<Param Name="VS_COL_PLOT_PSTN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SGG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_STDG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PLOT_SE_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MNO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SNO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_HSPMSLG_EPCM_SN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_HSPMSLG_TPCB_OUN_SN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_HSPMSLG_HOCB_DTLS_SN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_EPCM_SE_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_EPCM_SE_CD_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_FLR_SE_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_FLR_SE_CD_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_FLR_NO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_STRCT_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_STRCT_CD_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_ETC_STRCT_INFO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_USG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_USG_CD_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_ETC_USG_CN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_AREA" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MANX_SE_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MANX_SE_CD_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_FLR_NO_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_FRST_CRT_DT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_JSON_COLUMN" ParamType="String" />
+												<Param Name="VS_JSON_CNT" ParamType="String" />
+												<Param Name="VS_JSON_CNT_ALL" ParamType="String">
+														<Value>25</Value>
+												</Param>
+												<Param Name="VS_JSON_COLUMN_ALL" ParamType="String">
+														<Value>PLOT_PSTN||SGG_CD||STDG_CD||PLOT_SE_CD||MNO||SNO||HSPMSLG_EPCM_SN||HSPMSLG_TPCB_OUN_SN||HSPMSLG_HOCB_DTLS_SN||EPCM_SE_CD||EPCM_SE_CD_NM||MANX_SE_CD||MANX_SE_CD_NM||FLR_SE_CD||FLR_SE_CD_NM||FLR_NO||STRCT_CD||STRCT_CD_NM||ETC_STRCT_INFO||USG_CD||USG_CD_NM||ETC_USG_CN||AREA||FLR_NO_NM||FRST_CRT_DT</Value>
+												</Param>
+												<Param Name="VS_USER_CODE" ParamType="String">
+														<Value>default_user</Value>
+												</Param>
+												<Param Name="VS_USER_NAME" ParamType="String">
+														<Value>대표사용자</Value>
+												</Param>
+												<Param Name="VS_REPORT_GBN" ParamType="String">
+														<Value>02</Value>
+												</Param>
+												<Param Name="VS_REPORT_CODE" ParamType="String">
+														<Value>0209</Value>
+												</Param>
+												<Param Name="VS_DOWNLOAD_GBN" ParamType="String">
+														<Value>CSV</Value>
+												</Param>
+												<Param Name="VS_RADIO_GBN" ParamType="String">
+														<Value>1</Value>
+												</Param>
+										</Params>
+										<SQL Encrypted="true" DSType="2"><![CDATA[]]></SQL>
+								</ParamGroup>
+						</ParamGroups>
+						<Filters />
+						<Orders />
+				</Control>
+		</Controls>
+</iStudioExport>

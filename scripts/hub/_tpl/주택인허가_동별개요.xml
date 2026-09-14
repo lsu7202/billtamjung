@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<iStudioExport ReportCode="REPB1CBBD88AC734AAABE39E209E5321B87">
+		<Controls>
+				<Control Type="0" Name="GRID" ConnectionCode="DBF15C463C94AB4FF583D817B4DD50766C" DSCode="DS81C077421B734A71860FAD00F155C8E2" UseCache="false" TextExportColSeparator="\t" TextExportRowSeparator="\n">
+						<Columns>
+								<Column Name="PLOT_PSTN" Caption="대지위치" Type="String" Width="250" />
+								<Column Name="SGG_CD" Caption="시군구코드" Type="String" Width="130" />
+								<Column Name="STDG_CD" Caption="법정동코드" Type="String" Width="130" />
+								<Column Name="PLOT_SE_CD" Caption="대지구분코드" Type="String" Width="130" />
+								<Column Name="MNO" Caption="번" Type="String" Width="130" />
+								<Column Name="SNO" Caption="지" Type="String" Width="130" />
+								<Column Name="HSPMSLG_DGCB_OUN_SN" Caption="관리동별개요PK" Type="String" Width="130" />
+								<Column Name="HSPMSLG_SN" Caption="관리주택대장PK" Type="String" Width="180" />
+								<Column Name="BLDG_NM" Caption="건물명" Type="String" Width="250" />
+								<Column Name="SPAREA_NM" Caption="특수지명" Type="String" Width="250" />
+								<Column Name="BLCK" Caption="블록" Type="String" Width="130" />
+								<Column Name="LOT" Caption="로트" Type="String" Width="130" />
+								<Column Name="MANX_SE_CD" Caption="주부속구분코드" Type="String" Width="130" />
+								<Column Name="MANX_SE_CD_NM" Caption="주부속구분코드명" Type="String" Width="130" />
+								<Column Name="DNG_NM" Caption="동명칭" Type="String" Width="180" />
+								<Column Name="MN_USG_CD" Caption="주용도코드" Type="String" Width="130" />
+								<Column Name="MN_USG_CD_NM" Caption="주용도코드명" Type="String" Width="150" />
+								<Column Name="MRFN_RENT_HH_CNT" Caption="세대수국민임대(세대)" Type="String" Width="130" />
+								<Column Name="PUBLIC_RENT_5YR_HH_CNT" Caption="세대수국민임대5(세대)" Type="String" Width="130" />
+								<Column Name="PUBLIC_RENT_10YR_HH_CNT" Caption="세대수국민임대10(세대)" Type="String" Width="130" />
+								<Column Name="PUBLIC_RENT_ETC_HH_CNT" Caption="세대수국민임대기타(세대)" Type="String" Width="130" />
+								<Column Name="PUBLIC_RENT_SUM_HH_CNT" Caption="세대수국민임대계(세대)" Type="String" Width="130" />
+								<Column Name="PUBLIC_LO_HH_CNT" Caption="세대수공공분양(세대)" Type="String" Width="130" />
+								<Column Name="EMP_RENT_HH_CNT" Caption="세대수사원임대(세대)" Type="String" Width="130" />
+								<Column Name="LBR_WLF_HH_CNT" Caption="세대수근로복지(세대)" Type="String" Width="130" />
+								<Column Name="PVT_RENT_HH_CNT" Caption="세대수민간임대(세대)" Type="String" Width="130" />
+								<Column Name="PVT_LO_HH_CNT" Caption="세대수민간분양(세대)" Type="String" Width="130" />
+								<Column Name="STRCT_CD" Caption="구조코드" Type="String" Width="130" />
+								<Column Name="STRCT_CD_NM" Caption="구조코드명" Type="String" Width="180" />
+								<Column Name="ROOF_CD" Caption="지붕코드" Type="String" Width="130" />
+								<Column Name="ROOF_CD_NM" Caption="지붕코드명" Type="String" Width="130" />
+								<Column Name="BDAR" Caption="건축면적(㎡)" Type="String" Width="130" />
+								<Column Name="GFA" Caption="연면적(㎡)" Type="String" Width="130" />
+								<Column Name="UDGD_AREA" Caption="지하면적(㎡)" Type="String" Width="130" />
+								<Column Name="FART_CMPTTN_GFA" Caption="용적률산정연면적(㎡)" Type="String" Width="150" />
+								<Column Name="UDGD_NOFL" Caption="지하층수" Type="String" Width="130" />
+								<Column Name="GRND_NOFL" Caption="지상층수" Type="String" Width="130" />
+								<Column Name="HG" Caption="높이(m)" Type="String" Width="130" />
+								<Column Name="PSNGR_ELVTR_CNT" Caption="승용승강기수" Type="String" Width="130" />
+								<Column Name="EUSE_ELVTR_CNT" Caption="비상용승강기수" Type="String" Width="130" />
+								<Column Name="FLR_BGNG_HG_VL" Caption="층고FROM" Type="String" Width="130" />
+								<Column Name="CEILING_HG" Caption="반자높이(m)" Type="String" Width="130" />
+								<Column Name="STRS_VLD_BT" Caption="계단유효폭" Type="String" Width="130" />
+								<Column Name="CRRDPR_BT" Caption="복도너비" Type="String" Width="130" />
+								<Column Name="EXTW_THICK" Caption="외벽두께" Type="String" Width="130" />
+								<Column Name="ADJC_HH_WALL_THICK" Caption="인접세대벽두께" Type="String" Width="130" />
+								<Column Name="FRST_CRT_DT" Caption="생성일시" Type="String" Width="150" />
+						</Columns>
+						<ParamGroups>
+								<ParamGroup Code="DS81C077421B734A71860FAD00F155C8E2">
+										<Params>
+												<Param Name=":VS_SIGUNGU" ParamType="String">
+														<Value>11680</Value>
+												</Param>
+												<Param Name=":VS_BJDONG" ParamType="String">
+														<Value>10300</Value>
+												</Param>
+												<Param Name=":VS_PLAT_GB" ParamType="String">
+														<Value />
+												</Param>
+												<Param Name=":VS_MNO" ParamType="String" />
+												<Param Name=":VS_SNO" ParamType="String" />
+												<Param Name=":VS_STRCT_CD" ParamType="String" />
+												<Param Name=":VS_MANX_SE_CD" ParamType="String" />
+												<Param Name=":VS_MN_USG_CD" ParamType="String" />
+												<Param Name=":VS_ROOF_CD" ParamType="String" />
+												<Param Name=":VS_FART_CMPTTN_GFA_F" ParamType="String" />
+												<Param Name=":VS_FART_CMPTTN_GFA_T" ParamType="String" />
+												<Param Name=":VS_DNG_NM" ParamType="String" />
+												<Param Name=":VS_GFA_F" ParamType="String" />
+												<Param Name=":VS_GFA_T" ParamType="String" />
+												<Param Name=":VS_BDAR_F" ParamType="String" />
+												<Param Name=":VS_BDAR_T" ParamType="String" />
+												<Param Name=":VS_HG_F" ParamType="String" />
+												<Param Name=":VS_HG_T" ParamType="String" />
+												<Param Name=":VS_GRND_NOFL_F" ParamType="String" />
+												<Param Name=":VS_GRND_NOFL_T" ParamType="String" />
+												<Param Name=":VS_UDGD_NOFL_F" ParamType="String" />
+												<Param Name=":VS_UDGD_NOFL_T" ParamType="String" />
+												<Param Name="VS_SIDO" ParamType="String">
+														<Value>11000</Value>
+												</Param>
+												<Param Name="VS_CRT_DATE" ParamType="String">
+														<Value>2026 년 07 월 </Value>
+												</Param>
+												<Param Name="VS_CRT_DATE2" ParamType="String">
+														<Value>기준</Value>
+												</Param>
+												<Param Name="VS_COL_PLOT_PSTN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SGG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_STDG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PLOT_SE_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MNO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SNO" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_HSPMSLG_DGCB_OUN_SN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_HSPMSLG_SN" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_BLDG_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_SPAREA_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_BLCK" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_LOT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MANX_SE_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MANX_SE_CD_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_DNG_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MN_USG_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MN_USG_CD_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_MRFN_RENT_HH_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PUBLIC_RENT_5YR_HH_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PUBLIC_RENT_10YR_HH_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PUBLIC_RENT_ETC_HH_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PUBLIC_RENT_SUM_HH_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PUBLIC_LO_HH_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_EMP_RENT_HH_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_LBR_WLF_HH_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PVT_RENT_HH_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PVT_LO_HH_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_STRCT_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_STRCT_CD_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_ROOF_CD" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_ROOF_CD_NM" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_BDAR" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_GFA" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_UDGD_AREA" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_FART_CMPTTN_GFA" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_UDGD_NOFL" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_GRND_NOFL" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_HG" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_PSNGR_ELVTR_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_EUSE_ELVTR_CNT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_FLR_BGNG_HG_VL" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_CEILING_HG" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_STRS_VLD_BT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_CRRDPR_BT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_EXTW_THICK" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_ADJC_HH_WALL_THICK" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_COL_FRST_CRT_DT" ParamType="String">
+														<Value></Value>
+												</Param>
+												<Param Name="VS_JSON_COLUMN" ParamType="String" />
+												<Param Name="VS_JSON_CNT" ParamType="String" />
+												<Param Name="VS_JSON_CNT_ALL" ParamType="String">
+														<Value>47</Value>
+												</Param>
+												<Param Name="VS_JSON_COLUMN_ALL" ParamType="String">
+														<Value>PLOT_PSTN||SGG_CD||STDG_CD||PLOT_SE_CD||MNO||SNO||HSPMSLG_DGCB_OUN_SN||HSPMSLG_SN||BLDG_NM||SPAREA_NM||BLCK||LOT||MANX_SE_CD||MANX_SE_CD_NM||DNG_NM||MN_USG_CD||MN_USG_CD_NM||MRFN_RENT_HH_CNT||PUBLIC_RENT_5YR_HH_CNT||PUBLIC_RENT_10YR_HH_CNT||PUBLIC_RENT_ETC_HH_CNT||PUBLIC_RENT_SUM_HH_CNT||PUBLIC_LO_HH_CNT||EMP_RENT_HH_CNT||LBR_WLF_HH_CNT||PVT_RENT_HH_CNT||PVT_LO_HH_CNT||STRCT_CD||STRCT_CD_NM||ROOF_CD||ROOF_CD_NM||BDAR||GFA||UDGD_AREA||FART_CMPTTN_GFA||UDGD_NOFL||GRND_NOFL||HG||PSNGR_ELVTR_CNT||EUSE_ELVTR_CNT||FLR_BGNG_HG_VL||CEILING_HG||STRS_VLD_BT||CRRDPR_BT||EXTW_THICK||ADJC_HH_WALL_THICK||FRST_CRT_DT</Value>
+												</Param>
+												<Param Name="VS_USER_CODE" ParamType="String">
+														<Value>default_user</Value>
+												</Param>
+												<Param Name="VS_USER_NAME" ParamType="String">
+														<Value>대표사용자</Value>
+												</Param>
+												<Param Name="VS_REPORT_GBN" ParamType="String">
+														<Value>02</Value>
+												</Param>
+												<Param Name="VS_REPORT_CODE" ParamType="String">
+														<Value>0202</Value>
+												</Param>
+												<Param Name="VS_DOWNLOAD_GBN" ParamType="String">
+														<Value>CSV</Value>
+												</Param>
+												<Param Name="VS_RADIO_GBN" ParamType="String">
+														<Value>1</Value>
+												</Param>
+										</Params>
+										<SQL Encrypted="true" DSType="2"><![CDATA[]]></SQL>
+								</ParamGroup>
+						</ParamGroups>
+						<Filters />
+						<Orders />
+				</Control>
+		</Controls>
+</iStudioExport>

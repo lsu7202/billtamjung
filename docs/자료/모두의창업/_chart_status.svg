@@ -1,0 +1,36 @@
+<svg width="960" height="337" viewBox="0 0 960 337" xmlns="http://www.w3.org/2000/svg" font-family="Apple SD Gothic Neo, sans-serif">
+<rect width="960" height="337" fill="#ffffff"/>
+<line x1="323.7" y1="6" x2="323.7" y2="331" stroke="#8A94A6" stroke-width="1.8" stroke-dasharray="5 4"/>
+<path d="M0,46 h312.6666666666667 l22,32.0 l-22,32.0 H0 l22,-32.0 z" fill="#DCE4F0"/>
+<text x="167" y="73" font-size="15.5" fill="#1F3864" text-anchor="middle" font-weight="700">기획 및 개발</text>
+<text x="167" y="93" font-size="12.5" fill="#1F3864" text-anchor="middle" opacity="0.85">2026.07~08</text>
+<rect x="24.0" y="127.0" width="5" height="5" fill="#7E93B5"/>
+<text x="35.0" y="136" font-size="14.5" fill="#3E4A5E">서울 빌딩 60만 채 DB 기반 검색 엔진</text>
+<rect x="24.0" y="148.0" width="5" height="5" fill="#7E93B5"/>
+<text x="35.0" y="157" font-size="14.5" fill="#3E4A5E">가치 추정 시스템</text>
+<rect x="24.0" y="169.0" width="5" height="5" fill="#7E93B5"/>
+<text x="35.0" y="178" font-size="14.5" fill="#3E4A5E">매물·일정 관리 시스템</text>
+<path d="M312.6666666666667,46 h625.3333333333334 l22,32.0 l-22,32.0 H312.6666666666667 l22,-32.0 z" fill="#C3CEE0"/>
+<text x="636" y="73" font-size="15.5" fill="#1F3864" text-anchor="middle" font-weight="700">베타테스트</text>
+<text x="636" y="93" font-size="12.5" fill="#1F3864" text-anchor="middle" opacity="0.85">2026.08~11</text>
+<path d="M312.6666666666667,46 h625.3333333333334 l22,32.0 l-22,32.0 H312.6666666666667 l22,-32.0 z" fill="none" stroke="#C0392B" stroke-width="3"/>
+<rect x="598.3" y="8" width="76" height="26" rx="13.0" fill="#C0392B"/>
+<text x="636" y="26" font-size="14.5" fill="#ffffff" text-anchor="middle" font-weight="700">현재</text>
+<path d="M629.3,34 h14 l-7,10 z" fill="#C0392B"/>
+<text x="336.7" y="136" font-size="14.5" fill="#1F3864" font-weight="700">1차 2026.08 · 중개사 7명</text>
+<rect x="336.7" y="148.0" width="5" height="5" fill="#3C5C8C"/>
+<text x="347.7" y="157" font-size="14.5" fill="#3E4A5E">UI/UX 적응 어려움, 실제 매물 없음</text>
+<rect x="336.7" y="169.0" width="5" height="5" fill="#3C5C8C"/>
+<text x="347.7" y="178" font-size="14.5" fill="#3E4A5E">분석을 한 화면에서 확인하고 싶음</text>
+<rect x="336.7" y="190.0" width="5" height="5" fill="#3C5C8C"/>
+<text x="347.7" y="199" font-size="14.5" fill="#1F3864" font-weight="700">구매 의향서 확보 완료</text>
+<text x="336.7" y="220" font-size="14.5" fill="#1F3864" font-weight="700">개선 진행 및 2차 테스트 준비</text>
+<rect x="336.7" y="232.0" width="5" height="5" fill="#3C5C8C"/>
+<text x="347.7" y="241" font-size="14.5" fill="#3E4A5E">유저가 이미 익숙한 UI/UX로 개선</text>
+<rect x="336.7" y="253.0" width="5" height="5" fill="#3C5C8C"/>
+<text x="347.7" y="262" font-size="14.5" fill="#3E4A5E">상위 기능을 전부 통제하는 AI 에이전트 개발</text>
+<rect x="336.7" y="274.0" width="5" height="5" fill="#3C5C8C"/>
+<text x="347.7" y="283" font-size="14.5" fill="#3E4A5E">조회·분석·자료 생성 등 전문 스킬 탑재</text>
+<rect x="336.7" y="295.0" width="5" height="5" fill="#3C5C8C"/>
+<text x="347.7" y="304" font-size="14.5" fill="#3E4A5E">DB를 근거로 답하는 구조로 설계</text>
+</svg>

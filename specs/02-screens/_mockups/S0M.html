@@ -50,17 +50,26 @@
 .set-grid{display:grid; grid-template-columns:1fr 1fr; gap:0 36px; padding:6px 14px 12px}
 .set-row{display:flex; align-items:center; justify-content:space-between; padding:11px 2px; border-bottom:1px solid #f1f1f1; font-size:13px}
 .set-row .btn{padding:5px 12px; font-size:12px}
+.fresh{display:inline-block;padding:2px 8px;border-radius:999px;background:#eaf5ee;color:#2a7d46;font-size:11px;font-weight:700}
+.stale{display:inline-block;padding:2px 8px;border-radius:999px;background:#fdf1e7;color:#c8781a;font-size:11px;font-weight:700;cursor:help}
 </style>
 </head>
 <body>
 <div class="screen">
-  <div class="spec-note">
-    <b>S0M · 마이페이지</b> — 정식 출시 기준 목업. <span class="tag-mvp">MVP</span> 계정·크레딧 잔액/사용내역(그림자 계량)·저장조건 &nbsp;/&nbsp; <span class="tag-later">정식</span> 결제·플랜변경·충전·알림.
-  </div>
 
   <div class="appbar">
-    <div class="brand">빌탐정 <small>마이페이지</small></div>
-    <div class="user"><span>이승욱 회원님</span><span class="avatar"></span></div>
+    <div class="gnb-left">
+      <div class="brand">빌탐정</div>
+      <nav class="gnb"><a>매물 검색</a><a>마이페이지</a></nav>
+    </div>
+    <div class="gnb-right">
+      <span class="credit-chip">크레딧 <b>660</b></span>
+      <span class="user on">이승욱 <span class="avatar"></span></span>
+    </div>
+  </div>
+
+  <div class="spec-note">
+    <b>S0M · 마이페이지</b> — 정식 출시 기준 목업. <span class="tag-mvp">MVP</span> 계정·크레딧 잔액/사용내역(그림자 계량)·저장조건 &nbsp;/&nbsp; <span class="tag-later">정식</span> 결제·플랜변경·충전·알림.
   </div>
 
   <!-- 프로필 -->
@@ -70,6 +79,7 @@
       <div>
         <div class="pname">이승욱 <span class="plan-badge">프로 플랜</span></div>
         <div class="poffice">탐정공인중개사사무소 · coms1768@gmail.com</div>
+        <div class="poffice" style="margin-top:3px">★ 즐겨찾기 <b style="color:#1c2430">14</b>건</div>
       </div>
       <div class="right"><button class="btn">프로필 수정</button> <button class="btn">로그아웃</button></div>
     </div>
@@ -81,7 +91,7 @@
       <div class="right"><button class="btn">크레딧 충전<span class="tag-later">정식</span></button></div>
     </div>
     <div class="stat-row">
-      <div class="stat hl"><div class="k">사용 가능 잔액</div><div class="v">660</div><div class="sub">월 지급 620 + 이월 40</div></div>
+      <div class="stat hl"><div class="k">사용 가능 잔액</div><div class="v">660</div><div class="sub">이번 달 잔여 620 + 이월 40</div></div>
       <div class="stat"><div class="k">이번 달 사용</div><div class="v">280</div><div class="sub">분석 8 · 브리핑 4</div></div>
       <div class="stat"><div class="k">이번 달 지급 (월말 소멸)</div><div class="v">900 <small>중 620</small></div><div class="sub">프로 플랜 월 지급</div></div>
     </div>
@@ -97,6 +107,39 @@
         <tr><td style="color:#aab2bc" colspan="5">⋯ 이전 내역 · 2026-07-01 프로 플랜 월 지급 +900</td></tr>
       </tbody>
     </table>
+  </div>
+
+  <!-- 내 산출물 (생성한 보고서 보관함) -->
+  <div class="block">
+    <div class="sec-head">내 산출물 <span class="tag-mvp">MVP</span>
+      <div class="right" style="font-size:12px;color:#8a929b">재다운로드 무료 · 재생성은 크레딧 재소모</div>
+    </div>
+    <div class="seg-row" style="padding:10px 14px 0">
+      <div class="segmented">
+        <button class="active" onclick="filterOut('all',this)">전체 <span style="color:#8a929b">12</span></button>
+        <button onclick="filterOut('analysis',this)">매물분석보고서 <span style="color:#8a929b">8</span></button>
+        <button onclick="filterOut('brief',this)">브리핑자료 <span style="color:#8a929b">4</span></button>
+      </div>
+    </div>
+    <table class="wf out-tbl">
+      <thead><tr><th>생성일</th><th>종류</th><th>매물</th><th>상태</th><th class="num">크레딧</th><th class="num">받기</th></tr></thead>
+      <tbody>
+        <tr data-kind="analysis"><td>2026-07-07 14:20</td><td>매물분석보고서</td><td>충무로5가 20-29</td>
+          <td><span class="fresh">최신</span></td><td class="num">30</td>
+          <td class="num"><button class="btn primary">PPT 받기</button></td></tr>
+        <tr data-kind="brief"><td>2026-07-06 11:05</td><td>브리핑자료</td><td>역삼동 812-3</td>
+          <td><span class="stale" title="생성 이후 매물 데이터가 수정되었습니다">데이터 변경됨</span></td><td class="num">10</td>
+          <td class="num"><button class="btn">PPT 받기</button> <button class="btn">재생성 <span class="tag-later">−10</span></button></td></tr>
+        <tr data-kind="analysis"><td>2026-07-04 16:30</td><td>매물분석보고서</td><td>청담동 45-1</td>
+          <td><span class="fresh">최신</span></td><td class="num">30</td>
+          <td class="num"><button class="btn primary">PPT 받기</button></td></tr>
+        <tr data-kind="brief"><td>2026-07-02 10:12</td><td>브리핑자료</td><td>성수동 12-3</td>
+          <td><span class="stale" title="공시지가 갱신으로 마스터 데이터가 변경되었습니다">데이터 변경됨</span></td><td class="num">10</td>
+          <td class="num"><button class="btn">PPT 받기</button> <button class="btn">재생성 <span class="tag-later">−10</span></button></td></tr>
+        <tr><td style="color:#aab2bc" colspan="6">⋯ 이전 산출물 8건 더보기</td></tr>
+      </tbody>
+    </table>
+    <div class="beta-note" style="margin:0 14px 14px">📄 생성한 보고서는 <b>계정에 귀속</b>되어 자동 보관됩니다. <b>최신</b> 상태면 다운로드는 무제한 무료이고, 생성 이후 매물 데이터나 공시지가가 바뀌면 <b>데이터 변경됨</b>으로 표시되어 재생성(크레딧 재소모)이 필요합니다. 옛 산출물도 지우지 않으니 과거 시점 자료로 계속 받을 수 있습니다.</div>
   </div>
 
   <!-- 구독 플랜 -->
@@ -150,8 +193,10 @@
     <div class="saved-row"><span class="nm">김주임</span><span class="cnt">010-****-1234 · 초대 대기</span><div class="acts"><button class="btn">재전송</button><button class="btn">취소</button></div></div>
     <div class="sec-head" style="border-top:1px solid #eef0f3">매물 공유 범위</div>
     <div style="padding:12px 14px">
-      <div class="segmented"><button class="active">기본 (단방향)</button><button>전부 공유 (양방향)</button></div>
-      <div style="font-size:12px;color:#8a929b;margin-top:8px">· <b>기본</b>: 대표 → 직원 매물 조회 가능 / 직원 → 대표 조회 불가<br>· <b>전부 공유</b>: 대표 ↔ 직원 양방향 전체 공유</div>
+      <div style="font-size:13px;color:#1c2430;font-weight:600">팀 전체 공유 <span style="font-weight:400;color:#8a929b;font-size:12px">(고정 · 모드 선택 없음)</span></div>
+      <div style="font-size:12px;color:#8a929b;margin-top:8px">· 매물 데이터·오버레이·업무·메모·위키를 팀원이 모두 공유합니다.<br>
+        · 예외 2곳만 제한: <b>🔒 전화번호</b>, <b>🔒 비밀메모</b> → 담당자 본인 + 대표만.<br>
+        · 즐겨찾기·크레딧은 개인 귀속(공유 안 함).</div>
     </div>
   </div>
 
@@ -173,10 +218,21 @@
       <div class="set-row"><span>비밀번호 변경</span><button class="btn">변경</button></div>
       <div class="set-row"><span>알림 설정 <span class="tag-later">정식</span></span><button class="btn">설정</button></div>
       <div class="set-row"><span>연결된 소셜 계정 <span class="tag-later">정식</span></span><button class="btn">관리</button></div>
-      <div class="set-row"><span style="color:#c0392b">회원 탈퇴</span><button class="btn">탈퇴</button></div>
+      <div class="set-row"><span style="color:#c0392b">계정 삭제</span><button class="btn">삭제</button></div>
     </div>
   </div>
 
 </div>
+<script>
+/* 내 산출물 — 종류 필터 (전체 / 매물분석보고서 / 브리핑자료) */
+function filterOut(kind, btn) {
+  btn.parentNode.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.out-tbl tbody tr').forEach(tr => {
+    if (!tr.dataset.kind) return;              // '더보기' 행은 항상 표시
+    tr.style.display = (kind === 'all' || tr.dataset.kind === kind) ? '' : 'none';
+  });
+}
+</script>
 </body>
 </html>

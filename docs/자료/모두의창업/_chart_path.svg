@@ -1,0 +1,46 @@
+<svg width="960" height="300" viewBox="0 0 960 300" xmlns="http://www.w3.org/2000/svg" font-family="Apple SD Gothic Neo, sans-serif">
+<rect width="960" height="300" fill="#ffffff"/>
+<defs><marker id="tm3" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#9AA6B8"/></marker></defs>
+<line x1="44" y1="152.0" x2="922" y2="152.0" stroke="#9AA6B8" stroke-width="2.4" marker-end="url(#tm3)"/>
+<line x1="82" y1="143.0" x2="82" y2="126.0" stroke="#243B5E" stroke-width="1.3" stroke-dasharray="4 3"/>
+<circle cx="82" cy="152.0" r="7" fill="#243B5E"/>
+<rect x="6" y="50" width="152" height="76" rx="8" fill="#FFFFFF" stroke="#243B5E" stroke-width="1.6"/>
+<text x="82" y="69" font-size="12" fill="#8A94A6" text-anchor="middle">2026.07</text>
+<text x="82" y="88" font-size="14" fill="#243B5E" text-anchor="middle" font-weight="700">아이디어 기획</text>
+<text x="82" y="105" font-size="11.5" fill="#6B7688" text-anchor="middle" font-weight="400">중개사 인터뷰로</text>
+<text x="82" y="120" font-size="11.5" fill="#6B7688" text-anchor="middle" font-weight="400">문제를 확인</text>
+<line x1="241" y1="161.0" x2="241" y2="178.0" stroke="#243B5E" stroke-width="1.3" stroke-dasharray="4 3"/>
+<circle cx="241" cy="152.0" r="7" fill="#243B5E"/>
+<rect x="165" y="178" width="152" height="76" rx="8" fill="#FFFFFF" stroke="#243B5E" stroke-width="1.6"/>
+<text x="241" y="197" font-size="12" fill="#8A94A6" text-anchor="middle">2026.07</text>
+<text x="241" y="216" font-size="14" fill="#243B5E" text-anchor="middle" font-weight="700">데이터 구축</text>
+<text x="241" y="233" font-size="11.5" fill="#6B7688" text-anchor="middle" font-weight="400">공공데이터 아홉 종</text>
+<text x="241" y="248" font-size="11.5" fill="#6B7688" text-anchor="middle" font-weight="400">수집·적재 자동화</text>
+<line x1="400" y1="143.0" x2="400" y2="126.0" stroke="#243B5E" stroke-width="1.3" stroke-dasharray="4 3"/>
+<circle cx="400" cy="152.0" r="7" fill="#243B5E"/>
+<rect x="324" y="50" width="152" height="76" rx="8" fill="#FFFFFF" stroke="#243B5E" stroke-width="1.6"/>
+<text x="400" y="69" font-size="12" fill="#8A94A6" text-anchor="middle">2026.08</text>
+<text x="400" y="88" font-size="14" fill="#243B5E" text-anchor="middle" font-weight="700">서비스 개발</text>
+<text x="400" y="105" font-size="11.5" fill="#6B7688" text-anchor="middle" font-weight="400">검색·건물 상세</text>
+<text x="400" y="120" font-size="11.5" fill="#6B7688" text-anchor="middle" font-weight="400">가치 추정·매물관리</text>
+<line x1="560" y1="161.0" x2="560" y2="178.0" stroke="#243B5E" stroke-width="1.3" stroke-dasharray="4 3"/>
+<circle cx="560" cy="152.0" r="7" fill="#243B5E"/>
+<rect x="484" y="178" width="152" height="76" rx="8" fill="#FFFFFF" stroke="#243B5E" stroke-width="1.6"/>
+<text x="560" y="197" font-size="12" fill="#8A94A6" text-anchor="middle">2026.08</text>
+<text x="560" y="216" font-size="14" fill="#243B5E" text-anchor="middle" font-weight="700">1차 베타</text>
+<text x="560" y="233" font-size="11.5" fill="#6B7688" text-anchor="middle" font-weight="400">지인 중개사</text>
+<text x="560" y="248" font-size="11.5" fill="#6B7688" text-anchor="middle" font-weight="400">7명 참여</text>
+<line x1="719" y1="143.0" x2="719" y2="126.0" stroke="#243B5E" stroke-width="1.3" stroke-dasharray="4 3"/>
+<circle cx="719" cy="152.0" r="7" fill="#243B5E"/>
+<rect x="643" y="50" width="152" height="76" rx="8" fill="#FFFFFF" stroke="#243B5E" stroke-width="1.6"/>
+<text x="719" y="69" font-size="12" fill="#8A94A6" text-anchor="middle">2026.09</text>
+<text x="719" y="88" font-size="14" fill="#243B5E" text-anchor="middle" font-weight="700">AI 에이전트</text>
+<text x="719" y="105" font-size="11.5" fill="#6B7688" text-anchor="middle" font-weight="400">대화로 전 기능을</text>
+<text x="719" y="120" font-size="11.5" fill="#6B7688" text-anchor="middle" font-weight="400">통제하는 구조</text>
+<line x1="878" y1="161.0" x2="878" y2="178.0" stroke="#C0392B" stroke-width="1.3" stroke-dasharray="4 3"/>
+<circle cx="878" cy="152.0" r="7" fill="#C0392B"/>
+<rect x="802" y="178" width="152" height="61" rx="8" fill="#FDECEA" stroke="#C0392B" stroke-width="1.6"/>
+<text x="878" y="197" font-size="12" fill="#8A94A6" text-anchor="middle">2026.09</text>
+<text x="878" y="216" font-size="14" fill="#C0392B" text-anchor="middle" font-weight="700">2차 베타 준비</text>
+<text x="878" y="233" font-size="11.5" fill="#C0392B" text-anchor="middle" font-weight="700">현재</text>
+</svg>

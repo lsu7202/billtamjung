@@ -39,7 +39,9 @@ def main():
     CREATE TABLE parcels(
       pnu TEXT PRIMARY KEY, 지목 TEXT, 토지면적 REAL, 토지이용상황 TEXT,
       지형형상 TEXT, 도로접면 TEXT, 지세 TEXT, 용도지역 TEXT, 개발제한비중 REAL,
-      공시지가_최신 INT, 법정건폐율 TEXT, 법정용적률 TEXT, 공시지가_시계열 TEXT
+      공시지가_최신 INT, 법정건폐율 TEXT, 법정용적률 TEXT, 공시지가_시계열 TEXT,
+      -- 규제 6종: 필지 단위 원본(2026-07-19 추가). buildings의 동명 컬럼은 전 필지 OR 집계값.
+      고도지구 TEXT, 지구단위계획 TEXT, 정비구역 TEXT, 경관지구 TEXT, 방화지구 TEXT, 문화재보존 TEXT
     );
     """)
     binfo=cur.execute("SELECT name,type FROM pragma_table_info('buildings')").fetchall()
@@ -69,6 +71,7 @@ def main():
         n+=1
     # 필지(토지) 테이블 — 강남 전 필지(부속 필지 조회용). _land_master + _legal + _spatial
     legal=json.load(open(f"data/tools/_legal_{SGG}.json"))
+    REG=json.load(open(f"data/tools/_regulations_{SGG}.json"))   # PNU → 규제 6종 (필지 단위 원본)
     spatial=json.load(open("data/tools/_spatial_ALL.json"))
     def yongdo(pnu):
         z=spatial.get(pnu,{}).get('용도지역')
@@ -79,11 +82,14 @@ def main():
         L=json.loads(line); pnu=L['PNU']
         if not pnu.startswith(SGG): continue
         gj=L.get('공시지가') or {}; lg=legal.get(pnu,{})
-        cur.execute("INSERT OR IGNORE INTO parcels VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",(
+        rg=REG.get(pnu,{})
+        cur.execute("INSERT OR IGNORE INTO parcels VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",(
             pnu, L.get('지목'), L.get('면적'), L.get('토지이용상황'),
             L.get('지형형상'), L.get('도로접면'), L.get('지세'), yongdo(pnu), L.get('개발제한비중'),
             gj.get('2026'), lg.get('법정건폐율'), lg.get('법정용적률'),
-            json.dumps({y:gj[y] for y in gj},ensure_ascii=False) if gj else None)); np+=1
+            json.dumps({y:gj[y] for y in gj},ensure_ascii=False) if gj else None,
+            rg.get('고도지구'), rg.get('지구단위계획'), rg.get('정비구역'),
+            rg.get('경관지구'), rg.get('방화지구'), rg.get('문화재보존'))); np+=1
     # 부속지번 관계
     annex=json.load(open(f"data/tools/_annex_{SGG}.json"))
     na=0

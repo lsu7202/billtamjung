@@ -1,0 +1,33 @@
+<svg width="960" height="352" viewBox="0 0 960 352" xmlns="http://www.w3.org/2000/svg" font-family="Apple SD Gothic Neo, sans-serif">
+<rect width="960" height="352" fill="#ffffff"/>
+<rect x="3" y="44" width="84" height="30" rx="15.0" fill="#8A94A6"/>
+<text x="45.0" y="65.0" font-size="15" fill="#ffffff" text-anchor="middle" font-weight="700">지금</text>
+<rect x="96.0" y="30" width="266.3" height="98" rx="8" fill="#F2F4F7" stroke="#C6CCD6" stroke-width="1.4"/>
+<text x="229.2" y="66" font-size="16" fill="#49546B" text-anchor="middle" font-weight="700">업무 관리 프로그램</text>
+<rect x="173.2" y="82" width="112" height="28" rx="14" fill="#E1E5EB"/>
+<text x="229.2" y="101" font-size="13.5" fill="#6B7688" text-anchor="middle" font-weight="700">별도 결제</text>
+<rect x="392.3" y="30" width="266.3" height="98" rx="8" fill="#F2F4F7" stroke="#C6CCD6" stroke-width="1.4"/>
+<text x="525.5" y="66" font-size="16" fill="#49546B" text-anchor="middle" font-weight="700">데이터 조회</text>
+<rect x="469.5" y="82" width="112" height="28" rx="14" fill="#E1E5EB"/>
+<text x="525.5" y="101" font-size="13.5" fill="#6B7688" text-anchor="middle" font-weight="700">별도 결제</text>
+<rect x="688.7" y="30" width="266.3" height="98" rx="8" fill="#F2F4F7" stroke="#C6CCD6" stroke-width="1.4"/>
+<text x="821.8" y="66" font-size="16" fill="#49546B" text-anchor="middle" font-weight="700">ChatGPT</text>
+<rect x="765.8" y="82" width="112" height="28" rx="14" fill="#E1E5EB"/>
+<text x="821.8" y="101" font-size="13.5" fill="#6B7688" text-anchor="middle" font-weight="700">별도 결제</text>
+<text x="96" y="156" font-size="14.5" fill="#6B7688">기능마다 따로 결제함. AI 구독은 그 위에 또 붙음.</text>
+<line x1="0" y1="180" x2="960" y2="180" stroke="#DCE4F0" stroke-width="1.4"/>
+<rect x="3" y="222" width="84" height="30" rx="15.0" fill="#243B5E"/>
+<text x="45.0" y="243.0" font-size="15" fill="#ffffff" text-anchor="middle" font-weight="700">빌탐정</text>
+<rect x="96" y="208" width="859" height="98" rx="8" fill="#EEF2F8" stroke="#243B5E" stroke-width="2.2"/>
+<rect x="130" y="240" width="168" height="36" rx="6" fill="#243B5E"/>
+<text x="214.0" y="264" font-size="15.5" fill="#ffffff" text-anchor="middle" font-weight="700">업무 관리</text>
+<text x="317.0" y="266" font-size="20" fill="#2C4A78" text-anchor="middle" font-weight="700">+</text>
+<rect x="336" y="240" width="168" height="36" rx="6" fill="#243B5E"/>
+<text x="420.0" y="264" font-size="15.5" fill="#ffffff" text-anchor="middle" font-weight="700">데이터 조회</text>
+<text x="523.0" y="266" font-size="20" fill="#2C4A78" text-anchor="middle" font-weight="700">+</text>
+<rect x="542" y="240" width="168" height="36" rx="6" fill="#243B5E"/>
+<text x="626.0" y="264" font-size="15.5" fill="#ffffff" text-anchor="middle" font-weight="700">AI</text>
+<rect x="754" y="238" width="152" height="40" rx="20" fill="#E8873A"/>
+<text x="830" y="264" font-size="15.5" fill="#ffffff" text-anchor="middle" font-weight="700">구독 하나</text>
+<text x="96" y="334" font-size="14.5" fill="#1F3864" font-weight="700">AI를 따로 결제하지 않음. 구독 하나로 통합하므로 단일 기능 서비스보다 높은 가격을 받을 근거가 됨.</text>
+</svg>
