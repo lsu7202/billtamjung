@@ -1,24 +1,31 @@
-# 빌탐정
+<p align="center">
+  <img src="docs/img/hero.png" alt="빌탐정" width="100%">
+</p>
 
-서울 상업용 건물 60만 채의 스펙 · 실거래 · 임대 정보를 한 화면에서 보고,
-AI 어시스턴트가 DB 를 근거로 답하는 부동산 투자 분석 서비스입니다.
+<h3 align="center">서울 상업용 건물 60만 채를 분석하는 부동산 AI 서비스</h3>
 
-![AI 어시스턴트](docs/img/ai-assistant.png)
+<p align="center">
+  <a href="#볼-만한-코드">볼 만한 코드</a> ·
+  <a href="#주요-커밋">주요 커밋</a> ·
+  <a href="#실행">실행</a> ·
+  <a href="specs/">명세</a>
+</p>
 
-## 기간 · 역할
+<p align="center">
+  <img src="https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB" alt="React">
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI">
+  <img src="https://img.shields.io/badge/PostgreSQL%20%2B%20PostGIS-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL">
+  <img src="https://img.shields.io/badge/GCP%20Cloud%20Run-4285F4?logo=googlecloud&logoColor=white" alt="Cloud Run">
+  <img src="https://img.shields.io/badge/Playwright-2EAD33?logo=playwright&logoColor=white" alt="Playwright">
+  <img src="https://img.shields.io/badge/%EB%8B%A8%EB%8F%85%20%EA%B0%9C%EB%B0%9C-C2571C" alt="단독 개발">
+</p>
 
-2026.07 ~ 진행 중 · 단독 개발. 기획 · 프론트엔드 · 백엔드 · 데이터 파이프라인 · 배포를 혼자 맡았습니다.
-
-| 날짜 | 커밋 | |
-|---|---|---|
-| 07.05 | [초기 커밋: 와이어프레임 스펙 + 목업](../../commit/0ad5ac1) | 코드보다 스펙으로 시작 |
-| 08.02 | [data.go.kr 자동 다운로더](../../commit/39ecf54) · [V-World 크롤러](../../commit/d03f125) | 원천 수집 자동화 |
-| 08.04 | [GCP 배포 스크립트 · 런북](../../commit/309519c) | 배포 |
-| 08.06 | [자동완성 4.6s → 0.15s](../../commit/786f042) · [검색 0.66 → 0.24s](../../commit/11d0678) | 성능 |
-| 08.09 | [영역을 여러 개 그린다](../../commit/78b0606) | 고유 기능 |
-| 09.01 | [대장 전국본을 버리고 서울본 55장으로](../../commit/df99903) | 데이터 재편 |
-| 09.02 | [흩어진 검사를 qa/ 한 폴더로 · run.sh 한 문](../../commit/41a80ae) | 검사 자동화 |
-| 09.08 | [AI 어시스턴트 1단계](../../commit/c166257) → [2단계](../../commit/cfe7335) | AI |
+<p align="center">
+  <img src="docs/img/ai-assistant.png" alt="AI 어시스턴트 화면" width="100%">
+  <br>
+  <sub>AI 어시스턴트 — 조건을 말하면 건물을 찾아 근거와 함께 답한다</sub>
+</p>
 
 ## 왜 만들었나
 
@@ -35,12 +42,44 @@ AI 어시스턴트가 DB 를 근거로 답하는 부동산 투자 분석 서비�
 
 ## 주요 기능
 
+**조건 검색**
+용도, 연면적, 가격대, 수익률 같은 조건을 걸면 서울 전 건물 중 맞는 것만 남습니다. 결과는 왼쪽 목록과
+오른쪽 지도에 동시에 표시되고, 조건을 바꾸면 둘 다 같이 바뀝니다.
+
+**영역 그리기**
+행정구역이 아니라 내가 보는 범위로 찾고 싶을 때, 지도에 직접 폴리곤을 그리면 그 안에 있는 건물만 보여
+줍니다. 영역을 여러 개 그려도 앞에 그린 것이 지워지지 않아 골목 몇 개를 묶어서 볼 수 있습니다.
+
+**가치 분석 보고서**
+건물 하나를 고르면 그 건물의 실거래, 주변 실거래, 공시지가, 임대 시세를 모아 적정 매매가와 예상 임대료를
+계산합니다. 숫자만 주는 것이 아니라 어떤 거래를 근거로 삼았는지 함께 보여 줘서 중개사가 그대로 고객에게
+설명할 수 있습니다.
+
+**상권 정의**
+지도에 그린 범위를 상권으로 저장하고, 그 안의 유동인구와 업종 구성을 봅니다. 공공 데이터가 나눠 둔 상권이
+아니라 중개사가 실제로 다루는 범위 기준입니다.
+
+**AI 어시스턴트**
+「강남역 근처 30억 이하 수익률 5% 넘는 건물」처럼 말로 물으면, 질문을 검색 조건으로 바꿔 DB 를 직접 읽고
+건물 목록과 근거를 답합니다. 답에 들어가는 숫자는 전부 DB 에서 가져온 값이라 출처와 단위가 붙어 있고,
+DB 에 없는 값은 지어내지 않고 「없음」으로 둡니다.
+
 | | |
 |---|---|
 | ![검색](frontend/public/beta/img/01-검색.png) | ![검색 결과](frontend/public/beta/img/10-검색결과.png) |
 | 조건으로 서울 전 건물을 거르는 검색 | 목록과 지도가 같은 조건을 공유 |
 | ![리포트](frontend/public/beta/img/02-리포트요약.png) | ![상권](frontend/public/beta/img/03-상권정의.png) |
 | 건물 하나의 가치 분석 보고서 | 지도에 직접 그려 상권을 정의 |
+
+## 기술 스택
+
+| 영역 | 선택 | 왜 |
+|---|---|---|
+| 프론트 | React · Vite · TypeScript · TanStack Query · Zustand | 로그인 뒤에 쓰는 업무 도구라 검색 노출이 필요 없고, 지도 · 캔버스 · 3D 는 브라우저에서만 돈다. 서버 렌더링(Next.js)을 두면 컨테이너만 늘어 SPA 로 갔다 |
+| 백엔드 | FastAPI · asyncpg · JWT | 크롤링 · 적재 · 추정 산식이 전부 파이썬이라 언어를 하나로 묶었다 |
+| DB | PostgreSQL · PostGIS | 필지 폴리곤을 그대로 저장한다. 지도에 그린 영역 안의 건물을 찾는 일이 `ST_Within` 한 줄로 끝난다 |
+| 배포 | Docker · Firebase Hosting · Cloud Run · Terraform | 컨테이너 하나만 올리면 되고 DB 와 파일 저장을 같은 곳에 붙일 수 있다. 정적 호스팅의 rewrite 로 API 를 같은 도메인에 묶었다 |
+| 검사 | Playwright · bash | 실제 화면을 열어 화면값과 DB 값을 대조한다 |
 
 ## 구조
 
@@ -76,12 +115,18 @@ specs/      제품 · 데이터 · 아키텍처 명세 (정본)
   됐습니다. git diff 로 바뀐 경로를 읽어 그 경로를 맡는 갈래만 돌리고, 화면 검사는 Playwright 로 실제 화면을
   열어 화면값과 DB 값을 대조합니다. → [`qa/run.sh`](qa/run.sh) · [`qa/screen/qa_screen.py`](qa/screen/qa_screen.py)
 
-## AI 어시스턴트
+## 주요 커밋
 
-유저 질문을 의도와 조건으로 나눠 필요한 스킬을 고르고, 스킬이 읽기 API 를 부르거나 읽기 전용 계정으로
-DB 에 직접 질의합니다. 결과는 값 · 출처 · 단위가 붙은 한 형식으로 정규화되어 돌아오므로 모델이 지어낼
-자리가 없습니다. 찾지 못한 값은 비웁니다.
-→ [`specs/07-architecture/10-AI-어시스턴트.md`](specs/07-architecture/10-AI-어시스턴트.md)
+| 날짜 | 커밋 | |
+|---|---|---|
+| 07.05 | [초기 커밋: 와이어프레임 스펙 + 목업](../../commit/0ad5ac1) | 코드보다 스펙으로 시작 |
+| 08.02 | [data.go.kr 자동 다운로더](../../commit/39ecf54) · [V-World 크롤러](../../commit/d03f125) | 원천 수집 자동화 |
+| 08.04 | [GCP 배포 스크립트 · 런북](../../commit/309519c) | 배포 |
+| 08.06 | [자동완성 4.6s → 0.15s](../../commit/786f042) · [검색 0.66 → 0.24s](../../commit/11d0678) | 성능 |
+| 08.09 | [영역을 여러 개 그린다](../../commit/78b0606) | 고유 기능 |
+| 09.01 | [대장 전국본을 버리고 서울본 55장으로](../../commit/df99903) | 데이터 재편 |
+| 09.02 | [흩어진 검사를 qa/ 한 폴더로 · run.sh 한 문](../../commit/41a80ae) | 검사 자동화 |
+| 09.08 | [AI 어시스턴트 1단계](../../commit/c166257) → [2단계](../../commit/cfe7335) | AI |
 
 ## 실행
 
@@ -91,6 +136,8 @@ cd frontend && npm install && npm run dev                        # http://localh
 qa/run.sh                                                        # 바뀐 파일에 맞는 검사만
 ```
 
-## 운영 기록
+## 만든 사람
+
+**이승욱** · coms1768@gmail.com · 2026.07 ~ 진행 중 · 기획 · 프론트엔드 · 백엔드 · 데이터 파이프라인 · 배포 단독
 
 2026.08 중개사 베타 운영 (계정 34 · 매물 36 · 보고서 112). 2026.09 클라우드 정리, 지금은 로컬 실행으로 확인합니다.
