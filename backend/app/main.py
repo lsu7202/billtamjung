@@ -6,18 +6,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from .core import db, ratelimit
 from .core.config import settings
-from .domains import auth, social, search, buildings, overlays, credits, listings, floor_rents, market, reports, extras, photos, series, team, survey, buyers, stops, places, news, tenants, assistant
-
-
-# **AI 한 바퀴를 터미널로 본다**(2026-09-09 대표). uvicorn 은 제 로거만 켜므로
-# 우리 것을 따로 켠다. `docker logs -f docker-api-1` 로 흐른다 —
-# 물음(■) · 도구마다 보낸 것과 받은 것 · 답(✔) 이 차례로 찍힌다.
-logging.getLogger("app.ai").setLevel(logging.INFO)
-if not logging.getLogger("app.ai").handlers:
-    _h = logging.StreamHandler()
-    _h.setFormatter(logging.Formatter("%(message)s"))
-    logging.getLogger("app.ai").addHandler(_h)
-    logging.getLogger("app.ai").propagate = False
+from .domains import auth, social, search, buildings, overlays, credits, listings, floor_rents, market, reports, extras, photos, series, team, survey, buyers, stops, places, news, tenants
 
 
 @asynccontextmanager
@@ -61,7 +50,7 @@ app.add_middleware(
 
 # 라우터를 맨몸 + /api 프리픽스로 이중 등록 — 로컬(vite가 /api 스트립)과
 # Firebase Hosting(run 리라이트는 경로 그대로 전달) 양쪽 호환.
-for m in (auth, social, search, buildings, overlays, credits, listings, floor_rents, market, reports, extras, photos, series, team, survey, buyers, stops, places, news, tenants, assistant):
+for m in (auth, social, search, buildings, overlays, credits, listings, floor_rents, market, reports, extras, photos, series, team, survey, buyers, stops, places, news, tenants):
     app.include_router(m.router)
     app.include_router(m.router, prefix="/api")
 
