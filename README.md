@@ -1,10 +1,39 @@
 # 빌탐정
 
-서울 상업용 건물 중개사를 위한 부동산 투자 분석 플랫폼. 건물 58만 동의 스펙과 실거래,
-임대 정보를 한 화면에서 보고, 대화형 AI가 DB를 근거로 답합니다.
+서울 상업용 건물 60만 채의 스펙 · 실거래 · 임대 정보를 한 화면에서 보고,
+AI 어시스턴트가 DB 를 근거로 답하는 부동산 투자 분석 서비스입니다.
 
-**2026.07 ~ 진행 중 · 단독 개발 · 커밋 539**
-기획 · 프론트엔드 · 백엔드 · 데이터 파이프라인 · 배포까지 혼자 맡았습니다.
+![AI 어시스턴트](docs/img/ai-assistant.png)
+
+## 기간 · 역할
+
+2026.07 ~ 진행 중 · 단독 개발. 기획 · 프론트엔드 · 백엔드 · 데이터 파이프라인 · 배포를 혼자 맡았습니다.
+
+| 날짜 | 커밋 | |
+|---|---|---|
+| 07.05 | [초기 커밋: 와이어프레임 스펙 + 목업](../../commit/0ad5ac1) | 코드보다 스펙으로 시작 |
+| 08.02 | [data.go.kr 자동 다운로더](../../commit/39ecf54) · [V-World 크롤러](../../commit/d03f125) | 원천 수집 자동화 |
+| 08.04 | [GCP 배포 스크립트 · 런북](../../commit/309519c) | 배포 |
+| 08.06 | [자동완성 4.6s → 0.15s](../../commit/786f042) · [검색 0.66 → 0.24s](../../commit/11d0678) | 성능 |
+| 08.09 | [영역을 여러 개 그린다](../../commit/78b0606) | 고유 기능 |
+| 09.01 | [대장 전국본을 버리고 서울본 55장으로](../../commit/df99903) | 데이터 재편 |
+| 09.02 | [흩어진 검사를 qa/ 한 폴더로 · run.sh 한 문](../../commit/41a80ae) | 검사 자동화 |
+| 09.08 | [AI 어시스턴트 1단계](../../commit/c166257) → [2단계](../../commit/cfe7335) | AI |
+
+## 왜 만들었나
+
+상업용 부동산 시장의 가장 큰 리스크는 가격 불확실성임. 이 리스크는 정보 비대칭성과 낮은 거래 빈도라는
+시장 특성에 의해 발생함. 이는 시장의 투자 심리를 저하시키며, 정보력이 부족한 개인은 리스크에 노출되기
+더욱 쉬움. 실제로 이를 악용해 부당 이득을 취득하는 사례는 빈번하며, 건강한 시장을 위해선 이를 해결해야 함.
+
+따라서 이 가격 불확실성 리스크를 해소할 수 있는 부동산 전문 AI 「빌탐정」을 시장에 공급하고자 함.
+이는 부동산에 특화된 AI로 해당 분야에서 일반 AI보다 뛰어난 정보력과 문제 해결 능력을 가지고 있음.
+그 근거는 서울 빌딩 60만 채의 모든 스펙을 실시간으로 분석하고 답하기 때문임. 빌탐정은 원하는 조건의
+건물이 무엇인지, 구체적 건물 스펙, 장점과 단점, 합리적인 가격 범위 그리고 미래 수익성을 분석하고 답할 수
+있음. 따라서 중개사는 건물의 합리적인 가격과 근거를 쉽게 제시할 수 있게 됨. 나아가 개인은 더 이상
+정보력에 뒤처지지 않으며 리스크로부터 벗어날 수 있음.
+
+## 주요 기능
 
 | | |
 |---|---|
@@ -13,78 +42,55 @@
 | ![리포트](frontend/public/beta/img/02-리포트요약.png) | ![상권](frontend/public/beta/img/03-상권정의.png) |
 | 건물 하나의 가치 분석 보고서 | 지도에 직접 그려 상권을 정의 |
 
-## 이 저장소에서 볼 만한 것
+## 구조
 
-문제를 만나 고친 지점들입니다. 각 줄의 링크가 실제 코드입니다.
+```
+frontend/   React + Vite + TypeScript · TanStack Query · Zustand
+backend/    FastAPI · asyncpg · JWT
+db/         PostgreSQL + PostGIS 마이그레이션
+pipeline/   공공 데이터 수집 → 정제 → 적재 → 검증
+infra/      Docker · Firebase Hosting · Cloud Run · Terraform
+qa/         목적별 검사 (data · screen · mirror · build · ui) · run.sh 한 문
+specs/      제품 · 데이터 · 아키텍처 명세 (정본)
+```
 
-- **지도 핀 수만 개** — 마커마다 DOM 을 만들자 화면이 멈춰, 캔버스 한 장에 직접 그리고
-  `requestAnimationFrame` 으로 프레임당 한 번만 갱신했습니다. 클릭 판정은 좌표 계산으로 대신합니다.
+## 볼 만한 코드
+
+문제를 만나 고친 지점입니다. 링크가 실제 코드입니다.
+
+- **필터 요구의 진짜 목적** — 중개사가 필터를 요구한 이유는 필터가 없어서가 아니라 원하는 건물을 찾고
+  가격을 가늠하기 위해서였습니다. 실거래와 공시지가로 건물마다 적정가 · 임대료를 미리 계산해 두고
+  그 값으로 찾게 했습니다. → [`pipeline/`](pipeline/)
+- **지도 마커 수만 개** — 마커마다 DOM 을 만들자 화면이 멈춰, 캔버스 한 장에 그리고 `requestAnimationFrame`
+  으로 프레임당 한 번만 갱신했습니다. 클릭 판정은 좌표 계산으로 대신합니다.
   → [`shared/map/mapCanvasLayer.ts`](frontend/src/shared/map/mapCanvasLayer.ts)
-- **초기 번들 584KB 감소** — 3D 모달을 열지 않는 사용자까지 three.js 를 받고 있어 지연 로딩으로 분리했습니다.
-  WebGL 자원은 화면을 닫을 때 순회하며 해제합니다.
-  → [`features/building/ParcelScene3D.tsx`](frontend/src/features/building/ParcelScene3D.tsx)
-- **동시 401 폭주** — 토큰이 만료되면 화면의 쿼리들이 같은 순간에 갱신을 각자 불러 10여 건이 나갔습니다.
-  진행 중인 갱신 하나를 공유해 한 건으로 줄였습니다.
+- **토큰 만료 때 동시 401** — 화면의 요청들이 같은 순간 재발급을 각자 불러 10여 건이 나갔습니다.
+  진행 중인 재발급 하나를 공유해 한 건으로 줄였습니다.
   → [`shared/api/client.ts`](frontend/src/shared/api/client.ts)
-- **AI 응답 스트리밍** — 인증 헤더를 붙일 수 없어 EventSource 대신 `fetch` 스트림을 직접 파싱합니다.
-  반쪽만 도착한 덩이는 버퍼에 남겨 다음 조각과 합치고, `AbortController` 로 중단을 처리합니다.
+- **잘려서 오는 AI 답변** — 서버가 SSE 로 보낸 조각을 네트워크가 임의로 잘라, 그대로 해석하면 답변 일부가
+  사라졌습니다. 빈 줄을 만날 때까지 버퍼에 모아 온전해진 뒤 해석합니다.
   → [`features/assistant/api.ts`](frontend/src/features/assistant/api.ts)
-- **UI 규칙 린터** — 규칙을 도입하려면 기존 위반을 다 고쳐야 해서 아무도 쓰지 않습니다.
-  기존 위반을 기준선에 박아 두고 새로 생긴 것만 실패시켰습니다.
-  → [`qa/ui/check_ui.sh`](qa/ui/check_ui.sh)
+- **첫 화면 번들 584KB 감소** — 3D 를 열지 않는 유저까지 three.js 를 받고 있어 `React.lazy` 로 별도 청크로
+  뗐습니다. → [`features/building/LandScene.tsx`](frontend/src/features/building/LandScene.tsx)
+- **필요한 검사만 돌리는 QA** — 검사가 일곱 갈래로 늘어 전부 돌리면 몇십 분이라 고칠 때마다 돌리지 못하게
+  됐습니다. git diff 로 바뀐 경로를 읽어 그 경로를 맡는 갈래만 돌리고, 화면 검사는 Playwright 로 실제 화면을
+  열어 화면값과 DB 값을 대조합니다. → [`qa/run.sh`](qa/run.sh) · [`qa/screen/qa_screen.py`](qa/screen/qa_screen.py)
 
-## AI 어시스턴트 구조
+## AI 어시스턴트
 
-유저 질문을 의도와 조건으로 나눠 필요한 스킬을 고르고, 스킬이 읽기 API 를 부르거나
-읽기 전용 계정으로 DB 에 직접 질의합니다. 백엔드는 결과를 값·출처·단위가 붙은 한 형식으로
-정규화해 돌려주므로 **모델이 지어낼 자리가 없습니다.** 찾지 못한 값은 비웁니다.
+유저 질문을 의도와 조건으로 나눠 필요한 스킬을 고르고, 스킬이 읽기 API 를 부르거나 읽기 전용 계정으로
+DB 에 직접 질의합니다. 결과는 값 · 출처 · 단위가 붙은 한 형식으로 정규화되어 돌아오므로 모델이 지어낼
+자리가 없습니다. 찾지 못한 값은 비웁니다.
 → [`specs/07-architecture/10-AI-어시스턴트.md`](specs/07-architecture/10-AI-어시스턴트.md)
 
-## 커밋 규칙
+## 실행
 
-`feat` `fix` `docs` `refactor` `perf` 접두사를 쓰고, 무엇을 왜 고쳤는지 한 줄로 남깁니다.
-작업은 목적 단위 브랜치에서 하고 PR 본문에 배경을 적습니다.
-
-## 구성 (monorepo)
-```
-backend/    FastAPI (api + worker 공용 이미지) · asyncpg · JWT
-frontend/   React + Vite + TS · TanStack Query · Zustand
-db/         PostgreSQL(+PostGIS) 마이그레이션 · 함수 · 트리거
-pipeline/   데이터 파이프라인(수집·정제 → Cloud SQL 적재)  ※ 기존 data/tools 승격 예정
-infra/      Docker · docker-compose · Firebase Hosting · Terraform
-specs/      제품·데이터·아키텍처 명세 (정본)
-```
-
-## 스택
-FastAPI · React · **Cloud Run**(api·worker) · **Cloud SQL PostgreSQL+PostGIS** · Cloud Storage · Cloud Tasks · Cloud Scheduler · **Firebase Hosting**(프론트, `/api`→Cloud Run 프록시). 상세 = [specs/07-architecture](specs/07-architecture/).
-
-## 로컬 실행
 ```bash
-# 1) DB + 백엔드(도커)
-docker compose -f infra/docker/docker-compose.yml up --build   # db:55432 / api:8000 / worker:8080
-#    (DB는 최초 부팅 시 db/migrations 자동 적용)
-
-# 2) 프론트
-cd frontend && npm install && npm run dev                       # http://localhost:5173
-
-# 백엔드만 별도로:
-cd backend && python -m venv .venv && ./.venv/bin/pip install -e . && \
-  BT_DATABASE_URL=postgresql://postgres:test@localhost:55432/billtamjung \
-  ./.venv/bin/uvicorn app.main:app --reload
+docker compose -f infra/docker/docker-compose.yml up --build   # db:55432 · api:8000
+cd frontend && npm install && npm run dev                        # http://localhost:5173
+qa/run.sh                                                        # 바뀐 파일에 맞는 검사만
 ```
-검증: `qa/app/smoke.py`(가입→크레딧→자동완성→건물병합→오버레이→401).
 
-## 핵심 설계 포인트
-- **데이터 3레이어**: 공공 마스터(불변) + 유저 오버레이(팀 공유·EAV) + 커뮤니티. 화면값 = master COALESCE overlay.
-- **메타데이터 레지스트리**(`ref.fields`·`enums`·`formula_params`): 필드·enum·산식을 데이터로 → 추가·수정 시 한 곳만. ([specs/04-data/schema-ref.md](specs/04-data/schema-ref.md))
-- **크레딧**: append-only 원장 + 버킷 잔액 캐시(트리거), 소멸 임박 버킷부터 차감.
-- **영역 그리기 검색**(고유 기능): 지도에 폴리곤 → PostGIS `ST_Within`. ([specs/03-features/S01](specs/03-features/S01-매물통합검색.md) §3.6c)
-- **신선도**: 보고서 `source_watermark`·`master_version` 비교 → "데이터 변경됨" 재생성.
-- **베타/정식 경계**: [specs/기능목록-베타vs정식.md](specs/기능목록-베타vs정식.md)
+## 운영 기록
 
-## 상태 (베타 기능 완성 — 2026-07-21)
-- ✅ **DB**: 마이그레이션 5종 + 함수/트리거, PostGIS 컨테이너 검증
-- ✅ **백엔드**: 베타 전 도메인(인증·검색·선점·오버레이·임대·주변시세·위키·메모·광고가·즐겨찾기·저장검색·크레딧·**보고서 생성 pptx**) — 통합 스모크 **29/29**
-- ✅ **프론트**: S00/S01/S02/S0M 실API 연결 + 정밀데이터랩 토큰 — 브라우저 E2E 통과
-- ✅ **파이프라인 loader**: staging COPY→검증게이트→원자 스왑(뷰)→버전업→기존 보고서 stale 전환, 성공/차단 케이스 검증
-- 🚧 다듬기: 네이버지도 연동(키 발급 후)·S01 3열 목록·S03 curation UI·R_example 서식 이식·GCS 업로드·Cloud Tasks 전환
+2026.08 중개사 베타 운영 (계정 34 · 매물 36 · 보고서 112). 2026.09 클라우드 정리, 지금은 로컬 실행으로 확인합니다.
