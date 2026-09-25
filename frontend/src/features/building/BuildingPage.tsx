@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  buildingsApi, overlaysApi, rentsApi, listingsApi, creditsApi, seriesApi, reportsApi, proposalsApi,
+  buildingsApi, overlaysApi, rentsApi, listingsApi, seriesApi, reportsApi, proposalsApi,
 } from "../../shared/api/endpoints";
 import { PhotoPanel } from "../../shared/map/PhotoPanel";
 import { wonShort } from "../../shared/format";
@@ -121,16 +121,13 @@ export function BuildingPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["building", pk] }),
   });
 
-  const credits = useQuery({ queryKey: ["credits"], queryFn: creditsApi.balance });
   const [reportOpen, setReportOpen] = useState(false);
   const [briefOpen, setBriefOpen] = useState(false);
   const [genState, setGenState] = useState<string | null>(null);
   const nav = useNavigate();
   // 브리핑 생성 — 계산이 없어 바로 완료된다. 완료되면 덱으로 이동.
   const briefing = useMutation({
-    mutationFn: async ({ comment, buyerIds }: { comment: string; buyerIds: number[] }) => {
-      // 코멘트를 먼저 저장해야 스냅샷에 실린다(생성 시점의 오버레이를 그대로 굳힌다).
-      await overlaysApi.put(pk, "briefing_comment", comment);
+    mutationFn: async ({ buyerIds }: { buyerIds: number[] }) => {
       const { report_id } = await reportsApi.create(pk, "briefing");
       for (let i = 0; i < 20; i++) {
         const r = await reportsApi.get(report_id);
@@ -286,7 +283,9 @@ export function BuildingPage() {
               두 값이 나란히 서야 읽히는 문장이라 탭을 가르면 아무도 견주지 않는다 */}
           {show("rent") && (
             <RentPanel pk={pk} unit={unit} items={rents.data?.items ?? []} total={total} addr={b.road_addr || b.addr}
-              refresh={() => { qc.invalidateQueries({ queryKey: ["rents", pk] }); qc.invalidateQueries({ queryKey: ["nearby"] }); }} />
+              // 건물도 다시 받는다 — 만실 월임대·수익률(0181)은 층 공실면적·업체 임대료가 바뀌면 서버가 다시 접는다
+              refresh={() => { qc.invalidateQueries({ queryKey: ["rents", pk] }); qc.invalidateQueries({ queryKey: ["nearby"] });
+                qc.invalidateQueries({ queryKey: ["building", pk] }); }} />
           )}
 
           {/* 금액정보·투자분석 판은 걷어냈다(2026-08-25).
@@ -403,8 +402,6 @@ export function BuildingPage() {
       {/* 하단 바(2026-08-27 알약으로) — 주인공은 「매물 분석하기」 하나라 그것만 검정.
           브리핑은 회색 알약, 되돌리기는 유령 글자, 단위는 슬라이딩 토글(Segmented). */}
       <div className="panel bt-foot" style={{ position: "sticky", bottom: 0, display: "flex", gap: 8, alignItems: "center", padding: "7px 14px", zIndex: 20 }}>
-        {/* 크레딧 수는 뗐다(2026-08-28) — 값은 창 안에서 보유·차감·잔여로 말한다.
-            버튼 이름 옆 괄호 숫자는 「무슨 점수지」로 읽혔다. */}
         <button className="fp dark" onClick={() => { setReportOpen(true); setGenState(null); }}>매물 분석하기</button>
         <button className="fp" disabled={briefing.isPending}
           onClick={() => { setBriefOpen(true); setGenState(null); }}>브리핑 자료</button>
@@ -426,16 +423,16 @@ export function BuildingPage() {
 
       {/* 매물 분석 검토(S02b) — comp curation + 실시간 미리보기 */}
       {reportOpen && (
-        <ReportModal pk={pk} credits={credits.data?.total}
+        <ReportModal pk={pk}
           onClose={() => setReportOpen(false)}
-          onDone={(m) => { setReportOpen(false); setGenState(m); qc.invalidateQueries({ queryKey: ["credits"] }); }} />
+          onDone={(m) => { setReportOpen(false); setGenState(m); }} />
       )}
 
-      {/* 브리핑 생성 — 중개인 코멘트를 받아 스냅샷에 함께 굳힌다 */}
+      {/* 브리핑 생성 — 보낼 매수자만 고른다(코멘트 칸은 2026-09-17 삭제) */}
       {briefOpen && (
-        <BriefingModal pk={pk} current={String(b.briefing_comment ?? "")} busy={briefing.isPending}
+        <BriefingModal pk={pk} busy={briefing.isPending}
           onClose={() => setBriefOpen(false)}
-          onSubmit={(c, buyerIds) => { setBriefOpen(false); briefing.mutate({ comment: c, buyerIds }); }} />
+          onSubmit={(buyerIds) => { setBriefOpen(false); briefing.mutate({ buyerIds }); }} />
       )}
 
     </div>

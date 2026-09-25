@@ -47,7 +47,7 @@ type Snap = {
   floors: { floor: string; unit_no: string | null; use: string | null;
             contract_area: number | null; exclusive_area?: number | null;   // 0035 이전 스냅샷 호환
             deposit: number | null; rent: number | null;
-            maintenance: number | null; is_vacant: boolean | null; est: boolean }[];
+            maintenance: number | null; is_vacant?: boolean | null; est: boolean }[];   // is_vacant 는 0180 이전 스냅샷에만
   photos: Photo[];
 };
 
@@ -164,10 +164,6 @@ export function BriefingPage() {
   const totDepPre = snap.floors.reduce((a, f) => a + (f.deposit ?? 0), 0);
   const totRentPre = snap.floors.reduce((a, f) => a + (f.rent ?? 0), 0);
 
-  // 중개인 코멘트 — 사실 나열만으로는 전달되지 않는 것(입지·활용·기대감)을 담당자가 직접 적는다.
-  // 저장은 건물 오버레이라 팀이 공유한다. 줄바꿈으로 항목을 나눈다.
-  const comment = String(s.briefing_comment ?? "").split("\n").map((x) => x.trim()).filter(Boolean);
-
   const roi = price && totRentPre ? (totRentPre * 12) / price * 100 : null;
   const roadTxt = [
     s.road_front_m ? `전면 ${s.road_front_m}m` : null,
@@ -272,11 +268,6 @@ export function BriefingPage() {
           ))}
         </div>
 
-        {comment.length > 0 && (
-          <div className="bf-cmt">
-            {comment.map((line, i) => <div className="rs-callout" key={i}>{line}</div>)}
-          </div>
-        )}
         <div className="bf-note">※ 토지이용계획 및 건축물대장 기준</div>
       </div>
     </Frame>,

@@ -67,7 +67,7 @@ async def comps(building_pk: str, user: CurrentUser = Depends(current_user)):
     rent_rows = await pool().fetch(
         f"""SELECT DISTINCT b.building_pk, ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat
             FROM app.floor_rents fr JOIN master.buildings b ON b.building_pk = fr.building_pk
-            WHERE fr.deleted_at IS NULL AND fr.is_vacant IS NOT TRUE AND fr.building_pk <> $4
+            WHERE fr.deleted_at IS NULL AND fr.building_pk <> $4
               AND {g._COMP_SPATIAL}""",
         ctr["lng"] if ctr else None, ctr["lat"] if ctr else None, radius, building_pk,
         json.dumps(poly) if poly else None,
@@ -92,7 +92,7 @@ class PreviewIn(BaseModel):
 
 @router.post("/preview")
 async def preview(body: PreviewIn, user: CurrentUser = Depends(current_user)):
-    """S02b 실시간 재산출(크레딧 미차감). comp 편집·제외 반영 → 적정매매가/수익률.
+    """S02b 실시간 재산출. comp 편집·제외 반영 → 적정매매가/수익률.
 
     exclude 가 비면 **None 으로 내린다**(2026-08-28). _load_comps 는 None 일 때만
     baseline(이상치 제외)을 쓰고, 빈 집합이면 이상치까지 전부 넣는다. 생성은 None 으로

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from ..core.db import pool, tx
 from ..core.deps import current_user, CurrentUser
+from .mirror import listing_values_write, listing_values_fold
 
 router = APIRouter(prefix="/listings", tags=["listings"])
 
@@ -24,9 +25,13 @@ LISTING_FIELDS = {
     # 임대 총계(0134) — 수익률의 분자. 층별 실측이 있으면 그 합계가 이깁니다(아래 특례).
     # 숫자 칸이라 빈 문자열은 null 로 눕힌다.
     "total_deposit", "total_rent", "total_mgmt",
+    # 가격(0173) — 매매가(중개인 판단)·매도희망가(건물주). overlays 에서 여기로 옮겼다.
+    # 값이 바뀌면 mirror.listing_values_write 가 이력을 남기고 수익률을 다시 접는다.
+    "sale_price", "ask_price",
 }
 # 숫자로 눕힐 칸 — 화면은 「5억」처럼 치므로 프론트가 원 단위 숫자 문자열로 보낸다
-NUM_FIELDS = {"total_deposit", "total_rent", "total_mgmt"}
+NUM_FIELDS = {"total_deposit", "total_rent", "total_mgmt", "sale_price", "ask_price"}
+VALUE_FOLD = NUM_FIELDS     # 이 칸이 바뀌면 층별 합계·수익률을 매물 줄로 다시 접는다
 # 사람에게 가는 값 — 같은 소유자의 다른 매물에서도 같다(0058, app.owners)
 OWNER_FIELDS = {
     "owner_name": "name", "owner_phone": "phone", "owner_type": "owner_type",
@@ -211,6 +216,20 @@ async def patch_biz(body: BizPatch, user: CurrentUser = Depends(current_user)):
                       AND stage='owner' AND resolved_at IS NULL""",
                 user.team_id, body.building_pk)
 
+    # 가격은 거울 동사로(0173) — 이력(field_events)과 수익률 접기가 거기 있다
+    prices = {k: lst.pop(k) for k in ("sale_price", "ask_price") if k in lst}
+    if prices:
+        parsed = {}
+        for k, v in prices.items():
+            if v is None or str(v).strip() == "":
+                parsed[k] = None
+            else:
+                try:
+                    parsed[k] = int(float(str(v).replace(",", "")))
+                except ValueError:
+                    raise HTTPException(422, f"{k}는 숫자")
+        await listing_values_write(user.team_id, body.building_pk, parsed, user.account_id)
+
     if lst:
         sets, args = [], [body.building_pk, user.team_id]
         for i, (k, v) in enumerate(lst.items(), start=3):
@@ -235,6 +254,8 @@ async def patch_biz(body: BizPatch, user: CurrentUser = Depends(current_user)):
             f"UPDATE app.listings SET {', '.join(sets)}, updated_at=now() "
             f"WHERE building_pk=$1 AND team_id=$2", *args,
         )
+        if VALUE_FOLD & set(lst):
+            await listing_values_fold(user.team_id, body.building_pk)
     return {"ok": True}
 
 

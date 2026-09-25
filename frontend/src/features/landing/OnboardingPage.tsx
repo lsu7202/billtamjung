@@ -57,7 +57,6 @@ export function OnboardingPage() {
         <div className="ob-done">
           <svg width={72} height={72} viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="var(--gold)" /><path d="M7.2 12.4 10.6 15.8 17 8.6" fill="none" stroke="var(--ink)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
           <div className="ob-q">준비 끝!</div>
-          <p className="ob-hint">체험 크레딧 60이 지급됐어요 — 바로 시작합니다</p>
         </div>
       </World>
     );

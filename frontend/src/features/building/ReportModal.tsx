@@ -25,9 +25,9 @@ import { Icon } from "../../shared/ui/Icon";
 
 const eok = (v: number | null | undefined, d = 1) => (v == null ? "—" : `${(v / 1e8).toFixed(d)}억`);
 
-type Props = { pk: string; credits?: number; onClose: () => void; onDone: (msg: string) => void };
+type Props = { pk: string; onClose: () => void; onDone: (msg: string) => void };
 
-export function ReportModal({ pk, credits, onClose, onDone }: Props) {
+export function ReportModal({ pk, onClose, onDone }: Props) {
   const nav = useNavigate();
   // gcTime 0: 닫을 때 캐시 폐기 — 상권(market_area)을 바꾼 뒤 다시 열면 옛 반경 값이 굳는다.
   const { data, isLoading } = useQuery({
@@ -56,8 +56,8 @@ export function ReportModal({ pk, credits, onClose, onDone }: Props) {
       const { report_id } = await reportsApi.create(pk, "analysis");
       for (let i = 0; i < 60; i++) {
         const r = await reportsApi.get(report_id);
-        if (r.status === "done") { onDone(`빌탐정 리포트를 만들었습니다 · 크레딧 ${r.credits_spent}`); nav(`/reports/${report_id}`); return; }
-        if (r.status === "failed") { setMsg(`실패했습니다 — ${r.failed_reason ?? "알 수 없는 이유"} · 크레딧은 안 빠졌습니다`); setBusy(false); return; }
+        if (r.status === "done") { onDone("빌탐정 리포트를 만들었습니다"); nav(`/reports/${report_id}`); return; }
+        if (r.status === "failed") { setMsg(`실패했습니다. ${r.failed_reason ?? "알 수 없는 이유"}`); setBusy(false); return; }
         await new Promise((res) => setTimeout(res, 500));
       }
       onDone("아직 만드는 중입니다 — 마이페이지 「내 리포트」에서 확인하세요");
@@ -66,7 +66,6 @@ export function ReportModal({ pk, credits, onClose, onDone }: Props) {
 
   const s = data?.subject;
   const nego = preview?.fair_price != null && preview?.ask_price != null ? preview.fair_price - preview.ask_price : null;
-  const COST = 30;
 
   return (
     <div className="modal-bg open" onClick={() => !busy && onClose()}>
@@ -113,8 +112,6 @@ export function ReportModal({ pk, credits, onClose, onDone }: Props) {
         )}
 
         <div className="gm-foot">
-          <span className="gm-cost">크레딧 <b>{credits ?? "…"}</b>
-            <i>→ {credits != null ? credits - COST : "…"}</i></span>
           <span className="sp" />
           {msg && <span className="gm-msg">{msg}</span>}
           <button className="gm-go" disabled={busy || !data} onClick={generate}>

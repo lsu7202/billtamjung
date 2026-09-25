@@ -329,7 +329,6 @@ function toFilters(v: Values, members: { account_id: number; name: string }[] = 
   // 값·수익률·평단가·공시총액 비율은 한 줄 안에서 갈래로 갈린다(2026-08-27).
   const price = pr("금액", "team"), est = pr("금액", "est");
   const roi = pr("수익률", "team"), roiEst = pr("수익률", "est");
-  const roiv = sl("수익률(공실제외)");
   const ppl = pr("대지 평단가", "est"), pplTeam = pr("대지 평단가", "team");
   const ppt = pr("연면적 평단가", "est"), pptTeam = pr("연면적 평단가", "team");
   const dep = pr("보증금", "team"), depEst = pr("보증금", "est");
@@ -371,7 +370,6 @@ function toFilters(v: Values, members: { account_id: number; name: string }[] = 
     deposit_est_min: man(depEst.lo), deposit_est_max: man(depEst.hi),
     roi_min: num(roi.lo), roi_max: num(roi.hi),
     roi_est_min: num(roiEst.lo), roi_est_max: num(roiEst.hi),
-    roi_exvac_min: num(roiv.lo), roi_exvac_max: num(roiv.hi),
     pp_land_min: man(ppl.lo), pp_land_max: man(ppl.hi),
     pp_land_team_min: man(pplTeam.lo), pp_land_team_max: man(pplTeam.hi),
     pp_total_min: man(ppt.lo), pp_total_max: man(ppt.hi),

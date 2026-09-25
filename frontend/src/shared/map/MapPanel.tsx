@@ -4,7 +4,6 @@ import { makeCanvasPinLayer, type CanvasLayer, type CanvasPin, type RealView } f
 import { meters, areaM2, geoToPaths, circleToGeoJSON, conePath } from "./geo";
 import { makeRuler, Ruler } from "./ruler";
 import { Icon, type IconName } from "../ui/Icon";
-import { Segmented } from "../ui/Segmented";
 import { SourceTag } from "../ui/Notice";
 import { searchApi, newsPinsApi, type NewsPin } from "../api/endpoints";
 import { eventIcon, MAJOR_TYPES } from "./eventIcon";
@@ -78,7 +77,7 @@ const fmtArea = (a: number) => `${a >= 10000 ? `${(a / 10000).toFixed(2)}ha` : `
 
 export function MapPanel({
   pins, onPick, onPolygon, polygons, polygonActive, selectedPk, selectedCol, onParcelClick, centerReq, priceMode = "fair",
-  realView,
+  realView, fitPadding,
 }: {
   pins: MapPin[];
   onPick: (pk: string) => void;
@@ -92,6 +91,9 @@ export function MapPanel({
   centerReq?: { lng: number; lat: number; zoom?: number; bounds?: [number, number, number, number] } | null;
   priceMode?: "fair" | "real";               // 핀 태그 가격: 추정가/실거래가
   realView?: RealView;                       // 실거래를 총액·단가 중 무엇으로 볼 것인가(기본 대지면적·평)
+  /** bounds 를 맞출 때 비울 여백. 기본은 검색 화면(왼쪽에 떠 있는 패널 ≈350px). 어시스턴트의
+   *  440px 지도에 그 기본을 쓰니 60px 에 맞추느라 수도권 전체로 빠졌다(2026-09-21 화면 확인) */
+  fitPadding?: { top: number; right: number; bottom: number; left: number };
 }) {
   const divRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -222,7 +224,7 @@ export function MapPanel({
       // 지역을 골랐을 때 — 그 동의 매물이 다 들어오게. 왼쪽엔 떠 있는 패널(≈350px)이 있어 그만큼 비운다
       const [a, b, c, d] = centerReq.bounds;
       mapRef.current.fitBounds(new naver.maps.LatLngBounds(new naver.maps.LatLng(b, a), new naver.maps.LatLng(d, c)),
-                               { top: 40, right: 40, bottom: 60, left: 380 });
+                               fitPadding ?? { top: 40, right: 40, bottom: 60, left: 380 });
       return;
     }
     const at = new naver.maps.LatLng(centerReq.lat, centerReq.lng);
@@ -249,8 +251,8 @@ export function MapPanel({
     const map = mapRef.current;
     const listener = naver.maps.Event.addListener(map, "click", async (e: any) => {
       try {
-        const { building_pk } = await searchApi.parcelAt(e.coord.lng(), e.coord.lat());
-        onParcelClick(building_pk, "");
+        const { building_pk, pnu } = await searchApi.parcelAt(e.coord.lng(), e.coord.lat());
+        onParcelClick(building_pk, pnu ?? "");   // 나대지는 pk 가 없고 pnu 만 있다 — 빈 문자열로 넘기면 아무 일도 안 났다
       } catch { /* 필지 없음 무시 */ }
     });
     return () => naver.maps.Event.removeListener(listener);
@@ -630,7 +632,7 @@ export function MapPanel({
         <div style={{ position: "absolute", left: 10, bottom: 10, zIndex: 5 }}><SourceTag /></div>
         {/* 소식 — 버튼 하나(도구 줄 위). 누르면 위로 판: 기간 칩 · 종류 아홉 줄(화면 안 개수). 고른 줄은 파랑 */}
         {!rvOpen && mapRef.current && (mapRef.current.getZoom?.() ?? 0) >= 13 && (
-          <div style={{ position: "absolute", right: 12, bottom: 62, zIndex: 5 }}>
+          <div style={{ position: "absolute", right: 60, bottom: 12, zIndex: 5 }}>   {/* 세로 도구 줄 왼쪽에 */}
             {newsOpen && (
               <div style={{ position: "absolute", right: 0, bottom: 38 }}>
                 <NewsFilterPanel years={newsYears} onYears={setNewsYears} types={newsTypes} onTypes={setNewsTypes}
@@ -653,7 +655,7 @@ export function MapPanel({
           display: rvOpen ? "block" : "none", background: "#2a2f36",
           ...(panoBig
             ? { position: "absolute", inset: 0, zIndex: 15 }
-            : { position: "absolute", left: 12, bottom: 12, width: 340, height: 230, zIndex: 20, ...pip }),
+            : { position: "absolute", right: 12, top: 12, width: 340, height: 230, zIndex: 20, ...pip }),
         }}>
           <div ref={panoDivRef} style={{ position: "absolute", inset: 0 }} />
           <div style={{ position: "absolute", top: 8, right: 8, zIndex: 2, display: "flex", gap: 6 }}>
@@ -679,18 +681,17 @@ export function MapPanel({
         )}
       </div>
 
-      {/* 푸터 툴바 — 관련끼리 묶어 드롭다운으로(2026-08-27).
-          아이콘 열 개가 한 줄에 늘어서 있었는데, 그중 뭘 눌러야 하는지는
-          **하려는 일**로 갈린다: 영역을 그린다 · 길이를 잰다 · 지도를 갈아 본다.
-          그래서 세 묶음으로 접고, 지금 켜진 것은 묶음 이름 옆에 뱃지로 남긴다. */}
+      {/* 툴바 — 오른쪽 아래 세로 줄(2026-09-22, 네이버 지도 결). 아이콘 위·이름 아래.
+          관련끼리 묶어 펼침으로(2026-08-27): 영역 · 측정 · 보기. 펼침은 왼쪽으로 뜬다.
+          지금 켜진 것은 묶음 이름 아래 뱃지로 남긴다. */}
       {!panoBig && (
         <div className="mp-bar">
-          <ToolGroup label="영역 그리기" icon="free" active={DRAW_LABEL[drawMode] ?? null}
+          <ToolGroup label="영역" icon="free" active={DRAW_LABEL[drawMode] ?? null}
             open={menu === "draw"} onToggle={() => setMenu(menu === "draw" ? null : "draw")}>
-            {([["free", "free", "자유곡선", "드래그로 그린다"],
-               ["poly", "polygon", "다각형", "클릭으로 꼭짓점 · 더블클릭으로 닫기"],
-               ["circle", "circle", "원 반경", "중심을 누른 뒤 드래그"],
-               ["ruler", "ruler", "자", "직선 가이드 — 대고 그리면 반듯해진다"]] as const).map(([k, ico, name, tip]) => (
+            {([["free", "free", "자유곡선"],
+               ["poly", "polygon", "다각형"],
+               ["circle", "circle", "원 반경"],
+               ["ruler", "ruler", "자"]] as const).map(([k, ico, name]) => (
               <button key={k} className={drawMode === k ? "on" : ""} onClick={() => {
                 if (k === "ruler") {
                   if (rulerOn && drawMode === "ruler") { setRulerOn(false); setDrawMode("off"); }
@@ -701,43 +702,44 @@ export function MapPanel({
                   if (!on) { setStreet(false); setMeasure("off"); }
                 }
                 setMenu(null);
-              }}><Icon name={ico} size={15} /><b>{name}</b><em>{tip}</em></button>
+              }}><Icon name={ico} size={15} /><b>{name}</b></button>
             ))}
             {polygonActive && (
               <button className="bad" onClick={() => { clearPolygon(); setMenu(null); }}>
-                <Icon name="delete" size={15} /><b>영역 지우기</b><em>그린 것을 없앤다</em></button>
+                <Icon name="delete" size={15} /><b>영역 지우기</b></button>
             )}
           </ToolGroup>
 
-          <ToolGroup label="재기" icon="distance" active={MEASURE_LABEL[measure] ?? null}
+          <ToolGroup label="측정" icon="distance" active={MEASURE_LABEL[measure] ?? null}
             open={menu === "measure"} onToggle={() => setMenu(menu === "measure" ? null : "measure")}>
-            {([["dist", "distance", "거리", "두 점 사이를 잰다"],
-               ["area", "area", "면적", "여러 점을 이어 넓이를 잰다"],
-               ["radius", "radius", "반경", "중심에서 뻗은 거리를 잰다"]] as const).map(([k, ico, name, tip]) => (
+            {([["dist", "distance", "거리"],
+               ["area", "area", "면적"],
+               ["radius", "radius", "반경"]] as const).map(([k, ico, name]) => (
               <button key={k} className={measure === k ? "on" : ""} onClick={() => {
                 const on = measure === k;
                 setMeasure(on ? "off" : k);
                 if (!on) { setDrawMode("off"); setStreet(false); }
                 setMenu(null);
-              }}><Icon name={ico} size={15} /><b>{name}</b><em>{tip}</em></button>
+              }}><Icon name={ico} size={15} /><b>{name}</b></button>
             ))}
             {measure !== "off" && (
               <button className="bad" onClick={() => { setMeasure("off"); setMenu(null); }}>
-                <Icon name="delete" size={15} /><b>측정 종료</b><em>잰 것을 지운다</em></button>
+                <Icon name="delete" size={15} /><b>측정 종료</b></button>
             )}
           </ToolGroup>
 
-          <span style={{ flex: 1 }} />
-          {/* 지도 보기는 늘 보이는 스위치 — 묶어 접으면 「지금 위성인가」가 안 보인다 */}
-          <Segmented value={mapType} onChange={(v) => setMapType(v)} size="sm"
-            options={[{ value: "normal", icon: "maptype", title: "일반지도" }, { value: "satellite", icon: "satellite", title: "위성" }]} />
+          <span className="mp-sep" />
+          {/* 위성은 거리뷰처럼 켜고 끄는 버튼 하나(2026-09-22 대표). 켜지면 파랑이라 「지금 위성인가」가 보인다 */}
+          <button className={`mp-t ${mapType === "satellite" ? "on" : ""}`}
+            onClick={() => setMapType(mapType === "satellite" ? "normal" : "satellite")}>
+            <Icon name="satellite" size={15} />위성</button>
           <button className={`mp-t ${cadastre ? "on" : ""}`} onClick={() => setCadastre(!cadastre)}>
             <Icon name="cadastral" size={15} />지적도</button>
           <button className={`mp-t ${street ? "on" : ""}`} onClick={() => {
             const on = street; setStreet(!on);
             if (on) setRoadview(null);
             else { setDrawMode("off"); setMeasure("off"); const c = mapRef.current?.getCenter(); if (c) setRoadview({ lng: c.lng(), lat: c.lat() }); }
-          }}><Icon name="roadview" size={15} />로드뷰</button>
+          }}><Icon name="map" size={15} />거리뷰</button>
         </div>
       )}
     </div>

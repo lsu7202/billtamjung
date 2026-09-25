@@ -1,7 +1,7 @@
 """베타 전 흐름 통합 스모크(standalone). 실행: .venv/bin/python tests/smoke.py
 
 가입→검색→선점→층별임대→주변시세→오버레이→위키→메모→광고가→즐겨찾기
-→저장검색→보고서 생성(가치점수+pptx)→크레딧 차감→내 산출물(stale)
+→저장검색→보고서 생성→내 산출물(stale)
 """
 import os, asyncio, sys, time
 os.environ.setdefault("BT_DATABASE_URL", "postgresql://postgres:test@localhost:55432/billtamjung")
@@ -34,9 +34,6 @@ async def main():
             check("signup", r.status_code == 200, r.text[:80])
             h = {"Authorization": f"Bearer {r.json()['access_token']}"}
             me_id = None
-
-            r = await c.get("/credits", headers=h)
-            check("trial credits 60", r.json()["total"] == 60)
 
             # ── 검색 ──
             r = await c.get("/search/suggest", params={"q": "역삼동 735"}, headers=h)
@@ -116,8 +113,6 @@ async def main():
             rep = r.json()
             check("report done", rep["status"] == "done", rep.get("failed_reason", ""))
             check("pptx exists", rep.get("file_path") and os.path.exists(rep["file_path"]))
-            r = await c.get("/credits", headers=h)
-            check("credits 60-30=30", r.json()["total"] == 30, f"got {r.json()['total']}")
             r = await c.get("/reports", headers=h)
             check("my reports fresh", r.json()[0]["is_stale"] is False)
 
@@ -135,11 +130,9 @@ async def main():
                     break
                 await asyncio.sleep(0.3)
             check("briefing done", rr.json()["status"] == "done")
-            r = await c.get("/credits", headers=h)
-            check("credits 30-10=20", r.json()["total"] == 20)
 
             # 인증 가드
-            r = await c.get("/credits")
+            r = await c.get("/auth/me")
             check("401 guard", r.status_code in (401, 403))
 
     finally:

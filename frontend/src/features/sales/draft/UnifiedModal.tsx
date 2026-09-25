@@ -10,8 +10,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  boardApi, convertApi, dealApi, listingsApi, overlaysApi,
-  proposalsApi, schedulesApi, stopsApi,
+  boardApi, convertApi, dealApi, listingsApi, proposalsApi, schedulesApi, stopsApi,
   type Proposal, type Seller, type Stop, type StopStage,
 } from "../../../shared/api/endpoints";
 import { dongAddr, md, wonAcc } from "../../../shared/format";
@@ -55,10 +54,6 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
     if (b) {
       for (const s of b.sell) if (s.value != null) add(s.field, s.created_at, Number(s.value), "field", s.id);
       for (const x of b.buys) if (x.field === "hope_price" && x.value != null) add(`b${x.proposal_id}`, x.created_at, Number(x.value), "field", x.event_id);
-      for (const e of b.events) {
-        if (e.side === "매도") add("ask_price", e.created_at, e.price, "prop", e.event_id);
-        else add(`b${e.proposal_id}`, e.created_at, e.price, "prop", e.event_id);
-      }
     }
     for (const a of m.values()) {
       a.sort((p, q) => (p.at < q.at ? -1 : p.at > q.at ? 1 : 0));
@@ -362,11 +357,11 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
                 <div className="tc um-half">
                   <div className="um-row"><span className="k">매매가</span>
                     {editable("sale", r.list_price != null ? wonAcc(r.list_price) : null, async (t) => {
-                      const v = parseAmount(t); await overlaysApi.put(pk, "sale_price", v != null ? String(v) : ""); onSaved();
+                      const v = parseAmount(t); await listingsApi.patchBiz(pk, { sale_price: v != null ? String(v) : "" }); onSaved();
                     })}</div>
                   <div className="um-row"><span className="k">매도희망가</span>
                     {editable("ask", r.ask_price != null ? wonAcc(r.ask_price) : null, async (t) => {
-                      const v = parseAmount(t); await overlaysApi.put(pk, "ask_price", v != null ? String(v) : ""); onSaved();
+                      const v = parseAmount(t); await listingsApi.patchBiz(pk, { ask_price: v != null ? String(v) : "" }); onSaved();
                     })}</div>
                 </div>
               </div>
@@ -424,12 +419,12 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
                   {orow("ask_price", "매도희망", true, r.ask_price ?? null,
                     editable("ask", r.ask_price != null ? wonAcc(r.ask_price) : null, async (t) => {
                       const v = parseAmount(t);
-                      await overlaysApi.put(pk, "ask_price", v != null ? String(v) : ""); onSaved();
+                      await listingsApi.patchBiz(pk, { ask_price: v != null ? String(v) : "" }); onSaved();
                     }))}
                   {orow("sale_price", "매매가", true, r.list_price ?? null,
                     editable("sale", r.list_price != null ? wonAcc(r.list_price) : null, async (t) => {
                       const v = parseAmount(t);
-                      await overlaysApi.put(pk, "sale_price", v != null ? String(v) : ""); onSaved();
+                      await listingsApi.patchBiz(pk, { sale_price: v != null ? String(v) : "" }); onSaved();
                     }))}
                   {buyers.map((b) => orow(`b${b.id}`, b.buyer_name ?? "", false, b.hope_price ?? null,
                     editable(`hope_${b.id}`, b.hope_price != null ? wonAcc(b.hope_price) : null, async (t) => {

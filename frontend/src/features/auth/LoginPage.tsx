@@ -171,7 +171,7 @@ export function LoginPage() {
             {!signupsOpen
               ? <>관리자만 이용 가능합니다</>
               : tab === "signup"
-                ? <>가입 즉시 체험판 1개월 · 검색 무제한 + <b className="lg-gold">크레딧 60</b></>
+                ? <>가입 즉시 체험판 1개월 · 검색 무제한</>
                 : <>처음이신가요? <b className="lg-gold" onClick={() => setTab("signup")}>1분 가입 · 1개월 무료 →</b></>}
           </p>
         </form>

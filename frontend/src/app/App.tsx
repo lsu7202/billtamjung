@@ -16,6 +16,7 @@ import { SearchPage } from "../features/search/SearchPage";
 import { NewsPage } from "../features/news/NewsPage";
 import { ParcelPage } from "../features/building/ParcelPage";
 import { BuildingPage } from "../features/building/BuildingPage";
+import { ArtifactPage } from "../features/artifact/ArtifactPage";
 import { ReportPage } from "../features/building/ReportPage";
 import { BriefingPage } from "../features/building/BriefingPage";
 import { ReportStory } from "../features/building/ReportStory";
@@ -60,6 +61,7 @@ export function App() {
             <Route path="/buildings/:pk/report" element={<ErrorBoundary><ReportPage /></ErrorBoundary>} />
             <Route path="/buildings/:pk/story" element={<ErrorBoundary><ReportStory /></ErrorBoundary>} />
             <Route path="/reports/:id" element={<ErrorBoundary><ReportPage /></ErrorBoundary>} />
+            <Route path="/artifacts/:id" element={<ErrorBoundary><ArtifactPage /></ErrorBoundary>} />
             <Route path="/briefings/:id" element={<ErrorBoundary><BriefingPage /></ErrorBoundary>} />
             {/* 계약 문서(초안) — 모달이 아니라 새 탭. 종이는 크게 본다 */}
             <Route path="/deals/:pk/papers" element={<ErrorBoundary><DocPage /></ErrorBoundary>} />

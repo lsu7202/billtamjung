@@ -550,6 +550,13 @@ DERIVES: list[dict] = [
               "select count(use_type)>=550000, to_char(count(use_type),'999,999')"
               " from master.building_score")],
          run=[S(["scripts/build_building_score.py"], "app")]),
+    # 검색 파생값(0174) — 읽을 때 계산하는 값은 없다. 위 단계들이 다 끝난 뒤 마지막에 돈다.
+    dict(step="building_derived", label="검색 파생값(추정수익률·평단가·공시비율·여유·점수)",
+         reads=["ledger", "sales", "gongsi", "building_calc", "building_legal", "building_sale_est", "building_rent_est"],
+         verify=[("추정 수익률 15만 동 이상",
+              "select count(roi_est)>=150000, to_char(count(roi_est),'999,999')"
+              " from master.building_derived")],
+         run=[S(["scripts/build_building_derived.py"], "app")]),
 ]
 
 CADENCES = ("weekly", "monthly", "quarterly", "semiannual", "yearly")
@@ -592,6 +599,17 @@ DERIVE_VERIFY: dict[str, list[tuple[str, str]]] = {
          "select count(*)=0, count(*)::text from master.building_calc c"
          "  join master.buildings b using (building_pk)"
          " where b.far is not null and c.far_calc is not null"),
+    ],
+    "building_derived": [
+        ("건물 수와 같을 것",
+         "select count(*)=(select count(*) from master.buildings), to_char(count(*),'999,999')"
+         " from master.building_derived"),
+        # 적정가가 있는 건물엔 추정 수익률도 있어야 한다(임대추정도 있을 때)
+        ("적정가·임대추정 둘 다 있는데 수익률 빈 건 0건",
+         "select count(*)=0, count(*)::text from master.building_derived d"
+         "  join master.building_sale_est s using (building_pk)"
+         "  join master.building_rent_est r using (building_pk)"
+         " where s.sale_est>0 and r.annual_rent>0 and d.roi_est is null"),
     ],
     "building_legal": [
         ("50만 줄 이상",

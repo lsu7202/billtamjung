@@ -13,15 +13,17 @@ import "./report.css";
  *  유동인구·상권·교통은 서로 다른 축이 아니라 같은 물음의 다른 면이다:
  *  얼마나 붐비나 / 무슨 동네인가 / 어디서 오나. 한 탭에 모아 둔다.
  */
-export function LocationPanel({ pk, b, fetchPop }: {
+export function LocationPanel({ pk, b, fetchPop, parcel }: {
   pk: string; b: Record<string, unknown>;
   /** 조회 함수를 밖에서 준다 — 나대지는 building_pk 가 아니라 pnu 로 찾는다(2026-08-27).
    *  응답 모양이 같으므로 그림은 이 컴포넌트 하나가 그대로 그린다. */
   fetchPop?: (id: string) => Promise<BuildingPop>;
+  /** 나대지 — 주변 소식은 건물 pk 로만 찾는다. pnu 로 부르면 404 였다(감사 2026-09-17) */
+  parcel?: boolean;
 }) {
   // 주변 소식이 없는 자리도 있다(정비구역·지구단위계획 밖). 그때는 목차에도 안 세운다 —
   // 눌러도 아무 데도 안 가는 목차 줄이 생긴다
-  const ev = useQuery(areaEventsQuery(pk));
+  const ev = useQuery({ ...areaEventsQuery(pk), enabled: !parcel });
   const hasEv = !!ev.data?.items.length;
   return (
     <div className="rv">
@@ -33,7 +35,7 @@ export function LocationPanel({ pk, b, fetchPop }: {
           <FloatPop pk={pk} lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom}
             fetchPop={fetchPop} id="lc-pop" />
           <Transit b={b} id="lc-tr" />
-          <AreaEvents pk={pk} id="lc-ev" />
+          {!parcel && <AreaEvents pk={pk} id="lc-ev" />}
         </div>
       </div>
     </div>
@@ -67,7 +69,7 @@ function FloatPop({ pk, lng, lat, geom, fetchPop, id }: {
   // 가장 붐비는 한 칸만 진하고 나머지가 다 옅은 한 덩어리로 뭉쳐 서로 구별이 안 된다.
   // 값 자체는 카드 아래 곁말(최소~최대)에 그대로 적는다.
   const zones = d.cells.map((c) => ({
-    geojson: c.geojson, count: c.n ?? 0, cat: c.cat ?? "",
+    geojson: c.geojson, count: 0, cat: c.cat ?? "",   // 업체 수(n)는 지도가 안 읽어 응답에서 뺐다(2026-09-17)
     pop: pMax > 0 ? Math.sqrt((c.pop ?? 0) / pMax) : 0,
   }));
   const cats = new Set(d.cells.map((c) => c.cat).filter(Boolean) as string[]);

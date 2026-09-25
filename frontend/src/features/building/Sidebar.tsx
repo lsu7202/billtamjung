@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { listingsApi, overlaysApi, buildingsApi, proposalsApi, schedulesApi } from "../../shared/api/endpoints";
+import { listingsApi, buildingsApi, proposalsApi, schedulesApi } from "../../shared/api/endpoints";
 import { negoWord } from "../sales/words";
 import { MemoLog } from "../sales/draft/MemoLog";
 import { PickModal } from "../sales/PickModal";
@@ -112,7 +112,8 @@ function BuyersTab({ pk }: { pk: string }) {
 function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unknown> }) {
   const nav = useNavigate();
   const members = useQuery({ queryKey: ["team-members"], queryFn: listingsApi.members });
-  const building = useQuery({ queryKey: ["building", pk], queryFn: () => buildingsApi.get(pk) });
+  // 나대지(P+pnu)는 건물 상세가 없다 — 부르면 404 를 조용히 삼키고 「—」만 섰다(감사 2026-09-17)
+  const building = useQuery({ queryKey: ["building", pk], queryFn: () => buildingsApi.get(pk), enabled: !pk.startsWith("P") });
   const props = useQuery({ queryKey: ["proposals", "pk", pk], queryFn: () => proposalsApi.list({ building_pk: pk }) });
   // 이 매물의 지금 = 살아 있는 짝들 중 **가장 앞선 합의 단계**(0142·업무탭 매물 줄과 같은 규칙)
   const topWord = (() => {
@@ -142,6 +143,11 @@ function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unkno
   // 임대 총계는 공용 정본 하나에서만 나온다(rentTotals) — 머리줄 수익률도 같은 값을 본다.
   const { rent: totRent, deposit: totDep, mgmt: totMgmt, fromFloors, floorRows, yearRent } = useRentTotals(pk);
   const roi = salePrice && yearRent ? (yearRent / salePrice) * 100 : null;
+  // 만실(0181) — 서버가 접어 둔 값. 층 공실면적 × 그 층 평당가(실측 → 없으면 추정).
+  // 추정이 섞이면 **이름**에 붙인다. 값 옆에 배지를 달면 값과 따로 읽힌다
+  const rentFull = bd?.rent_full != null ? Number(bd.rent_full) : null;
+  const roiFull = bd?.roi_full != null ? Number(bd.roi_full) : null;
+  const fullPre = bd?.full_est ? "추정 " : "";
   /** 총계 한 줄 — 층별이 있으면 파생이라 못 고친다(고치는 자리는 임대 탭 층별 표 하나) */
   /** `man` 이면 억으로 안 끊는다 — 월 임대료·월 관리비(2026-09-05). */
   const totRow = (label: string, field: string, val: number | null, man?: boolean) => {
@@ -171,7 +177,7 @@ function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unkno
   const goTrade = () => nav(`/sales?listing=${pk}`);
 
   // 아무것도 없는 매물 — 등록은 거래에서(리다이렉트). 여기서 폼을 펼치지 않는다.
-  if (assignee == null && !v("owner_name") && !v("status")) {
+  if (assignee == null && !v("owner_name")) {   // status 칸은 0140 에서 지웠다
     return (
       <div style={{ display: "grid", gap: 12, justifyItems: "center", textAlign: "center", padding: "30px 16px" }}>
         <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--signal-bg)", display: "grid", placeItems: "center" }}><Icon name="building" size={24} /></div>
@@ -188,7 +194,6 @@ function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unkno
   const person = [v("relation"), v("cooperation") && `${v("cooperation")}`, v("kindness") && `응대 ${v("kindness")}`]
     .filter(Boolean).join(" · ");
   const hopes = (props.data ?? []).map((x) => x.hope_price).filter((x): x is number => x != null);
-  const bidFallback = bd?.bid_price != null ? Number(bd.bid_price) : null;
 
   return (
     /* 세 묶음 — 지금 / 소유자 / 금액(2026-08-26).
@@ -242,30 +247,38 @@ function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unkno
         <span className="sb-lb">금액</span>
         <KV label="매도희망가" field="ask_price" value={wonToEok(bd?.ask_price) || "—"}
           editable money current={bd?.ask_price != null ? String(bd.ask_price) : ""} validate={vPos}
-          onSave={async (_f, w) => { await overlaysApi.put(pk, "ask_price", w.trim() ? String(Math.round(parseFloat(w))) : ""); building.refetch(); }}
-          onRevert={async () => { await overlaysApi.put(pk, "ask_price", ""); building.refetch(); }} />
+          onSave={async (_f, w) => { await listingsApi.patchBiz(pk, { ask_price: w.trim() ? String(Math.round(parseFloat(w))) : "" }); building.refetch(); }}
+          onRevert={async () => { await listingsApi.patchBiz(pk, { ask_price: "" }); building.refetch(); }} />
         <KV label="매매가" field="sale_price" value={wonToEok(bd?.sale_price) || "—"}
           editable money current={bd?.sale_price != null ? String(bd.sale_price) : ""} validate={vPos}
-          onSave={async (_f, w) => { await overlaysApi.put(pk, "sale_price", w.trim() ? String(Math.round(parseFloat(w))) : ""); building.refetch(); }}
-          onRevert={async () => { await overlaysApi.put(pk, "sale_price", ""); building.refetch(); }} />
+          onSave={async (_f, w) => { await listingsApi.patchBiz(pk, { sale_price: w.trim() ? String(Math.round(parseFloat(w))) : "" }); building.refetch(); }}
+          onRevert={async () => { await listingsApi.patchBiz(pk, { sale_price: "" }); building.refetch(); }} />
         <div className="sb-r"><span className="l">매수희망가</span>
           <span className="r num">
-            {hopes.length ? `${wonToEok(Math.max(...hopes))} · ${hopes.length}명 중 최고`
-              : bidFallback ? `${wonToEok(bidFallback)} · 직접 입력` : "—"}
+            {hopes.length ? `${wonToEok(Math.max(...hopes))} · ${hopes.length}명 중 최고` : "—"}
           </span></div>
         {/* 임대 총계(0134) — 수익률의 분자. 재료가 결과 바로 위에 선다.
             층별 임대를 넣으면 파생으로 차고, 없으면 여기서 총액을 직접 적는다. */}
         {/* 「총」을 뗐다(2026-08-28) — 사이드바는 건물 단위가 기본이라 굳이 붙일 이유가 없다.
             층별은 층 이름이 붙어 있어 헷갈리지 않는다. */}
-        {totRow("월 보증금", "total_deposit", totDep)}
+        {totRow("보증금", "total_deposit", totDep)}
         {totRow("월 임대료", "total_rent", totRent, true)}
         {totRow("월 관리비", "total_mgmt", totMgmt, true)}
+        {/* 공실면적을 적은 매물에만 선다 — 안 적었으면 만실을 가정할 바탕이 없다 */}
+        {rentFull != null && (
+          <div className="sb-r"><span className="l">{fullPre}만실 월 임대료</span>
+            <span className="r num">{wonMan(rentFull)}</span></div>
+        )}
         {/* 이름에 분모를 박는다(2026-08-27) — 「수익률」 한 낱말이 화면마다 다른 값을 가리켰다.
             분자도 추정을 안 섞는다: 총임대료가 비면 수익률도 빈다. */}
         <div className="sb-r"><span className="l">매매가 대비 수익률</span>
           <span className={`r num ${roi != null ? "" : "dim"}`}>{roi != null
             ? `${roi.toFixed(2)}%`
             : "—"}</span></div>
+        {rentFull != null && (
+          <div className="sb-r"><span className="l">{fullPre}만실 수익률</span>
+            <span className={`r num ${roiFull != null ? "" : "dim"}`}>{roiFull != null ? `${roiFull.toFixed(2)}%` : "—"}</span></div>
+        )}
         <div className="sb-r"><span className="l">대지 평단가</span>
           <span className={`r num ${ppLand != null ? "" : "dim"}`}>
             {ppLand != null ? wonToEok(ppLand) : "—"}</span></div>

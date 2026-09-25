@@ -176,7 +176,6 @@ export function UnifiedBuyerModal({ b, tab0, onClose, onSaved, onGoListing, onEd
       <div className="um" onClick={(e) => e.stopPropagation()}>
         <div className="um-head">
           <b>{b.name}</b>
-          {b.top_status && <span className="um-st">{b.top_status}</span>}
           <span className="sp" />
           <button className="um-x" onClick={onClose}>✕</button>
         </div>

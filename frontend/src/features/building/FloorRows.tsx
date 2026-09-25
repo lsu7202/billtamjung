@@ -1,15 +1,17 @@
 import { Fragment, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { rentsApi, tenantsApi, placesApi, type FloorRent, type Tenant } from "../../shared/api/endpoints";
+import { rentsApi, type FloorRent, type FloorUnit, type FloorGroup, type LedgerRoom, type Tenant } from "../../shared/api/endpoints";
 import { Icon } from "../../shared/ui/Icon";
 
 /** 층별 임대정보 — 여덟 열 표를 버리고 층마다 한 줄(2026-08-25).
  *
- *  층이 `.who`, 「용도 · 호실 · 평수 · 상태」가 `.cap`, 돈 셋은 폭 104px 고정 칸이다.
+ *  **두 겹이다**(2026-09-25). 오른쪽 위는 그 층에 딸린 값(용도·바닥면적·전유부는 대장, 공실면적은 팀),
+ *  그 아래는 들어온 업체 줄이다. 호실 칸과 임대상태 칩은 없다 — 대장 호실은 등기 단위라 실제 칸과
+ *  다르고, 공실은 칸 수가 아니라 넓이다(0180).
  *  칩을 안 쓰는 이유: 칩은 내용만큼만 넓어 「1억」과 「5,000만」의 폭이 달라진다 —
  *  층별을 보는 이유가 층끼리 견주기인데 자릿수가 어긋나면 그게 깨진다.
  *
- *  **금액은 대장에 없다.** 층·호실·용도·면적까지가 대장이 주는 것이고
+ *  **금액은 대장에 없다.** 층·전유부·용도·면적까지가 대장이 주는 것이고
  *  금액 추정은 분석 탭이 맡는다. 그래서 여기 금액에는 ↺도 파란 「고친 값」도 안 쓴다 —
  *  되돌릴 원본이 없고, 전부 팀 값이라 다 파래지면 색이 아무 말도 안 한다.
  *
@@ -33,29 +35,8 @@ const sfloor = (fl?: string): number | null => {
   return isNaN(n) ? null : n;
 };
 
-/** 화면 순서(2026-09-04) — **1층부터 위로, 그다음 옥탑, 맨 아래 지하.**
- *  예) 1층 2층 3층 옥탑1층 지하1층. 작을수록 위에 선다. */
-const frank = (fl?: string): number => {
-  const t = String(fl ?? "").trim();
-  const n = Number(t.replace(/[^0-9]/g, "")) || 0;
-  if (/^(옥탑|옥상|PH|RF?)/i.test(t)) return 1000 + n;
-  if (/^(지하|지|B)/i.test(t)) return 2000 + n;
-  return n;
-};
+// 화면 순서(1층부터 위로, 옥탑, 지하)는 서버(floors.py _frank)가 정해 준다(2026-09-17)
 
-/** 호실 이름 — 「1호실」이 아니라 층을 앞에 붙인 「101호」(2026-09-04).
- *  저장값(unit_no)은 그대로 두고 보이는 글자만 바꾼다. 팀이 「201-1」처럼 직접 적었으면 그대로 쓴다. */
-const unitLabel = (floor?: string, unitNo?: string): string => {
-  const u = String(unitNo ?? "").trim();
-  if (!u) return "";
-  if (!/^\d{1,2}$/.test(u)) return u;                       // 손으로 적은 이름은 건드리지 않는다
-  const t = String(floor ?? "").trim();
-  const n = Number(t.replace(/[^0-9]/g, "")) || 0;
-  const two = u.padStart(2, "0");
-  if (/^(옥탑|옥상|PH|RF?)/i.test(t)) return `옥탑${two}호`;
-  if (/^(지하|지|B)/i.test(t)) return `B${n || 1}${two}호`;
-  return n ? `${n}${two}호` : `${two}호`;
-};
 const eokMan = (v?: number | null) => {
   if (!v) return null;
   const e = Math.floor(v / 1e8), m = Math.round((v % 1e8) / 1e4);
@@ -81,7 +62,7 @@ const sameName = (a: string, b: string) =>
 /** 업체 줄 — 원장(인허가·상가정보)이 아는 것. 값이 있는 칸만 그린다. 읽기 전용이다 */
 function TenantRows({ list, areaTxt, onAdd }: {
   list: Tenant[]; areaTxt: (m2?: number | null) => string | null;
-  /** 있으면 줄 끝에 ＋ — 그 업체를 이 층의 호실로 세운다(팀 줄이 이미 있는 층에서) */
+  /** 있으면 줄 끝에 ＋ — 그 업체를 이 층의 업체 줄로 세운다(팀 줄이 이미 있는 층에서) */
   onAdd?: (t: Tenant) => void;
 }) {
   return (
@@ -89,9 +70,8 @@ function TenantRows({ list, areaTxt, onAdd }: {
       {list.map((t) => (
         <div className="fl2-ti" key={t.name}>
           {t.url ? <a href={t.url} target="_blank" rel="noreferrer">{t.name}</a> : <b>{t.name}</b>}
-          <span>{[t.biz, areaTxt(t.area)].filter(Boolean).join(" · ")}</span>
-          {t.phone && <a className="tel" href={`tel:${t.phone}`}>{t.phone}</a>}
-          {onAdd && <button className="mini" title="이 업체를 호실로" onClick={() => onAdd(t)}><Icon name="plus" size={12} /></button>}
+          {areaTxt(t.area) && <span>{areaTxt(t.area)}</span>}
+          {onAdd && <button className="mini" title="업체로 추가" onClick={() => onAdd(t)}><Icon name="plus" size={12} /></button>}
         </div>
       ))}
     </div>
@@ -125,100 +105,59 @@ export function FloorRows({ pk, items, total, unit, refresh, addr }: {
   addr?: string | null;
 }) {
   const [busy, setBusy] = useState(false);
-  const outline = useQuery({ queryKey: ["floor-outline", pk], queryFn: () => rentsApi.outline(pk) });
-  // 업체 원장(인허가·상가정보) + 카카오(전화). 카카오는 화면에서만 이름으로 붙이고 저장하지 않는다(항목 L)
-  const tenants = useQuery({ queryKey: ["tenants", pk], queryFn: () => tenantsApi.list(pk), staleTime: 6 * 3600 * 1000 });
-  const places = useQuery({ queryKey: ["places", pk], queryFn: () => placesApi.list(pk), staleTime: 6 * 3600 * 1000, retry: false });
-  const ledger: Tenant[] = (() => {
-    const out = (tenants.data?.items ?? []).map((t) => ({ ...t }));
-    for (const p of places.data?.items ?? []) {
-      const k = nname(p.name);
-      const hit = out.find((t) => sameName(nname(t.name), k));
-      if (hit) { hit.phone ??= p.phone; hit.url ??= p.url; }
-      else out.push({ name: p.name, floor: null, area: null, biz: p.detail || p.group, phone: p.phone, url: p.url });
-    }
-    return out;
-  })();
-  const ledgerOf = (floor: string) => ledger.filter((t) => t.floor && sfloor(t.floor) === sfloor(floor));
-  // 층을 모르는 업체 — 팀이 어느 층에든 그 이름으로 줄을 세웠으면 여기서 빠진다
-  const unknown = ledger.filter((t) => !t.floor
-    && !items.some((r) => r.tenant_name && sameName(nname(r.tenant_name), nname(t.name))));
+  // 층으로 묶인 것은 **서버가** 준다(GET /buildings/{pk}/floors, 2026-09-17). 예전엔 대장 층별개요·업체 원장·
+  // 카카오를 여기서 따로 받아 층 이름을 맞추고 상호를 붙이고 층 미상을 골라냈다 — 모델이 같은 넷을 받아
+  // 제 식으로 합치니 화면과 다른 답이 났다. 합치기는 한 곳(서버)이고 화면은 그린다.
+  // 부모의 ["rents", pk] 와 같은 캐시라 왕복이 늘지 않는다.
+  const fq = useQuery({ queryKey: ["rents", pk], queryFn: () => rentsApi.list(pk) });
+  const floors: FloorGroup[] = fq.data?.floors ?? [];
+  const unknown: Tenant[] = fq.data?.unknown ?? [];
 
-  // 층 단위 인수(0029): 그 층에 팀 입력이 하나라도 있으면 그 층 대장 프리필은 전부 대체된다.
   const teamFloors = new Set(items.map((i) => sfloor(i.floor)).filter((f): f is number => f != null));
-  const prefill = (outline.data ?? []).filter((o) => {
-    const f = sfloor(o.floor ?? undefined);
-    return o.floor && (f == null || !teamFloors.has(f));
-  });
-
-  // ── 프리필(팀 줄이 없는 층) — **업체마다 한 줄**(2026-09-06 대표). 층 하나에 줄 하나면 업체가 셋인 층이
-  //    「A 외 2」로 뭉개지고 업체별 임대상태·금액을 못 넣는다. 원장이 층을 아는 업체는 그 층의 호실로 미리 선다.
-  //    호실 면적은 LOCALDATA 가 아는 업체만 채운다(영업 중 29%). **업체가 하나뿐이라도 층 면적을 그 호실에 넣지 않는다** —
-  //    그 호실이 층 전부인지 모르면 총면적을 채우는 것도 지어낸 값이다(2026-09-06 대표). 층 총면적은 머리에 따로 선다.
-  //    업체가 없는 층은 대장 층별개요 그대로 한 줄(그 줄이 곧 층이라 바닥면적을 계약면적으로 · 0035).
-  type OutlineRow = NonNullable<typeof outline.data>[number];
-  const pfFloors = new Map<number | null, OutlineRow[]>();
-  for (const o of prefill) {
-    const sf = sfloor(o.floor ?? undefined);
-    (pfFloors.get(sf) ?? pfFloors.set(sf, []).get(sf)!).push(o);
-  }
-  for (const t of ledger) {   // 원장만 아는 층(대장에도 팀 줄에도 없다) — 층을 아는데 미상에 두면 거짓이다
-    if (!t.floor) continue;
-    const sf = sfloor(t.floor);
-    if (sf == null || teamFloors.has(sf) || pfFloors.has(sf)) continue;
-    pfFloors.set(sf, [{ floor: t.floor, use: null, floor_area: null, rent_est: null, deposit_est: null }]);
-  }
+  // 팀 줄이 없는 층 — 원장 업체마다 자리표시 줄(pt-), 원장도 없으면 빈 자리표시(pf-). 눌러 값을 넣는 순간 굳는다(adopt)
   const prefillRows: DRow[] = [];
-  for (const [sf, os] of pfFloors) {
-    const floor = os[0].floor ?? "";
-    const ts = sf == null ? [] : ledger.filter((t) => t.floor && sfloor(t.floor) === sf);
-    if (ts.length === 0) {
-      // 업체를 하나도 모르는 층 — 왼쪽 목록에 「층이 있다」고 세우는 자리표시(pf-)다. **호실이 아니다.**
-      // 예전엔 바닥면적을 계약면적에 넣어 두었는데, 그 층에 업체를 하나 올리면 이 자리표시가 「면적 다 가진 이름 없는
-      // 호실」로 굳고 업체는 「두 번째 호실」이 됐다(2026-09-07 대표). 대장이 층에 호실 하나를 말해도 실제는 둘일 수 있다 —
-      // 층별 임대는 대장과 100% 같지 않아도 된다. 층 총면적은 머리에만 선다(floorArea).
-      os.slice(0, 1).forEach((o) => prefillRows.push({ isPrefill: true, key: `pf-${o.floor}`,
-        r: { floor: o.floor ?? "", unit_no: "", use: o.use ?? undefined, contract_area: undefined,
-             deposit: 0, rent: 0, maintenance: 0, is_vacant: null } as FloorRent }));
+  for (const g of floors) {
+    const sf = sfloor(g.floor);
+    if (sf != null && teamFloors.has(sf)) continue;
+    if (g.ledger.length === 0) {
+      prefillRows.push({ isPrefill: true, key: `pf-${g.floor}`,
+        r: { floor: g.floor, unit_no: "", deposit: 0, rent: 0, maintenance: 0 } as FloorRent });
     } else {
-      // 호실 번호는 **안 만든다** — 모르는 값이다(2026-09-06 대표). 줄은 id 로 고친다(0160)
-      ts.forEach((t) => prefillRows.push({ isPrefill: true, key: `pt-${floor}-${t.name}`,
-        r: { floor, unit_no: "", use: os[0].use ?? undefined,
-             tenant_name: t.name,
-             contract_area: t.area ?? undefined,
-             deposit: 0, rent: 0, maintenance: 0, is_vacant: null } as FloorRent }));
+      // **영업장면적을 계약면적 칸에 넣지 않는다**(2026-09-25). 인허가가 준 넓이는 계약서 면적이
+      // 아니다. 미리 채우면 중개인이 그 줄을 한 번만 건드려도 남의 눈금이 팀 값으로 굳는다.
+      g.ledger.forEach((t) => prefillRows.push({ isPrefill: true, key: `pt-${g.floor}-${t.name}`,
+        r: { floor: g.floor, unit_no: "", tenant_name: t.name,
+             deposit: 0, rent: 0, maintenance: 0,
+             url: t.url } as FloorUnit }));
     }
   }
   const prefillOf = (floor: string) => prefillRows.filter((d) => sfloor(d.r.floor) === sfloor(floor));
 
-  /** 그 층을 팀 행으로 확정 — 프리필을 건드리는 순간 그 층은 팀이 인수한다.
-   *  금액은 안 옮긴다(대장 추정은 분석 탭 몫). 구조(상호명·면적)만 굳힌다. 업체 줄은 그대로 호실이 된다.
-   *  호실 번호는 비운 채 넣는다 — 순번을 지어 넣지 않는다. 만든 줄의 id 를 프리필 열쇠별로 돌려준다. */
   async function adopt(floor: string): Promise<Map<string, number>> {
     const ids = new Map<string, number>();
     const sf = sfloor(floor);
     if (sf != null && teamFloors.has(sf)) return ids;
-    const rows = prefillOf(floor).filter((d) => !d.key.startsWith("pf-"));   // 자리표시(pf-)는 호실이 아니라 안 굳힌다
+    const rows = prefillOf(floor).filter((d) => !d.key.startsWith("pf-"));   // 자리표시(pf-)는 업체 줄이 아니라 안 굳힌다
     await Promise.all(rows.map(async (d) => {
       const res = await rentsApi.upsert(pk, {
         floor: d.r.floor || floor, unit_no: "",
         use: d.r.use ?? undefined, contract_area: d.r.contract_area ?? undefined,
         tenant_name: d.r.tenant_name ?? undefined,
-        deposit: 0, rent: 0, maintenance: 0, is_vacant: null,
+        deposit: 0, rent: 0, maintenance: 0,
       } as FloorRent);
       ids.set(d.key, res.id);
     }));
     return ids;
   }
 
-  /** 원장 업체 하나를 이 층의 호실로 — 팀 줄이 이미 있는 층에서 아래 업체 줄의 ＋ */
+  /** 원장 업체 하나를 이 층의 업체 줄로 — 팀 줄이 이미 있는 층에서 아래 업체 줄의 ＋ */
   async function addTenantUnit(floor: string, t: Tenant) {
     if (busy) return;
     setBusy(true);
     try {
       await adopt(floor);
-      await rentsApi.upsert(pk, { floor, unit_no: "", tenant_name: t.name, contract_area: t.area ?? undefined,
-        deposit: 0, rent: 0, maintenance: 0, is_vacant: null } as FloorRent);
+      await rentsApi.upsert(pk, { floor, unit_no: "", tenant_name: t.name,
+        deposit: 0, rent: 0, maintenance: 0 } as FloorRent);
       refresh();
     } finally { setBusy(false); }
   }
@@ -228,8 +167,8 @@ export function FloorRows({ pk, items, total, unit, refresh, addr }: {
     setBusy(true);
     try {
       await adopt(floor);
-      // 새 호실도 번호 없이 선다 — 이름은 팀이 적는다
-      await rentsApi.upsert(pk, { floor, unit_no: "", deposit: 0, rent: 0, maintenance: 0, is_vacant: null } as FloorRent);
+      // 새 줄은 이름 없이 선다 — 상호명은 팀이 적는다
+      await rentsApi.upsert(pk, { floor, unit_no: "", deposit: 0, rent: 0, maintenance: 0 } as FloorRent);
       refresh();
     } finally { setBusy(false); }
   }
@@ -246,7 +185,7 @@ export function FloorRows({ pk, items, total, unit, refresh, addr }: {
         use: dr.r.use ?? null, contract_area: dr.r.contract_area ?? null,
         tenant_name: dr.r.tenant_name ?? null,
         deposit: dr.r.deposit ?? 0, rent: dr.r.rent ?? 0, maintenance: dr.r.maintenance ?? 0,
-        is_vacant: dr.r.is_vacant ?? null, ...patch,
+        ...patch,
       } as FloorRent);
       refresh();
     } finally { setBusy(false); }
@@ -260,28 +199,19 @@ export function FloorRows({ pk, items, total, unit, refresh, addr }: {
   }
 
   // 층별 그룹 — 팀 입력 + 프리필(위에서 업체마다 세운 줄)을 한 배열로
+  // 팀 줄은 서버가 층으로 묶어 준 것(업종·전화가 붙어 있다). 순서도 서버 것(1층부터 위로, 옥탑, 지하)
   const allRows: DRow[] = [
-    ...items.map((r) => ({ r, key: (r.id ?? `${r.floor}-${r.unit_no}`).toString() })),
+    ...floors.flatMap((g) => g.units.map((r) => ({ r, key: (r.id ?? `${r.floor}-${r.unit_no}`).toString() }))),
     ...prefillRows,
   ];
   const groups = new Map<string, DRow[]>();
   allRows.forEach((dr) => { const f = dr.r.floor || "—"; (groups.get(f) ?? groups.set(f, []).get(f)!).push(dr); });
-  const sorted = [...groups.entries()].sort((a, b) => frank(a[0]) - frank(b[0]));
+  const sorted: [string, DRow[]][] = floors.map((g) => [g.floor, groups.get(g.floor) ?? []]);
 
   const areaTxt = (m2?: number | null) =>
     m2 == null ? null : `${(unit === "py" ? m2 / P : m2).toFixed(1)}${unit === "py" ? "평" : "㎡"}`;
 
-  // ── 안C: 왼쪽 층 목록, 오른쪽 고른 층 상세(2026-09-05 대표 선택) ─────────────
-  //  한 줄에 여섯 칸을 욱여넣으니 무엇이 열인지 눈이 세어야 했고, 상태 버튼은 있는지도 몰랐다.
-  //  목록은 훑는 곳(층·상호명·상태), 상세는 채우는 곳(면적·금액·호실). 한 번에 한 층만 고친다.
-  //  2026-09-06 밤(대표 확정판): 왼쪽은 밸류맵처럼 **업체마다 한 줄**(같은 층이면 「1층 1층 1층」), 층을 모르는 업체는
-  //  층 칸이 「—」인 줄로 같은 목록 맨 위. 상태 열은 없다. 「층 미상」이라는 말은 안 쓴다.
   const [pick, setPick] = useState<Pick | null>(null);
-  /** 층을 모르는 업체는 **왼쪽에서 한 줄로 묶는다**(2026-09-07 대표).
-   *  하나씩 세우니 스무 곳이면 스무 줄이 목록 맨 위를 차지해 **실제 층이 화면 밖으로 밀렸다.**
-   *  왼쪽은 훑는 곳이라 층이 먼저 보여야 한다. 묶은 줄을 누르면 오른쪽에 업체가 다 서고,
-   *  거기서 **업체마다 층을 고른다** — 한 번 고를 때마다 그 업체가 목록에서 빠진다.
-   *  다 빠지면 묶음 줄도 사라지므로, 빈 묶음을 고른 상태로 두지 않는다. */
   const curUn = !!pick?.un && unknown.length > 0;
   const curFloor = curUn ? null : (pick?.floor && groups.has(pick.floor) ? pick.floor : (sorted[0]?.[0] ?? null));
   const curRows = curFloor ? (groups.get(curFloor) ?? []) : [];
@@ -289,15 +219,21 @@ export function FloorRows({ pk, items, total, unit, refresh, addr }: {
   useEffect(() => {
     if (curKey) document.getElementById(`fu-${curKey}`)?.scrollIntoView({ block: "nearest" });
   }, [curKey]);
-  // 원장은 아는데 아직 이 층의 줄로 안 선 업체(팀 줄이 먼저 있던 층) — ＋ 로 줄을 세운다
+  // 원장은 아는데 아직 줄이 아닌 업체 — 서버가 층마다 준다. 자리표시로 세운 것은 뺀다
   const ledgerOnly = (floor: string, rows: DRow[]) =>
-    ledgerOf(floor).filter((t) => !rows.some((d) => sameName(nname(d.r.tenant_name), nname(t.name))));
+    (floors.find((g) => g.floor === floor)?.ledger ?? []).filter((t) => !rows.some((d) => sameName(nname(d.r.tenant_name), nname(t.name))));
   const curLedger = curFloor ? ledgerOnly(curFloor, curRows) : [];
-  // 층 총면적 = 대장 바닥면적 하나. 업체 면적 합·남은 면적은 세우지 않는다(대표)
-  const floorArea = curFloor
-    ? ((outline.data ?? []).filter((o) => o.floor && sfloor(o.floor) === sfloor(curFloor)).reduce((a, o) => a + (o.floor_area || 0), 0) || null)
-    : null;
-  const bizOf = (name?: string | null) => name ? ledger.find((t) => sameName(nname(t.name), nname(name)))?.biz ?? null : null;
+  const curGroup = curFloor ? floors.find((g) => g.floor === curFloor) : undefined;
+  const floorArea = curGroup?.floor_area ?? null;
+  /** 전유부를 펼친 층 — 줄엔 개수만, 누르면 호실마다 전용·공용면적(줄 문법) */
+  const [roomsOpen, setRoomsOpen] = useState<string | null>(null);
+  const rooms: LedgerRoom[] = curGroup?.rooms ?? [];
+  /** 층의 공실면적 — 칸 수가 아니라 넓이다(0180). 비우면 모름으로 돌아간다([[clear-means-null]]) */
+  async function saveVacancy(floor: string, v: string) {
+    const n = parseFloat(v.replace(/[^\d.]/g, ""));
+    await rentsApi.setVacancy(pk, floor, Number.isFinite(n) ? (unit === "py" ? n * P : n) : null);
+    refresh();
+  }
   const [addFloor, setAddFloor] = useState(false);
 
   /** 상세 한 칸 — 라벨과 값이 짝. 값은 눌러야 열린다(줄 문법) */
@@ -315,7 +251,7 @@ export function FloorRows({ pk, items, total, unit, refresh, addr }: {
         {items.length > 0 && (
           <button className="rst"
             onClick={async () => {
-              if (!confirm("팀이 적은 호실·상호명·면적·금액을 전부 지우고 대장 구조로 되돌립니다. 계속할까요?")) return;
+              if (!confirm("팀이 적은 상호명·면적·금액을 전부 지우고 대장 구조로 되돌립니다. 계속할까요?")) return;
               await rentsApi.revert(pk);
               refresh();
             }}>전체 되돌리기</button>
@@ -328,26 +264,28 @@ export function FloorRows({ pk, items, total, unit, refresh, addr }: {
       </div>
 
       <div className="fl2">
-        {/* 왼쪽 — 훑는 곳. 업체마다 한 줄: 층 · 업체 · 업종. 금액·상태는 오른쪽에서 본다 */}
+        {/* 왼쪽 — 훑는 곳. 업체마다 한 줄: 층 · 업체. 금액·상태는 오른쪽에서 본다 */}
         <div className="fl2-l">
-          <div className="fl2-lh"><span>층</span><span>업체</span><span>업종</span></div>
+          <div className="fl2-lh"><span>층</span><span>업체</span></div>
           {/* 층을 모르는 업체 — 여럿이어도 「—」 한 줄. 누르면 오른쪽에서 업체마다 층을 정한다 */}
           {unknown.length > 0 && (
             <button className={`fl2-i ${curUn ? "on" : ""}`} onClick={() => setPick({ un: true })}>
               <b className="off">—</b>
               <span className="nm">{unknown[0].name}{unknown.length > 1 ? ` 외 ${unknown.length - 1}` : ""}</span>
-              <span className="bz">{unknown.length === 1 ? unknown[0].biz ?? "" : `${unknown.length}곳`}</span>
+              <span className="bz">{unknown.length}곳</span>
             </button>
           )}
           {sorted.flatMap(([floor, rows]) => [
             ...rows.map((d, i) => {
-              const nm = d.r.tenant_name || unitLabel(d.r.floor, d.r.unit_no);
+              const nm = d.r.tenant_name;
               const on = floor === curFloor && (curKey ? curKey === d.key : i === 0);
+              // 업체를 모르는 층은 **대장 용도**를 흐리게 세운다. 「—」만 있으면 훑을 것이 없는데,
+              // 대장은 그 층이 오피스텔인지 의원인지를 안다(2026-09-25).
+              const uz = floors.find((g) => g.floor === floor)?.uses ?? [];
               return (
                 <button key={d.key} className={`fl2-i ${on ? "on" : ""}`} onClick={() => setPick({ floor, key: d.key })}>
                   <b>{floor}</b>
-                  <span className="nm">{nm || <i className="off">—</i>}</span>
-                  <span className="bz">{bizOf(d.r.tenant_name) ?? ""}</span>
+                  <span className="nm">{nm || (uz.length ? <i className="off">{uz.join(" · ")}</i> : <i className="off">—</i>)}</span>
                 </button>
               );
             }),
@@ -357,7 +295,6 @@ export function FloorRows({ pk, items, total, unit, refresh, addr }: {
                 onClick={() => setPick({ floor, key: `lg-${t.name}` })}>
                 <b>{floor}</b>
                 <span className="nm">{t.name}</span>
-                <span className="bz">{t.biz ?? ""}</span>
               </button>
             )),
           ])}
@@ -373,8 +310,6 @@ export function FloorRows({ pk, items, total, unit, refresh, addr }: {
               {unknown.map((t) => (
                 <div className="fl2-u" key={`un-${t.name}`}>
                   <div className="fl2-uh"><b>{t.name}</b>
-                    {t.biz && <span className="fl2-ux">{t.biz}</span>}
-                    {t.phone && <a className="tel" href={`tel:${t.phone}`}>{t.phone}</a>}
                   </div>
                   {/* 고른 뒤에도 묶음에 남는다 — 스무 곳을 붙이는데 매번 화면이 튀면 손이 끊긴다 */}
                   <div className="fl2-fl">
@@ -388,21 +323,35 @@ export function FloorRows({ pk, items, total, unit, refresh, addr }: {
           )}
           {curFloor && (
             <>
-              <div className="fl2-rh"><b>{curFloor}</b>
-                {floorArea != null && <span>{areaTxt(floorArea)}</span>}
+              <div className="fl2-rh"><b>{curFloor}</b></div>
+              {/* 층에 딸린 값 — 줄엔 라벨과 현재 값만, 누르면 펼치거나 고친다(2026-09-25 대표).
+                  용도·바닥면적·전유부는 대장, 공실면적은 팀이 적는다. 전유부는 집합건물에만 선다 */}
+              <div className="fl2-g fl2-fi">
+                {field("용도", <span className="ro">{curGroup?.uses.length ? curGroup.uses.join(" · ") : "—"}</span>)}
+                {field("바닥면적", <span className="ro">{areaTxt(floorArea) ?? "—"}</span>)}
+                {rooms.length > 0 && field("전유부", (
+                  <button className={`fx ${roomsOpen === curFloor ? "on" : ""}`}
+                    onClick={() => setRoomsOpen(roomsOpen === curFloor ? null : curFloor)}>
+                    {rooms.length}개<i>›</i></button>
+                ))}
+                {rooms.length > 0 && roomsOpen === curFloor && (
+                  <div className="fl2-ex">
+                    {rooms.map((r, i) => (
+                      <div key={i}><span>전용 {areaTxt(r.excl_area)}</span>
+                        {r.common_area != null && <span>공용 {areaTxt(r.common_area)}</span>}</div>
+                    ))}
+                  </div>
+                )}
+                {field("공실면적", <Txt v={areaTxt(curGroup?.vacant_area) ?? ""} w={110}
+                  onSave={(v) => saveVacancy(curFloor, v)} />)}
               </div>
+              <div className="fl2-sec">업체</div>
               {curRows.filter((dr) => !dr.key.startsWith("pf-")).map((dr) => {   // 자리표시는 카드가 아니다
-                const lg = dr.r.tenant_name ? ledger.find((t) => sameName(nname(t.name), nname(dr.r.tenant_name))) : undefined;
-                const extra = lg?.biz ?? "";
                 return (
                 <div className={`fl2-u ${curKey === dr.key ? "on" : ""}`} key={dr.key} id={`fu-${dr.key}`}>
                   <div className="fl2-uh">
                     {/* 이름 없는 줄은 「—」 — 「1번째·2번째」 같은 순번은 안 세운다(대표) */}
-                    {dr.r.tenant_name || unitLabel(dr.r.floor, dr.r.unit_no)
-                      ? <b>{dr.r.tenant_name || unitLabel(dr.r.floor, dr.r.unit_no)}</b>
-                      : <b className="off">—</b>}
-                    {extra && <span className="fl2-ux">{extra}</span>}
-                    {lg?.phone && <a className="tel" href={`tel:${lg.phone}`}>{lg.phone}</a>}
+                    {dr.r.tenant_name ? <b>{dr.r.tenant_name}</b> : <b className="off">—</b>}
                     {/* 팀 줄은 지울 수 있다. 잘못 넣은 층이면 지우고 「—」 줄에서 다시 고른다 — 원장 업체는 없어지지 않는다 */}
                     {dr.r.id != null && (
                       <button className="mini bad" title="이 줄 지움" onClick={() => delUnit(dr)}>
@@ -411,38 +360,32 @@ export function FloorRows({ pk, items, total, unit, refresh, addr }: {
                   </div>
                   <div className="fl2-g">
                     {field("상호명", <Txt v={dr.r.tenant_name ?? ""} w={220} cls="nm" onSave={(v) => put(dr, { tenant_name: v || null })} />)}
-                    {/* 호실 이름은 팀이 정한 것만 보인다 — 원장에서 세운 줄의 번호는 순번일 뿐 대장에 없는 값이다 */}
-                    {!dr.isPrefill && field("호실", <Txt v={dr.r.unit_no ?? ""} w={90} onSave={(v) => put(dr, { unit_no: v })} />)}
-                    {field("면적", <Txt v={areaTxt(dr.r.contract_area) ?? ""} w={110}
+                    {/* 호실 칸을 뺐다(2026-09-25 대표). 대장 호실은 등기 단위라 실제 칸과 다르고,
+                        쓰시면서 실제로 호수를 적은 줄이 하나도 없었다(순번이나 빈칸이었다).
+                        칸을 부를 이름이 필요하면 상호명에 적는다 — 「302호」든 「안쪽 칸」이든. */}
+                    {field("계약면적", <Txt v={areaTxt(dr.r.contract_area) ?? ""} w={110}
                       onSave={(v) => { const n = parseFloat(v.replace(/[^\d.]/g, ""));
                         put(dr, { contract_area: Number.isFinite(n) ? (unit === "py" ? n * P : n) : null }); }} />)}
-                    {/* 임대상태 — 칩 둘이 늘 보인다. 고른 칩을 다시 누르면 미지정 */}
-                    {field("임대상태", (
-                      <span className="vacs">
-                        {([[false, "임대중", "in"], [true, "공실", "on"]] as const).map(([val, label, cls]) => (
-                          <button key={label} className={`vac ${dr.r.is_vacant === val ? cls : "pick"}`}
-                            onClick={() => put(dr, { is_vacant: dr.r.is_vacant === val ? null : val })}>{label}</button>
-                        ))}
-                      </span>
-                    ))}
-                    {field("월 보증금", <Money v={dr.r.deposit} onSave={(w) => put(dr, { deposit: w })} />)}
+                    {/* 임대상태 칩을 뺐다(0180). 줄이 있으면 들어온 업체고, 공실은 위의 층 공실면적이다 */}
+                    {field("보증금", <Money v={dr.r.deposit} onSave={(w) => put(dr, { deposit: w })} />)}
                     {field("월 임대료", <Money man v={dr.r.rent} onSave={(w) => put(dr, { rent: w })} />)}
                     {field("월 관리비", <Money man v={dr.r.maintenance} onSave={(w) => put(dr, { maintenance: w })} />)}
                   </div>
                 </div>
                 );
               })}
-              <button className="addu" onClick={() => addUnit(curFloor)}>+ 호실 추가하기</button>
-              {/* 아직 호실로 안 선 업체(팀 줄이 먼저 있던 층) — ＋ 로 그 업체를 호실로 세운다 */}
+              <button className="addu" onClick={() => addUnit(curFloor)}>+ 업체 추가하기</button>
+              {/* 아직 줄로 안 선 업체(팀 줄이 먼저 있던 층) — ＋ 로 그 업체를 줄로 세운다 */}
               {curLedger.length > 0 && <TenantRows list={curLedger} areaTxt={areaTxt} onAdd={(t) => addTenantUnit(curFloor, t)} />}
             </>
           )}
         </div>
       </div>
 
-      {total && items.length > 0 && (
+      {total && (items.length > 0 || total.vacant_area != null) && (
         <div className="fl-sum">
-          <span>합계 · {sorted.length}개 층{total.vacant_count > 0 ? ` 중 공실 ${total.vacant_count}` : ""}</span>
+          {/* 공실은 층마다 적은 넓이의 합이다. 한 층도 안 적었으면 안 쓴다 — 0 으로 메우면 만실로 읽힌다 */}
+          <span>합계 · {sorted.length}개 층{total.vacant_area != null ? ` · 공실 ${areaTxt(total.vacant_area)}` : ""}</span>
           <span style={{ flex: 1 }} />
           <span className="fm">
             <span>{eokMan(total.deposit) ?? "—"}</span>
@@ -484,7 +427,7 @@ function NewFloor({ pk, refresh, onAdded, onCancel }: { pk: string; refresh: () 
       onBlur={async () => {
         const f = t.trim(); setT("");
         if (!f) { onCancel(); return; }
-        await rentsApi.upsert(pk, { floor: f, unit_no: "", deposit: 0, rent: 0, maintenance: 0, is_vacant: null } as FloorRent);
+        await rentsApi.upsert(pk, { floor: f, unit_no: "", deposit: 0, rent: 0, maintenance: 0 } as FloorRent);
         onAdded(f);
         refresh();
       }}

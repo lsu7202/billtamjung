@@ -1,6 +1,4 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { creditsApi } from "../shared/api/endpoints";
 import { useAuth } from "../shared/store/auth";
 import { Logo } from "../shared/ui/Brand";
 import { Icon } from "../shared/ui/Icon";
@@ -13,12 +11,11 @@ import { Icon } from "../shared/ui/Icon";
  *
  *  배치도 성격으로 갈랐다 — **왼쪽은 일, 오른쪽은 나.**
  *  건물 검색·업무는 하루 종일 오가는 자리라 로고 옆에 붙이고,
- *  크레딧·마이페이지·로그아웃은 하루에 한 번 보는 자리라 반대쪽 끝으로 보냈다.
+ *  마이페이지·로그아웃은 하루에 한 번 보는 자리라 반대쪽 끝으로 보냈다.
  */
 export function Shell() {
   const nav = useNavigate();
   const clear = useAuth((s) => s.clear);
-  const credits = useQuery({ queryKey: ["credits"], queryFn: creditsApi.balance });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
@@ -33,7 +30,6 @@ export function Shell() {
           <NavLink to="/news" className={({ isActive }) => (isActive ? "on" : "")}>소식</NavLink>
         </nav>
         <span className="sp" />
-        <span className="credit">크레딧<b>{credits.data?.total ?? "…"}</b></span>
         <nav className="gnb me">
           <NavLink to="/mypage" className={({ isActive }) => (isActive ? "on" : "")}>마이페이지</NavLink>
         </nav>

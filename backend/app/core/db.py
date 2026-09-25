@@ -33,7 +33,7 @@ def pool() -> asyncpg.Pool:
 
 @asynccontextmanager
 async def tx():
-    """트랜잭션 경계 = 서비스 함수 1개(크레딧 차감 등 원자성)."""
+    """트랜잭션 경계 = 서비스 함수 1개(원자성)."""
     async with pool().acquire() as conn:
         async with conn.transaction():
             yield conn

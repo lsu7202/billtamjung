@@ -58,7 +58,7 @@ def _parse_profile(provider: str, j: dict) -> tuple[str, str | None, str | None]
 
 
 async def _find_or_create(conn, provider: str, uid: str, email: str | None, name: str | None) -> dict:
-    """소셜 정체성 → 계정 매칭/생성(신규는 1인팀+체험크레딧, signup과 동일 프로비저닝)."""
+    """소셜 정체성 → 계정 매칭/생성(신규는 1인팀, signup과 동일 프로비저닝)."""
     row = await conn.fetchrow(
         "SELECT account_id FROM app.social_accounts WHERE provider=$1 AND provider_uid=$2", provider, uid)
     if row:
@@ -70,7 +70,7 @@ async def _find_or_create(conn, provider: str, uid: str, email: str | None, name
             "SELECT id, tier FROM app.accounts WHERE email=$1 AND deleted_at IS NULL", email)
     if not acc and not settings.signups_open:          # 가입 차단 중 — 기존 계정 로그인만 허용
         raise HTTPException(403, "관리자만 이용 가능합니다.")
-    if not acc:                                        # 신규: 계정→팀→멤버→체험크레딧
+    if not acc:                                        # 신규: 계정→팀→멤버
         # 이메일 미제공(카카오 동의 거부 등) — accounts.email NOT NULL이라 대체값 생성
         acc = await conn.fetchrow(
             """INSERT INTO app.accounts(email,name,tier,trial_started_at,trial_ends_at,terms_agreed_at)
@@ -81,9 +81,6 @@ async def _find_or_create(conn, provider: str, uid: str, email: str | None, name
             f"{name or '소셜'} 팀", acc["id"])
         await conn.execute(
             "INSERT INTO app.team_members(team_id,account_id,role) VALUES($1,$2,'owner')", team_id, acc["id"])
-        await conn.execute(
-            """INSERT INTO app.credit_entries(account_id,type,bucket,amount,reason)
-               VALUES($1,'grant','earned',$2,'trial')""", acc["id"], settings.trial_credits)
     await conn.execute(
         "INSERT INTO app.social_accounts(account_id,provider,provider_uid,email) VALUES($1,$2,$3,$4)",
         acc["id"], provider, uid, email)

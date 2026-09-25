@@ -166,7 +166,7 @@ export function ParcelPage() {
           )}
 
           {/* 입지는 땅의 성질이라 건물 유무와 무관하다 — 건물 상세와 같은 컴포넌트가 그린다 */}
-          {scope === "loc" && <LocationPanel pk={pnu} b={d} fetchPop={buildingsApi.vacantPop} />}
+          {scope === "loc" && <LocationPanel pk={pnu} b={d} parcel fetchPop={buildingsApi.vacantPop} />}
         </div>
 
         <div className="bt-side">

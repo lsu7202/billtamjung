@@ -76,7 +76,7 @@ async def signup(body: SignupIn, resp: Response):
     if not body.terms_agreed or not body.privacy_agreed:
         raise HTTPException(400, "이용약관과 개인정보 수집·이용에 동의해야 가입할 수 있습니다")
     pw = security.hash_password(body.password)
-    async with tx() as conn:  # 원자: account → team → member → 체험 크레딧
+    async with tx() as conn:  # 원자: account → team → member
         exists = await conn.fetchval("SELECT 1 FROM app.accounts WHERE email=$1", body.email)
         if exists:
             raise HTTPException(409, "이미 가입된 이메일입니다")
@@ -98,11 +98,6 @@ async def signup(body: SignupIn, resp: Response):
         await conn.execute(
             "INSERT INTO app.team_members(team_id,account_id,role) VALUES($1,$2,'owner')",
             team_id, acc["id"],
-        )
-        await conn.execute(
-            """INSERT INTO app.credit_entries(account_id,type,bucket,amount,reason)
-               VALUES($1,'grant','earned',$2,'trial')""",
-            acc["id"], settings.trial_credits,
         )
     return await _issue(resp, dict(acc))
 

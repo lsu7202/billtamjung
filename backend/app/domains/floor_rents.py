@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from ..core.db import pool, tx
 from ..core.floor_label import normalize as _norm_floor, signed as _signed_floor
 from ..core.deps import current_user, CurrentUser
+from .mirror import listing_values_fold
 
 router = APIRouter(prefix="/buildings/{building_pk}/floor-rents", tags=["floor-rents"])
 
@@ -23,64 +24,51 @@ class RentIn(BaseModel):
     deposit: int = 0          # 원 정수
     rent: int = 0
     maintenance: int = 0
-    is_vacant: bool | None = None    # 공실상태 3값: None=미지정(기본)·False=임대중·True=공실
+    # 공실 칸은 없다(0180). 층별 줄은 **들어온 업체**뿐이고, 공실은 층마다 면적 하나다(VacancyIn)
     tenant_name: str | None = None   # 상호명(0155) — 모르면 null. 용도 대신 화면에 선다
 
 
-@router.get("", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
-async def list_rents(building_pk: str, user: CurrentUser = Depends(current_user)):
+class VacancyIn(BaseModel):
+    """층의 공실면적(0180). 칸 수가 아니라 넓이다 — 30평을 한 칸으로 내놓든 셋으로 쪼개든 건물주 마음이다.
+    `vacant_area` 가 None 이면 그 층 기록을 지운다(모름). 0 은 팀이 확인한 만실이다."""
+    floor: str
+    vacant_area: float | None = None   # ㎡ — 프론트가 평↔㎡ 변환해 항상 ㎡로 보낸다
+
+
+async def team_floor_rows(building_pk: str, team_id: int) -> tuple[list[dict], list[str]]:
+    """팀 층별 줄(없앤 층 제외)과 없앤 층 목록. /floor-rents 와 /floors 가 같이 쓴다(2026-09-17)."""
     rows = await pool().fetch(
         """SELECT id, floor, unit_no, use, contract_area,
-                  deposit, rent, maintenance, is_vacant, tenant_name
+                  deposit, rent, maintenance, tenant_name
            FROM app.floor_rents
            WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL
            -- 순서(2026-09-04): 1층부터 위로, 옥탑, 그 아래 지하. 예) 1층 2층 3층 옥탑1층 지하1층
            ORDER BY (CASE WHEN floor LIKE '%옥탑%' OR floor ~* '^\\s*(PH|R)' THEN 1000
                           WHEN floor LIKE '지하%' OR floor LIKE '지%' OR floor ~* '^\\s*B' THEN 2000 ELSE 0 END)
                     + COALESCE(NULLIF(regexp_replace(floor, '\\D', '', 'g'), '')::int, 0) ASC, unit_no""",
-        building_pk, user.team_id,
+        building_pk, team_id,
     )
     hidden = [r["floor"] for r in await pool().fetch(
         "SELECT floor FROM app.floor_hidden WHERE building_pk=$1 AND team_id=$2",
-        building_pk, user.team_id)]
+        building_pk, team_id)]
     hidden_sf = {_signed_floor(f) for f in hidden}
 
     items = [dict(r) for r in rows if _signed_floor(r["floor"]) not in hidden_sf]
-    team_rent = sum(r["rent"] or 0 for r in items)
-    team_deposit = sum(r["deposit"] or 0 for r in items)
-    # 총액의 마스터 추정 = '팀이 손대지 않은 층'만. 층 단위로 대체한다(0029).
-    # 예전엔 층 안에서 앞 K개만 대체해서, 2호실을 하나로 합쳐 입력하면 나머지 1호실 추정이 총액에 남았다.
-    est_rows = await pool().fetch(
-        """SELECT fo.floor, fre.rent_est, fre.deposit_est
-           FROM master.floor_outline fo JOIN master.floor_rent_est fre USING (building_pk, seq)
-           WHERE fo.building_pk=$1 AND fre.rent_est > 0 ORDER BY fo.seq""",
-        building_pk,
-    )
-    # **추정은 팀 입력에 흔들리지 않는다**(2026-09-04). 예전엔 팀이 값을 넣은 층을 추정에서
-    # 빼고 실측으로 갈아 끼웠는데(하이브리드), 그러면 한 층을 고칠 때마다 「추정 총액」이 같이
-    # 움직여서 무엇이 추정이고 무엇이 실측인지 화면에서 구분이 안 됐다.
-    # 이제 둘은 서로 다른 자리다: rent/deposit = 팀 실측 · rent_full/deposit_full = 전 층 추정.
-    # 없앤 층(floor_hidden)만 뺀다 — 그 층이 없다는 것은 추정에도 사실이다.
-    est_rent_full = est_dep_full = 0
-    for r in est_rows:
-        f = _signed_floor(r["floor"])
-        if f in hidden_sf:
-            continue
-        est_rent_full += r["rent_est"] or 0
-        est_dep_full += r["deposit_est"] or 0
+    return items, hidden
+
+
+@router.get("", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다 — 팀 층별 줄만. 층으로 묶인 것은 /floors
+async def list_rents(building_pk: str, user: CurrentUser = Depends(current_user)):
+    items, _hidden = await team_floor_rows(building_pk, user.team_id)
+    # 합계는 팀 실측만(감사 2026-09-17). 전 층 추정 합(rent_full·deposit_full)·공실제외 합·상태 수는
+    # 화면이 안 읽어 뺐다 — 추정 임대는 임대 탭 카드가 따로 낸다. hidden_floors 도 안 읽는다.
     total = {
-        "deposit": team_deposit,
-        "rent": team_rent,
+        "deposit": sum(r["deposit"] or 0 for r in items),
+        "rent": sum(r["rent"] or 0 for r in items),
         "maintenance": sum(r["maintenance"] or 0 for r in items),
-        "rent_occupied": sum(r["rent"] or 0 for r in items if r["is_vacant"] is not True),   # 공실제외 수익률(F-14): 공실 행 제외
-        "vacant_count": sum(1 for r in items if r["is_vacant"] is True),
-        "status_count": sum(1 for r in items if r["is_vacant"] is not None),   # 총공실 3값: 0이면 미지정
-        # 전 층 추정 — 팀 입력과 섞지 않는다. 이름 그대로 「추정」이다.
-        "rent_full": est_rent_full,
-        "deposit_full": est_dep_full,
-        "rent_occupied_full": est_rent_full,
     }
-    return {"items": items, "total": total, "hidden_floors": hidden}
+    return {"items": items, "total": total}
+
 
 
 class HiddenIn(BaseModel):
@@ -106,12 +94,13 @@ async def set_hidden(building_pk: str, body: HiddenIn, user: CurrentUser = Depen
         await pool().execute(
             "DELETE FROM app.floor_hidden WHERE building_pk=$1 AND team_id=$2 AND floor=$3",
             building_pk, user.team_id, body.floor)
+    await listing_values_fold(user.team_id, building_pk)     # 층이 사라지면 합계·수익률도 따라온다(0173)
     return {"ok": True}
 
 
 @router.put("")
 async def upsert_rent(building_pk: str, body: RentIn, user: CurrentUser = Depends(current_user)):
-    """(building_pk, team_id, 층, 호실) 매칭키 upsert. 공실이어도 값 보존(만실 총계·공실제외는 플래그로 구분).
+    """(building_pk, team_id, 층, 호실) 매칭키 upsert. 줄은 들어온 업체다 — 공실은 /vacancy 가 받는다.
     층 표기는 대장과 같은 규칙으로 정규화한다(0031) — '3F'로 치고 대장이 '3층'이면 다른 층이 돼
     추정이 안 빠지고 이중 계산된다."""
     body.floor = _norm_floor(body.floor)[0] or body.floor
@@ -121,30 +110,32 @@ async def upsert_rent(building_pk: str, body: RentIn, user: CurrentUser = Depend
         rid = await pool().fetchval(
             """UPDATE app.floor_rents
                   SET floor=$3, unit_no=$4, use=$5, contract_area=$6, deposit=$7, rent=$8,
-                      maintenance=$9, is_vacant=$10, tenant_name=$11, deleted_at=NULL, updated_at=now()
-                WHERE id=$12 AND building_pk=$1 AND team_id=$2
+                      maintenance=$9, tenant_name=$10, deleted_at=NULL, updated_at=now()
+                WHERE id=$11 AND building_pk=$1 AND team_id=$2
             RETURNING id""",
             building_pk, user.team_id, body.floor, body.unit_no, body.use, body.contract_area,
-            body.deposit, body.rent, body.maintenance, body.is_vacant, body.tenant_name, body.id)
+            body.deposit, body.rent, body.maintenance, body.tenant_name, body.id)
         if rid is not None:
+            await listing_values_fold(user.team_id, building_pk)
             return {"ok": True, "id": rid}
     # 호실을 적은 줄은 (층, 호실)로 upsert — 같은 호실을 두 번 만들지 않는다. 빈 호실은 그냥 새 줄이다
     rid = await pool().fetchval(
         """INSERT INTO app.floor_rents
              (building_pk,team_id,floor,unit_no,use,contract_area,
-              deposit,rent,maintenance,is_vacant,tenant_name)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+              deposit,rent,maintenance,tenant_name)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
            ON CONFLICT (building_pk,team_id,floor,unit_no) WHERE unit_no <> ''
            DO UPDATE SET use=EXCLUDED.use,
              contract_area=EXCLUDED.contract_area, deposit=EXCLUDED.deposit,
              rent=EXCLUDED.rent, maintenance=EXCLUDED.maintenance,
-             is_vacant=EXCLUDED.is_vacant, tenant_name=EXCLUDED.tenant_name,
+             tenant_name=EXCLUDED.tenant_name,
              deleted_at=NULL, updated_at=now()
            RETURNING id""",
         building_pk, user.team_id, body.floor, body.unit_no, body.use,
         body.contract_area,
-        body.deposit, body.rent, body.maintenance, body.is_vacant, body.tenant_name,
+        body.deposit, body.rent, body.maintenance, body.tenant_name,
     )
+    await listing_values_fold(user.team_id, building_pk)     # 층별 → 매물 줄 합계·수익률(0173)
     return {"ok": True, "id": rid}
 
 
@@ -160,7 +151,37 @@ async def revert_all(building_pk: str, user: CurrentUser = Depends(current_user)
         await conn.execute(
             "DELETE FROM app.floor_hidden WHERE building_pk=$1 AND team_id=$2",
             building_pk, user.team_id)
+        # 공실면적도 팀이 적은 값이다. 대장 구조로 되돌리면 같이 지운다
+        await conn.execute(
+            "DELETE FROM app.floor_vacancy WHERE building_pk=$1 AND team_id=$2",
+            building_pk, user.team_id)
+    await listing_values_fold(user.team_id, building_pk)
     return {"ok": True, "cleared": n}
+
+
+@router.put("/vacancy")
+async def set_vacancy(building_pk: str, body: VacancyIn, user: CurrentUser = Depends(current_user)):
+    """층 하나의 공실면적. 비우면(None) 그 층 기록을 지운다 — 모름으로 돌아간다([[clear-means-null]]).
+    층은 이름이 아니라 서명층수로 잇는다. 「3」·「3층」·「3F」가 한 층이어야 한다."""
+    floor = _norm_floor(body.floor)[0] or body.floor
+    fno = _signed_floor(floor)
+    if fno is None:
+        from fastapi import HTTPException
+        raise HTTPException(422, f"층을 못 읽었습니다: {body.floor}")
+    if body.vacant_area is None:
+        await pool().execute(
+            "DELETE FROM app.floor_vacancy WHERE team_id=$1 AND building_pk=$2 AND floor_no=$3",
+            user.team_id, building_pk, fno)
+    else:
+        await pool().execute(
+            """INSERT INTO app.floor_vacancy(team_id, building_pk, floor_no, floor, vacant_area, updated_by)
+               VALUES($1,$2,$3,$4,$5,$6)
+               ON CONFLICT (team_id, building_pk, floor_no)
+               DO UPDATE SET vacant_area=EXCLUDED.vacant_area, floor=EXCLUDED.floor,
+                             updated_by=EXCLUDED.updated_by, updated_at=now()""",
+            user.team_id, building_pk, fno, floor, max(0.0, body.vacant_area), user.account_id)
+    await listing_values_fold(user.team_id, building_pk)     # 매물 줄 공실면적(층 합)
+    return {"ok": True}
 
 
 @router.delete("/{rent_id}")
@@ -170,4 +191,5 @@ async def delete_rent(building_pk: str, rent_id: int, user: CurrentUser = Depend
            WHERE id=$1 AND building_pk=$2 AND team_id=$3""",
         rent_id, building_pk, user.team_id,
     )
+    await listing_values_fold(user.team_id, building_pk)
     return {"ok": True}

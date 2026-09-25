@@ -8,7 +8,7 @@ import sys
 import urllib.parse
 
 # 화면 하나 열면 같이 딸려오는 것들 — 사람이 누른 게 아니라 안 보여준다
-NOISE = {"/api/credits", "/api/enums", "/api/listings/members", "/api/auth/me",
+NOISE = {"/api/enums", "/api/listings/members", "/api/auth/me",
          "/api/saved-searches", "/api/auth/public-config", "/api/auth/refresh",
          "/api/health"}
 

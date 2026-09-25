@@ -155,7 +155,9 @@ export function DocPage() {
   const rentSum = rentRows.reduce((a, x) => ({
     dep: a.dep + (x.deposit ?? 0), mo: a.mo + (x.rent ?? 0), mg: a.mg + (x.maintenance ?? 0),
   }), { dep: 0, mo: 0, mg: 0 });
-  const tenants = rentRows.filter((x) => !x.is_vacant);
+  // 층별 줄은 들어온 업체뿐이다(0180) — 공실은 줄이 아니라 층의 면적이다
+  const tenants = rentRows;
+  const vacantArea = (rents.data?.total as { vacant_area?: number | null } | undefined)?.vacant_area ?? null;
 
   /* 명도 · 승계 — 저장본에 없으면 임대차가 있을 때 승계, 없으면 명도가 씨앗 */
   const mode: Mode = v["c_mode"] === "명도" || v["c_mode"] === "승계" ? (v["c_mode"] as Mode)
@@ -896,24 +898,27 @@ export function DocPage() {
           <p className="dc-lead">{addr}　·　{fmtD(today)}</p>
           <table className="dc-t">
             <tbody>
-              <tr><th style={{ width: "14mm" }}>층</th><th style={{ width: "16mm" }}>호</th><th>용도</th>
+              {/* 「호」 대신 임차인 — 호실 칸을 없앴고(2026-09-25) 현황표의 주인공은 누가 들었느냐다.
+                  「비고(공실)」 칸도 뺐다. 공실은 줄이 아니라 층의 면적이라 아래 한 줄로 선다(0180) */}
+              <tr><th style={{ width: "14mm" }}>층</th><th>임차인</th><th style={{ width: "26mm" }}>용도</th>
                 <th style={{ width: "22mm" }}>계약면적(㎡)</th><th style={{ width: "26mm" }}>보증금(원)</th>
-                <th style={{ width: "24mm" }}>월세(원)</th><th style={{ width: "24mm" }}>관리비(원)</th>
-                <th style={{ width: "14mm" }}>비고</th></tr>
+                <th style={{ width: "24mm" }}>월세(원)</th><th style={{ width: "24mm" }}>관리비(원)</th></tr>
               {rentRows.map((x, i) => (
-                <tr key={i}><td className="c">{x.floor}</td><td className="c">{x.unit_no}</td>
+                <tr key={i}><td className="c">{x.floor}</td><td>{x.tenant_name ?? ""}</td>
                   <td>{x.use ?? ""}</td><td className="r">{x.contract_area ?? ""}</td>
                   <td className="r">{comma(x.deposit)}</td><td className="r">{comma(x.rent)}</td>
-                  <td className="r">{comma(x.maintenance)}</td>
-                  <td className="c">{x.is_vacant ? "공실" : ""}</td></tr>
+                  <td className="r">{comma(x.maintenance)}</td></tr>
               ))}
               {rentRows.length === 0 && (
-                <tr><td colSpan={8} className="c" style={{ height: "16mm" }}>임대 내역이 없습니다 — 매물 정보 탭에서 입력합니다</td></tr>
+                <tr><td colSpan={7} className="c" style={{ height: "16mm" }}>임대 내역이 없습니다 — 매물 정보 탭에서 입력합니다</td></tr>
               )}
               {rentRows.length > 0 && (
                 <tr><th colSpan={4}>합계 {rentRows.length}건</th>
                   <th className="r">{comma(rentSum.dep)}</th><th className="r">{comma(rentSum.mo)}</th>
-                  <th className="r">{comma(rentSum.mg)}</th><th /></tr>
+                  <th className="r">{comma(rentSum.mg)}</th></tr>
+              )}
+              {vacantArea != null && (
+                <tr><th colSpan={3}>공실</th><th className="r">{vacantArea}</th><th colSpan={3} /></tr>
               )}
             </tbody>
           </table>
