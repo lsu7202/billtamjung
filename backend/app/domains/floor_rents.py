@@ -38,7 +38,7 @@ async def team_floor_rows(building_pk: str, team_id: int) -> tuple[list[dict], l
     """팀 층별 줄(없앤 층 제외)과 없앤 층 목록. /floor-rents 와 /floors 가 같이 쓴다(2026-09-17)."""
     rows = await pool().fetch(
         """SELECT id, floor, unit_no, use, contract_area::float AS contract_area,
-                  deposit, rent, maintenance, tenant_name, place_ref,
+                  deposit, rent, maintenance, tenant_name, place_ref, cat_nodes,
                   app.unit_occupied(tenant_name, place_ref, rent) AS occupied
            FROM app.floor_rents
            WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL
@@ -105,11 +105,11 @@ async def seed_from_ledger(team_id: int, building_pk: str) -> int:
         if not key:
             continue
         fl = (_norm_floor(t["floor"])[0] or t["floor"]) if t.get("floor") else None
-        rows.append((building_pk, team_id, fl, t["name"], key))
+        rows.append((building_pk, team_id, fl, t["name"], key, t.get("cat_nodes")))
     if rows:
         await pool().executemany(
-            """INSERT INTO app.floor_rents(building_pk, team_id, floor, unit_no, tenant_name, place_ref)
-               VALUES($1,$2,$3,'',$4,$5)
+            """INSERT INTO app.floor_rents(building_pk, team_id, floor, unit_no, tenant_name, place_ref, cat_nodes)
+               VALUES($1,$2,$3,'',$4,$5,$6)
                ON CONFLICT (team_id, building_pk, place_ref) WHERE place_ref IS NOT NULL DO NOTHING""", rows)
         await listing_values_fold(team_id, building_pk)
     return len(rows)

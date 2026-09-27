@@ -161,7 +161,7 @@ KO_NESTED: dict[str, str] = {
     #   영업장면적 인허가. 그 가게가 쓰는 넓이
     "contract_area": "계약면적", "area": "영업장면적",
     "rent": "월 임대료", "maintenance": "월 관리비",
-    "name": "상호명", "url": "링크",
+    "name": "상호명", "url": "링크", "cat_nodes": "업종",
     "deposit": "보증금", "use": "용도",      # 둘이 빠져 영어 그대로 나갔다(2026-09-25)
     # 필지
     "role": "역할", "pnu": "필지번호", "gongsi": "공시지가",

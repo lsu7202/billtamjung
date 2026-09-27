@@ -163,7 +163,7 @@ async def biz_for(building_pk: str) -> dict | None:
     화면을 열 때마다 카카오에 묻던 places_for 를 대신한다 — 링크는 저장하지 않는다(§7)."""
     try:
         rows = await pool().fetch(
-            """SELECT name, floor, phone, last_seen FROM master.biz
+            """SELECT name, floor, phone, cat_nodes, last_seen FROM master.biz
                 WHERE $1 = ANY(building_pks) AND gone_on IS NULL
                 ORDER BY floor NULLS LAST, name""", building_pk)
         seen = await pool().fetchval(
@@ -172,7 +172,9 @@ async def biz_for(building_pk: str) -> dict | None:
         return None
     if not rows and seen is None:
         return None
-    return {"items": [{"name": r["name"], "floor": r["floor"], "area": None, "phone": r["phone"]} for r in rows],
+    # cat_nodes = 업종 나무(조상까지, 「음식점 > 중식」) — 층별 정보·임대 내역이 이름 옆에 보인다
+    return {"items": [{"name": r["name"], "floor": r["floor"], "area": None, "phone": r["phone"],
+                       "cat_nodes": r["cat_nodes"]} for r in rows],
             "checked_on": max((r["last_seen"] for r in rows), default=seen)}
 
 

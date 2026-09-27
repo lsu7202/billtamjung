@@ -1038,7 +1038,7 @@ def _ledger_for_model(raw: dict, total: dict) -> dict:
     공실면적은 **적힌 공실 호실의 합**이다(0186). 적힌 공실이 없으면 칸이 없다 — 만실이라는 뜻이 아니다.
     호실이 그 층의 전부인지는 모른다. 만실 월임대는 「적힌 공실이 다 차면」이다."""
     def unit(u: dict) -> dict:
-        d = {"상호": u.get("tenant_name"), "호수": u.get("unit_no") or None,
+        d = {"상호": u.get("tenant_name"), "업종": u.get("cat_nodes") or None, "호수": u.get("unit_no") or None,
              "상태": "임대중" if u.get("occupied") else "공실",
              "계약면적": round(u["contract_area"], 2) if u.get("contract_area") else None,
              "보증금": u.get("deposit"), "월임대": u.get("rent"), "관리비": u.get("maintenance")}

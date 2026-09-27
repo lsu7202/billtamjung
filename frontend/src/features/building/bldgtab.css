@@ -472,3 +472,7 @@
 .th-r .du{text-align:right}
 .th-ec{margin-left:10px; font-size:12px; font-weight:600; color:#8B95A1}
 @media (max-width:720px){ .th-r{grid-template-columns:minmax(0,1fr) 110px} .th-r .bz, .th-r .du{display:none} }
+
+/* 층별 정보(2026-09-27) — 업체 줄 오른쪽 업종 나무 · 업체 아래 대장 값 */
+.fl2-ti .cat{grid-column:3; justify-self:end; font-style:normal; font-size:12px; font-weight:500; color:#8B95A1; white-space:nowrap}
+.fl2-spec{margin-top:14px; padding-top:12px; border-top:1px solid #F2F4F6}

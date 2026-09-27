@@ -96,6 +96,7 @@ export function RentLedger({ pk, onSaved }: { pk: string; onSaved: () => void })
       <div className="fl2-uh">
         {u.tenant_name ? <b>{u.tenant_name}</b> : <b className="off">—</b>}
         <span className={`rl-st ${u.occupied ? "" : "vac"}`}>{u.occupied ? "임대중" : "공실"}</span>
+        {u.cat_nodes?.length ? <i className="rl-cat">{u.cat_nodes.join(" › ")}</i> : null}
         <button className="mini bad" title="이 호실 지움" onClick={() => del(u)}><Icon name="trash" size={12} /></button>
       </div>
       {moving && (

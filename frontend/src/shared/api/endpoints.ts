@@ -16,6 +16,7 @@ export interface FloorRent {
   deposit?: number | null; rent?: number | null; maintenance?: number | null;   // null = 모름
   tenant_name?: string | null;     // 상호명(0155). 모르면 null
   place_ref?: string | null;       // 매물 등록 때 원장에서 복사한 업체의 열쇠
+  cat_nodes?: string[] | null;     // 업종 나무(조상까지) — 복사해 온 업체만. 팀이 만든 호실은 null(0189)
   /** 서버 판정 — 상호가 있거나 임대료가 적혀 있으면 임대중, 둘 다 없으면 공실. 저장값이 아니다 */
   occupied?: boolean;
 }
@@ -376,6 +377,8 @@ export interface Tenant {
   biz: string | null; phone: string | null;
   /** 카카오에서 온 것은 화면에서만 붙는다(저장 안 함) */
   url?: string | null;
+  /** 업종 나무(조상까지) — 크롤링 업체만(master.biz.cat_nodes). 원장으로 대신한 건물은 없다 */
+  cat_nodes?: string[] | null;
 }
 /** 층별 정보(건물 상세)의 층 하나 — 대장과 원장만(2026-09-26 나눔). 팀 값은 임대 내역에 */
 /** 대장 호실(전유부) — 집합건물만. **참조다.** 등기 단위라 실제 칸막이와 다를 수 있고,

@@ -8,11 +8,22 @@ import { rentsApi, type FloorGroup, type LedgerRoom, type Tenant } from "../../s
  *  팀 값(호실·임대료·공실)은 여기 없다. 그건 매물의 「임대 내역」에만 있다 — 누구나 보는 건물 상세와
  *  우리 팀이 확인한 기록을 섞지 않는다. 내 매물이면 머리에 「임대 내역 →」 한 줄로 그리로 간다.
  *
- *  왼쪽은 훑는 곳(층 · 업체), 오른쪽은 고른 층 하나(용도 · 바닥면적 · 전유부 · 업체).
+ *  왼쪽은 훑는 곳(층 · 업체), 오른쪽은 고른 층 하나 — 업체(이름 · 업종 나무)가 위, 대장 값(용도 · 바닥면적 · 전유부)이 아래.
  *  **전유부는 참조다.** 대장 호실은 등기 단위라 실제 칸과 다르다. 중개사가 말하는 호실은 업체 단위다.
  */
 
 const P = 3.305785;
+
+/** 업체 한 줄 — 이름 · 업종 나무(오른쪽, 「음식점 › 중식」) · 영업장면적(원장으로 대신했을 때만) */
+function TenantLine({ t, areaTxt }: { t: Tenant; areaTxt: (m2?: number | null) => string | null }) {
+  return (
+    <div className="fl2-ti">
+      <b>{t.name}</b>
+      {areaTxt(t.area) && <span>{areaTxt(t.area)}</span>}
+      {t.cat_nodes?.length ? <i className="cat">{t.cat_nodes.join(" › ")}</i> : null}
+    </div>
+  );
+}
 
 export function FloorRows({ pk, unit, onLedger }: {
   pk: string; unit: "py" | "m2";
@@ -66,19 +77,21 @@ export function FloorRows({ pk, unit, onLedger }: {
             <>
               <div className="fl2-rh"><b className="off">층 미상</b><span>{unknown.length}곳</span></div>
               <div className="fl2-t">
-                {unknown.map((t) => (
-                  <div className="fl2-ti" key={t.name}>
-                    <b>{t.name}</b>
-                    {areaTxt(t.area) && <span>{areaTxt(t.area)}</span>}
-                  </div>
-                ))}
+                {unknown.map((t) => <TenantLine key={t.name} t={t} areaTxt={areaTxt} />)}
               </div>
             </>
           )}
           {cur && (
             <>
               <div className="fl2-rh"><b>{cur.floor}</b></div>
-              <div className="fl2-g fl2-fi">
+              {/* 업체가 먼저(2026-09-27 대표) — 지금 누가 있나가 이 화면의 물음이다. 대장 값은 그 아래 */}
+              <div className="fl2-sec">업체</div>
+              {cur.ledger.length ? (
+                <div className="fl2-t">
+                  {cur.ledger.map((t) => <TenantLine key={t.name} t={t} areaTxt={areaTxt} />)}
+                </div>
+              ) : <div className="fl2-none">—</div>}
+              <div className="fl2-g fl2-fi fl2-spec">
                 {kv("용도", <span className="ro">{cur.uses.length ? cur.uses.join(" · ") : "—"}</span>)}
                 {kv("바닥면적", <span className="ro">{areaTxt(cur.floor_area) ?? "—"}</span>)}
                 {rooms.length > 0 && kv("전유부", (
@@ -94,17 +107,6 @@ export function FloorRows({ pk, unit, onLedger }: {
                   </div>
                 )}
               </div>
-              <div className="fl2-sec">업체</div>
-              {cur.ledger.length ? (
-                <div className="fl2-t">
-                  {cur.ledger.map((t) => (
-                    <div className="fl2-ti" key={t.name}>
-                      <b>{t.name}</b>
-                      {areaTxt(t.area) && <span>{areaTxt(t.area)}</span>}
-                    </div>
-                  ))}
-                </div>
-              ) : <div className="fl2-none">—</div>}
             </>
           )}
         </div>
