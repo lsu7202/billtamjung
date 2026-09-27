@@ -23,7 +23,10 @@ import "./draft/salestab.css";
  * 확인일 = 사람이 이 매물에 남긴 마지막 기록의 날(listings.checked_on, 0182).
  * 대시보드 「재통화」와 같은 기준(7일)이라, 넘으면 빨강이다. */
 
-type Lane = "own" | "watch" | "done";
+/** 상태(2026-09-27) — 매물·관심·계약 세 갈래를 목록 하나로 합쳤다(부기사처럼). 기본은 계약을 뺀 전부 */
+type St = "unowned" | "active" | "done";
+const ST: [St, string][] = [["unowned", "소유자 미확보"], ["active", "진행"], ["done", "계약"]];
+const stOf = (r: Seller): St => (r.s6_match ? "done" : r.has_owner ? "active" : "unowned");
 type SortKey = "received_on" | "updated_at" | "listing_no" | "addr" | "size" | "price" | "rent" | "roi" | "checked_on" | "next";
 /** 정렬 pill 의 목록 — 부기사 탭(등록일·수정일·가격·면적·매물번호)에 우리 열(수익률·확인일)을 더했다 */
 const SORTS: [SortKey, string][] = [["received_on", "등록일"], ["updated_at", "수정일"], ["listing_no", "매물번호"],
@@ -119,7 +122,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
   useEffect(() => { if (focus) setOpen({ pk: focus, tab: focusTab }); }, [focus, focusTab]);
   useEffect(() => { touchPk(open?.pk ?? null); }, [open?.pk]);
   const [q, setQ] = useState("");
-  const [lane, setLane] = useState<Lane>("own");
+  const [st, setSt] = useState<St | null>(null);
   const [who, setWho] = useState<number | null>(null);          // 담당 거르기
   const [major, setMajor] = useState<string | null>(null);      // 대분류 거르기
   const [kind, setKind] = useState<string | null>(null);        // 소분류 거르기
@@ -137,10 +140,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
 
   const list = rows.data ?? [];
   const nameOf = (id: number | null | undefined) => members.data?.find((m) => m.account_id === id)?.name ?? null;
-  const sold = list.filter((r) => r.s6_match);
-  const owned = list.filter((r) => r.has_owner && !r.s6_match);
-  const watched = list.filter((r) => !r.has_owner && !r.s6_match);
-  const laneRows = lane === "own" ? owned : lane === "watch" ? watched : sold;
+  const laneRows = list.filter((r) => (st == null ? stOf(r) !== "done" : stOf(r) === st));
 
   const shown = useMemo(() => {
     const t = q.trim();
@@ -192,18 +192,18 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
   const gus = useMemo(() => [...new Set(laneRows.map((r) => regionOf(r.addr)[0]).filter(Boolean) as string[])].sort(ko), [laneRows]);
   const dongs = useMemo(() => gu == null ? [] : [...new Set(laneRows.filter((r) => regionOf(r.addr)[0] === gu)
     .map((r) => regionOf(r.addr)[1]).filter(Boolean) as string[])].sort(ko), [laneRows, gu]);
-  const anyFilter = who != null || gu != null || major != null || kind != null || grade != null || pvm != null
+  const anyFilter = st != null || who != null || gu != null || major != null || kind != null || grade != null || pvm != null
     || flag != null || Object.values(ranges).some(([a, b]) => a != null || b != null);
   const reset = () => {
-    setWho(null); setGu(null); setDong(null); setMajor(null); setKind(null); setGrade(null); setPvm(null);
+    setSt(null); setWho(null); setGu(null); setDong(null); setMajor(null); setKind(null); setGrade(null); setPvm(null);
     setFlag(null); setRanges({ price: [null, null], land: [null, null], total: [null, null] });
   };
   const cur = list.find((r) => r.building_pk === open?.pk) ?? null;
   const unknown = open && !rows.isLoading && !cur ? open.pk : null;   // 아직 안 담은 건물로 넘어왔다
 
-  // 다른 화면에서 넘어온 건물이 반대 갈래에 있으면 그 갈래로 옮겨 준다
   useEffect(() => {
-    if (cur) setLane(cur.s6_match ? "done" : cur.has_owner ? "own" : "watch");
+    // 다른 화면에서 넘어온 매물이 지금 상태 필터에 가려 있으면 풀어 준다
+    if (cur && laneRows.every((r) => r.building_pk !== cur.building_pk)) setSt(cur.s6_match ? "done" : null);
   }, [cur?.building_pk, cur?.has_owner]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // 모달을 보는 동안 대화창의 대상 = 이 매물
@@ -236,27 +236,8 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
   return (
     <div className="lx">
       <div className="lx-bar">
-        {chip(lane === "own", "매물", () => setLane("own"), owned.length)}
-        {chip(lane === "watch", "관심", () => setLane("watch"), watched.length)}
-        {chip(lane === "done", "계약", () => setLane("done"), sold.length)}
         <input className="lt-q lx-q" value={q} placeholder="주소 · 소유자 · 매물번호 · 담당 · 메모"
           onChange={(e) => setQ(e.target.value)} />
-        <span className="sp" />
-        <span className="lx-rg" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setSortOpen(false); }}>
-          <button className="lx-sort" onClick={() => setSortOpen(!sortOpen)}>
-            {SORTS.find(([k]) => k === sort.k)?.[1] ?? { addr: "주소", rent: "임대", next: "다음 일정" }[sort.k as string]}
-            <i>{sort.asc ? "↑" : "↓"}</i></button>
-          {sortOpen && (
-            <span className="lx-rg-pop lx-sort-pop">
-              {SORTS.map(([k, l]) => chip(sort.k === k, sort.k === k ? `${l} ${sort.asc ? "↑" : "↓"}` : l,
-                () => setSort((s) => (s.k === k ? { k, asc: !s.asc } : { k, asc: k === "listing_no" }))))}
-            </span>
-          )}
-        </span>
-        <button className="lt-add" title="매물 등록" onClick={() => setAdd(true)}>
-          <Icon name="plus" size={14} /></button>
-      </div>
-      <div className="lx-filt">
         {(() => {
           const pp = (key: string, label: string, val: string | null, body: React.ReactNode) => (
             <Pop key={key} label={label} val={val} open={pop === key}
@@ -268,6 +249,8 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
           const flagTxt = { urgent: "급매", exclusive: "전속", hold: "보류" } as const;
           const mem = members.data ?? [];
           return <>
+            {pp("st", "상태", ST.find(([k]) => k === st)?.[1] ?? null,
+              ST.map(([k, l]) => chip(st === k, l, () => setSt(st === k ? null : k), list.filter((r) => stOf(r) === k).length)))}
             {mem.length > 1 && pp("who", "담당", nameOf(who),
               mem.map((m) => chip(who === m.account_id, m.name, () => setWho(who === m.account_id ? null : m.account_id))))}
             {gus.length > 0 && pp("region", "지역", gu ? `${gu}${dong ? ` ${dong}` : ""}` : null, <>
@@ -289,8 +272,21 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
             {anyFilter && <button className="lx-ic lx-reset" title="거르기 지움" onClick={reset}><Icon name="reset" size={13} /></button>}
           </>;
         })()}
+        <span className="sp" />
+        <span className="lx-rg" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setSortOpen(false); }}>
+          <button className="lx-sort" onClick={() => setSortOpen(!sortOpen)}>
+            {SORTS.find(([k]) => k === sort.k)?.[1] ?? { addr: "주소", rent: "임대", next: "다음 일정" }[sort.k as string]}
+            <i>{sort.asc ? "↑" : "↓"}</i></button>
+          {sortOpen && (
+            <span className="lx-rg-pop lx-sort-pop">
+              {SORTS.map(([k, l]) => chip(sort.k === k, sort.k === k ? `${l} ${sort.asc ? "↑" : "↓"}` : l,
+                () => setSort((s) => (s.k === k ? { k, asc: !s.asc } : { k, asc: k === "listing_no" }))))}
+            </span>
+          )}
+        </span>
+        <button className="lt-add" title="매물 등록" onClick={() => setAdd(true)}>
+          <Icon name="plus" size={14} /></button>
       </div>
-
       <div className="lx-wrap">
         <table className="lx-t">
           <thead><tr>
@@ -365,7 +361,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
             })}
           </tbody>
         </table>
-        {!shown.length && <div className="lt-none">{laneRows.length ? "맞는 매물이 없습니다" : "담은 매물이 없습니다"}</div>}
+        {!shown.length && <div className="lt-none">{list.length ? "맞는 매물이 없습니다" : "담은 매물이 없습니다"}</div>}
       </div>
 
       {cur && (

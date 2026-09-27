@@ -249,7 +249,7 @@
 .lx-q{width:260px; background:#FFFFFF}
 .lx-filt .um-chip{background:#FFFFFF; font-size:12.5px; padding:5px 12px}
 .lx-filt .um-chip.on{background:#EBF4FF}
-.lx-bar .um-chip{background:#FFFFFF}
+.lx-bar .um-chip{background:#FFFFFF; font-size:12.5px; padding:5px 12px}
 .lx-bar .um-chip.on{background:#EBF4FF}
 .lx-div{width:1px; height:16px; background:#D1D6DB; margin:0 4px}
 /* 둘째 줄 — 필터 이름 pill. 누르면 아래로 선택지가 펼쳐진다 */
