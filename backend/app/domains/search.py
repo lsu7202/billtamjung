@@ -136,7 +136,7 @@ async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(curr
                 norm, user.team_id, need))
         seen = {r["building_pk"] for r in rows}
 
-    # 매물번호·소유자명 — 「BT-1292 있잖아요」·「김영순씨 건물」로도 찾는다(2026-08-28).
+    # 매물번호·소유자명 — 「1292 있잖아요」·「김영순씨 건물」로도 찾는다(2026-08-28).
     #    주소만 받으면 전화로 번호를 부르는 현장 어법이 검색으로 안 이어진다.
     # ★ trgm **앞**에 둔다: 팀 매물은 몇 건뿐이라 늘 0.15s 안에 끝나는데,
     #   뒤에 두면 0.9s 짜리 trgm 을 먼저 태우고 나서야 여기 온다(2026-08-28 실측 2.4s).
@@ -434,7 +434,7 @@ class Filters(BaseModel):
     myeolsils: list[str] | None = Field(None, description="멸실(헐기) 가능 여부. 우리 매물에만 있다")       # 멸실
     assignees: list[int] | None = Field(None, description="담당자 account_id. 우리 매물에만 있다")       # 담당자(account_id)
     owner_name: str | None = Field(None, description="소유자 이름 부분일치. 우리 매물에만 있다")            # 소유자명(부분일치)
-    listing_no: str | None = Field(None, description="매물번호 부분일치(BT-1295 꼴). 우리 매물에만 있다")            # 매물번호(부분일치)
+    listing_no: str | None = Field(None, description="매물번호 부분일치(숫자, 예 1295). 우리 매물에만 있다")            # 매물번호(부분일치)
     intent: str | None = Field(None, description="매도 의사. 우리 매물에만 있다")                # 매수의향서 원함/원치않음
     has_phone: str | None = Field(None, description="「있음」 또는 「없음」. 소유자 전화를 아는가. 우리 매물에만 있다")             # 전화번호 있음/없음
     has_photo: str | None = Field(None, description="「있음」 또는 「없음」. 사진이 있는가. **건물을 고르는 조건이 아니다**")             # 사진 있음/없음
@@ -973,7 +973,7 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
                l.rent_full, l.roi_full, l.full_est,      -- 만실(0181) · full_est 면 추정이 섞였다
                (l.id IS NOT NULL) AS has_listing,   -- 「우리 팀 매물인가」 · 담당 배정과 다르다
                l.assignee_account_id, l.urgency, l.grade, l.ipji, ow.owner_type,
-               ow.relation, ow.cooperation, ow.kindness, l.building_use, l.meongdo, l.use_change,
+               ow.relation, ow.cooperation, ow.kindness, l.building_major, l.building_use, l.price_vs_market, l.meongdo, l.use_change,
                l.myeolsil, l.nohudo, ow.phone AS owner_phone, ow.name AS owner_name,
                l.listing_no, l.intent, l.received_on,
                sa.sale_cnt,
@@ -1015,7 +1015,7 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
                approval_ymd, remodel_ymd, bcr, far, gongsi_latest,
                lng, lat, last_sale_price, last_sale_ym, sale_est, assignee_account_id,
                urgency, grade, ipji, owner_type, relation, cooperation, kindness,
-               building_use, meongdo, use_change, myeolsil, nohudo,
+               building_major, building_use, price_vs_market, meongdo, use_change, myeolsil, nohudo,
                owner_phone, owner_name, listing_no, intent, received_on, has_photo,
                COALESCE(sale_cnt, 0) AS sale_cnt,
                CASE WHEN {mine_is_out} THEN 'mine' ELSE 'normal' END AS col,
@@ -1285,7 +1285,7 @@ _ECHO: dict[str, str] = {
 # fields 로 고를 수 있는 칸 — 되비칠 수 있는 것 전부 + 늘 나가는 것
 _FIELDS_OK = ({c.split(" AS ")[0] for v in _ECHO.values() for c in (v if isinstance(v, tuple) else (v,))}
               | {"lng", "lat", "col", "price_is_est", "owner_phone", "grade", "ipji",
-                 "building_use", "nohudo", "est_annual_rent"}
+                 "building_major", "building_use", "price_vs_market", "nohudo", "est_annual_rent"}
               # 조회 대장에만 있던 넷. 조건으로는 못 걸고 **보기만** 한다(2026-09-21).
               | {"structure", "height", "road_addr", "bjd_code"}
               # 측면·후면 도로폭은 조건은 없고 보기만(2026-09-22). 전면은 조건이 된다
@@ -1469,11 +1469,7 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
     if body.sort in _SORT_ALIAS:
         order = _SORT_ALIAS[body.sort].format(d=d)
     elif body.sort in _FIELDS_OK:
-        # 유동인구는 250m 격자 값이라 동률 덩어리가 크다(종로구 24,683동에 값 289개 · 한 격자에 91동).
-        # 건물번호로 끊으면 「제일 붐비는 스물」이 아니라 「제일 붐비는 격자의 아무 스물」이 된다.
-        # 같은 격자 안에선 추정가 큰 순으로 세운다(2026-09-25, 할일 A-13)
-        tie = "sale_est DESC NULLS LAST, " if body.sort in ("float_pop", "float_pop_night") else ""
-        order = f"{body.sort} {d} NULLS LAST, {tie}building_pk"
+        order = f"{body.sort} {d} NULLS LAST, building_pk"
     elif body.for_model:
         # 모델 층은 이름을 다 검사해서 보내므로 여기 오면 우리 표가 어긋난 것이다.
         # 조용히 기본으로 떨어뜨리면 「오름차순」이 내림차순으로 나가도 아무도 모른다.

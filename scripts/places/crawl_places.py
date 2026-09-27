@@ -80,6 +80,34 @@ class Stop(Exception):
     pass
 
 
+def read_members(path: str):
+    """이어 받기용 읽기 — gzip 조각을 하나씩 따로 푼다(2026-09-26).
+
+    도중에 끊으면 그 실행의 조각이 끝나지 않은 채 남고, 다음 실행은 그 뒤에 새 조각을 붙인다.
+    gzip.open 은 덜 끝난 첫 조각에서 멈춰서, 뒤 조각에 든 수십만 주소를 「안 받은 것」으로 알고
+    처음부터 다시 받았다. 여기서는 조각 머리(파일 이름이 박힌 헤더)마다 따로 풀고,
+    덜 끝난 조각은 풀리는 데까지만 쓴다. 잘린 마지막 줄은 버린다(다시 받는다)."""
+    import zlib
+    raw = open(path, "rb").read()
+    name = os.path.basename(path)[:-3].encode() + b"\x00"       # gzip.open 이 헤더에 적는 이름
+    heads = [m.start() for m in re.finditer(re.escape(b"\x1f\x8b\x08\x08"), raw)
+             if raw.find(name, m.start(), m.start() + 64) > 0] or [0]
+    for k, h in enumerate(heads):
+        end = heads[k + 1] if k + 1 < len(heads) else len(raw)
+        d, out = zlib.decompressobj(31), []
+        for i in range(h, end, 1 << 16):
+            try:
+                out.append(d.decompress(raw[i:min(i + (1 << 16), end)]))
+            except zlib.error:
+                break
+            if d.eof:
+                break
+        lines = b"".join(out).decode("utf-8", "ignore").split("\n")
+        if not d.eof:
+            lines = lines[:-1]                                    # 덜 끝난 조각의 마지막 줄은 잘렸을 수 있다
+        yield from (ln for ln in lines if ln.strip())
+
+
 DEADLINE: float | None = None     # --until. 이 시각이 되면 하던 주소까지 마치고 파일을 닫는다
 
 
@@ -90,16 +118,11 @@ class Source:
         self.stopped: str | None = None
         self.done: set[str] = set()
         if os.path.exists(path):
-            # 도중에 끊으면 압축 끝이 잘린다. 읽을 수 있는 데까지만 읽고, 잘린 뒤 주소는 다시 받는다
-            try:
-                with gzip.open(path, "rt", encoding="utf-8") as f:
-                    for line in f:
-                        try:
-                            self.done.add(json.loads(line)["road"])
-                        except Exception:
-                            pass
-            except (EOFError, OSError):
-                pass
+            for line in read_members(path):
+                try:
+                    self.done.add(json.loads(line)["road"])
+                except Exception:
+                    pass
         self.out = gzip.open(path, "at", encoding="utf-8")
         self.n = self.places = self.fails = self.streak = 0
         self.t0 = time.time()

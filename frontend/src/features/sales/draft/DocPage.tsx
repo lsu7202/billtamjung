@@ -151,11 +151,11 @@ export function DocPage() {
   const [terms, setTerms] = useState<string[]>([]);
 
   /* 임대차 — 사람이 입력한 것(floor_rents)만 문서에 온다. 추정치는 문서에 안 들어간다(사실/추정 구분) */
-  const rentRows = rents.data?.items ?? [];
+  // 임차인 현황표에는 **임대중 호실**만 선다(0185). 공실 호실은 아래 공실 줄의 넓이로 모인다
+  const rentRows = (rents.data?.items ?? []).filter((x) => x.occupied !== false);
   const rentSum = rentRows.reduce((a, x) => ({
     dep: a.dep + (x.deposit ?? 0), mo: a.mo + (x.rent ?? 0), mg: a.mg + (x.maintenance ?? 0),
   }), { dep: 0, mo: 0, mg: 0 });
-  // 층별 줄은 들어온 업체뿐이다(0180) — 공실은 줄이 아니라 층의 면적이다
   const tenants = rentRows;
   const vacantArea = (rents.data?.total as { vacant_area?: number | null } | undefined)?.vacant_area ?? null;
 
@@ -906,8 +906,8 @@ export function DocPage() {
               {rentRows.map((x, i) => (
                 <tr key={i}><td className="c">{x.floor}</td><td>{x.tenant_name ?? ""}</td>
                   <td>{x.use ?? ""}</td><td className="r">{x.contract_area ?? ""}</td>
-                  <td className="r">{comma(x.deposit)}</td><td className="r">{comma(x.rent)}</td>
-                  <td className="r">{comma(x.maintenance)}</td></tr>
+                  <td className="r">{comma(x.deposit ?? null)}</td><td className="r">{comma(x.rent ?? null)}</td>
+                  <td className="r">{comma(x.maintenance ?? null)}</td></tr>
               ))}
               {rentRows.length === 0 && (
                 <tr><td colSpan={7} className="c" style={{ height: "16mm" }}>임대 내역이 없습니다 — 매물 정보 탭에서 입력합니다</td></tr>

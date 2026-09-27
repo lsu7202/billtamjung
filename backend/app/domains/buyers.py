@@ -21,14 +21,15 @@ from ..core.shape import drop, keep
 PROPOSAL_DROP = ("team_id", "report_id", "note", "created_by", "created_at", "visited_on", "visit_note",
                  "commission_amount", "commission_split", "report_filed_on", "terms", "brief_note",
                  "buyer_nationality", "next_sched_title", "next_sched_on", "next_sched_at",
-                 "land_area", "total_area", "use_zone", "price_is_est", "sale_est", "use_type", "vs_est_pct",
+                 "land_area", "total_area", "use_zone", "price_is_est", "sale_est", "vs_est_pct",
                  "roi", "photo_id", "d_stage", "deal_cells", "cell_sched", "price_log")
 # 매물 보드 줄: 다음 일정·추정가·접수일·점수·사진·보고서 유무·광고/노출/시기 칸·마지막 접촉·사다리 낱말.
 # price 는 list_price 와 같은 값이 두 번 실린 것.
-SELLER_DROP = ("next_sched_title", "next_sched_on", "next_sched_at", "est_price", "received_on", "sell_score",
-               "use_type", "photo_id", "photo_n", "photo_kinds", "has_report", "has_briefing",
-               "nohudo", "ipji", "ad_status", "ad_off", "co_sent_on", "sell_on",
-               "last_on", "last_kind", "last_note", "stage", "passed", "land_area", "total_area", "price")
+# 매물 표(2026-09-26)가 다음 일정·접수일·사진·규모·등급·입지·노후도·시기 날짜를 되살려 쓴다.
+SELLER_DROP = ("next_sched_at", "est_price", "sell_score",
+               "photo_n", "photo_kinds", "has_report", "has_briefing",
+               "ad_status", "ad_off",
+               "last_on", "last_kind", "last_note", "stage", "passed", "price")
 # 오늘 화면 항목
 TODAY_SCHED_DROP = ("kind", "proposal_id", "assignee_account_id", "assignee_name")
 TODAY_TURN_DROP = ("side", "days", "id", "since", "briefed", "price", "owner_id", "intent", "last_on",
@@ -341,7 +342,7 @@ async def list_proposals(buyer_id: int | None = None, building_pk: str | None = 
                   COALESCE(l2.sale_price, se.sale_est) AS price,
                   (l2.sale_price IS NULL) AS price_is_est,
                   -- 카드에 값 판단 재료를 같이 낸다. "3.2억"만 있으면 비싼지 싼지 모른다.
-                  se.sale_est, sc.use_type,
+                  se.sale_est,
                   CASE WHEN se.sale_est > 0 AND l2.sale_price IS NOT NULL
                        THEN round((l2.sale_price::numeric / se.sale_est - 1) * 100, 1) END AS vs_est_pct,
                   -- 수익률·연임대는 매물 줄에 접어 둔 값이다(0173). 여기서 나누지 않는다.
@@ -646,6 +647,15 @@ async def buyer_events(bid: int, limit: int = 12, user: CurrentUser = Depends(cu
 
 
 @router.get("/sales/find")
+
+def _says_listing(no: str | None, up: str) -> bool:
+    """문장이 이 매물번호를 말하나. 매물번호가 숫자만이라(0183) 부분일치로 보면
+    「2248만원」에도 걸린다 — 앞뒤에 숫자·글자가 붙지 않은 자리만 번호로 본다.
+    옛 번호(BT-2248)로 말해도 알아듣는다."""
+    if not no:
+        return False
+    return bool(_re.search(rf"(?<![0-9A-Za-z가-힣])(?:BT-?)?{_re.escape(no.upper())}(?![0-9A-Za-z가-힣])", up))
+
 async def find_target(q: str, user: CurrentUser = Depends(current_user)):
     """문장에서 **누구(어느 매물) 얘기인지**를 찾는다 — 하단 대화창의 대상 찾기.
 
@@ -654,13 +664,13 @@ async def find_target(q: str, user: CurrentUser = Depends(current_user)):
 
     맞추는 차례(숫자가 작을수록 세다):
       ① 이름 통째        「윤미경 내일 2시」
-      ② 매물번호         「BT-1112 잔금」
+      ② 매물번호         「1112 잔금」
       ③ 주소 조각        「49-9 자식들이 반대」 · 「삼성동 27-12」
       ④ 전화 뒷 4자리    「0000 통화함」
       ⑤ 성 + 호칭        「윤 사장님」
 
     같이 주는 것: 어느 길로 맞았는지(via)와 그 매물(building_pk·proposal_id) —
-    「BT-1112 잔금」은 사람 장부가 아니라 **그 매물 장부**에 적혀야 한다.
+    「1112 잔금」은 사람 장부가 아니라 **그 매물 장부**에 적혀야 한다.
     """
     t = (q or "").strip()
     if len(t) < 2:
@@ -691,13 +701,13 @@ async def find_target(q: str, user: CurrentUser = Depends(current_user)):
     for r in rows:
         name = r["name"] or ""
         rank = 0; via = None
-        # 매물 언급은 순위와 **별개로** 본다 — 「문서희 BT-1112 …」는 이름이 순위를 갖지만
+        # 매물 언급은 순위와 **별개로** 본다 — 「문서희 1112 …」는 이름이 순위를 갖지만
         # 매물을 명시했으니 그 매물 장부로 가야 한다(한 줄에 둘 다 있는 게 보통이다).
-        hit_listing = bool(r["listing_no"] and r["listing_no"].upper() in up) or \
+        hit_listing = _says_listing(r["listing_no"], up) or \
                       bool(r["addr"] and any(j in r["addr"] for j in jibuns))
         if len(name) >= 2 and name in t:
             rank, via = 1, "name"
-        elif r["listing_no"] and r["listing_no"].upper() in up:
+        elif _says_listing(r["listing_no"], up):
             rank, via = 2, "listing"
         elif r["addr"] and any(j in r["addr"] for j in jibuns):
             rank, via = 3, "addr"
@@ -713,7 +723,7 @@ async def find_target(q: str, user: CurrentUser = Depends(current_user)):
         key = (r["kind"], r["id"])
         cur = best.get(key)
         # 매물 길(listing/addr)로 맞았으면 그 매물을 싣는다. 이름과 매물이 **같이** 있는
-        # 문장(「문서희 BT-1112 …」)은 이름이 순위를 갖되 매물 정보는 합쳐 둔다 —
+        # 문장(「문서희 1112 …」)은 이름이 순위를 갖되 매물 정보는 합쳐 둔다 —
         # 안 합치면 매물을 명시했는데도 사람 장부로 가버린다.
         # 이름만 맞고 매물 언급이 없으면 매물은 비운다(매물이 하나라고 그리로 보내는 건 추측이다).
         via_b = via in ("listing", "addr") or hit_listing
@@ -1301,13 +1311,6 @@ async def buyer_matches(bid: int, limit: int = 6, user: CurrentUser = Depends(cu
                 break
         if len(out) >= limit:
             break
-    # 배치 활용유형을 붙인다 — 카드에서 판단 재료가 되게(매력도 등급은 2026-09-06 에 없앴다)
-    if out:
-        scs = {r["building_pk"]: dict(r) for r in await pool().fetch(
-            """SELECT building_pk, use_type FROM master.building_score
-               WHERE building_pk = ANY($1::text[])""", [o["building_pk"] for o in out])}
-        for o in out:
-            o["use_type"] = scs.get(o["building_pk"], {}).get("use_type")
     return out
 
 
@@ -1938,7 +1941,13 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                   l.ask_price,                  -- 매도희망가 — 매물 줄의 값(0173)
                   -- 수익률 = 매물 줄에 접어 둔 값(총임대×12 ÷ 매매가). 추정 임대로 나누던 옛 식은 뺐다.
                   l.roi,
-                  sc.sell_score, sc.use_type, ph.id AS photo_id,
+                  sc.sell_score, ph.id AS photo_id,
+                  -- 매물 표(0182·0184) — 대분류·소분류·등급·전속·확인일·층수
+                  l.building_major, l.building_use, l.grade, l.exclusive, l.checked_on, l.price_vs_market,
+                  b.floors_above, b.floors_below,
+                  -- 모달 요약 탭의 임대 합계 줄(정본=건물 상세 층별)
+                  l.total_deposit, l.total_rent, l.total_mgmt, l.vacant_area, l.roi_full, l.full_est,
+                  l.pp_land_team,          -- 표 금액 칸의 평단가(대지, 원/평)
                   -- 자료 창의 파생 상태(2026-08-18) — 정본은 건물 상세. 여기선 읽기만.
                   (SELECT count(*) FROM app.photos f
                     WHERE f.building_pk = l.building_pk AND f.team_id = l.team_id
@@ -1959,7 +1968,7 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                           WHERE rp.building_pk = l.building_pk AND tm2.team_id = l.team_id
                             AND rp.status = 'done' AND rp.kind = 'briefing') AS has_briefing,
                   l.meongdo, l.use_change, l.myeolsil, l.nohudo, l.ipji,
-                  l.ad_status, l.ad_off, l.co_sent_on,
+                  l.ad_status, l.ad_off,
                   l.sell_on, l.sell_vague, l.rent_check,
                   fr.rent_n,
                   ob.id AS owner_buyer_id,
@@ -1992,7 +2001,7 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                                LIMIT 1) ph ON TRUE
            -- 다음 일정 — 머리의 「상태 + 다음 일정」 재료(2026-08-15). 예정만, 오늘 이후만.
            LEFT JOIN LATERAL (SELECT s.title AS next_sched_title, s.on_date AS next_sched_on,
-                                     s.at_time AS next_sched_at
+                                     s.at_time AS next_sched_at, s.category AS next_sched_cat
                                 FROM app.schedules s
                                WHERE s.team_id = l.team_id AND s.building_pk = l.building_pk
                                  AND s.state='예정' AND s.on_date >= current_date
@@ -2027,7 +2036,9 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
            LEFT JOIN LATERAL (SELECT count(*) AS rent_n
                                 FROM app.floor_rents f2
                                WHERE f2.building_pk = l.building_pk AND f2.team_id = l.team_id
-                                 AND f2.deleted_at IS NULL) fr ON TRUE
+                                 AND f2.deleted_at IS NULL
+                                 -- 받은 임대내역 = 돈이 적힌 호실. 원장에서 복사한 업체 줄은 안 센다(0185)
+                                 AND (f2.rent > 0 OR f2.deposit > 0)) fr ON TRUE
            -- 소유자가 매수자 명단에도 있나(전화 숫자 일치) — 의사 창 「매수도 원함」 칩의 근거
            LEFT JOIN LATERAL (SELECT b2.id FROM app.buyers b2
                                WHERE b2.team_id = l.team_id AND b2.deleted_at IS NULL
@@ -2597,18 +2608,15 @@ async def sales_today(mine: bool = True, user: CurrentUser = Depends(current_use
     #   접촉 전 = 첫 전화(T2) · 접촉 후 RECALL_DAYS 무접촉 = 재통화(T3) · 계약된 것 제외(T4)
     sellers = await pool().fetch(
         f"""SELECT l.building_pk, l.owner_id, o.name AS owner_name, l.intent, b.addr,
-                  c.last_on, current_date - c.last_on AS days,
+                  l.checked_on AS last_on, current_date - l.checked_on AS days,
                   sc.sell_score, se.sale_est AS price
            FROM app.listings l
            LEFT JOIN app.owners o ON o.id = l.owner_id AND o.deleted_at IS NULL   -- 0058
            LEFT JOIN master.buildings b ON b.building_pk = l.building_pk
            LEFT JOIN master.building_score sc ON sc.building_pk = l.building_pk
            LEFT JOIN master.building_sale_est se ON se.building_pk = l.building_pk
-           -- **사람이 남긴 줄만** 접촉으로 센다(2026-08-29). 일정을 만들면 매물 장부에
-           -- 자동 거울 줄이 한 줄 서는데, 통화를 안 했는데도 그게 재통화 시계를 되돌렸다.
-           LEFT JOIN LATERAL (SELECT max(occurred_on) AS last_on FROM app.contacts ct
-                               WHERE ct.team_id=l.team_id AND ct.target_type='listing'
-                                 AND ct.target_id=l.building_pk AND NOT ct.auto) c ON TRUE
+           -- 마지막 접촉 = 매물 줄의 확인일(0182). **사람이 남긴 줄만** 센다 — 일정을 만들면
+           -- 자동 거울 줄이 서는데, 통화를 안 했는데도 그게 재통화 시계를 되돌렸다(2026-08-29).
            WHERE l.team_id=$1
              AND NOT {SELLER_DONE.format(t="l")} AND {SELLER_LIVE.format(t="l")}
              -- 보류 중이면 재촉이 무의미하다(S04b §2.4) — 사람이 보류를 풀면 다시 뜬다.
@@ -2616,10 +2624,10 @@ async def sales_today(mine: bool = True, user: CurrentUser = Depends(current_use
              AND NOT EXISTS (SELECT 1 FROM app.stops st
                               WHERE st.team_id=l.team_id AND st.target_type='listing'
                                 AND st.target_id=l.building_pk AND st.resolved_at IS NULL)
-             AND (c.last_on IS NULL OR c.last_on <= current_date - $2::int)
+             AND (l.checked_on IS NULL OR l.checked_on <= current_date - $2::int)
              -- 담당 미지정 리드는 팀 공동 — '내 담당'에서도 보인다(안 보이면 아무도 안 챙긴다)
              AND ($3::bigint IS NULL OR l.assignee_account_id = $3 OR l.assignee_account_id IS NULL)
-           ORDER BY c.last_on NULLS FIRST LIMIT 20""", user.team_id, RECALL_DAYS, me)
+           ORDER BY l.checked_on NULLS FIRST LIMIT 20""", user.team_id, RECALL_DAYS, me)
     for r in sellers:
         d = dict(r)
         if r["last_on"] is None:
@@ -2671,24 +2679,22 @@ async def sales_today(mine: bool = True, user: CurrentUser = Depends(current_use
     if regions:
         w = _STYLE_W.get((prof and prof["style"]) or 3, _STYLE_W[3])
         leads = await pool().fetch(
-            """SELECT b.building_pk, b.addr, sc.sell_score, sc.sell_axes, sc.use_type, se.sale_est,
-                      COALESCE((sc.sell_axes->'hold'->>'pt')::numeric,0)*$4
-                    + COALESCE((sc.sell_axes->'age'->>'pt')::numeric,0)*$5
-                    + COALESCE((sc.sell_axes->'gongsi_up5'->>'pt')::numeric,0)*$6
-                    + COALESCE((sc.sell_axes->'headroom'->>'pt')::numeric,0)*$7
-                    + COALESCE((sc.sell_axes->'redevel'->>'pt')::numeric,0)*$8 AS pscore
+            """SELECT b.building_pk, b.addr, sc.sell_score, sc.sell_axes, se.sale_est,
+                      COALESCE((sc.sell_axes->'hold'->>'pt')::numeric,0)*$3
+                    + COALESCE((sc.sell_axes->'age'->>'pt')::numeric,0)*$4
+                    + COALESCE((sc.sell_axes->'gongsi_up5'->>'pt')::numeric,0)*$5
+                    + COALESCE((sc.sell_axes->'headroom'->>'pt')::numeric,0)*$6
+                    + COALESCE((sc.sell_axes->'redevel'->>'pt')::numeric,0)*$7 AS pscore
                FROM master.building_score sc
                JOIN master.buildings b ON b.building_pk = sc.building_pk
                LEFT JOIN master.building_sale_est se ON se.building_pk = sc.building_pk
                WHERE sc.sell_score >= 50 AND substr(b.bjd_code,1,5) = ANY($2::text[])
-                 AND ($9::bigint IS NULL OR se.sale_est >= $9)
-                 AND ($10::bigint IS NULL OR se.sale_est <= $10)
-                 AND ($3::text[] IS NULL OR sc.use_type = ANY($3::text[]))
+                 AND ($8::bigint IS NULL OR se.sale_est >= $8)
+                 AND ($9::bigint IS NULL OR se.sale_est <= $9)
                  AND NOT EXISTS (SELECT 1 FROM app.listings l
                                   WHERE l.team_id=$1 AND l.building_pk = sc.building_pk)
                ORDER BY pscore DESC LIMIT 5""",
             user.team_id, regions,
-            (prof["use_types"] if prof and prof["use_types"] else None),
             w["hold"], w["age"], w["gongsi_up5"], w["headroom"], w["redevel"],
             prof["price_min"] if prof else None, prof["price_max"] if prof else None)
         base_why = "주 활동 지역" if personalized else "팀 활동 구 기준"

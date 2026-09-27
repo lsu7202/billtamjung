@@ -563,23 +563,30 @@ VALUE_FIELDS = ("sale_price", "ask_price")     # 이력(field_events)을 남기�
 
 
 async def listing_values_fold(team_id: int, pk: str) -> None:
-    """층별 실측이 있으면 그 합계로 total_* 를 덮고(0134: 층별 > 직접 입력), 수익률을 다시 낸다.
-    층별이 없으면 직접 적은 총액을 그대로 두고 수익률만 다시 낸다. 매물 줄이 없으면 아무 일도 없다.
+    """호실 줄(임대 내역)을 **다 채웠을 때만** 그 합으로 total_* 를 덮고, 수익률을 다시 낸다(2026-09-27 대표 (다)안).
 
-    공실은 층별 줄에 없다(0180). 층마다 적은 공실면적(app.floor_vacancy)의 합이고, 한 층도 안
-    적었으면 NULL(모름)이다. 층별 줄은 들어온 업체뿐이라 총월임대가 곧 들어오는 돈이다."""
+    다 채웠다 = 임대중 호실(app.unit_occupied)이 하나 이상 있고, 그 전부에 월임대가 적혀 있다.
+    하나라도 비어 있으면 직접 적은 총액을 그대로 둔다 — 호실 한 줄만 적었는데 총액이 그 한 줄 값으로
+    줄어들던 것((가)안의 흠), 그리고 원장에서 복사한 업체 줄(0185, 돈 칸이 빔)이 총액을 지우던 것을 막는다.
+    공실 호실은 셈에 안 든다(들어오는 돈이 없다).
+
+    공실면적은 DB 함수 app.listing_vacancy 하나가 판다 — 적힌 공실 호실의 합, 없으면 null(0186)."""
     await pool().execute(
-        """WITH agg AS (
-             SELECT SUM(rent) AS rent, SUM(deposit) AS deposit, SUM(maintenance) AS mgmt, count(*) AS n
+        """WITH r AS (
+             SELECT rent, deposit, maintenance, app.unit_occupied(tenant_name, place_ref, rent) AS occ
                FROM app.floor_rents WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL),
-           vac AS (
-             SELECT SUM(vacant_area) AS area FROM app.floor_vacancy WHERE building_pk=$1 AND team_id=$2)
+           a AS (
+             SELECT count(*) FILTER (WHERE occ) AS n_occ,
+                    count(*) FILTER (WHERE occ AND COALESCE(rent, 0) > 0) AS n_paid,
+                    SUM(rent) FILTER (WHERE occ) AS rent, SUM(COALESCE(deposit, 0)) FILTER (WHERE occ) AS deposit,
+                    SUM(COALESCE(maintenance, 0)) FILTER (WHERE occ) AS mgmt
+               FROM r)
            UPDATE app.listings l
-              SET total_rent    = CASE WHEN a.n > 0 THEN a.rent    ELSE l.total_rent END,
-                  total_deposit = CASE WHEN a.n > 0 THEN a.deposit ELSE l.total_deposit END,
-                  total_mgmt    = CASE WHEN a.n > 0 THEN a.mgmt    ELSE l.total_mgmt END,
-                  vacant_area   = v.area
-             FROM agg a, vac v WHERE l.building_pk=$1 AND l.team_id=$2""", pk, team_id)
+              SET total_rent    = CASE WHEN a.n_occ > 0 AND a.n_paid = a.n_occ THEN a.rent    ELSE l.total_rent END,
+                  total_deposit = CASE WHEN a.n_occ > 0 AND a.n_paid = a.n_occ THEN a.deposit ELSE l.total_deposit END,
+                  total_mgmt    = CASE WHEN a.n_occ > 0 AND a.n_paid = a.n_occ THEN a.mgmt    ELSE l.total_mgmt END,
+                  vacant_area   = app.listing_vacancy($1, $2)
+             FROM a WHERE l.building_pk=$1 AND l.team_id=$2""", pk, team_id)
     # 만실 월임대·만실 수익률(0181) — 공실면적 × 그 층 평당가(실측 → 없으면 추정). 산식은 DB 함수
     # 하나에 있다. 여기와 마이그레이션 채우기가 같은 것을 불러야 두 길이 안 갈린다.
     # 위에서 total_rent 를 접은 **뒤에** 부른다 — 만실의 바탕이 지금 월임대다.

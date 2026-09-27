@@ -123,10 +123,6 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   const shortAddr = addr.replace(/^서울특별시\s*/, "").replace(/\s*번지$/, "");
 
 
-  const ut = pv?.use_type ?? null;
-  const officeApt = (ut?.office_fit ?? 0) >= 65;
-  const fut = ut?.future ?? null;
-
   const useZone = zoneLabel(b) ?? "—";
   const mainUse = (b.main_use_name as string) || (b.main_use as string) || (b.etc_use as string) || "—";
 
@@ -142,17 +138,6 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
       ? [{ t: `로 주변 평균(${nbhdRoi}%)보다 ` }, { t: `${roiFair != null && roiFair >= nbhdRoi ? "높은" : "낮은"}`, b: true }, { t: ` 수준이며,` }]
       : [{ t: `로,` }]),
     { t: ` 월 약 ` }, { t: `${rent ? man(rent) + "만원" : "—"}`, b: true }, { t: `의 임대수익이 기대됩니다.` },
-    ...(ut ? [
-      { t: ` 활용 측면에서는 ` }, { t: `${ut.primary}`, b: true },
-      ...(officeApt ? [{ t: `이 최적이며, 업무 상권·역세권이라 ` }, { t: `사옥으로도 적합`, b: true }, { t: `합니다.` }]
-                    : [{ t: `이 최적입니다.` }]),
-    ] : []),
-    ...(fut?.label ? [
-      { t: ` 미래가치는 ` }, { t: `${fut.label}`, b: true },
-      { t: fut.label === "상승 기대형" ? `으로 개발·임대 여력에 따른 추가 상승이 기대됩니다.`
-          : fut.label === "정체형" ? `으로 단기 변동은 크지 않습니다.`
-          : `으로 지가 상승에 따른 안정적 가치 성장이 기대됩니다.` },
-    ] : []),
   ];
 
   // ── 슬라이드 메타(제목·설명) — 단일 소스. 덱·애니메이션 동일 문구 ──
@@ -162,9 +147,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     { key: "deal", n: "03", foot: "실거래가 분석", title: "실거래가 분석", desc: `${shortAddr} 인근의 유사 실거래를 바탕으로 본 매물의 적정매매가를 분석했습니다.` },
     { key: "gongsi", n: "04", foot: "공시지가", title: "공시지가 분석", desc: `${shortAddr}의 공시지가 추이와, 실거래가 공시가 대비 형성되는 수준(공시배율)을 반영합니다.` },
     { key: "rent", n: "05", foot: "임대수익 분석", title: "임대수익 분석", desc: "주변 임대시세로 임대수익을 추정하고, 이를 수익가치(수익환원)로 적정가에 반영합니다." },
-    { key: "usetype", n: "06", foot: "투자 유형", title: "투자 유형 분석", desc: "용적률·상권·연식 등으로 이 건물의 최적 활용(신축·리모델·수익·사옥)을 판별했습니다." },
-    { key: "future", n: "07", foot: "미래가치", title: "미래가치 분석", desc: "지가 상승 추세(기본)에 개발여지·임대 상향 여력(추가)을 더해 본 매물의 향후 가치 성장을 평가했습니다." },
-    { key: "conclusion", n: "08", foot: "종합 결론", title: "종합 결론", desc: "적정가와 수익성을 종합한 본 매물의 최종 결론입니다." },
+    { key: "conclusion", n: "06", foot: "종합 결론", title: "종합 결론", desc: "적정가와 수익성을 종합한 본 매물의 최종 결론입니다." },
   ];
 
   // ── 01 핵심요약 ──
@@ -172,7 +155,7 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     { k: "빌탐정 적정가", s: "시스템 산정", v: fair ? eokman(fair) : "—", c: "var(--navy)" },
     { k: "예상수익률", s: "매매가 기준 · 연 임대수익 (매매가 미입력 시 적정가)", v: roiFair != null ? `${roiFair.toFixed(2)}%` : "—", c: "var(--purple)" },
   ];
-  const summaryTail = { primary: ut?.primary ?? null, officeApt,
+  const summaryTail = {
     avgPerMan: avgPerLand ? `${Math.round(avgPerLand / 1e4).toLocaleString()}만원` : "—",   // 대지 기준
     totalPy: `${py(totalArea)}평` };
 
@@ -219,36 +202,6 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
       : []),
   ];
 
-  // ── 08 미래가치 — "그래서 얼마?" 실제 돈·양으로 설명 ──
-  const _sign = (v: number) => (v >= 0 ? "+" : "−");
-  const _rentDiff = fut && fut.cur_rent && fut.mkt_rent != null ? fut.mkt_rent - fut.cur_rent : null;          // 월 임대 차액(원)
-  // 법정 대비 = 현재 − 법정(2026-09-04). 넘으면 +. 단위는 % 로만 적고 %p 는 쓰지 않는다(규칙).
-  // 비율(현재÷법정−1)로 적으면 700/777인 건물이 "10% 초과"로 나와 77% 초과를 본 중개사와 말이 어긋난다 — 차이 그대로 적는다.
-  const _over = fut?.headroom_far != null ? -fut.headroom_far : null;                                          // 현재 − 법정, 양수=초과
-  const _buildP = fut && fut.headroom_far && fut.headroom_far > 0 && landArea ? landArea * (fut.headroom_far / 100) / P : null;  // 증축 가능 연면적(평)
-  const _g5AgoWon = fut && fut.land_rate5 != null && gTotal ? gTotal / (1 + fut.land_rate5 / 100) : null;       // 5년 전 공시총액(원)
-  const _gAnnualWon = _g5AgoWon != null && gTotal ? (gTotal - _g5AgoWon) / 5 : null;                           // 연평균 상승액(원)
-  const futureAxes = fut ? [
-    { key: "dev", label: "개발여지", c: "var(--navy)",
-      value: fut.headroom_far == null ? "—" : fut.headroom_far > 0 ? (_buildP ? `약 ${Math.round(_buildP).toLocaleString()}평` : `법정 대비 −${fut.headroom_far}%`) : "여지 없음",
-      sub: fut.far != null && fut.legal_far != null
-        ? (fut.headroom_far! > 0
-            ? `현재 용적률 ${fut.far}% / 법정 ${fut.legal_far}% → 법정 대비 −${fut.headroom_far}%, 증축 여지`
-            : `현재 용적률 ${fut.far}% / 법정 ${fut.legal_far}% → 법정 대비 +${_over!.toFixed(0)}%`)
-        : "용적률 정보 없음" },
-    { key: "upside", label: "임대 상향 여력", c: "var(--blue)",
-      value: _rentDiff == null ? "—" : `${_sign(_rentDiff)}${Math.abs(Math.round(_rentDiff / 1e4)).toLocaleString()}만원/월`,
-      sub: fut.cur_rent && fut.mkt_rent != null && _rentDiff != null
-        ? `현재 ${man(fut.cur_rent)}만 → 주변시세 ${man(fut.mkt_rent)}만/월 (${_sign(fut.upside_pct ?? 0)}${Math.abs(fut.upside_pct ?? 0)}%)`
-        : "주변 임대시세 대비" },
-    { key: "land", label: "지가 상승 추세", c: "var(--purple)",
-      value: _gAnnualWon != null ? `연 +${eokman(_gAnnualWon)}` : fut.land_rate5 != null ? `+${fut.land_rate5}%` : "—",
-      sub: fut.land_rate5 == null ? "지가 시계열 없음"
-        : gTotal != null
-          ? `최근 5년 +${fut.land_rate5}%(연 ${fut.land_annual}%) · 현재 공시총액 ${eokman(gTotal)} 기준`
-          : `최근 5년 +${fut.land_rate5}% · 연평균 약 ${fut.land_annual ?? "—"}%` },
-  ] : [];
-
   const loading = (reportId != null && rq.isLoading) || (needLive && cq.isLoading) || (!!pk && bq.isLoading);
   const isError = cq.isError || rq.isError;
   const rno = reportId != null ? `BT-${new Date(rq.data?.created_at ?? "2026-01-01").getFullYear()}-${String(reportId).padStart(6, "0")}` : "미리보기";
@@ -260,8 +213,8 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
     avgPerLand,   // 대지 평단가(원). FairPrice 가 꺼내 쓰는데 여기서 안 내보내 undefined 였다
     gLatest, gTotal, gctx, nbhdGongsi, gmult, landPremium, compMin, compMax, floors,
     roiFair, rs, rFloors, rCurDep, perPyRent, upsidePct, nbhdRoi,
-    ut, officeApt, fut, useZone, mainUse, addr, shortAddr,
+    useZone, mainUse, addr, shortAddr,
     conclusion, SLIDES, summaryRows, summaryTail, basicInfo,
-    gongsiMetrics, gongsiProse, rentMetrics, rentProse, futureAxes,
+    gongsiMetrics, gongsiProse, rentMetrics, rentProse,
   };
 }

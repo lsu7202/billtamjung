@@ -2,13 +2,13 @@ import { useEffect, useRef, useState, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { CountUp, BuildingArt } from "./ReportAssets";
 import { CompareBar } from "./ReportPrimitives";
-import { ReportMap, ZONE_COLOR } from "./ReportMap";
+import { ReportMap } from "./ReportMap";
 import { BuildingPhoto } from "./BuildingPhoto";
 import { useReportModel, num, man, eokman, eokManParts, py, type Seg } from "./reportModel";
 
 /** 몰입형 스크롤 보고서 — 덱(/report)과 동일한 reportModel(값·문구·슬라이드 내용 단일 소스)을 쓰고 디자인만 다르게.
  * 내용(제목·설명·표시 항목·의견·서술)은 덱과 100% 동일, 표현(다크 북엔드·스크롤·모션)만 다름. */
-const RAIL = ["표지", "핵심요약", "기본정보", "실거래", "공시지가", "임대수익", "투자유형", "미래가치", "종합결론"];
+const RAIL = ["표지", "핵심요약", "기본정보", "실거래", "공시지가", "임대수익", "종합결론"];
 
 /** 스토리 세그먼트 서술 렌더(강조=민트/네이비). */
 function Prose({ segs, bold }: { segs: Seg[]; bold: string }) {
@@ -27,9 +27,9 @@ export function ReportStory() {
   }, [pk]);
   const {
     b, fair, rent, curRent, totalArea, avgPer, comps, compMin, compMax,
-    gLatest, nbhdGongsi, gTotal, roiFair, nbhdRoi, ut, officeApt, fut, useZone, mainUse,
+    gLatest, nbhdGongsi, gTotal, roiFair, nbhdRoi, useZone, mainUse,
     shortAddr, conclusion,
-    SLIDES, summaryTail, basicInfo, gongsiMetrics, gongsiProse, rentMetrics, rentProse, futureAxes, moreCount, avgPerNow,
+    SLIDES, summaryTail, basicInfo, gongsiMetrics, gongsiProse, rentMetrics, rentProse, moreCount, avgPerNow,
   } = m;
   const SM = Object.fromEntries(SLIDES.map((s) => [s.key, s])) as Record<string, typeof SLIDES[number]>;
   const addr = shortAddr === "—" ? "매물 분석" : shortAddr;
@@ -112,7 +112,6 @@ export function ReportStory() {
             <p className="story-sub">
               추정가 기준 예상수익률 <b style={{ color: "#7FB0FF" }}>{roiFair != null ? roiFair.toFixed(2) : "—"}%</b> · 대지 평당 추정가 {summaryTail.avgPerMan} · 연면적 {summaryTail.totalPy}
             </p>
-            <KeywordBand items={summaryTail.primary ? [{ lab: "투자 유형", val: summaryTail.primary, extra: officeApt ? "사옥 적합" : null, c: "#7FB0FF" }] : []} />
           </div>
           <div style={{ flex: "0 0 30%", aspectRatio: "3 / 4", maxHeight: "72vh", borderRadius: 18, overflow: "hidden", boxShadow: "0 16px 50px rgba(0,0,0,.45)" }}><BuildingPhoto pk={pk} /></div>
         </div>
@@ -232,63 +231,14 @@ export function ReportStory() {
         </div>
       </section>
 
-      {/* 7 ── 투자 유형 + 상권 지도 ── */}
-      <section data-i={6} ref={setRef(6)} className={cls(6)}>
-        <div className="story-kicker">{SM.usetype.title}</div>
-        <h2 className="story-h">가장 적합한 활용 <b style={{ color: "#3182F6" }}>{ut?.primary ?? "—"}</b>{officeApt ? " · 사옥 적합" : ""}</h2>
-        {ut ? <div className="st-cols">
-          <div>
-            <p className="story-sub" style={{ marginTop: 0 }}>{ut.reason}</p>
-            {shown[6] && <div style={{ marginTop: "2.5vh", maxWidth: 460 }}>
-              <CompareBar height={150} fmt={(v) => `${Math.round(v)}`}
-                items={[{ label: "신축", value: Math.max(ut.scores["신축용"] ?? 0, 1), color: "#191F28" },
-                        { label: "리모델", value: Math.max(ut.scores["리모델링용"] ?? 0, 1), color: "#191F28" },
-                        { label: "수익", value: Math.max(ut.scores["수익형"] ?? 0, 1), color: "#3182F6", strong: true },
-                        { label: "사옥적합", value: Math.max(ut.office_fit ?? 0, 1), color: "#6E56CF" }]} />
-            </div>}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-            {ut.zones && ut.zones.length
-              ? <><StoryMap zones={ut.zones as any} wide />
-                  <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 13, color: "#8B95A1" }}>
-                    {Object.entries(ZONE_COLOR).map(([k, c]) => (
-                      <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 11, height: 11, background: c, borderRadius: 3, display: "inline-block" }} />{k}</span>
-                    ))}
-                  </div></>
-              : <p className="story-sub">주변 상권 데이터가 부족합니다.</p>}
-          </div>
-        </div> : <p className="story-sub">투자 유형 산정 데이터가 부족합니다.</p>}
-      </section>
-
-      {/* 8 ── 미래가치 ── */}
-      <section data-i={7} ref={setRef(7)} className={cls(7)}>
-        <div className="story-kicker">{SM.future.title}</div>
-        <h2 className="story-h">미래가치 <b style={{ color: "#6E56CF" }}>{fut?.label ?? "—"}</b></h2>
-        {fut ? <>
-          <p className="story-sub" style={{ maxWidth: 820 }}>{fut.reason}</p>
-          <div style={{ marginTop: "3vh", maxWidth: 760 }}>
-            {futureAxes.map((x, i) => (
-              <div key={x.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 20, padding: "16px 0", borderTop: i === 0 ? "none" : "1px solid #ececef" }}>
-                <div>
-                  <div style={{ fontSize: "clamp(15px,1.6vw,19px)", fontWeight: 700, color: "#191F28" }}>{x.label}</div>
-                  <div style={{ fontSize: "clamp(12.5px,1.25vw,15px)", color: "#8B95A1", marginTop: 3 }}>{x.sub}</div>
-                </div>
-                <div style={{ fontSize: "clamp(26px,3vw,40px)", fontWeight: 800, color: x.c, lineHeight: 1, whiteSpace: "nowrap" }}>{x.value}</div>
-              </div>
-            ))}
-          </div>
-          <p className="story-note" style={{ marginTop: "3vh" }}>※ 미래가치 = 개발여지 + 임대 상향 여력 + 지가 상승 추세를 종합해 유형을 판정합니다. 현재가치(추정가)와 별개의 상승 잠재력 지표입니다.</p>
-        </> : <p className="story-sub">미래가치 산정 데이터가 부족합니다.</p>}
-      </section>
-
-      {/* 9 ── 종합 결론(다크) ── */}
-      <section data-i={8} ref={setRef(8)} className={cls(8, true)}>
+      {/* 7 ── 종합 결론(다크) ── */}
+      <section data-i={6} ref={setRef(6)} className={cls(6, true)}>
         <div className="story-kicker">{SM.conclusion.title}</div>
         <h2 className="story-h">실거래·공시지가·임대수익을 종합한 <b>빌탐정 추정가</b></h2>
         <div style={{ position: "relative" }}>
           <div className="cv-glow" />
           <div className="story-big" style={{ position: "relative" }}>
-            {shown[8] && fair ? <CountUp end={eokManParts(fair)[0]} dur={1500} fmt={(v) => Math.round(v).toLocaleString()} /> : eokManParts(fair)[0].toLocaleString()}<span className="unit">억{eokManParts(fair)[1] ? ` ${eokManParts(fair)[1].toLocaleString()}만원` : "원"}</span>
+            {shown[6] && fair ? <CountUp end={eokManParts(fair)[0]} dur={1500} fmt={(v) => Math.round(v).toLocaleString()} /> : eokManParts(fair)[0].toLocaleString()}<span className="unit">억{eokManParts(fair)[1] ? ` ${eokManParts(fair)[1].toLocaleString()}만원` : "원"}</span>
           </div>
         </div>
         <div className="story-row">
@@ -301,34 +251,11 @@ export function ReportStory() {
             </div>
           ))}
         </div>
-        <KeywordBand items={[
-          ...(summaryTail.primary ? [{ lab: "투자 유형", val: summaryTail.primary, extra: officeApt ? "사옥 적합" : null, c: "#7FB0FF" }] : []),
-          ...(fut?.label ? [{ lab: "미래가치", val: fut.label, extra: null, c: "#B9A5FF" }] : []),
-        ]} />
         <p style={{ fontSize: "clamp(14px,1.5vw,18px)", color: "#c7d3e6", marginTop: "4.5vh", lineHeight: 1.75, maxWidth: 880 }}>
           <Prose segs={conclusion} bold="#7FB0FF" />
         </p>
         <p className="story-note">본 보고서는 빌탐정의 자체 조사·분석 기반이며 실제 거래 시 차이가 발생할 수 있습니다.</p>
       </section>
-    </div>
-  );
-}
-
-/** 성격 키워드 밴드 — 중앙 양옆(다크). items=[{lab,val,extra,c}]. */
-function KeywordBand({ items }: { items: { lab: string; val: string; extra: string | null; c: string }[] }) {
-  if (!items.length) return null;
-  return (
-    <div className="story-kw">
-      {items.map((t, i) => (
-        <Fragment key={t.lab}>
-          {i > 0 && <div className="kw-div" />}
-          <div>
-            <div className="kw-lab">{t.lab}</div>
-            <div className="kw-val" style={{ color: t.c }}>{t.val}</div>
-            {t.extra && <div className="kw-ex" style={{ color: t.c }}>· {t.extra}</div>}
-          </div>
-        </Fragment>
-      ))}
     </div>
   );
 }

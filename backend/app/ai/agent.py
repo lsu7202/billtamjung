@@ -99,6 +99,43 @@ def model_name() -> str:
     return _mod().model_name()
 
 
+REF_CAP = 45       # 검색 한 번에 다시 넘길 건물 수(목록 + 나머지). §23-4
+
+
+def reduce_result(name: str, out: Any) -> dict | None:
+    """다음 턴에 다시 넘길 **줄인 결과**(§23-4). 통째로 넘기면 검색 한 번이 2천~9천 토큰이라 턴마다 쌓인다.
+    숫자·물음을 낸 도구(invest·develop·ask)는 없다 — 그건 답 글에 이미 있다."""
+    if not isinstance(out, dict):
+        return None
+    if name == "search":
+        rows = []
+        for g in out.get("검색") or []:
+            if not isinstance(g, dict):
+                continue
+            items: list[dict] = []
+            for part in ("내매물", "일반"):
+                p = g.get(part) or {}
+                items += [*(p.get("목록") or []), *(p.get("나머지") or [])]
+            bld = [{"순서": i + 1, "건물번호": x["건물번호"], **({"주소": x["주소"]} if x.get("주소") else {})}
+                   for i, x in enumerate(x for x in items if isinstance(x, dict) and x.get("건물번호"))]
+            rows.append({"건물": bld[:REF_CAP],
+                         "전체": sum(((g.get(p) or {}).get("전체") or 0) for p in ("내매물", "일반"))})
+        return {"검색": rows} if rows else None
+    if name == "building":
+        got = [{"건물번호": b.get("건물번호"), "주소": (b.get("대장") or {}).get("주소")}
+               for b in out.get("건물") or [] if isinstance(b, dict)]
+        return {"건물": got} if got else None
+    if name in ("make", "fix"):
+        got = {k: out[k] for k in ("자료번호", "제목") if k in out}
+        return got or None
+    return None
+
+
+def ref_input(name: str, args: dict) -> dict:
+    """다시 넘길 도구 입력 — 자료 본문(html)은 크고 결과에 번호가 있으니 뺀다."""
+    return {k: v for k, v in args.items() if not (name in ("make", "fix") and k == "html")}
+
+
 @dataclass
 class Exec:
     """도구 하나를 돌리고 나가는 문에 통과시키고 장부에 적는다. **벤더가 안 바뀌는 자리다** —
@@ -110,6 +147,8 @@ class Exec:
     # 되물었나. `ask` 도구는 **값이 사용자에게서 온다** — 돌려줄 게 없으니 바퀴를 끊는다.
     # 벤더 고리가 이걸 보고 멈추고, `ask()` 가 끝에서 조각으로 낸다(2026-09-25).
     asked: list[dict] | None = None
+    # 다음 턴에 다시 넘길 「입력 + 줄인 결과」(§23-4). 답과 함께 ai_message.refs 에 저장된다
+    refs: list[dict] = field(default_factory=list)
 
     async def __call__(self, name: str, kwargs: dict[str, Any]) -> str:
         t0 = time.monotonic()
@@ -129,6 +168,9 @@ class Exec:
                 raw = {"물었다": "답을 기다린다. 이 바퀴는 여기서 끝난다"}
             out = scrub_obj(raw, hits)                 # 나가는 문 ② — 도구가 퍼 온 값
             text = dumps(out)
+            red = reduce_result(name, out)            # 가린 뒤의 값에서 줄인다 — 저장되는 것도 가린 것
+            if red:
+                self.refs.append({"도구": name, "입력": ref_input(name, kwargs), "결과": red})
         except Exception as e:                          # noqa: BLE001
             # 죽지 않고 모델에게 사실대로 말한다. 오류도 문맥이라 다음 바퀴에 고칠 수 있다.
             log.warning("도구 %s 실패: %s", name, e)
@@ -213,5 +255,5 @@ async def ask(text: str, user: CurrentUser, history: list[dict] | None = None) -
              100 * tok_cached // max(1, tok_in), f"{tok_out:,}", said.text[:80])
     yield {"t": "done", "tok_in": tok_in, "tok_out": tok_out,
            "tok_cached": tok_cached, "tok_tools": tok_tools, "calls": calls_n,
-           "tools": len(ex.calls), "text": "".join(answer), "vendor": vendor(),
+           "tools": len(ex.calls), "text": "".join(answer), "vendor": vendor(), "refs": ex.refs or None,
            "model": m.model_name()}

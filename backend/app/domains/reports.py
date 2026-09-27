@@ -58,8 +58,6 @@ async def comps(building_pk: str, user: CurrentUser = Depends(current_user)):
     syn = g.synthesize(b, g.baseline_comps(comps), params, ta, rent_apply,
                        apply_market=False,           # 초기=배치 동일(추정가·수익률 모두)
                        fair_override=await _master_fair(building_pk))
-    ut = await g._use_type(building_pk, b)   # F-20 투자 유형
-    g._attach_future(ut, syn.get("rent_summary"))   # F-21 미래가치(개발여지+임대상향)
     poly, radius, center = g._market_spatial(b)
     geom = await pool().fetchrow(
         "SELECT ST_X(geom) AS lng, ST_Y(geom) AS lat FROM master.buildings WHERE building_pk=$1", building_pk)
@@ -67,7 +65,7 @@ async def comps(building_pk: str, user: CurrentUser = Depends(current_user)):
     rent_rows = await pool().fetch(
         f"""SELECT DISTINCT b.building_pk, ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat
             FROM app.floor_rents fr JOIN master.buildings b ON b.building_pk = fr.building_pk
-            WHERE fr.deleted_at IS NULL AND fr.building_pk <> $4
+            WHERE fr.deleted_at IS NULL AND fr.building_pk <> $4 AND fr.rent > 0   -- 돈 적힌 줄만(0185)
               AND {g._COMP_SPATIAL}""",
         ctr["lng"] if ctr else None, ctr["lat"] if ctr else None, radius, building_pk,
         json.dumps(poly) if poly else None,
@@ -76,7 +74,7 @@ async def comps(building_pk: str, user: CurrentUser = Depends(current_user)):
         "subject": {"addr": b.get("addr"), "total_area": g._fnum(b.get("total_area")), "sale_price": g._fnum(b.get("sale_price")),
                     "total_rent": g._fnum(b.get("total_rent")), "center": ctr,
                     "radius_m": radius, "polygon": bool(poly)},
-        "preview": {**_preview_dict(syn), "use_type": ut},
+        "preview": _preview_dict(syn),
         "comps": comps,
         "rent_pins": [dict(r) for r in rent_rows],
         "counts": {"sale": len(comps), "rent": len(rent_rows)},

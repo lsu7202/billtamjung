@@ -1,25 +1,18 @@
-"""층별 임대정보 — 넷을 서버가 층으로 묶어 **하나로** 준다(2026-09-17).
+"""층별 정보(건물 상세) — 대장과 업체 원장만 층으로 묶어 **하나로** 준다(2026-09-17 · 2026-09-26 나눔).
 
-예전엔 화면이 대장 층별개요 · 업체 원장 · 카카오 · 팀 층별임대를 따로 받아 493줄짜리 컴포넌트 안에서
-층 이름을 맞추고(「3F」=「3층」) 상호를 이름으로 붙이고 층 미상을 골라냈다. 모델은 넷을 따로 받아
-자기 식으로 합치니 화면과 다른 답이 났다. 같은 합치기는 한 곳에만 있어야 한다 — 여기다.
+팀 값(호실·임대료·공실)은 여기 없다. 그건 매물의 임대 내역(floor_rents.py)에만 있다 — 누구나 보는
+건물 상세와 우리 팀이 확인한 기록을 섞지 않는다. 모델도 같은 경계로 받는다(모르는 건물의 임대는 추정만).
 
   층 뼈대   = 건축물대장 층별개요(master.floor_outline)          … floor · floor_area · use
-  호실      = 건축물대장 전유부(master.building_unit)             … 전용·공용면적. 집합 27%만
+  전유부    = 건축물대장 전유부(master.building_unit)             … 전용·공용면적. 집합 27%만. 참조
   업체      = 인허가 원장 + 상가정보(tenants.tenant_ledger)        … name · floor · area
   링크      = 카카오(places.places_for) — 저장 안 함, 이름으로 붙임 … url
-  금액      = 팀 층별임대(app.floor_rents)                       … 상호 · 계약면적 · 보증금 · 임대료 · 관리비
-  공실      = 팀 층별 공실면적(app.floor_vacancy, 0180)            … 층마다 ㎡ 하나. 줄 없음=모름 · 0=만실
 
-**대장 호실은 참조다.** 등기 단위라 실제 칸막이와 다를 수 있고(두 호실을 터서 쓰면 대장은 둘),
-업체를 호실에 이을 자료도 없다(인허가엔 호 칸이 없고 상가정보는 55.4만 줄 전부 비었다).
-그래서 팀 줄과 맞추지 않고 층 옆에 나란히 둔다 — 맞추려 하면 그게 조용한 오답이 된다.
+**대장 전유부는 참조다.** 등기 단위라 실제 칸막이와 다르고, 중개사가 말하는 호실은 업체 단위다.
 
 응답:
-  floors  : [{floor, floor_area, uses[], rooms[], vacant_area, units:[팀 줄 + url], ledger:[원장 업체]}]  1층부터 위로 · 옥탑 · 지하
-  unknown : 층을 모르는 원장 업체(팀 줄과 이름이 안 맞는 것)
-  items   : 팀 줄 평평하게(합계·되돌리기가 읽는다)
-  total   : {deposit, rent, maintenance, vacant_area}   공실면적은 층 값의 합 · 한 층도 안 적었으면 null
+  floors  : [{floor, floor_area, uses[], rooms[], ledger:[업체]}]  1층부터 위로 · 옥탑 · 지하
+  unknown : 층을 모르는 업체
 """
 from __future__ import annotations
 
@@ -29,8 +22,6 @@ from fastapi import APIRouter, Depends
 
 from ..core.db import pool
 from ..core.deps import CurrentUser, current_user
-from ..core.floor_label import signed as _fl_signed
-from .floor_rents import team_floor_rows
 from .places import places_for
 from .tenants import history_rows, norm_name, past_floors, tenancy_history, tenant_ledger
 
@@ -88,8 +79,7 @@ def _same(a: str, b: str) -> bool:
 
 
 @router.get("", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다 — 화면과 같은 답
-async def building_floors(building_pk: str, user: CurrentUser = Depends(current_user)):
-    items, _hidden = await team_floor_rows(building_pk, user.team_id)
+async def building_floors(building_pk: str, _: CurrentUser = Depends(current_user)):
     # 용도를 같이 뽑는다. 버리고 있던 값이라 업체가 없는 층이 통째로 침묵했다(2026-09-25).
     outline = await pool().fetch(
         "SELECT floor, sum(floor_area)::float AS floor_area,"
@@ -97,11 +87,6 @@ async def building_floors(building_pk: str, user: CurrentUser = Depends(current_
         "  FROM master.floor_outline WHERE building_pk=$1 AND floor IS NOT NULL GROUP BY floor",
         building_pk)
     ledger_units = await pool().fetch(_UNIT_SQL, building_pk)
-    # 공실면적 — 층 이름이 아니라 core/floor_label.signed 로 잇는다(저장할 때와 같은 열쇠).
-    # 여기 _sfloor 는 옥탑을 900+ 로 세고 저쪽은 1000+ 라, 옥탑 층을 이 값으로 찾으면 빗나간다.
-    vacancy = {r["floor_no"]: float(r["vacant_area"]) for r in await pool().fetch(
-        "SELECT floor_no, vacant_area FROM app.floor_vacancy WHERE building_pk=$1 AND team_id=$2",
-        building_pk, user.team_id)}
     ledger = await tenant_ledger(building_pk)
     try:
         places = (await places_for(building_pk)).get("items", [])
@@ -130,15 +115,9 @@ async def building_floors(building_pk: str, user: CurrentUser = Depends(current_
             k = norm_name(t["name"])
             t["floor"] = next((f for n, f in borrow.items() if _same(n, k)), None) if k else None
 
-    def ledger_hit(name: str | None) -> dict | None:
-        if not name:
-            return None
-        k = norm_name(name)
-        return next((t for t in ledger if _same(norm_name(t["name"]), k)), None)
-
-    # 층 뼈대: 팀 줄 · 대장 · 원장이 아는 층의 합집합. 이름은 팀 줄 > 대장 > 원장 순으로 쓴다
+    # 층 뼈대: 대장 · 원장이 아는 층의 합집합. 이름은 대장 > 원장 순으로 쓴다
     label: dict[int, str] = {}
-    for src in (ledger, [dict(o) for o in outline], items):
+    for src in (ledger, [dict(o) for o in outline]):
         for r in src:
             sf = _sfloor(r.get("floor"))
             if sf is not None and r.get("floor"):
@@ -163,32 +142,12 @@ async def building_floors(building_pk: str, user: CurrentUser = Depends(current_
 
     floors = []
     for sf in sorted(label, key=lambda k: _frank(label[k])):
-        units = []
-        for r in items:
-            if _sfloor(r["floor"]) != sf:
-                continue
-            u = dict(r)
-            lg = ledger_hit(r.get("tenant_name"))
-            u["url"] = lg.get("url") if lg else None
-            units.append(u)
-        rest = [t for t in ledger if t.get("floor") and _sfloor(t["floor"]) == sf
-                and not any(_same(norm_name(u.get("tenant_name")), norm_name(t["name"])) for u in units if u.get("tenant_name"))]
         floors.append({"floor": label[sf], "floor_area": area.get(sf) or None,
                        "uses": uses.get(sf) or [],           # 대장 층별개요 용도
-                       "rooms": rooms.get(sf) or [],         # 대장 호실 — 참조. 팀 줄과 안 맞춘다
-                       "vacant_area": vacancy.get(_fl_signed(label[sf])),   # 팀. None=모름 · 0=만실
-                       "units": units, "ledger": rest})
-
-    unknown = [t for t in ledger if not t.get("floor")
-               and not any(_same(norm_name(r.get("tenant_name")), norm_name(t["name"])) for r in items if r.get("tenant_name"))]
-    total = {
-        "deposit": sum(r["deposit"] or 0 for r in items),
-        "rent": sum(r["rent"] or 0 for r in items),
-        "maintenance": sum(r["maintenance"] or 0 for r in items),
-        # 층 값의 합. 한 층도 안 적었으면 None — 0 으로 메우면 「만실」로 읽힌다
-        "vacant_area": sum(vacancy.values()) if vacancy else None,
-    }
-    return {"floors": floors, "unknown": unknown, "items": items, "total": total}
+                       "rooms": rooms.get(sf) or [],         # 대장 전유부 — 참조
+                       "ledger": [t for t in ledger if t.get("floor") and _sfloor(t["floor"]) == sf]})
+    unknown = [t for t in ledger if not t.get("floor")]
+    return {"floors": floors, "unknown": unknown}
 
 
 @router.get("/history", openapi_extra={"x-ai": "read"})

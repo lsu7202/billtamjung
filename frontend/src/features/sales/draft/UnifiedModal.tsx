@@ -1,12 +1,13 @@
-/** 통합 매물 모달 — 초안(2026-08-23 승인 플랜) · 토스 결.
+/** 통합 매물 모달 — 토스 결.
  *
- *  탭 5: 소유자 · 접촉 · 정보 · 계약 · 할일 + 우측 메모창.
+ *  탭 7(2026-09-26): 요약 · 소유자 · 접촉 · 정보 · 사진 · 계약 · 보류 + 우측 메모창.
+ *  요약 = 옛 매물 탭 오른쪽 판(결정 문장·값·임대 합계·일정·매수자 짝·소유자). 매물 탭이 표 하나가 되며 여기로 왔다.
  *  소유자·접촉·정보·계약(채택·거래금액·매도희망·매매가)은 기존 API로 실동작.
  *  계약금·잔금·계약금 일부·중도금·할일 신설 체크는 **로컬 상태**(저장 없음 — 새로고침이면 초기화).
  *  계약 탭 = 결정 문장(채택되면 나타남) + 호가 줄(캡션에 마지막 움직임, 클릭하면 이력 펼침).
  *  기존 모달 파일은 건드리지 않는다 — 확정되면 본 수정에서 교체.
  */
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -20,26 +21,35 @@ import { Chips } from "../../building/EnumField";
 import { formatPhone, parseAmount, seedAmount } from "../../building/KV";
 import { SchedModal, type SchedFinal } from "../SchedModal";
 import { StopModal } from "../StopModal";
-import { NEGO } from "../words";
+import { NEGO, dealTail, negoWord } from "../words";
+import { stateWord, isUrgent } from "../listingWord";
+import { PickModal } from "../PickModal";
+import { openDetail } from "../../../shared/map/geo";
+import { UploadTab } from "../../../shared/map/PhotoPanel";
+import { RentLedger } from "./RentLedger";
+import { Icon } from "../../../shared/ui/Icon";
 import { SchedCal, SchedCalAdd, calTone } from "./SchedCal";
 import "./draft.css";
 import "./salestab.css";
 
-type Tab = "owner" | "touch" | "info" | "deal" | "hold";
+export type UniTab = "sum" | "owner" | "touch" | "info" | "rent" | "photo" | "deal" | "hold";
+type Tab = UniTab;
 
-export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
+export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
   r: Seller; buyers: Proposal[]; tab0?: Tab;
   onClose: () => void; onSaved: () => void;
+  /** 매수자 화면으로 — 요약 탭 짝 줄의 화살표 */
+  onBuyer?: (id: number) => void;
 }) {
   const pk = r.building_pk;
   const { options } = useEnums();
-  const [tab, setTab] = useState<Tab>(tab0 ?? "owner");
+  const [tab, setTab] = useState<Tab>(tab0 ?? "sum");
   const lead = buyers.find((x) => x.picked_at) ?? buyers[0] ?? null;
   const rr = r as unknown as Record<string, string | null>;
 
   /* 로컬 상태 — 계약금 일부 줄을 폈나(저장 없음). 값 자체는 서버가 들고 있다 */
   const [local, setLocal] = useState<Record<string, boolean>>({});
-  const put = async (patch: Record<string, string | null>) => {
+  const put = async (patch: Record<string, string | boolean | string[] | null>) => {
     await listingsApi.patchBiz(pk, patch); onSaved();
   };
 
@@ -103,6 +113,9 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
   /** 매수자의 답은 **매수희망가**가 들고 있다(0141) — 「이 값이면 사겠다」가 곧 답이다.
    *  안 산다는 답은 짝 보류로 적는다: 사유가 줄로 서고 사람이 풀 수 있다. */
   const [holdAt, setHoldAt] = useState<null | { pid: number; name: string; cur: Stop | null }>(null);
+  const [pickB, setPickB] = useState(false);
+  useEffect(() => { if (tab0) setTab(tab0); }, [tab0]);   // 밖에서 탭을 바꿔 열 때(건물 상세 「임대 내역 →」)
+  const team = useQuery({ queryKey: ["team-members"], queryFn: listingsApi.members });
   /** 답의 낱말 — 사실에서 파생한다(0141).
    *  보류면 그 사유 · 희망가가 있으면 그 값이 답 · 브리핑만 했으면 답 대기 · 그 전엔 비운다. */
   const answerWord = (b2: Proposal) => {
@@ -250,21 +263,117 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
       <div className="um" onClick={(e) => e.stopPropagation()}>
         <div className="um-head">
           <b>{dongAddr(r.addr)}</b>
-          {nego && <span className="um-st">{nego}</span>}
+          {r.listing_no && <span className="um-no num">{r.listing_no}</span>}
+          {isUrgent(r) && <span className="um-flag red">급매</span>}
+          {r.exclusive && <span className="um-flag blue">전속</span>}
+          <span className={`um-st ${r.stop_id ? "hold" : ""}`}>{stateWord(r)}</span>
           <span className="sp" />
+          <button className="um-x" title="건물 상세" onClick={() => openDetail(pk)}>
+            <Icon name="external" size={15} /></button>
           <button className="um-x" onClick={onClose}>✕</button>
         </div>
 
         <div className="um-body">
           <div className="um-main">
             <div className="um-tabs">
-              {([["owner", "소유자"], ["touch", "접촉"], ["info", "정보"], ["deal", "계약"], ["hold", "보류"]] as [Tab, string][]).map(([k, l]) => (
+              {([["sum", "요약"], ["owner", "소유자"], ["touch", "접촉"], ["info", "정보"], ["rent", "임대 내역"], ["photo", "사진"],
+                 ["deal", "계약"], ["hold", "보류"]] as [Tab, string][]).map(([k, l]) => (
                 <button key={k} className={`${tab === k ? "on" : ""} ${k === "hold" ? "hold" : ""}`}
                   onClick={() => setTab(k)}>
                   {l}{k === "hold" && curStop ? <i className="hdot" /> : null}</button>
               ))}
             </div>
 
+            {/* ── 요약 ── 옛 매물 탭 오른쪽 판. 누르는 곳마다 그 값을 고치는 탭으로 간다 */}
+            {tab === "sum" && (() => {
+              const dealtOut = (x: Proposal) =>
+                !x.picked_at && !!((x as { buyer_dealt?: boolean }).buyer_dealt
+                  || (x as { listing_dealt?: boolean }).listing_dealt);
+              const pairs = [...buyers].sort((a2, x) =>
+                (Number(dealtOut(a2)) - Number(dealtOut(x)))
+                || (Number(!!a2.dropped_at) - Number(!!x.dropped_at))
+                || (Number(!!x.picked_at) - Number(!!a2.picked_at)) || (a2.id - x.id));
+              const alive = pairs.filter((x) => !dealtOut(x));
+              const picked = buyers.find((x) => x.picked_at) ?? null;
+              const nv = (r as unknown as { nego?: number }).nego;
+              const rentRow: [string, string | null][] = [
+                ["보증금", r.total_deposit != null ? wonAcc(r.total_deposit) : null],
+                ["월임대", r.total_rent != null ? wonAcc(r.total_rent) : null],
+                ["관리비", r.total_mgmt != null ? wonAcc(r.total_mgmt) : null],
+                ["공실", r.vacant_area != null ? `${(r.vacant_area / 3.305785).toFixed(1)}평` : null],
+                [r.full_est ? "추정 만실 수익률" : "만실 수익률", r.roi_full != null ? `${Number(r.roi_full).toFixed(2)}%` : null],
+              ];
+              return (
+                <div className="um-pane">
+                  <div className="tc">
+                    {picked && picked.deal_price != null ? (
+                      <div className="um-sent2 num" onClick={() => setTab("deal")}>
+                        <b>{picked.buyer_name}</b>과 <b>{wonAcc(picked.deal_price)}</b>에 {dealTail({ ...picked, nego: nv } as never)}</div>
+                    ) : alive.length ? (
+                      <div className="um-sent2 num" onClick={() => setTab("deal")}>
+                        매수자 <b>{alive.length}명</b>과 {nego ?? "합의 전"}</div>
+                    ) : (
+                      <div className="um-sent2 dim" onClick={() => setTab("deal")}>매수자 없음</div>
+                    )}
+                    <div className="um-sub">
+                      <button className="um-chip num" onClick={() => setTab("info")}>
+                        <i>매매가</i>{r.list_price != null ? wonAcc(r.list_price) : "—"}</button>
+                      <button className="um-chip num" onClick={() => setTab("info")}>
+                        <i>매도희망가</i>{r.ask_price != null ? wonAcc(r.ask_price) : "—"}</button>
+                      <span className="um-chip num still"><i>수익률</i>{r.roi != null ? `${Number(r.roi).toFixed(2)}%` : "—"}</span>
+                    </div>
+                    <div className="scals">
+                      {leadScheds.filter((s2) => s2.cat).sort((a2, b2) => (a2.on < b2.on ? -1 : 1)).map((s2) => (
+                        <SchedCal key={s2.id} name={s2.cat ?? "일정"} on={s2.on} at={s2.at}
+                          tone={calTone(s2.on, s2.state, s2.cat === "계약")} onClick={() => setTab("deal")} />
+                      ))}
+                      <SchedCalAdd onClick={() => setTab("deal")} />
+                    </div>
+                  </div>
+                  {/* 임대 합계 — 누르면 임대 내역 탭 */}
+                  <div className="tc um-rent" onClick={() => setTab("rent")}>
+                    {rentRow.map(([k, v]) => (
+                      <span key={k} className="cell"><i>{k}</i><b className={`num ${v ? "" : "off"}`}>{v ?? "—"}</b></span>
+                    ))}
+                  </div>
+                  {/* 매수자 짝 — 누르면 계약 탭, 화살표 = 매수자 화면 */}
+                  <div className="tc um-offer">
+                    {pairs.map((x) => (
+                      <div key={x.id} className="orow has" onClick={() => setTab("deal")}
+                        style={dealtOut(x) ? { opacity: .45 } : undefined}>
+                        <span className="who">{x.buyer_name}</span>
+                        <span className="cap">{dealtOut(x) ? "다른 곳과 계약" : negoWord(x)}</span>
+                        <span className="ev num">
+                          {x.deal_price != null ? wonAcc(x.deal_price) : x.hope_price != null ? wonAcc(x.hope_price) : "—"}</span>
+                        <span className="act" onClick={(e) => e.stopPropagation()}>
+                          <button className="mini" title="담기 해제" onClick={async () => {
+                            if (!confirm(`매수자 「${x.buyer_name}」을(를) 이 매물에서 뺄까요?`)) return;
+                            await proposalsApi.remove(x.id); onSaved();
+                          }}>✕</button>
+                          {onBuyer && (
+                            <button className="mini" title="매수자 화면" onClick={() => { onClose(); onBuyer(x.buyer_id); }}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M13 6l6 6-6 6" /></svg>
+                            </button>)}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="lt-foot"><button className="um-ghost" onClick={() => setPickB(true)}>＋ 매수자</button></div>
+                  </div>
+                  {/* 소유자 한 줄 — 누르면 소유자 탭 */}
+                  <div className="tc um-offer">
+                    <div className="orow has" onClick={() => setTab("owner")}>
+                      <span className="who g">소유자</span>
+                      <span className="cap">{r.owner_type === "법인" ? "법인" : ""}</span>
+                      <span className={`ev ${r.owner_name ? "" : "off"}`}>{r.owner_name ?? "—"}</span>
+                      {r.owner_phone && !r.phone_masked
+                        ? <a className="um-tel num" href={`tel:${r.owner_phone.replace(/\D/g, "")}`}
+                            onClick={(e) => e.stopPropagation()}>{formatPhone(r.owner_phone)}</a>
+                        : <span className="okpad" />}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             {/* ── 소유자 ── */}
             {tab === "owner" && (
               <div className="um-pane">
@@ -323,9 +432,14 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
                   {erow("urgency", "급함", lab("urgency", r.urgency),
                     <Chips mode="inline" opts={options("urgency")} cur={r.urgency ?? "미지정"}
                       onSelect={(v) => pick({ urgency: v === "미지정" || v === r.urgency ? null : v })} />)}
-                  {erow("sell_vague", "시기", lab("sell_vague", r.sell_vague),
-                    <Chips mode="inline" opts={options("sell_vague")} cur={r.sell_vague ?? "미지정"}
-                      onSelect={(v) => pick({ sell_vague: v === "미지정" || v === r.sell_vague ? null : v })} />)}
+                  {/* 시기 — 막연한 시점(칩) 또는 날짜 하나. 둘 중 하나만 산다(0099 sell_on 복귀 2026-09-26) */}
+                  {erow("sell_vague", "시기", r.sell_on ? r.sell_on.replace(/-/g, ".") : lab("sell_vague", r.sell_vague),
+                    <span className="um-when">
+                      <Chips mode="inline" opts={options("sell_vague")} cur={r.sell_on ? "미지정" : (r.sell_vague ?? "미지정")}
+                        onSelect={(v) => pick({ sell_vague: v === "미지정" ? null : v, sell_on: null })} />
+                      <input type="date" className="um-in num" value={r.sell_on ?? ""}
+                        onChange={(e) => pick({ sell_on: e.target.value || null, sell_vague: null })} />
+                    </span>)}
                   {erow("convert", "전환", r.owner_buyer_id ? "매수도 원함" : null,
                     <Chips mode="inline" opts={[{ code: "매수도 원함", label: "매수도 원함" }]}
                       cur={r.owner_buyer_id ? "매수도 원함" : "미지정"}
@@ -342,6 +456,32 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
             {tab === "info" && (
               <div className="um-pane">
                 <div className="tc um-offer">
+                  {/* 대분류 — 하나(0184) · 소분류 — 여럿(0182). 소분류는 칩을 누를 때마다 저장, 창은 안 닫힌다 */}
+                  {erow("building_major", "대분류", lab("building_major", r.building_major),
+                    <Chips mode="inline" opts={options("building_major")} cur={r.building_major ?? "미지정"}
+                      onSelect={(v) => pick({ building_major: v === "미지정" ? null : v })} />)}
+                  {erow("building_use", "소분류",
+                    (r.building_use ?? []).map((c) => lab("building_use", c)).join(" · ") || null,
+                    <span className="chips-in">
+                      {options("building_use").map((o) => {
+                        const on = (r.building_use ?? []).includes(o.code);
+                        return (
+                          <button key={o.code} className={on ? "on" : ""} onClick={() => {
+                            const cur = r.building_use ?? [];
+                            const next = on ? cur.filter((c) => c !== o.code) : [...cur, o.code];
+                            put({ building_use: next.length ? next : null });
+                          }}>{o.label}</button>
+                        );
+                      })}
+                    </span>)}
+                  {([["grade", "등급"], ["ipji", "입지"], ["nohudo", "노후도"]] as const).map(([key, l2]) =>
+                    erow(key, l2, lab(key, rr[key]),
+                      <Chips mode="inline" opts={options(key)} cur={rr[key] ?? "미지정"}
+                        onSelect={(v) => pick({ [key]: v === "미지정" ? null : v })} />))}
+                  {erow("exclusive", "전속", r.exclusive == null ? null : r.exclusive ? "전속" : "일반",
+                    <Chips mode="inline" opts={[{ code: "전속", label: "전속" }, { code: "일반", label: "일반" }]}
+                      cur={r.exclusive == null ? "미지정" : r.exclusive ? "전속" : "일반"}
+                      onSelect={(v) => { put({ exclusive: v === "미지정" ? null : v === "전속" }); setOpenRow(null); }} />)}
                   {([["meongdo", "명도"], ["use_change", "용도변경"], ["myeolsil", "멸실"]] as const).map(([key, l2]) =>
                     erow(key, l2, lab(key, rr[key]),
                       <Chips mode="inline" opts={options(key)} cur={rr[key] ?? "미지정"}
@@ -353,6 +493,30 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
                     <Chips mode="inline" opts={[{ code: "확인중", label: "확인중" }, { code: "받음", label: "받음" }]}
                       cur={rr["rent_check"] ?? "미지정"}
                       onSelect={(v) => pick({ rent_check: v === "미지정" || v === rr["rent_check"] ? null : v })} />)}
+                </div>
+                <div className="tc um-offer">
+                  {/* 매물번호·접수일은 등록 순간 DB 가 발급한다(0068) — 읽기만 */}
+                  <div className="orow"><span className="who g">매물번호</span><span className="cap" />
+                    <span className={`ev num ${r.listing_no ? "" : "off"}`}>{r.listing_no ?? "—"}</span><span className="okpad" /></div>
+                  <div className="orow"><span className="who g">접수일</span><span className="cap" />
+                    <span className={`ev num ${r.received_on ? "" : "off"}`}>{r.received_on ? r.received_on.replace(/-/g, ".") : "—"}</span><span className="okpad" /></div>
+                  {/* 담당 = 등록(S02 §4.1). 비우면 등록이 풀리므로 다른 사람으로 바꾸기만 한다 */}
+                  {erow("assignee", "담당", team.data?.find((m) => m.account_id === r.assignee_account_id)?.name ?? null,
+                    <span className="chips-in">
+                      {(team.data ?? []).map((m) => (
+                        <button key={m.account_id} className={m.account_id === r.assignee_account_id ? "on" : ""}
+                          onClick={async () => {
+                            if (m.account_id === r.assignee_account_id) return;
+                            await listingsApi.claim(pk, m.account_id); setOpenRow(null); onSaved();
+                          }}>{m.name}</button>
+                      ))}
+                    </span>)}
+                </div>
+                <div className="tc um-offer">
+                  {/* 시세대비(0187) — 사람이 매긴다. 적정가로 자동으로 채우지 않는다 */}
+                  {erow("price_vs_market", "시세대비", lab("price_vs_market", r.price_vs_market),
+                    <Chips mode="inline" opts={options("price_vs_market")} cur={r.price_vs_market ?? "미지정"}
+                      onSelect={(v) => pick({ price_vs_market: v === "미지정" ? null : v })} />)}
                 </div>
                 <div className="tc um-half">
                   <div className="um-row"><span className="k">매매가</span>
@@ -367,6 +531,14 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
               </div>
             )}
 
+            {/* ── 임대 내역 ── 팀 호실 줄(0185). 건물 상세의 층별 정보와 나뉜다 */}
+            {tab === "rent" && (
+              <div className="um-pane"><RentLedger pk={pk} onSaved={onSaved} /></div>
+            )}
+            {/* ── 사진 ── 건물 상세 사진과 같은 표·같은 부품 */}
+            {tab === "photo" && (
+              <div className="um-pane"><div className="tc"><UploadTab pk={pk} /></div></div>
+            )}
             {/* ── 계약 ── 결정 문장(채택되면 선다) + 호가 줄(마지막 움직임 · 클릭 = 이력) */}
             {tab === "deal" && (
               <div className="um-pane">
@@ -529,6 +701,10 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved }: {
           <MemoLog target="listing" id={pk} />
         </div>
 
+        {pickB && (
+          <PickModal mode="buyer" buildingPk={pk} title={`매수자 담기 — ${dongAddr(r.addr)}`}
+            onClose={() => setPickB(false)} onAdded={() => onSaved()} />
+        )}
         {holdAt && (
           <StopModal target={{ type: "proposal", id: String(holdAt.pid) }} stage="deal"
             title={`${holdAt.name} · ${dongAddr(r.addr)}`} cur={holdAt.cur}
