@@ -11,10 +11,9 @@ import datetime as dt
 from fastapi import APIRouter
 from pydantic import BaseModel
 from ..core.db import tx, pool
-from ..core import market as market_sql
 from ..core.config import settings
 from ..core.market import STORES
-from . import value_score, report_calc, use_type
+from . import report_calc
 
 router = APIRouter(prefix="/jobs", tags=["worker"])
 
@@ -84,7 +83,7 @@ async def _assemble(building_pk: str, team_id: int) -> dict:
     if pop:
         b["day_pop"], b["night_pop"] = pop["d"], pop["n"]
 
-    # 분석용 용적률 — 활용 유형·미래가치는 **분석값**이라 검색 전용 계산값을 얹는다(0144).
+    # 분석용 용적률 — 분석값이라 검색 전용 계산값을 얹는다(0144).
     # 화면·서류로 나가는 b["far"] 는 대장 그대로 둔다. 둘을 섞지 않는다.
     b["far_any"] = b.get("far")
     if b.get("far") is None:
@@ -336,8 +335,10 @@ async def _nearby_rent_apply(building_pk: str, subject: dict, team_id: int) -> d
               FROM master.buildings b JOIN master.floor_rent_est fre ON fre.building_pk = b.building_pk
                    JOIN master.floor_outline fo ON fo.building_pk = fre.building_pk AND fo.seq = fre.seq
               WHERE b.building_pk <> $4 AND fre.rent_est > 0 AND fo.floor_area > 0 AND {_COMP_SPATIAL}
+                -- 임대료가 적힌 팀 줄이 있는 층만 추정을 뺀다. 원장에서 복사한 업체 줄(0185)은 돈이 비었다
                 AND NOT EXISTS (SELECT 1 FROM app.floor_rents fr2
-                                WHERE fr2.building_pk = b.building_pk AND fr2.floor = fo.floor AND fr2.deleted_at IS NULL)
+                                WHERE fr2.building_pk = b.building_pk AND fr2.floor = fo.floor AND fr2.deleted_at IS NULL
+                                  AND fr2.rent > 0)
               GROUP BY b.building_pk, fo.floor
             ) q WHERE area > 0 AND rent > 0""",
         clng, clat, radius, building_pk, json.dumps(poly) if poly else None)
@@ -409,96 +410,8 @@ def _parse_far(v) -> float | None:
     return float(v[0]) if len(v) == 1 else None
 
 
-async def _market_zones(building_pk: str) -> list[dict]:
-    """상권 존(격자 ~100m) — 셀별 지배 갈래 폴리곤. 지도 오버레이용.
-    갈래는 실제 업체로 센다(core/market.py · 2026-09-06). 셀에 업체 셋은 있어야 색을 준다."""
-    rows = await pool().fetch(
-        f"""WITH s AS (SELECT geom, ST_X(geom) lng, ST_Y(geom) lat FROM master.buildings WHERE building_pk=$1),
-             cells AS (
-               SELECT ST_SnapToGrid(st.geom, s.lng, s.lat, 0.0011, 0.0009) cell, st.cat
-               FROM ({STORES}) st, s
-               WHERE st.geom && ST_Expand(s.geom, 300 / 80000.0)   -- 상자 선필터. 없으면 55만 점 전수(1.5s)
-                 AND ST_DWithin(st.geom::geography, s.geom::geography, 300)),
-             agg AS (SELECT cell, cat, count(*) c FROM cells GROUP BY cell, cat),
-             dom AS (SELECT DISTINCT ON (cell) cell, cat, c FROM agg ORDER BY cell, c DESC)
-           SELECT ST_AsGeoJSON(ST_Envelope(ST_Expand(cell, 0.00055, 0.00045))) geojson, cat, c
-           FROM dom WHERE c >= 3 ORDER BY c""",
-        building_pk)
-    return [{"geojson": json.loads(r["geojson"]), "cat": r["cat"], "count": r["c"]} for r in rows]
-
-
-async def _use_type(building_pk: str, b: dict) -> dict | None:
-    """F-20 활용 유형(투자 유형) 분류 — legal_far·상권 프로필 조립 후 classify()."""
-    lf = await pool().fetchval(
-        # 숫자로 고른다(0153). 병기는 견줄 수 없으므로 뺀다.
-        """SELECT (SELECT pr.legal_far FROM master.building_parcels bp
-                  JOIN master.parcels pr ON pr.pnu = bp.pnu
-                 WHERE bp.building_pk = $1 AND array_length(pr.legal_far, 1) = 1
-                 ORDER BY pr.legal_far[1] DESC LIMIT 1)""", building_pk)
-    # 상권 프로필 — **실제 업체**로 센다(2026-09-07). 예전엔 대장 층별용도를 정규식으로 갈랐는데
-    # 「기타」가 50.8% 라 분모에 섞여 업무 비중이 눌렸고, 화면의 「상권 구성」과 다른 숫자를 냈다.
-    # 이제 화면(/pop 의 mix)과 같은 원천·같은 사전(ref.biz_category 일곱 갈래)을 쓴다.
-    # bbox 로 먼저 거른다 — 지리 캐스트만 쓰면 색인을 안 타 한 건에 1.5초가 걸린다.
-    mk = await pool().fetch(
-        f"""WITH s AS (SELECT geom FROM master.buildings WHERE building_pk=$1)
-            SELECT c.cat, count(*)::float AS n
-              FROM ({market_sql.STORES}) c, s
-             WHERE c.geom && ST_Expand(s.geom, 300/88000.0)
-               AND ST_DWithin(c.geom::geography, s.geom::geography, 300)
-             GROUP BY c.cat""", building_pk)
-    tot = sum(r["n"] for r in mk) or 0
-    market = {r["cat"]: r["n"] / tot for r in mk} if tot else {}
-    la = _fnum(b.get("land_area"))
-    result = use_type.classify({
-        "far": _fnum(b.get("far_any")), "legal_far": _parse_far(lf), "land_use": b.get("land_use"),
-        "floors_above": b.get("floors_above"), "land_area_py": (la / 3.305785) if la else None,
-        "age_years": b.get("age_years"), "remodel_years": b.get("remodel_years"),
-        "shape": b.get("shape"), "road_frontage": b.get("road_frontage"),
-        "road_score": value_score.ROAD_SCORES.get(b.get("road_frontage") or "", 0),
-        "station_score": value_score.station_score(_fnum(b.get("station_dist"))),
-        "use_zone": b.get("use_zone"), "market": market,
-    })
-    result["zones"] = await _market_zones(building_pk)   # 상권 존 폴리곤(지도용)
-    result["_far"], result["_legal_far"] = _fnum(b.get("far_any")), _parse_far(lf)   # 미래가치 계산용
-    result["_land_rate5"] = await _land_rate5(b)         # 지가 상승 추세(미래가치 3축)
-    rz = await pool().fetchrow(                          # 정비구역·재정비촉진 지정 여부(F-21 개발여지)
-        """SELECT kind, label AS name, gosi_year, gosi_no, ntf_date
-             FROM master.building_redevel WHERE building_pk=$1
-            ORDER BY ntf_date DESC NULLS LAST, gosi_year DESC NULLS LAST LIMIT 1""", building_pk)
-    result["_redevel"] = dict(rz) if rz else None
-    if result["_redevel"] and result["_redevel"].get("ntf_date"):
-        result["_redevel"]["ntf_date"] = result["_redevel"]["ntf_date"].isoformat()  # 스냅샷이 json.dumps 로 나간다
-    return result
-
-
-async def _land_rate5(b: dict) -> float | None:
-    """지가 5년 변동률(%) — 개별 공시지가 시계열(gongsi_series) 우선, 없으면 자치구 지가변동률(land_adjust)."""
-    if b.get("pnu"):
-        gs = await pool().fetch(
-            "SELECT year, price FROM master.gongsi_series WHERE pnu=$1 ORDER BY year", b["pnu"])
-        if len(gs) >= 2 and gs[-1]["price"]:
-            last_y = gs[-1]["year"]
-            base = next((r for r in gs if r["year"] == last_y - 5), gs[0])   # 5년 전(없으면 최古)
-            if base["price"]:
-                return (gs[-1]["price"] - base["price"]) / base["price"] * 100
-    if b.get("bjd_code"):                                # 폴백: 자치구 누적 지가변동률 팩터
-        gu = str(b["bjd_code"])[:5]
-        f = (await pool().fetchval("SELECT adj FROM master.land_adjust WHERE gu=$1 AND yr=2020", gu)
-             or await pool().fetchval("SELECT adj FROM master.land_adjust WHERE gu='11' AND yr=2020"))
-        if f:
-            return (float(f) - 1) * 100
-    return None
-
-
-def _attach_future(ut: dict | None, rent_summary: dict | None) -> None:
-    """미래가치(개발여지+임대상향) 계산해 use_type에 부착. far/legal은 _use_type, 임대는 synthesize에서 조립."""
-    if not ut:
-        return
-    rs = rent_summary or {}
-    ut["future"] = use_type.future_value(
-        ut.pop("_far", None), ut.pop("_legal_far", None), None,   # land_use는 far로 이미 반영(나지=far 0)
-        rs.get("cur_rent"), rs.get("mkt_rent"), ut.pop("_land_rate5", None),
-        redevel=ut.pop("_redevel", None))
+# 활용유형(F-20)·미래가치(F-21)는 2026-09-26 에 없앴다 — 추정으로 매긴 유형이라
+# 모델이 대장 값을 보고 스스로 판단하면 된다.
 
 
 # 리포트→마스터 되쓰기는 2026-09-02 에 제거했다.
@@ -774,8 +687,6 @@ async def run_generate(report_id: int, team_id: int) -> dict:
         # PPT도 이 스냅샷에서 굽는다(웹 덱과 같은 입력 → 두 산출물의 값이 어긋날 수 없음).
         snapshot = None
         if rep["kind"] == "analysis" and syn:
-            ut = await _use_type(rep["building_pk"], b)   # F-20 투자 유형
-            _attach_future(ut, syn.get("rent_summary"))   # F-21 미래가치
             snapshot = {
                 "subject": {"addr": b.get("addr"), "total_area": _fnum(b.get("total_area")),
                             "land_area": _fnum(b.get("land_area")), "sale_price": _fnum(b.get("sale_price")),
@@ -786,7 +697,7 @@ async def run_generate(report_id: int, team_id: int) -> dict:
                             "gap": syn["gap"], "ask_price": syn["ask_price"], "broker_price": syn.get("broker_price"),
                             "applied_rent": syn.get("applied_rent"), "expected_deposit": syn.get("expected_deposit"),
                             "market_applied": syn.get("market_applied", False), "breakdown": syn.get("breakdown"),
-                            "gongsi_ctx": syn.get("gongsi_ctx"), "use_type": ut,
+                            "gongsi_ctx": syn.get("gongsi_ctx"),
                             "rent_summary": syn.get("rent_summary"),
                             "rent_floors": syn.get("rent_floors"), "comps_used": syn.get("comps_used")},
             }

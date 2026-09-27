@@ -544,7 +544,7 @@ function PhotoStrip({ pk, onOpen }: { pk: string; onOpen: () => void }) {
 
 /** 업로드 사진·서류 — 브리핑 자료가 종류로 슬롯을 찾는다(0032).
  *  건물 사진(외관·내부)은 여러 장, 서류 3종은 한 장씩. 올릴 때 슬롯 비율에 맞춰 배치를 맞춘다. */
-function UploadTab({ pk }: { pk: string }) {
+export function UploadTab({ pk }: { pk: string }) {
   const access = useAuth((s) => s.access);
   const [urls, setUrls] = useState<Record<number, string>>({});
   const [edit, setEdit] = useState<{ photo: Photo; fit: Fit } | null>(null);

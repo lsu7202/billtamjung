@@ -14,12 +14,14 @@ router = APIRouter(prefix="/listings", tags=["listings"])
 # 사실에서 파생한다(app.v_listing_stage · app.nego_rank).
 LISTING_FIELDS = {
     "urgency", "grade", "ipji", "intent",
-    "meongdo", "use_change", "myeolsil", "nohudo", "building_use",   # S02 업무탭·S01b 필터
+    "meongdo", "use_change", "myeolsil", "nohudo", "building_use",
+    "price_vs_market",  # 시세대비(0187) — 저렴·적정·비쌈. 사람이 매긴다
+    "building_major",   # 대분류(0184) — 통사옥·상가주택·기타 하나. 소분류(building_use)는 여럿   # S02 업무탭·S01b 필터
     # 업무 사다리(0090·S04b) — 접촉 창이 없어 통화 결과는 커밋 칩이 여기로 쓴다.
     # 광고 상태는 우리가 광고를 올리지 않아도 필요하다 — 광고 중이면 경쟁이 있고,
     # 광고가 없으면 나만 아는 물건이다(S04b §3.5).
     "call_result", "ad_status", "ad_off",
-    "co_sent_on",   # 공동중개 발송일(0098) — 노출 창 칩. 날짜다(아래 patch 특례)
+    "exclusive",    # 전속(0182) — 참·거짓·null(모름)
     "sell_on", "sell_vague",   # 매도 시기(0099) — 의사 창. 정지의 깨움과 다르다(원함인 채의 정보)
     "rent_check",              # 임대내역 확인 상태(0100) — null=안 받음 · 확인중. 받았다=파생
     # 임대 총계(0134) — 수익률의 분자. 층별 실측이 있으면 그 합계가 이깁니다(아래 특례).
@@ -53,7 +55,8 @@ class ClaimIn(BaseModel):
 
 class BizPatch(BaseModel):
     building_pk: str
-    fields: dict[str, str | None]
+    # 소분류(building_use)만 여럿이라 목록으로 온다(0182). 전속은 참·거짓
+    fields: dict[str, bool | str | list[str] | None]
 
 
 def _mask_phone(row: dict, user: CurrentUser, owner_id: int | None) -> dict:
@@ -139,6 +142,10 @@ async def claim(body: ClaimIn, user: CurrentUser = Depends(current_user)):
                DO UPDATE SET assignee_account_id=EXCLUDED.assignee_account_id, updated_at=now()""",
             body.building_pk, user.team_id, target,
         )
+    # 매물 등록 순간 원장 업체를 임대 내역 호실로 한 번 복사한다(0185). 이미 줄이 있으면 안 한다
+    if target is not None:
+        from .floor_rents import seed_from_ledger
+        await seed_from_ledger(user.team_id, body.building_pk)
     return {"ok": True, "registered": target is not None}
 
 
@@ -163,6 +170,8 @@ async def patch_biz(body: BizPatch, user: CurrentUser = Depends(current_user)):
     )
     import datetime as dt
     own = {OWNER_FIELDS[k]: v for k, v in body.fields.items() if k in OWNER_FIELDS}
+    if any(v is not None and not isinstance(v, str) for v in own.values()):
+        raise HTTPException(422, "소유자 칸은 글자")
     lst = {k: v for k, v in body.fields.items() if k in LISTING_FIELDS}
 
     if own:
@@ -234,7 +243,24 @@ async def patch_biz(body: BizPatch, user: CurrentUser = Depends(current_user)):
         sets, args = [], [body.building_pk, user.team_id]
         for i, (k, v) in enumerate(lst.items(), start=3):
             sets.append(f'"{k}"=${i}')
-            if k in ("received_on", "co_sent_on", "sell_on") and v is not None:
+            if k == "building_use":
+                # 소분류 — 사전(ref.enums building_use)에 있는 것만, 빈 목록은 null(0182)
+                vals = [x for x in (v or []) if isinstance(x, str) and x.strip()] if isinstance(v, list) else None
+                if v is not None and not isinstance(v, list):
+                    raise HTTPException(422, "building_use 는 목록")
+                if vals:
+                    ok = {r["code"] for r in await pool().fetch(
+                        "SELECT code FROM ref.enums WHERE enum_key='building_use' AND active")}
+                    if set(vals) - ok:
+                        raise HTTPException(422, f"모르는 소분류: {sorted(set(vals) - ok)}")
+                args.append(list(dict.fromkeys(vals)) if vals else None)
+            elif k == "exclusive":
+                if v is not None and not isinstance(v, bool):
+                    raise HTTPException(422, "exclusive 는 참·거짓")
+                args.append(v)
+            elif isinstance(v, (bool, list)):
+                raise HTTPException(422, f"{k}는 글자")
+            elif k in ("received_on", "sell_on") and v is not None:
                 try:
                     args.append(dt.date.fromisoformat(v))
                 except ValueError:
