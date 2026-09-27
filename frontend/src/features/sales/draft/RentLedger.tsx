@@ -11,8 +11,6 @@ import "../../building/bldgtab.css";
  *  둘 다 없으면 공실(서버 판정 `occupied`). 호실이 하나도 없는 층은 모름이다.
  *  매물 등록 때 원장 업체가 한 번 복사돼 들어와 있고, 그 뒤로는 여기서만 바뀐다.
  *  층을 모르는 업체(층 미상)는 층 칩을 눌러 옮긴다. 문 닫은 업체는 지운다.
- *
- *  층 머리에 실측 월임대 합과 추정 월임대를 나란히 둔다 — 건물 상세에 있던 견줌이 여기로 왔다.
  */
 
 const P = 3.305785;
@@ -119,11 +117,6 @@ export function RentLedger({ pk, onSaved }: { pk: string; onSaved: () => void })
     </div>
   );
 
-  const floorRent = (g: LedgerFloor) => {
-    const got = g.units.filter((u) => u.rent).reduce((a, u) => a + (u.rent ?? 0), 0);
-    return got || null;
-  };
-
   return (
     <div className="bg-card rl">
       <div className="bg-ttl">임대 내역
@@ -165,12 +158,6 @@ export function RentLedger({ pk, onSaved }: { pk: string; onSaved: () => void })
           {cur && (
             <>
               <div className="fl2-rh"><b>{cur.floor}</b></div>
-              <div className="fl2-g fl2-fi">
-                <span className="dk">바닥면적</span><span className="dv"><span className="ro">{py(cur.floor_area) ?? "—"}</span></span>
-                <span className="dk">공실면적</span><span className="dv"><span className="ro">{cur.vacant_area != null ? py(cur.vacant_area) : "—"}</span></span>
-                <span className="dk">월 임대료</span><span className="dv"><span className="ro num">{manOnly(floorRent(cur)) ?? "—"}</span></span>
-                <span className="dk">추정 월 임대료</span><span className="dv"><span className="ro num">{manOnly(cur.rent_est) ?? "—"}</span></span>
-              </div>
               <div className="fl2-sec">호실</div>
               {cur.units.map((u) => unitCard(u))}
               <button className="addu" disabled={busy} onClick={() => addUnit(cur.floor)}>+ 호실</button>

@@ -1053,10 +1053,7 @@ def _ledger_for_model(raw: dict, total: dict) -> dict:
     for g in raw.get("floors") or []:
         if not g.get("units"):
             continue                                   # 호실 없는 층 — 모른다. 줄을 세우지 않는다
-        row: dict[str, Any] = {"층": _floor_label(g["floor"]), "호실": [unit(u) for u in g["units"]]}
-        if g.get("vacant_area") is not None:
-            row["공실면적"] = round(g["vacant_area"], 2)
-        floors.append(row)
+        floors.append({"층": _floor_label(g["floor"]), "호실": [unit(u) for u in g["units"]]})
     if floors:
         res["층"] = floors
     if raw.get("unknown"):

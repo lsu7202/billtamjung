@@ -61,51 +61,21 @@ async def team_floor_rows(building_pk: str, team_id: int) -> tuple[list[dict], l
 async def list_rents(building_pk: str, user: CurrentUser = Depends(current_user)):
     """임대 내역 — 대장 층 뼈대 위에 팀 호실 줄을 층별로 묶는다.
 
-    floors  : [{floor, floor_area, uses, rent_est, vacant_area, units[]}]  1층부터 위로 · 옥탑 · 지하
-              vacant_area = 적힌 공실 호실 면적의 합 · 적힌 공실이 없으면 null(0186 — 만실이라 단정 안 함)
-              rent_est    = 그 층 추정 월임대(master.floor_rent_est) — 실측과 견주는 자
+    floors  : [{floor, units[]}]  1층부터 위로 · 옥탑 · 지하. 호실이 없는 대장 층도 선다(「+ 호실」 자리)
+              층마다 붙던 바닥면적·공실면적·월 임대료·추정 월 임대료는 뺐다(2026-09-27 대표)
     unknown : 층 미상 호실(floor=null)
     items   : 호실 평평하게 · total: 돈 적힌 줄의 합과 공실면적(매물 줄에 접는 값과 같다)"""
     from .floors import _frank, _sfloor           # 층 순서·같은 층 판정은 층별 정보와 한 규칙
     items, _hidden = await team_floor_rows(building_pk, user.team_id)
-    outline = await pool().fetch(
-        """SELECT fo.floor, sum(fo.floor_area)::float AS floor_area,
-                  array_agg(DISTINCT fo.use) FILTER (WHERE fo.use IS NOT NULL) AS uses,
-                  sum(fre.rent_est)::float AS rent_est
-             FROM master.floor_outline fo
-             LEFT JOIN master.floor_rent_est fre USING (building_pk, seq)
-            WHERE fo.building_pk=$1 AND fo.floor IS NOT NULL GROUP BY fo.floor""", building_pk)
     label: dict[int, str] = {}
-    meta: dict[int, dict] = {}
-    for o in outline:
-        sf = _sfloor(o["floor"])
-        if sf is None:
-            continue
-        label.setdefault(sf, o["floor"])
-        m = meta.setdefault(sf, {"floor_area": 0.0, "uses": [], "rent_est": None})
-        m["floor_area"] += o["floor_area"] or 0
-        m["uses"] += [u for u in (o["uses"] or []) if u not in m["uses"]]
-        if o["rent_est"]:
-            m["rent_est"] = (m["rent_est"] or 0) + o["rent_est"]
-    for r in items:
+    for r in [*(await pool().fetch(
+            "SELECT DISTINCT floor FROM master.floor_outline WHERE building_pk=$1 AND floor IS NOT NULL",
+            building_pk)), *items]:
         sf = _sfloor(r["floor"])
         if sf is not None:
             label.setdefault(sf, r["floor"])
-
-    def vacant(units: list[dict]) -> float | None:
-        # 적힌 공실 호실의 합(0186). 적힌 공실이 없으면 None — 「만실」이라 말하지 않는다
-        empty = [u for u in units if not u["occupied"]]
-        if not empty or any(u["contract_area"] is None for u in empty):
-            return None
-        return sum(u["contract_area"] for u in empty)
-
-    floors = []
-    for sf in sorted(label, key=lambda k: _frank(label[k])):
-        units = [r for r in items if _sfloor(r["floor"]) == sf]
-        m = meta.get(sf, {})
-        floors.append({"floor": label[sf], "floor_area": m.get("floor_area") or None,
-                       "uses": m.get("uses") or [], "rent_est": m.get("rent_est"),
-                       "vacant_area": vacant(units), "units": units})
+    floors = [{"floor": label[sf], "units": [r for r in items if _sfloor(r["floor"]) == sf]}
+              for sf in sorted(label, key=lambda k: _frank(label[k]))]
     unknown = [r for r in items if r["floor"] is None]
     money = [r for r in items if any(r[k] for k in ("rent", "deposit", "maintenance"))]
     total = {

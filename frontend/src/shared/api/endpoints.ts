@@ -387,13 +387,8 @@ export interface FloorGroup {
   rooms: LedgerRoom[];      // 대장 전유부. 빈 목록이면 전유부가 없는 건물(일반건물)
   ledger: Tenant[];
 }
-/** 임대 내역의 층 하나(0185) — 대장 층 뼈대 위에 팀 호실 줄 */
-export interface LedgerFloor {
-  floor: string; floor_area: number | null; uses: string[];
-  rent_est: number | null;           // 그 층 추정 월임대 — 실측과 견주는 자
-  vacant_area: number | null;        // 적힌 공실 호실 면적의 합 · 적힌 공실이 없으면 null(0186 — 만실이라 단정 안 함)
-  units: FloorRent[];
-}
+/** 임대 내역의 층 하나(0185) — 대장 층 뼈대 위에 팀 호실 줄. 층 머리 값(바닥면적·공실·월임대·추정)은 뺐다(2026-09-27) */
+export interface LedgerFloor { floor: string; units: FloorRent[] }
 
 /** 입주 이력 한 줄(2026-09-25) — LOCALDATA. 임대료는 없다. 「영업」은 신고상 상태다 */
 export interface TenancyStint {
