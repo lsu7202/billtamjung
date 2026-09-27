@@ -104,13 +104,10 @@ function RentTrend({ pk }: { pk: string }) {
   );
 }
 
-export function RentPanel({ pk, unit, items, total, refresh, addr }: {
+export function RentPanel({ pk, unit, onLedger }: {
   pk: string; unit: "py" | "m2";
-  items: Parameters<typeof FloorRows>[0]["items"];
-  total: Parameters<typeof FloorRows>[0]["total"];
-  refresh: () => void;
-  /** 카카오맵 업체 목록 링크에 쓸 주소 — FloorRows 로 내려간다 */
-  addr?: string | null;
+  /** 내 매물이면 층별 정보 머리의 「임대 내역 →」 — 팀 실측은 매물 쪽에만 있다(2026-09-26) */
+  onLedger?: () => void;
 }) {
   const { loading, sub, rs, floors, totalArea, landArea } = useReportModel(null, pk);
   const hist = useTenancyHistory(pk);
@@ -139,15 +136,15 @@ export function RentPanel({ pk, unit, items, total, refresh, addr }: {
     <div className="rv">
       <div className="rv-wrap">
         <Toc items={[
-          { id: "rt-real", label: "층별 임대정보" },
+          { id: "rt-real", label: "층별 정보" },
           ...(hist.data && (hist.data.items.length || hist.data.ecommerce) ? [{ id: "rt-hist", label: "입주 이력" }] : []),
           { id: "rt-trend", label: "임대 시세 추이" },
           ...(fl.length ? [{ id: "rt-est", label: "임대료·보증금 추정" }] : []),
         ]} />
         <div className="rv-body">
-          {/* 실측 — 팀이 넣는 값. 표가 아니라 층 줄이다(FloorRows) */}
+          {/* 층별 정보 — 대장과 업체 원장만. 팀 실측(임대 내역)은 매물 모달에 있다 */}
           <div id="rt-real">
-            <FloorRows pk={pk} items={items} total={total} unit={unit} refresh={refresh} addr={addr} />
+            <FloorRows pk={pk} unit={unit} onLedger={onLedger} />
           </div>
 
           {/* 입주 이력 — 층별(지금) 바로 아래. 같은 층에 누가 거쳐 갔는지를 이어서 읽는다 */}

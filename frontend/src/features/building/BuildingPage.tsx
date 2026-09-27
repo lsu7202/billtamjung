@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  buildingsApi, overlaysApi, rentsApi, listingsApi, seriesApi, reportsApi, proposalsApi,
+  buildingsApi, overlaysApi, listingsApi, seriesApi, reportsApi, proposalsApi,
 } from "../../shared/api/endpoints";
 import { PhotoPanel } from "../../shared/map/PhotoPanel";
 import { wonShort } from "../../shared/format";
@@ -84,7 +84,6 @@ export function BuildingPage() {
       .then(() => qc.invalidateQueries({ queryKey: ["report-comps", pk] }))
       .catch(() => {});
   };
-  const rents = useQuery({ queryKey: ["rents", pk], queryFn: () => rentsApi.list(pk) });
   // 주변 소식 → 사이드바 지도 아이콘. 목록(입지 탭)과 같은 조회라 react-query 가 한 번만 받는다
   const areaEv = useQuery(areaEventsQuery(pk));
   const evYears = useAreaPick((s) => s.years);
@@ -152,7 +151,6 @@ export function BuildingPage() {
 
   // ── 파생값 ──
   const b = (building.data ?? {}) as Record<string, any>;
-  const total = rents.data?.total;
   // 총임대료·수익률 계산은 임대 탭(RentPanel)으로 갔다(2026-08-26) — 층별 임대의 합이라
   // 그 표가 주인이다. 이 화면에 남는 건 머리줄이 쓰는 매매가뿐이다.
   // 매매가 = **사람이 넣은 값만**(2026-08-18) — 추정가로 미리 채우지 않는다.
@@ -219,7 +217,7 @@ export function BuildingPage() {
       {/* 머리줄 — 진짜 한 행(2026-08-27 확정). 주소 · 매물번호 · 알약.
           접수일·담당·도로명주소는 뺐다 — 접수일·담당은 사이드바(매물)가 정본이고,
           도로명은 지번과 같은 곳을 두 번 부르는 말이라 머리줄에서 할 일이 없다.
-          매물번호만 남는다: 전화로 「BT-1294 있잖아요」 할 때 찾는 그 번호다. */}
+          매물번호만 남는다: 전화로 「1294 있잖아요」 할 때 찾는 그 번호다. */}
       <div className="panel bt-hd" style={{ padding: "9px 18px", position: "sticky", top: 0, zIndex: 20,
         display: "flex", alignItems: "center", gap: 12, flexWrap: "nowrap", overflow: "hidden" }}>
         <h2 style={{ margin: 0, fontSize: 17, whiteSpace: "nowrap", overflow: "hidden",
@@ -282,10 +280,10 @@ export function BuildingPage() {
           {/* 임대 — 실측(팀 입력)과 추정을 한 자리에. 「우리 2,391만 / 주변 2,508만」은
               두 값이 나란히 서야 읽히는 문장이라 탭을 가르면 아무도 견주지 않는다 */}
           {show("rent") && (
-            <RentPanel pk={pk} unit={unit} items={rents.data?.items ?? []} total={total} addr={b.road_addr || b.addr}
-              // 건물도 다시 받는다 — 만실 월임대·수익률(0181)은 층 공실면적·업체 임대료가 바뀌면 서버가 다시 접는다
-              refresh={() => { qc.invalidateQueries({ queryKey: ["rents", pk] }); qc.invalidateQueries({ queryKey: ["nearby"] });
-                qc.invalidateQueries({ queryKey: ["building", pk] }); }} />
+            <RentPanel pk={pk} unit={unit}
+              // 임대 내역(팀 호실·임대료·공실)은 매물 모달에 있다 — 내 매물이면 거기로 가는 길을 준다
+              onLedger={(listing.data as { assignee_account_id?: number | null } | undefined)?.assignee_account_id != null
+                ? () => nav(`/sales?listing=${encodeURIComponent(pk)}&tab=rent`) : undefined} />
           )}
 
           {/* 금액정보·투자분석 판은 걷어냈다(2026-08-25).
@@ -407,10 +405,7 @@ export function BuildingPage() {
           onClick={() => { setBriefOpen(true); setGenState(null); }}>브리핑 자료</button>
         <button className="lnk dim2" style={{ marginLeft: 6, fontSize: 12.5 }} onClick={async () => {
           if (confirm("팀 오버레이 전체를 마스터 원본으로 되돌립니다. 계속할까요?")) {
-            // 층별 임대도 같이 되돌린다 — 가이드가 「전부는 화면 하단 전체 되돌리기」라고 안내하는데
-            // 여기는 건물 덮어쓰기만 지우고 있었다(2026-09-07 대표: 「되돌리기가 또 끊겼다」). 머리의 것과 같은 API
-            await rentsApi.revert(pk);
-            rents.refetch();
+            // 임대 내역(팀 호실)은 매물의 기록이라 건물 되돌리기에 안 딸려 간다(2026-09-26 나눔)
             const r = await overlaysApi.revertAll(pk);
             alert(`${r.reverted}개 수정값을 되돌렸습니다`);
             qc.invalidateQueries({ queryKey: ["building", pk] });

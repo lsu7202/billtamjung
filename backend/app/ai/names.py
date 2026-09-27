@@ -63,7 +63,7 @@ KO: dict[str, str] = {
     # 업종
     "biz_n": "업종수",
     # 대장에만 있는 칸
-    "bjd_code": "법정동코드", "use_type": "활용유형",
+    "bjd_code": "법정동코드",
     # 나대지 대장(master.vacant_parcels) — 건물과 이름이 같아야 모델이 안 헷갈린다
     "area": "대지면적", "reg_all": "규제",
     # 걸침 필지 — 대장은 큰 쪽 하나만 준다. 둘째 비중이 10% 넘는 건물이 12,281동이고
@@ -81,7 +81,7 @@ KO: dict[str, str] = {
     "roi": "수익률",
     "pp_land_team": "평단가대지", "pp_total_team": "평단가연면적", "gongsi_ratio_team": "공시비율",
     "urgency": "급함", "intent": "매도의사", "meongdo": "명도", "use_change": "용도변경",
-    "myeolsil": "멸실", "nohudo": "노후도", "building_use": "활용유형",
+    "myeolsil": "멸실", "nohudo": "노후도", "building_major": "대분류", "building_use": "소분류", "price_vs_market": "시세대비",
     "grade": "등급", "ipji": "입지", "sell_vague": "매도시점",
     "received_on": "접수일", "assignee_account_id": "담당자", "has_photo": "사진",
     # 소유자
@@ -108,7 +108,7 @@ LISTING = (
     "rent_total", "deposit_total", "mgmt_total", "vacant_area",
     "roi", "rent_full", "roi_full", "full_est", "pp_land_team", "pp_total_team", "gongsi_ratio_team",
     "urgency", "intent", "meongdo", "use_change", "myeolsil", "nohudo",
-    "building_use", "grade", "ipji", "sell_vague", "received_on",
+    "building_major", "building_use", "price_vs_market", "grade", "ipji", "sell_vague", "received_on",
     "assignee_account_id", "has_photo",
     "owner_name", "owner_phone", "owner_type", "relation", "cooperation", "kindness",
 )
@@ -124,6 +124,9 @@ SECTIONS = {
     "임대추이": "rent_series",      # 부동산원 임대동향으로 역산한 해마다의 임대료
     # 입주 이력(2026-09-25) — 누가 언제 들어왔다 나갔나(LOCALDATA). 임대료는 없다
     "입주이력": "tenancy_history",
+    # 임대 내역(2026-09-26) — **우리 매물일 때만** 있다. 호실(업체 단위)·임대료·공실면적은 팀이 확인한
+    # 기록이라 층별(대장·원장)과 나눴다. 우리 매물이 아니면 이 묶음은 오지 않는다 — 추정 임대만 쓴다
+    "임대내역": "rent_ledger",
     "주변매각": "comps",            # 반경 내 매물당 최근 1건 — 연면적 평단가 축(04 슬라이드)
     # 아래 넷은 **대장에 실려 있던 목록**이다. 「한 줄은 대장, 여러 줄은 함께」가 규칙인데
     # 이 넷만 눌러앉아 안 달라고 해도 왔다 — 건물 대장 2,548자의 65%, 나대지의 43%였다
@@ -158,7 +161,7 @@ KO_NESTED: dict[str, str] = {
     #   영업장면적 인허가. 그 가게가 쓰는 넓이
     "contract_area": "계약면적", "area": "영업장면적",
     "rent": "월 임대료", "maintenance": "월 관리비",
-    "name": "상호명", "url": "링크",
+    "name": "상호명", "url": "링크", "cat_nodes": "업종",
     "deposit": "보증금", "use": "용도",      # 둘이 빠져 영어 그대로 나갔다(2026-09-25)
     # 필지
     "role": "역할", "pnu": "필지번호", "gongsi": "공시지가",
@@ -218,7 +221,7 @@ def ko(key: str) -> str:
 
 
 # ── 조건 이름 ───────────────────────────────────────────────────────────────
-# 답도 물음도 한국어인데 조건만 영어였다. `biz_all` 은 「카카오에서 찾은 입주 업체가
+# 답도 물음도 한국어인데 조건만 영어였다. `biz_all` 은 「크롤링한 입주 업체가
 # 전부 든 건물」인데 이름이 그렇게 안 읽혀, 「근생 중 병원 없는 건물」 물음에 모델이
 # `use=병원 · biz_all=[근린생활시설]` 을 걸어 0건을 냈다(2026-09-19 실측). 설명은
 # 98개 중 하나라 안 읽히고 이름은 고를 때 읽힌다. 스키마는 22 토큰(0.3%) 늘어난다.
@@ -266,7 +269,7 @@ _FILTER_PLAIN: dict[str, str] = {
     # 용도 둘 — 허가 때 용도와 지금 든 업체는 다른 것이다. 이름이 그걸 말해야 한다.
     # 「용도」하나로 묶어 뒀더니(2026-09-19) 둘의 구분 자체가 화면에서 사라졌다.
     "use": "주용도",                                   # 대장. 부분일치
-    "biz_dnf": "입주업체",                             # 카카오에서 찾은 실제 장소
+    "biz_dnf": "입주업체",                             # 크롤링한 실제 업체(master.biz)
     # 「없음」은 조건마다 따로 파지 않는다 — 값 옆에 {"있음":…, "없음":…} 으로 온다
     # 팀이 적은 값
     "vacant": "공실", "sell_vagues": "매도시점", "urgencies": "급함",

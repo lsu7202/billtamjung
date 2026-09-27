@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { CompareBar } from "./ReportPrimitives";
 import { Logo, Seal, BuildingArt, CountUp } from "./ReportAssets";
-import { ReportMap, ZONE_COLOR } from "./ReportMap";
+import { ReportMap } from "./ReportMap";
 import { BuildingPhoto } from "./BuildingPhoto";
 import { useReportModel, num, man, eokman, eokManParts, py, type Seg } from "./reportModel";
 import "./reportslide.css";
@@ -46,7 +46,7 @@ export function ReportPage() {
     if (document.fullscreenElement) document.exitFullscreen?.();
     else rootRef.current?.requestFullscreen?.();
   };
-  const SLIDES = 10;
+  const SLIDES = 6;   // 요약·기본·실거래·공시지가·임대·결론(투자유형·미래가치는 2026-09-26 삭제)
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); setCur((c) => Math.min(SLIDES - 1, c + 1)); }
@@ -62,8 +62,8 @@ export function ReportPage() {
     fair, rent, curRent, totalArea, avgPer, comps, moreCount, avgPerNow,
     gLatest, gTotal, nbhdGongsi, gmult, compMin, compMax,
     roiFair, nbhdRoi,
-    ut, officeApt, fut, useZone, mainUse, shortAddr, conclusion,
-    SLIDES: SLIDE_META, summaryRows, summaryTail, basicInfo, gongsiMetrics, gongsiProse, rentMetrics, rentProse, futureAxes,
+    useZone, mainUse, shortAddr, conclusion,
+    SLIDES: SLIDE_META, summaryRows, summaryTail, basicInfo, gongsiMetrics, gongsiProse, rentMetrics, rentProse,
   } = m;
   const SM = Object.fromEntries(SLIDE_META.map((s) => [s.key, s])) as Record<string, typeof SLIDE_META[number]>;
 
@@ -117,7 +117,6 @@ export function ReportPage() {
               </div>
             </div>
             <div className="rs-fade" style={{ display: "flex", alignItems: "center", gap: "2.6cqw", paddingTop: "1.3cqw", borderTop: "1px solid var(--rl)", fontSize: "1.1cqw", color: "var(--rmuted)", ["--d" as string]: "360ms" }}>
-              {summaryTail.primary ? <span>투자 유형 <b style={{ color: "var(--blue)" }}>{summaryTail.primary}</b>{summaryTail.officeApt && <span style={{ fontSize: ".8cqw", color: "#fff", background: "var(--navy)", borderRadius: "1cqw", padding: ".1cqw .6cqw", marginLeft: ".4cqw", fontWeight: 700 }}>사옥 적합</span>}</span> : null}
               <span>대지 평당 추정가 <b style={{ color: "var(--navy)" }}>{summaryTail.avgPerMan}</b></span>
               <span>연면적 <b style={{ color: "var(--navy)" }}>{summaryTail.totalPy}</b></span>
             </div>
@@ -256,99 +255,6 @@ export function ReportPage() {
           </div>
         </div>
       </Slide>,
-      <Slide key={6} n={SM.usetype.n} foot={SM.usetype.foot} rno={rno} date={date}
-        title={SM.usetype.title} desc={SM.usetype.desc}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "1cqw", width: "100%", height: "100%" }}>
-          {ut ? <>
-            <div style={{ display: "flex", gap: "2.2cqw", flex: 1, alignItems: "stretch", minHeight: 0 }}>
-              {/* 좌: 대표유형(좌측 정렬) + 유형별 적합도 */}
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "1.6cqw" }}>
-                <div className="rs-pop" style={{ ["--d" as string]: "150ms" }}>
-                  <div style={{ fontSize: "1.1cqw", color: "var(--rmuted)", fontWeight: 700 }}>이 건물에 가장 적합한 활용</div>
-                  <div style={{ fontSize: "3.4cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.1 }}>
-                    {ut.primary}{officeApt && <span style={{ fontSize: "1.3cqw", color: "#fff", background: "var(--blue)", borderRadius: "1.5cqw", padding: ".2cqw 1cqw", marginLeft: ".8cqw", fontWeight: 700, verticalAlign: "middle" }}>사옥 적합</span>}
-                  </div>
-                  <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)", marginTop: ".3cqw" }}>{ut.reason}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)", marginBottom: ".3cqw" }}>유형별 적합도 <span style={{ color: "var(--rmuted)", fontWeight: 400, fontSize: ".85cqw" }}>(점)</span></div>
-                  <CompareBar height={140} fmt={(v) => `${Math.round(v)}`}
-                    items={[{ label: "신축", value: ut.scores["신축용"] ?? 0, color: "var(--navy)" },
-                            { label: "리모델", value: ut.scores["리모델링용"] ?? 0, color: "var(--navy)" },
-                            { label: "수익", value: ut.scores["수익형"] ?? 0, color: "var(--blue)", strong: true },
-                            { label: "사옥적합", value: ut.office_fit ?? 0, color: "var(--purple)" }].map((x) => ({ ...x, value: Math.max(x.value, 1) }))} />
-                </div>
-              </div>
-              {/* 우: 큰 상권 지도(높이 채움) */}
-              <div style={{ flex: 1.5, display: "flex", flexDirection: "column", gap: ".5cqw", minHeight: 0 }}>
-                <div style={{ fontSize: "1.05cqw", fontWeight: 700, color: "var(--navy)" }}>주변 상권 지도 <span style={{ color: "var(--rmuted)", fontWeight: 400, fontSize: ".85cqw" }}>(반경 300m · 격자 지배 업종)</span></div>
-                {ut.zones && ut.zones.length
-                  ? <ReportMap lng={num(b.lng)} lat={num(b.lat)} geom={b.parcel_geom} zones={ut.zones as any} />
-                  : <div style={{ color: "var(--rmuted)", fontSize: "1.05cqw", padding: "2cqw 0" }}>주변 상권 데이터가 부족합니다.</div>}
-                <div style={{ display: "flex", gap: "1cqw", flexWrap: "wrap", fontSize: ".85cqw", color: "var(--rmuted)" }}>
-                  {Object.entries(ZONE_COLOR).map(([k, c]) => (
-                    <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: ".3cqw" }}><span style={{ width: ".9cqw", height: ".9cqw", background: c, borderRadius: ".2cqw", display: "inline-block" }} />{k}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div style={{ fontSize: ".9cqw", lineHeight: 1.5, color: "var(--rmuted)", textAlign: "center", maxWidth: "88%", margin: "0 auto" }}>
-              ※ 활용률(현재 용적률÷법정) {ut.util != null ? `${ut.util}%` : "—"} · 상권 프로필(층별 용도)·연식·입지로 판별. 사옥 적합도는 업무상권·역세권 기준이며, 실제 활용 목적은 매수자 판단입니다.
-            </div>
-          </> : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--rmuted)", fontSize: "1.2cqw" }}>투자 유형 산정에 필요한 데이터가 부족합니다.</div>}
-        </div>
-      </Slide>,
-      <Slide key={8} n={SM.future.n} foot={SM.future.foot} rno={rno} date={date}
-        title={SM.future.title} desc={SM.future.desc}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.8cqw", width: "100%", height: "100%", justifyContent: "center" }}>
-          {fut && fut.label ? <>
-            <div style={{ display: "flex", gap: "2.8cqw", alignItems: "center", minHeight: 0 }}>
-              {/* 좌: 미래가치 유형 */}
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                <div className="rs-pop" style={{ ["--d" as string]: "150ms" }}>
-                  <div style={{ fontSize: "1.1cqw", color: "var(--rmuted)", fontWeight: 700 }}>미래가치 유형</div>
-                  <div style={{ fontSize: "3.2cqw", fontWeight: 800, color: "var(--navy)", lineHeight: 1.1 }}>{fut.label}</div>
-                  <div style={{ fontSize: "1.05cqw", color: "var(--rmuted)", marginTop: ".5cqw", lineHeight: 1.6 }}>{fut.reason}</div>
-                </div>
-              </div>
-              {/* 우: 3축 실제 값(점수 아님) */}
-              <div style={{ flex: 1.25, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                {futureAxes.map((x, i) => (
-                  <div key={x.key} className="rs-fade" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1cqw", padding: ".9cqw 0", borderBottom: i < 2 ? "1px solid var(--rl)" : "none", ["--d" as string]: `${300 + i * 130}ms` }}>
-                    <div><div style={{ fontSize: "1.2cqw", fontWeight: 700, color: "var(--navy)" }}>{x.label}</div>
-                      <div style={{ fontSize: ".88cqw", color: "var(--rmuted)", marginTop: ".2cqw" }}>{x.sub}</div></div>
-                    <div style={{ fontSize: "2.4cqw", fontWeight: 800, color: x.c, lineHeight: 1, whiteSpace: "nowrap" }}>{x.value}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="rs-fade" style={{ fontSize: "1.05cqw", lineHeight: 1.75, color: "var(--rink)", maxWidth: "92%", margin: "0 auto", ["--d" as string]: "750ms" }}>
-              <b style={{ color: "var(--navy)" }}>해석 &nbsp;</b>
-              {(fut.dev ?? 0) < 20
-                ? <>활용률 {ut?.util != null ? `${ut.util}%` : "—"}로 법정 용적률을 이미 채워 <b>신축·증축 여지가 제한적</b>이고, </>
-                : <>법정 용적률 대비 미사용분이 남아 <b>개발여지가 유효</b>하고, </>}
-              {(fut.upside ?? 0) < 20
-                ? <>현재 임대료도 주변 시세와 유사해 단기 상향 여력이 낮습니다.</>
-                : <>현재 임대료가 주변 시세를 밑돌아 <b>임대 리포지셔닝 여지</b>가 있습니다.</>}
-              {fut.land != null && fut.land_rate5 != null
-                ? (fut.land >= 50
-                    ? <> 반면 최근 5년 공시지가가 <b style={{ color: "var(--navy)" }}>{fut.land_rate5 >= 0 ? "+" : ""}{fut.land_rate5}%</b> 올라 <b>지가 상승 추세가 양호</b>합니다.</>
-                    : fut.land >= 25
-                      ? <> 최근 5년 공시지가는 <b>{fut.land_rate5 >= 0 ? "+" : ""}{fut.land_rate5}%</b> 상승했습니다.</>
-                      : <> 최근 5년 공시지가 변동도 완만합니다.</>)
-                : null}
-              {fut.label === "상승 기대형"
-                ? <> 이 여력이 실현되면 현재가치를 넘어서는 <b>추가 상승</b>이 기대됩니다.</>
-                : fut.label === "정체형"
-                  ? <> 단기적으로는 가치 변동이 크지 않은 <b>안정 보유형</b>입니다.</>
-                  : <> 다만 이는 입지·수익이 이미 성숙한 <b>우량자산</b>이라는 의미로, 지가가 꾸준히 오르는 만큼 <b>보유 시 가치도 점진적으로 상승</b>합니다. 개발·리모델링을 더하면 추가 상승 여력도 열립니다.</>}
-            </div>
-            <div style={{ fontSize: ".9cqw", lineHeight: 1.5, color: "var(--rmuted)", textAlign: "center", maxWidth: "90%", margin: "0 auto" }}>
-              ※ 미래가치 = 개발여지(40%) + 임대 상향 여력(30%) + 지가 상승 추세(30%) 블렌드. 현재가치(추정가)와 별개의 상승 잠재력 지표입니다. 지가 상승은 개별 공시지가 5년 변동률(없으면 자치구 지가변동률)을 사용합니다.
-            </div>
-          </> : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--rmuted)", fontSize: "1.2cqw" }}>미래가치 산정에 필요한 데이터가 부족합니다.</div>}
-        </div>
-      </Slide>,
       <Slide key={7} n={SM.conclusion.n} foot={SM.conclusion.foot} rno={rno} date={date}
         title={SM.conclusion.title} desc={SM.conclusion.desc}>
         <div style={{ display: "flex", flexDirection: "column", gap: ".9cqw", width: "100%", height: "100%", justifyContent: "center" }}>
@@ -381,22 +287,6 @@ export function ReportPage() {
                 <div style={{ fontSize: "2.7cqw", fontWeight: 800, color: "var(--blue)", lineHeight: 1.05 }}>{v}<span style={{ fontSize: "1.35cqw" }}>{u}</span></div>
                 <div style={{ fontSize: ".82cqw", color: "var(--rmuted)" }}>{d}</div>
               </div>
-            ))}
-          </div>
-          {/* 성격 키워드 — 중앙 양옆, 아래서 위로 올라오며(rs-fade) 큼지막하게 */}
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "4.5cqw", marginTop: ".6cqw" }}>
-            {([
-              ut?.primary ? { lab: "투자 유형", val: ut.primary, extra: officeApt ? "사옥 적합" : null, c: "var(--blue)" } : null,
-              fut?.label ? { lab: "미래가치", val: fut.label, extra: null, c: "var(--blue)" } : null,
-            ].filter(Boolean) as { lab: string; val: string; extra: string | null; c: string }[]).map((t, i) => (
-              <Fragment key={t.lab}>
-                {i > 0 && <div style={{ width: "1px", height: "3.4cqw", background: "var(--rl)" }} />}
-                <div className="rs-fade" style={{ textAlign: "center", ["--d" as string]: `${1650 + i * 240}ms` }}>
-                  <div style={{ fontSize: ".92cqw", fontWeight: 700, letterSpacing: ".1em", color: "var(--rmuted)", marginBottom: ".25cqw" }}>{t.lab}</div>
-                  <div style={{ fontSize: "3.2cqw", fontWeight: 800, lineHeight: 1, color: t.c, letterSpacing: "-.01em" }}>{t.val}</div>
-                  {t.extra && <div style={{ fontSize: ".95cqw", fontWeight: 700, color: t.c, opacity: .85, marginTop: ".35cqw", letterSpacing: ".02em" }}>· {t.extra}</div>}
-                </div>
-              </Fragment>
             ))}
           </div>
           {/* 종합 의견 — reportModel.conclusion 단일 소스(애니메이션 모드와 동일 문구) */}

@@ -81,10 +81,10 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
         "SELECT sale_est FROM master.building_sale_est WHERE building_pk=$1", building_pk)
     data["sale_est"] = int(se) if se is not None else None
 
-    # 활용유형(F-20)·매도가능성 — 배치(master.building_score, 0038). 매력도(F-16)는 2026-09-06 에 없앴다(0161).
-    # 예전엔 리포트를 만들어야만 존재하던 값이라 상세·영업 어디서도 못 썼다.
+    # 매도가능성 — 배치(master.building_score, 0038). 매력도(F-16)는 2026-09-06, 활용유형(F-20)은
+    # 2026-09-26 에 없앴다 — 추정으로 매긴 유형은 모델이 대장 값을 보고 스스로 판단하면 된다.
     sc = await pool().fetchrow(
-        """SELECT use_type, util_ratio, sell_score, sell_axes
+        """SELECT util_ratio, sell_score, sell_axes
            FROM master.building_score WHERE building_pk=$1""", building_pk)
     if sc:
         d = dict(sc)
@@ -147,7 +147,6 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
 # 상세에서 걷는 칸(감사 2026-09-17). 화면 어디에도 안 그려지고 모델에겐 잡음인 것:
 #   내부 조각(*_src·*_prec·jibun_norm·sgg_code) · 최상위 elevator_ext(_ref 안 것을 읽음) ·
 #   parcel_area(필터 이름) · 점수(sell_score·util_ratio·sell_axes — 매도가능성 배치, 어느 화면도 안 씀).
-# 용도·점수 중 use_type 은 보고서가 읽어 남긴다.
 _DETAIL_DROP = ("bcr_src", "far_src", "approval_ymd_prec", "remodel_ymd_prec", "jibun_norm", "sgg_code",
                 "elevator_ext", "parcel_area", "sell_score", "util_ratio", "sell_axes")
 

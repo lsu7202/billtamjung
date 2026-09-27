@@ -53,6 +53,25 @@ def _wrap(spec: dict, ex: A.Exec):
                            input_schema=spec["input_schema"])
 
 
+def _messages(msgs: list[dict]) -> list[dict]:
+    """이력 → 클로드 messages. 답에 refs 가 있으면(최근 3턴, §23-4) 답 글 앞에
+    tool_use(assistant) → tool_result(user) 를 재현한다."""
+    out: list[dict] = []
+    for n, m in enumerate(msgs):
+        refs = m.get("refs") if m["role"] == "assistant" else None
+        if refs:
+            ids = [f"ref{n}_{k}" for k in range(len(refs))]
+            out.append({"role": "assistant", "content": [
+                {"type": "tool_use", "id": i, "name": r["도구"], "input": r.get("입력") or {}}
+                for i, r in zip(ids, refs, strict=True)]})
+            out.append({"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": i, "content": A.dumps(r.get("결과") or {})}
+                for i, r in zip(ids, refs, strict=True)]})
+        if m.get("content"):
+            out.append({"role": m["role"], "content": m["content"]})
+    return out
+
+
 async def run(specs: list[dict], msgs: list[dict], ex: A.Exec) -> AsyncIterator[dict]:
     kw: dict[str, Any] = {}
     if settings.ai_effort:                       # **Haiku 4.5 는 effort 를 안 받는다**(보내면 400)
@@ -63,7 +82,7 @@ async def run(specs: list[dict], msgs: list[dict], ex: A.Exec) -> AsyncIterator[
             model=model_name(),
             max_tokens=settings.ai_max_tokens,
             tools=[_wrap(s, ex) for s in specs],
-            messages=msgs,
+            messages=_messages(msgs),
             **kw,
         )
         turns = 0

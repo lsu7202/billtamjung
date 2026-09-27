@@ -20,6 +20,8 @@ from __future__ import annotations
 import datetime as dt
 import re
 
+import asyncpg
+
 from ..core.db import pool
 
 _STRIP = re.compile(r"\([^)]*\)|㈜|\(주\)|주식회사|유한회사|\s+")
@@ -153,20 +155,39 @@ def _digits(s: str | None) -> str:
     return d if len(d) >= 7 else ""
 
 
+async def biz_for(building_pk: str) -> dict | None:
+    """그 건물에 **지금 있는** 업체 — 카카오 장소 크롤링(master.biz, 스펙 11 §8-1).
+
+    그 건물을 한 번도 수집하지 않았으면 None(모른다) — 부르는 쪽이 원장(인허가·상가정보)으로 대신한다.
+    수집했는데 업체가 없으면 빈 목록이다(단독주택 등). 건물은 필지로 붙였다(building_pks, 검색과 같은 규칙).
+    화면을 열 때마다 카카오에 묻던 places_for 를 대신한다 — 링크는 저장하지 않는다(§7)."""
+    try:
+        rows = await pool().fetch(
+            """SELECT name, floor, phone, cat_nodes, last_seen FROM master.biz
+                WHERE $1 = ANY(building_pks) AND gone_on IS NULL
+                ORDER BY floor NULLS LAST, name""", building_pk)
+        seen = await pool().fetchval(
+            "SELECT max(crawl_day) FROM master.place_crawl_log WHERE $1 = ANY(pks)", building_pk)
+    except asyncpg.exceptions.UndefinedTableError:    # 적재 전 환경 — 모른다
+        return None
+    if not rows and seen is None:
+        return None
+    # cat_nodes = 업종 나무(조상까지, 「음식점 > 중식」) — 층별 정보·임대 내역이 이름 옆에 보인다
+    return {"items": [{"name": r["name"], "floor": r["floor"], "area": None, "phone": r["phone"],
+                       "cat_nodes": r["cat_nodes"]} for r in rows],
+            "checked_on": max((r["last_seen"] for r in rows), default=seen)}
+
+
 async def tenancy_history(building_pk: str) -> dict:
     """입주 이력 — 층별로 묶고, 층 안에서는 최근에 연 순서. 같은 업체의 인허가 여러 줄
     (일반음식점 + 휴게음식점 등)은 기간이 겹치면 하나로 접는다. 다시 연 것은 따로 선다.
 
-    **지금 있는지는 카카오로만 본다**(2026-09-25 대표). 인허가 「영업」은 폐업 신고를 안 하면 남는
-    신고 상태라, 그것만으로 「지금 있음」을 말하지 않는다. 카카오에서 이름이나 전화로 확인되면
-    `now=True`, 아니면 `now=False` — 폐업일도 없으니 **끝을 모르는** 줄이다(연지동 (주)파라메딕).
-    카카오 결과는 저장하지 않는다(약관). 나중에 네이버·크롤링이 여기 같이 들어온다."""
-    from .places import places_for       # 늦게 들여온다 — places 가 이 모듈을 들여올 수 있다
+    **지금 있는지는 크롤링으로만 본다**(2026-09-25 대표 · 2026-09-27 카카오 실시간 → master.biz).
+    인허가 「영업」은 폐업 신고를 안 하면 남는 신고 상태라, 그것만으로 「지금 있음」을 말하지 않는다.
+    크롤링 업체와 이름이나 전화로 맞으면 `now=True`, 아니면 `now=False` — 폐업일도 없으니 **끝을 모르는**
+    줄이다(연지동 (주)파라메딕). 그 건물을 수집한 적이 없으면 전부 `now=False`(모름)."""
     rows, appr = await history_rows(building_pk)
-    try:
-        kk = (await places_for(building_pk)).get("items", [])
-    except Exception:   # noqa: BLE001 — 카카오가 막히면 「지금 있음」이 하나도 안 선다(모름으로 둔다)
-        kk = []
+    kk = ((await biz_for(building_pk)) or {}).get("items", [])
     # 카카오 이름엔 동네 이름이 지점명처럼 붙는다 — 「미스터**연지동**순두부」 = 인허가 「미스터순두부」.
     # 건물이 있는 동(·가) 이름을 양쪽에서 빼고 한 번 더 견준다. 네이버를 붙일 때도 같은 규칙을 쓴다
     addr = await pool().fetchval("SELECT addr FROM master.buildings WHERE building_pk=$1", building_pk) or ""

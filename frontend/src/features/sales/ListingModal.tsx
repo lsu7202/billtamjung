@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  listingsApi, searchApi, authApi,  stopsApi,
+  listingsApi, searchApi, authApi, stopsApi, buildingsApi,
   type Stop,
 } from "../../shared/api/endpoints";
 import {dongAddr } from "../../shared/format";
@@ -33,9 +33,11 @@ export interface ListingInit {
   owner_age_band?: string | null; owner_gender?: string | null; owner_note?: string | null;
 }
 
-export function ListingModal({ init, onClose, onSaved, stop, lastOn }: {
+export function ListingModal({ init, preset, onClose, onSaved, stop, lastOn }: {
   /** 있으면 편집(그 매물) · 없으면 담기 */
   init?: ListingInit | null;
+  /** 담기인데 건물이 이미 정해져 있다 — 건물 상세 「업무에서 관리」로 넘어온 경우(2026-09-26) */
+  preset?: { pk: string } | null;
   onClose: () => void;
   onSaved: (pk: string) => void;
   /** 소유자 찾기의 열린 멈춤 — 프로필 탭의 [멈춤]이 이걸 편집한다 */
@@ -46,7 +48,15 @@ export function ListingModal({ init, onClose, onSaved, stop, lastOn }: {
   const { options } = useEnums();
   const me = useQuery({ queryKey: ["me"], queryFn: authApi.me });
   const [pick, setPick] = useState<{ pk: string; addr: string } | null>(
-    init ? { pk: init.building_pk, addr: init.addr ?? init.building_pk } : null);
+    init ? { pk: init.building_pk, addr: init.addr ?? init.building_pk }
+      : preset ? { pk: preset.pk, addr: preset.pk } : null);
+  // 미리 정해진 건물의 주소 — 나대지는 pk 가 'P'+pnu 라 필지 API 가 안다
+  const pre = useQuery({ enabled: !!preset, queryKey: ["building", preset?.pk],
+    queryFn: () => (preset!.pk.startsWith("P") ? buildingsApi.vacant(preset!.pk.slice(1)) : buildingsApi.get(preset!.pk)) });
+  useEffect(() => {
+    const a = (pre.data as { addr?: string } | undefined)?.addr;
+    if (preset && a) setPick({ pk: preset.pk, addr: a });
+  }, [pre.data]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [q, setQ] = useState("");
   // 소유자 — 이 매물에 매칭되는 사람
   const [oName, setOName] = useState(init?.owner_name ?? "");

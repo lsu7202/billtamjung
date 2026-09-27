@@ -44,6 +44,7 @@ from ..core.db import pool
 from ..core.deps import CurrentUser
 from ..domains import buildings as bld
 from ..domains import floors as flr
+from ..domains import floor_rents as frt
 from ..domains import market as mkt
 from ..domains.search import (_ECHO, _FIELDS_OK, _NOT_COL, _VACANT_ANY, _VACANT_COL,
                               _VACANT_FIELDS, Filters, SearchIn, search, search_vacant)
@@ -117,7 +118,7 @@ _LEDGER_CHARS = 970
 # **퍼 오기 전에 몇 채가 들어갈지 셈하는 데 쓴다.** 어림이라도 있어야 버릴 것을
 # 퍼 오지 않는다. 무거운 셋(주변동향·주변매각·주변실거래)이 나머지를 다 합친 것보다 크다.
 _SEC_CHARS: dict[str, int] = {
-    "주변매각": 2932, "주변동향": 2525, "주변실거래": 1268, "층별": 1006,
+    "주변매각": 2932, "주변동향": 2525, "주변실거래": 1268, "층별": 1006, "임대내역": 700,
     "공시지가추이": 640, "버스정류장": 559, "필지": 448, "시간대별유동인구": 150, "상권구성": 80,
     "임대추이": 271, "지하철역": 260, "실거래이력": 33,
 }
@@ -174,7 +175,8 @@ _SEARCH_DESC = (
     "가격은 `가격_이상`·`가격_이하` 하나로 건다. 추정가·매매가·매도희망가 어느 하나라도 범위면 나오고, 줄에 걸린 값이 다 나온다. 지난 실거래가는 가격이 아니다. "
     "명도·용도변경·멸실·급함·매도의사·소유자·매물번호·수익률·총월임대처럼 **우리가 적은 값**을 조건에 걸면, "
     "`내매물` 목록만 그 조건으로 걸러진다. `일반` 목록은 그 조건을 **보지 않은** 건물이다. "
-    "추정 수익률·추정 임대·평단가·공시비율·유동인구는 손잡이가 없다(스키마에 빈 묶음으로 보인다) — 이름만 대서 보거나 `정렬`로 세워 위에서 읽는다. "
+    "추정 수익률·추정 임대·평단가·공시비율은 손잡이가 없다(스키마에 빈 묶음으로 보인다) — 이름만 대서 보거나 `정렬`로 세워 위에서 읽는다. "
+    "유동인구는 이름만 대서 볼 수 있고 조건·정렬은 없다. "
     f"단위는 {names.UNITS}."
 )
 
@@ -318,6 +320,9 @@ def _collect_pins(raw: dict, vacant: bool) -> None:
 # 나이를 재는 이름은 날짜 칸을 **거꾸로** 읽는다. 「연식 내림차순」 = 오래된 것부터 = 사용승인일
 # 오름차순. 차순을 칸에 그대로 넘겨 「오래된 건물부터」가 2026년 준공부터 나왔다(2026-09-25 실측)
 _AGE_SORT = frozenset({"연식", "리모델링경과", "실거래경과"})
+# 정렬로 못 세우는 이름(2026-09-27 대표). 유동인구는 250m 격자 추정이라 그 값으로 줄을 세우는 것 자체가
+# 믿을 만하지 않다 — 칸으로 보기만 한다(조건도 없다, [[pop-no-condition]])
+_NO_SORT = frozenset({"유동인구"})
 _SCOPE = ("대상", "지역", "법정동코드", "건물번호", "필지번호", "주소")   # 줄 값이 아니라 어디를 볼지
 # 그중 **어디를 볼지**. 조건마다 하나는 있어야 한다(`대상` 은 무엇을 찾나지 어디가 아니다)
 _WHERE = ("지역", "법정동코드", "건물번호", "필지번호", "주소")
@@ -436,7 +441,7 @@ def _from_entries(cond: dict[str, Any]) -> tuple[dict, dict, list[str], str, dic
                              f"걸려면 {{\"이상\": …}} 이나 {{\"값\": […]}}")
         if not v:
             if name == "입주업체":
-                # 저장된 칸이 없다. 카카오에 무엇을 물을지 안 알려 준 것이라 뜻이 없다.
+                # 저장된 칸이 없다. 어떤 업체를 찾을지 안 알려 준 것이라 뜻이 없다.
                 raise ValueError("「입주업체」는 보기만 할 수 없다. 찾을 낱말을 줘라: "
                                  "{\"값\": [\"병원\"]}")
             continue                                  # {} = 보기만
@@ -543,7 +548,7 @@ def _search_schema(enums: dict[str, list[str]]) -> tuple[dict, list[str]]:
     # 사진있음/사진). 나이 이름은 방향이 반대라 날짜 이름과 따로 남는다
     own = {v["col"]: n for n, v in _ENTRY.items()
            if isinstance(v["col"], str) and n not in _AGE_SORT and n == names.ko(v["col"])}
-    sortable = sorted(n for n, v in _ENTRY.items() if v["col"]
+    sortable = sorted(n for n, v in _ENTRY.items() if v["col"] and n not in _NO_SORT
                       and (n in _AGE_SORT or not isinstance(v["col"], str) or own.get(v["col"], n) == n))
     return {
         "type": "object",
@@ -675,11 +680,6 @@ def _shape(raw: dict, want: list[str] | None = None, *, full: int | None = None,
     out: dict[str, Any] = {}
     if raw.get("matched"):
         out["지역"] = raw["matched"]      # 「종로구」를 무엇으로 읽었는지 — 모호함을 푼다
-    if raw.get("biz_cut"):
-        # 카카오 한 질의 45건 상한에 걸려 버린 게 있다. 중간 계산(카카오 42 · 건물 93)은
-        # 안 낸다 — 숫자끼리 안 맞고 실제 결과는 넷째 숫자였다. 잘렸다는 사실만 말한다.
-        ws = " · ".join(raw["biz_cut"])
-        out["경고"] = f"{ws} 검색이 카카오 상한에 걸렸다. 결과가 전부가 아닐 수 있다"
     out["내매물"] = block("mine")         # 우리 것이 먼저 — 중개인은 자기 것을 먼저 본다
     out["일반"] = block("normal")
     # **달라고 했는데 한 줄도 안 채워진 칸은 이름을 낸다.** 빈 칸을 안 보내는 건 맞지만,
@@ -728,7 +728,7 @@ def _unpack(cond: dict[str, Any]) -> tuple[dict[str, Any], dict[str, list[str]]]
         if no:
             vals = [str(x) for x in (no if isinstance(no, list) else [no])]
             if k == "biz_dnf":
-                out["biz_not"] = vals      # 카카오라 SQL 이 아니라 집합으로 뺀다
+                out["biz_not"] = vals      # 업체 표에서 뽑은 집합으로 뺀다(resolve_biz)
             else:
                 nots[k] = vals
         if has is None or has == []:
@@ -828,7 +828,7 @@ async def _run_search(args: dict[str, Any], user: CurrentUser) -> Any:
 
     # 정렬·차순은 **필수**다. 없다고 기본으로 떨어뜨리면 그 기본이 답을 정해 버린다.
     srt = args.get("정렬") or ""
-    _SORT_COL = {n: v["col"] for n, v in _ENTRY.items() if v["col"]}
+    _SORT_COL = {n: v["col"] for n, v in _ENTRY.items() if v["col"] and n not in _NO_SORT}
     if not srt:
         raise ValueError("정렬이 없다. 결과는 잘려 나가니 무엇으로 세울지 골라야 한다. "
                          f"고를 수 있는 이름: {sorted(_SORT_COL)}")
@@ -949,7 +949,8 @@ async def _run_search(args: dict[str, Any], user: CurrentUser) -> Any:
 _BUILDING_DESC = (
     "건물이나 나대지를 본다. 응답은 `건물` 목록이다. 검색을 거치지 않고 바로 불러도 된다 — 검색 줄에 있던 값이 「대장」에 다 있다. "
     "**여러 채가 궁금하면 `건물번호`에 한꺼번에 넣어라.** 한 채씩 따로 부르면 그만큼 느리고 비싸다. "
-    "`함께` 로 목록을 고른다(층별·입주이력·필지·주변실거래·주변매각·유동인구·주변동향·임대추이·버스정류장·지하철역·공시지가추이·실거래이력). 안 주면 대장만 온다 — 한 채에 목록이 백 줄 넘게 붙어서다. "
+    "`함께` 로 목록을 고른다(층별·임대내역·입주이력·필지·주변실거래·주변매각·유동인구·주변동향·임대추이·버스정류장·지하철역·공시지가추이·실거래이력). 안 주면 대장만 온다 — 한 채에 목록이 백 줄 넘게 붙어서다. "
+    "`임대내역`은 우리 매물일 때만 온다(호실·임대료·공실면적). 우리 매물이 아니면 임대는 추정뿐이다. "
     "`주변동향`은 가까운 20줄만 오고 `전체`가 몇인지 같이 온다. 더 좁히려면 `함께`를 객체로 준다. "
     f"단위는 {names.UNITS}."
 )
@@ -993,23 +994,19 @@ def _floor_label(fl: str | None) -> str | None:
 _FULL = frozenset({"rent_full", "roi_full"})
 
 # 합계가 읽는 곳 — 팀 값의 정본이다(0173). 층별 줄이 있으면 mirror 가 여기로 접어 둔다.
-_TOTAL_SQL = ("SELECT total_deposit, total_rent, total_mgmt, vacant_area, rent_full, roi_full, full_est"
+_TOTAL_SQL = ("SELECT total_deposit, total_rent, total_mgmt, vacant_area, roi, rent_full, roi_full, full_est"
               "  FROM app.listings WHERE building_pk = $1 AND team_id = $2 ORDER BY id LIMIT 1")
 
 
-def _floors_for_model(raw: dict, total: dict | None = None) -> dict:
-    """층별 — **두 겹이다.** 위는 대장이라 언제나 사실이고, 아래는 사람이 아는 만큼이다.
+def _floors_for_model(raw: dict) -> dict:
+    """층별 — 대장과 업체 원장만(2026-09-26 나눔). 모든 건물에 같은 모양으로 온다.
 
       층 · 바닥면적 · 용도 · 전유부   대장(층별개요 + 전유부)
-      공실면적 · 업체                  팀이 적은 것 + 원장이 찾은 것
+      업체                            지금 있는 업체(카카오 장소 크롤링, master.biz). 누가 있다는 것만
 
-    업체는 **한 목록**이다. 업체와 임대 조건은 같은 줄의 다른 칸이다. 칸이 있느냐가 곧
-    출처다 — 돈 칸이 붙으면 팀, 영업장면적·링크뿐이면 원장이다.
-
-    **공실은 줄이 아니라 층의 넓이다**(0180). 30평을 한 칸으로 내놓든 셋으로 쪼개든 건물주
-    마음이라 칸 수는 뜻이 없다. 칸이 없으면 모름, 0 이면 팀이 확인한 만실이다.
-
-    **전유부는 참조다.** 대장 호실은 등기 단위라 실제 칸과 다르다. 팀 줄과 맞추지 않는다."""
+    임대료·공실은 여기 없다 — 우리 매물이면 「임대내역」 묶음에만 있다. 빈 칸 투성이 임대 칸을
+    모든 건물에 붙이면 모델이 「0원」·「만실」로 읽는다.
+    **전유부는 참조다.** 대장 호실은 등기 단위라 실제 칸(업체 단위 호실)과 다르다."""
     out: list[dict] = []
     for g in raw.get("floors") or []:
         row: dict[str, Any] = {"층": _floor_label(g.get("floor"))}
@@ -1022,29 +1019,46 @@ def _floors_for_model(raw: dict, total: dict | None = None) -> dict:
             row["전유부"] = [{"전용면적": round(r["excl_area"], 2),
                            **({"공용면적": round(r["common_area"], 2)} if r["common_area"] else {})}
                           for r in g["rooms"]]
-        if g.get("vacant_area") is not None:
-            row["공실면적"] = round(g["vacant_area"], 2)     # 0 도 싣는다 — 만실이다
-        merged = [*(g.get("units") or []), *(g.get("ledger") or [])]
-        if merged:
-            # 줄의 `floor`·`unit_no` 는 뺀다. 층은 줄 바깥에 있고, 호실은 대장 전유부와 헷갈린다
-            row["업체"] = [_clean({k: v for k, v in u.items() if k not in ("floor", "unit_no")},
-                                 nested=True) for u in merged]
+        if g.get("ledger"):
+            row["업체"] = [_clean({k: v for k, v in u.items() if k != "floor"}, nested=True) for u in g["ledger"]]
         out.append(row)
     res: dict[str, Any] = {}
-    # **합계는 `app.listings` 에서 온다**(0173). 팀 줄 합으로만 내면 총액만 손으로 적은 건물에서
-    # 합계가 통째로 사라져, 층별만 본 모델이 「돈 이야기가 없는 건물」로 읽는다. 총액이 있는데
-    # 층에 임대료 칸이 하나도 없어야 「총액은 알고 층별은 모른다」가 구조로 읽힌다(2026-09-25).
-    # **0을 안 지운다** — 만실(공실수 0)과 미지정이 똑같이 「칸 없음」이 되던 자리다.
-    if total:
-        est = bool(total.get("full_est"))
-        got = {("추정" if est and k in _FULL else "") + names.kon(k): v
-               for k, v in total.items() if v is not None and k != "full_est"}
-        if got:
-            res["합계"] = got
     if out:
         res["층"] = out
     if raw.get("unknown"):
-        res["층미상"] = [_clean(u, nested=True) for u in raw["unknown"]]
+        res["층미상"] = [_clean({k: v for k, v in u.items() if k != "floor"}, nested=True) for u in raw["unknown"]]
+    return res
+
+
+def _ledger_for_model(raw: dict, total: dict) -> dict:
+    """임대내역 — 우리 매물의 호실 줄(0185). 호실은 **업체 단위**이고 상태는 저장값이 아니라 판정이다:
+    상호가 있거나 임대료가 적혀 있으면 임대중, 둘 다 없으면 공실.
+
+    합계는 `app.listings` 에서 온다(0173) — 총액만 손으로 적은 매물도 합계가 선다.
+    공실면적은 **적힌 공실 호실의 합**이다(0186). 적힌 공실이 없으면 칸이 없다 — 만실이라는 뜻이 아니다.
+    호실이 그 층의 전부인지는 모른다. 만실 월임대는 「적힌 공실이 다 차면」이다."""
+    def unit(u: dict) -> dict:
+        d = {"상호": u.get("tenant_name"), "업종": u.get("cat_nodes") or None, "호수": u.get("unit_no") or None,
+             "상태": "임대중" if u.get("occupied") else "공실",
+             "계약면적": round(u["contract_area"], 2) if u.get("contract_area") else None,
+             "전용면적": round(u["excl_area"], 2) if u.get("excl_area") else None,
+             "보증금": u.get("deposit"), "월임대": u.get("rent"), "관리비": u.get("maintenance")}
+        return {k: v for k, v in d.items() if v is not None}
+    res: dict[str, Any] = {}
+    est = bool(total.get("full_est"))
+    got = {("추정" if est and k in _FULL else "") + names.kon(k): v
+           for k, v in total.items() if v is not None and k != "full_est"}
+    if got:
+        res["합계"] = got
+    floors = []
+    for g in raw.get("floors") or []:
+        if not g.get("units"):
+            continue                                   # 호실 없는 층 — 모른다. 줄을 세우지 않는다
+        floors.append({"층": _floor_label(g["floor"]), "호실": [unit(u) for u in g["units"]]})
+    if floors:
+        res["층"] = floors
+    if raw.get("unknown"):
+        res["층미상"] = [unit(u) for u in raw["unknown"]]
     return res
 
 
@@ -1071,7 +1085,7 @@ async def _section(pk: str, key: str, o: dict, user: CurrentUser,
             sec["보여준수"] = _LIST_MAX
         sec["목록"] = [{"층": _floor_label(x["floor"]) if x["floor"] else None, "상호명": x["name"],
                        "업종": x["biz"], "개업": x["open_on"], "폐업": x["close_on"],
-                       # 「영업」은 신고상이다. 폐업 신고를 안 하면 남는다. **지금 있는지는 카카오로만 본다** —
+                       # 「영업」은 신고상이다. 폐업 신고를 안 하면 남는다. **지금 있는지는 크롤링으로만 본다** —
                        # 확인되면 「지금 있음」, 안 되면 「모름」. 인허가 「영업」을 그대로 넘기지 않는다
                        "상태": x["state"] if x["state"] in ("폐업", "휴업")
                                else ("지금 있음" if x.get("now") else "모름")} for x in rows[:_LIST_MAX]]
@@ -1080,9 +1094,12 @@ async def _section(pk: str, key: str, o: dict, user: CurrentUser,
             sec["통신판매업"] = r["ecommerce"]      # 줄로 안 세운다 — 주소만 올린 것이 섞인다
         return sec
     if key == "층별":
+        return _floors_for_model(await flr.building_floors(pk, user))
+    if key == "임대내역":
         total = await pool().fetchrow(_TOTAL_SQL, pk, user.team_id)
-        return _floors_for_model(await flr.building_floors(pk, user),
-                                 dict(total) if total else None)
+        if not total:
+            return None                                 # 우리 매물이 아니다 — 묶음 자체가 없다
+        return _ledger_for_model(await frt.list_rents(pk, user), dict(total))
     if key == "필지":
         return _clean(await bld.get_parcels(pk, user), nested=True, sec=key)
     if key == "주변실거래":

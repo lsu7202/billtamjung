@@ -15,6 +15,35 @@ _enum_cache: tuple[float, dict] | None = None
 _ENUM_TTL = 60.0
 
 
+# 업종 고르기 목록(2026-09-27) — 임대 내역 호실의 업종을 고를 때. 크롤링 업종 나무(ref.biz_cat)에서
+#   · 3단까지(4·5단은 대개 브랜드·지점이라 업종이 아니다)
+#   · 지금 있는 업체 10곳 이상인 마디만(오타·일회성 이름을 뺀다)
+#   · 임대 호실과 상관없는 가지는 뺀다: 부동산 > 주거시설(아파트·빌라) · 이슈 · 시설
+#   · 가나다순(대표)
+_CAT_SKIP = ("부동산 > 주거시설", "이슈", "시설")
+_cat_cache: tuple[float, list] | None = None
+
+
+@router.get("/biz-cats")
+async def biz_cats(_: CurrentUser = Depends(current_user)):
+    """[{path: [대, 중, 소], name, depth}] — 가나다순. 화면이 부모 경로로 묶어 칩 세 줄을 만든다."""
+    import time
+    global _cat_cache
+    now = time.monotonic()
+    if _cat_cache is None or now - _cat_cache[0] > _ENUM_TTL:
+        try:
+            rows = await pool().fetch(
+                """SELECT path, name, depth FROM ref.biz_cat
+                    WHERE depth <= 3 AND n >= 10
+                      AND NOT (path = ANY($1::text[]) OR split_part(path, ' > ', 1) = ANY($1::text[])
+                               OR path LIKE ANY(SELECT unnest($1::text[]) || ' > %'))
+                    ORDER BY path COLLATE "ko-x-icu" """, list(_CAT_SKIP))
+        except Exception:                                   # noqa: BLE001 — 적재 전 환경(표 없음)
+            rows = []
+        _cat_cache = (now, [{"path": r["path"].split(" > "), "name": r["name"], "depth": r["depth"]} for r in rows])
+    return _cat_cache[1]
+
+
 @router.get("/enums", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def enums(_: CurrentUser = Depends(current_user)):
     """전 enum 그룹 {enum_key: [{code,label,tier}]} — 드롭다운·코드↔라벨 매핑(레지스트리)."""
@@ -221,57 +250,3 @@ async def wiki_vote(post_id: int, user: CurrentUser = Depends(current_user)):
         "INSERT INTO app.wiki_votes(post_id,account_id) VALUES($1,$2)", post_id, user.account_id
     )
     return {"voted": True}
-
-
-# ── 메모(팀/비밀 2종) ────────────────────────────────
-class MemoIn(BaseModel):
-    kind: str = "team"     # team|secret
-    body: str
-
-
-@router.put("/buildings/{building_pk}/memos")
-async def memo_upsert(building_pk: str, body: MemoIn, user: CurrentUser = Depends(current_user)):
-    if body.kind not in ("team", "secret"):
-        raise HTTPException(422, "kind는 team|secret")
-    if body.kind == "secret":
-        # 비밀메모 작성도 담당자 본인+대표만(열람 제한과 동일 경계). specs S0M §3.4
-        assignee = await pool().fetchval(
-            "SELECT assignee_account_id FROM app.listings WHERE building_pk=$1 AND team_id=$2",
-            building_pk, user.team_id,
-        )
-        if not (user.role == "owner" or user.account_id == assignee):
-            raise HTTPException(403, "비밀메모는 담당자 본인 또는 대표만 작성할 수 있습니다")
-    await pool().execute(
-        """INSERT INTO app.memos(building_pk,team_id,kind,body,author_account_id)
-           VALUES($1,$2,$3::app.memo_kind,$4,$5)""",
-        building_pk, user.team_id, body.kind, body.body, user.account_id,
-    )
-    return {"ok": True}
-
-
-@router.get("/buildings/{building_pk}/memos")
-async def memo_list(building_pk: str, user: CurrentUser = Depends(current_user)):
-    """비밀메모 = 담당자 본인 + 대표만(예외 2곳 중 하나)."""
-    assignee = await pool().fetchval(
-        "SELECT assignee_account_id FROM app.listings WHERE building_pk=$1 AND team_id=$2",
-        building_pk, user.team_id,
-    )
-    can_secret = user.role == "owner" or user.account_id == assignee
-    rows = await pool().fetch(
-        """SELECT id, kind, body, created_at, (author_account_id = $4) AS mine FROM app.memos
-           WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL
-             AND (kind='team' OR $3)
-           ORDER BY created_at DESC""",
-        building_pk, user.team_id, can_secret, user.account_id,
-    )
-    return [dict(r) for r in rows]
-
-
-@router.delete("/buildings/{building_pk}/memos/{memo_id}")
-async def memo_delete(building_pk: str, memo_id: int, user: CurrentUser = Depends(current_user)):
-    """내가 쓴 메모만 삭제(soft)."""
-    await pool().execute(
-        "UPDATE app.memos SET deleted_at=now() WHERE id=$1 AND author_account_id=$2",
-        memo_id, user.account_id,
-    )
-    return {"ok": True}

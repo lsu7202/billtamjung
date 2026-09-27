@@ -27,9 +27,8 @@ class Settings(BaseSettings):
     # 소셜 로그인(OAuth) — 키는 카카오/네이버 개발자센터 발급 후 env로 주입(BT_KAKAO_CLIENT_ID 등).
     # 비어 있으면 /auth/social/* 은 503(미설정) 반환. 스키마·골격은 준비됨(기능목록 §1).
     kakao_client_id: str = ""
-    # 로컬 API(키워드 검색)용 REST 키. 카카오는 앱 하나에 로그인 client_id 와 REST 키가 같은 값이라
-    # 비워 두면 kakao_client_id 를 그대로 쓴다(2026-09-16 실측: 같은 키로 검색이 됐다).
-    kakao_rest_key: str = ""
+    # 카카오 로컬 API(키워드 검색·장소)는 2026-09-27 에 뺐다 — 업체는 크롤링 적재(master.biz)로 읽는다.
+    # 남은 카카오 키는 로그인(social.py)용이다.
     kakao_client_secret: str = ""
     naver_client_id: str = ""
     naver_client_secret: str = ""

@@ -10,7 +10,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..core.db import pool
 from ..core.hangul import from_qwerty, looks_latin
 from ..core.deps import current_user, CurrentUser
-from ..core.kakao import keyword_search, Rect
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -136,7 +135,7 @@ async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(curr
                 norm, user.team_id, need))
         seen = {r["building_pk"] for r in rows}
 
-    # 매물번호·소유자명 — 「BT-1292 있잖아요」·「김영순씨 건물」로도 찾는다(2026-08-28).
+    # 매물번호·소유자명 — 「1292 있잖아요」·「김영순씨 건물」로도 찾는다(2026-08-28).
     #    주소만 받으면 전화로 번호를 부르는 현장 어법이 검색으로 안 이어진다.
     # ★ trgm **앞**에 둔다: 팀 매물은 몇 건뿐이라 늘 0.15s 안에 끝나는데,
     #   뒤에 두면 0.9s 짜리 trgm 을 먼저 태우고 나서야 여기 온다(2026-08-28 실측 2.4s).
@@ -301,12 +300,12 @@ class Filters(BaseModel):
     # 카카오가 분류한 장소를 검색 범위(rect)에서 찾아 좌표를 건물에 25m 로 맞춘다. 「피부과」로 물으면
     # 상호에 피부과가 없는 「모리스의원」도 나온다(카카오 category_name 「병원 > 피부과」). 우리 원천은
     # 인허가가 「의원」, 상가정보가 「기타 교육」으로 뭉개져 있어 못 하던 일이다. 그래서 갈래 사전도
-    # 업종 목록(/search/trades)도 없앴다 — 낱말은 카카오맵 검색창에 치는 그대로 준다.
+    # 업종 목록(/search/trades)도 없앴다 — 낱말은 업체 이름이나 업종 낱말 그대로 준다(업종 나무로 조상까지 걸린다).
     # 여럿(AND)·없음(NOT)은 **서버가 집합으로 낸다.** biz 하나뿐이던 때 모델이 두 번 부르고 목록을
     # 눈으로 대조했고, 화면엔 첫 검색(113동)이 서고 답은 5곳이라 화면과 답이 어긋났다(2026-09-09).
-    biz: str | None = Field(None, description="업종이나 상호 한 낱말. 카카오맵 검색창에 치듯 준다(피부과·카페·스타벅스·발레학원). 그 장소가 든 건물만 남는다", json_schema_extra=_USE)
+    biz: str | None = Field(None, description="업종이나 상호 한 낱말. 업체 이름이나 업종 낱말로 준다(피부과·카페·스타벅스·발레학원). 「병원」이면 피부과·치과까지 걸린다. 그 업체가 든 건물만 남는다", json_schema_extra=_USE)
     biz_min: int | None = Field(None, description="biz 장소가 최소 몇 곳 든 건물만(기본 1)", json_schema_extra=_USE)
-    biz_dnf: list[list[str]] | None = Field(None, description="지금 **실제로 들어와 있는** 업체. 카카오맵 검색창에 치듯 준다. [\"병원\",\"카페\"] = 둘 중 하나, [[\"병원\",\"카페\"]] = 둘 다. 서버가 집합으로 내니 따로 여러 번 부르지 않는다")
+    biz_dnf: list[list[str]] | None = Field(None, description="지금 **실제로 들어와 있는** 업체. 업체 이름이나 업종 낱말로 준다. [\"병원\",\"카페\"] = 둘 중 하나, [[\"병원\",\"카페\"]] = 둘 다. 서버가 집합으로 내니 따로 여러 번 부르지 않는다")
     # 모델에겐 `입주업체` 의 {"없음": [...]} 으로 보인다. tools 가 여기로 옮긴다.
     biz_not: list[str] | None = Field(None, description="그 업체가 하나도 없는 건물", json_schema_extra=_USE)
     # 범위 (min/max)
@@ -434,7 +433,7 @@ class Filters(BaseModel):
     myeolsils: list[str] | None = Field(None, description="멸실(헐기) 가능 여부. 우리 매물에만 있다")       # 멸실
     assignees: list[int] | None = Field(None, description="담당자 account_id. 우리 매물에만 있다")       # 담당자(account_id)
     owner_name: str | None = Field(None, description="소유자 이름 부분일치. 우리 매물에만 있다")            # 소유자명(부분일치)
-    listing_no: str | None = Field(None, description="매물번호 부분일치(BT-1295 꼴). 우리 매물에만 있다")            # 매물번호(부분일치)
+    listing_no: str | None = Field(None, description="매물번호 부분일치(숫자, 예 1295). 우리 매물에만 있다")            # 매물번호(부분일치)
     intent: str | None = Field(None, description="매도 의사. 우리 매물에만 있다")                # 매수의향서 원함/원치않음
     has_phone: str | None = Field(None, description="「있음」 또는 「없음」. 소유자 전화를 아는가. 우리 매물에만 있다")             # 전화번호 있음/없음
     has_photo: str | None = Field(None, description="「있음」 또는 「없음」. 사진이 있는가. **건물을 고르는 조건이 아니다**")             # 사진 있음/없음
@@ -632,7 +631,7 @@ def _check_bjd(raw: str) -> str:
     「그런 건물이 없다」로 읽는다. 실제로 나온 것들: 「11-00-06-00-13」(지어냄) · 「1100%」(접두 LIKE 라는
     말에 % 를 붙임) · 「1100000000」(서울시 코드에 0 을 채워 열 자리로 만듦). 셋 다 조용히 0동이 됐다
     (2026-09-09). 자릿수만 보면 셋째가 통과하므로 **실제로 있는 지역인지**를 본다.
-    _filter_sql 과 _area_rect(카카오 범위) 둘 다 이걸 써서 같은 400 을 낸다."""
+    _filter_sql 이 이걸 써서 400 을 낸다."""
     code = raw.rstrip("%").strip()
     if not code.isdigit() or len(code) > 10:
         raise HTTPException(400, f"bjd_code 「{raw}」는 코드가 아니다. "
@@ -973,7 +972,7 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
                l.rent_full, l.roi_full, l.full_est,      -- 만실(0181) · full_est 면 추정이 섞였다
                (l.id IS NOT NULL) AS has_listing,   -- 「우리 팀 매물인가」 · 담당 배정과 다르다
                l.assignee_account_id, l.urgency, l.grade, l.ipji, ow.owner_type,
-               ow.relation, ow.cooperation, ow.kindness, l.building_use, l.meongdo, l.use_change,
+               ow.relation, ow.cooperation, ow.kindness, l.building_major, l.building_use, l.price_vs_market, l.meongdo, l.use_change,
                l.myeolsil, l.nohudo, ow.phone AS owner_phone, ow.name AS owner_name,
                l.listing_no, l.intent, l.received_on,
                sa.sale_cnt,
@@ -1015,7 +1014,7 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
                approval_ymd, remodel_ymd, bcr, far, gongsi_latest,
                lng, lat, last_sale_price, last_sale_ym, sale_est, assignee_account_id,
                urgency, grade, ipji, owner_type, relation, cooperation, kindness,
-               building_use, meongdo, use_change, myeolsil, nohudo,
+               building_major, building_use, price_vs_market, meongdo, use_change, myeolsil, nohudo,
                owner_phone, owner_name, listing_no, intent, received_on, has_photo,
                COALESCE(sale_cnt, 0) AS sale_cnt,
                CASE WHEN {mine_is_out} THEN 'mine' ELSE 'normal' END AS col,
@@ -1062,50 +1061,17 @@ def _pnu_of(addr: str | None) -> str | None:
     return f"{codes.pop()}{'2' if m[3] else '1'}{int(m[4]):04d}{int(m[5] or 0):04d}"
 
 
-_SEOUL_RECT: Rect | None = None
-
-
-async def _area_rect(body: SearchIn) -> Rect:
-    """검색 범위의 외곽 사각형 — 카카오 rect 로 준다. 폴리곤 > 한 건물 > 지역 > 서울 전역."""
-    f = body.filters
-    q = "SELECT ST_XMin(e) x1, ST_YMin(e) y1, ST_XMax(e) x2, ST_YMax(e) y2 FROM ({}) s"
-    if body.polygon:
-        row = await pool().fetchrow(q.format(
-            "SELECT ST_Extent(ST_MakeValid(ST_GeomFromGeoJSON($1::text))) e"), json.dumps(body.polygon))
-    elif f.building_pk:
-        pks = [f.building_pk] if isinstance(f.building_pk, str) else f.building_pk
-        row = await pool().fetchrow(q.format(
-            "SELECT ST_Extent(ST_Buffer(geom::geography, 50)::geometry) e"
-            " FROM master.buildings WHERE building_pk = ANY($1::text[])"), pks)
-    elif f.bjd_code or f.region:
-        codes = [_check_bjd(f.bjd_code)] if f.bjd_code else \
-                [resolve_region(w)[0] for w in (f.region if isinstance(f.region, list) else [f.region])[:10]]
-        row = await pool().fetchrow(q.format(
-            "SELECT ST_Extent(geom) e FROM master.buildings WHERE bjd_code LIKE ANY($1)"), [c + "%" for c in codes])
-    else:
-        global _SEOUL_RECT
-        if _SEOUL_RECT is None:
-            r = await pool().fetchrow("SELECT min(lng) x1, min(lat) y1, max(lng) x2, max(lat) y2 FROM master.region_index")
-            _SEOUL_RECT = (r["x1"] - 0.02, r["y1"] - 0.02, r["x2"] + 0.02, r["y2"] + 0.02)
-        return _SEOUL_RECT
-    if not row or row["x1"] is None:
-        raise HTTPException(400, "검색 범위를 못 잡았다 — 그 지역·영역에 건물이 없다")
-    return (row["x1"], row["y1"], row["x2"], row["y2"])
-
-
 async def resolve_biz(body: SearchIn) -> None:
-    """biz 계열(biz·biz_dnf·biz_not·biz_min) → 카카오 키워드 검색 → **지번 주소**로 건물 pk 집합.
+    """biz 계열(biz·biz_dnf·biz_not·biz_min) → **우리 업체 표(master.biz)** 에서 건물 pk 집합.
 
-    낱말마다 카카오 한 번(범위 rect). 건물마다가 아니라 **낱말마다**라 목록이 둘이어도 두 번이면 끝난다.
-    장소를 건물에 붙이는 건 **좌표가 아니라 주소**다(2026-09-16 실측, 성수동2가 병원 154건):
-      · 좌표→필지 폴리곤은 경계선 위(501-4)에서 옆집을 짚었고, 반경 25m 는 이웃 건물까지 딸려왔다.
-      · 지번→PNU→buildings.pnu 만 보면 대표지번만 맞아 부속지번(314-34) 4건을 놓쳤다.
-      · PNU 를 buildings.pnu 와 parcels.pnu **둘 다**로 찾으면 154건 전부 붙는다. 건물이 필지 여럿을
-        깔고 앉으면(서울 41,461동) 대장엔 대표지번 하나뿐이고 나머지 필지는 parcels 가 건물로 잇는다.
-    한 필지에 건물이 여럿(289-10 본동+별동, 아파트 상가동)이면 **그 필지 건물을 다 남긴다.** 어느 동인지
-    주소도 좌표도 못 가르니 하나를 고르지 않는다 — 미지정은 비워 두는 원칙과 같다.
-    결과는 filters.__dict__['_biz'] 에 두고 _filter_sql(동기)이 SQL 로 싣는다. 응답엔 낱말별로
-    카카오 몇 건·건물 몇 동·주소 못 읽은 건수를 _biz_meta 로 밝힌다. 카카오 응답은 저장하지 않는다(약관)."""
+    2026-09-27 카카오 키워드 검색 → 크롤링 적재로 바꿨다(스펙 11 §8-2). 업체가 이미 건물번호를 달고 있어
+    카카오 주소 풀기·사각형 범위·타일 쪼개기·45건 상한이 다 필요 없다. 범위는 검색이 원래 거는
+    지역·영역 조건으로 먼저 좁혀 뽑는다(같은 조건을 본 SQL 이 한 번 더 건다).
+    낱말은 **상호명 부분일치** 또는 **업종 마디**(「병원」이면 피부과·치과까지, ref.biz_cat 조상 펼침)로 건다.
+    건물은 필지로 붙였다(building_pks) — 한 필지에 건물이 여럿이면 그 필지 건물을 다 남긴다(주소로 못 가른다).
+    결과는 filters.__dict__['_biz'] 에 두고 _filter_sql(동기)이 SQL 로 싣는다. 응답엔 낱말별 업체·건물 수를
+    _biz_meta 로 밝힌다."""
+    from .tenants import norm_name
     f = body.filters
     dnf = [[str(w).strip() for w in (g if isinstance(g, list) else [g]) if str(w).strip()]
            for g in (f.biz_dnf or [])]
@@ -1115,39 +1081,46 @@ async def resolve_biz(body: SearchIn) -> None:
     words = list(dict.fromkeys(w.strip() for w in words_and + words_not if w and w.strip()))
     if not words:
         return
-    await load_guards()
-    rect = await _area_rect(body)
-    cuts: list[list[int]] = [[] for _ in words]
-    hits = await asyncio.gather(*(keyword_search(w, rect, c) for w, c in zip(words, cuts, strict=True)))
-    wi, pnus, pnames, unread = [], [], [], [0] * len(words)
-    for i, docs in enumerate(hits):
-        for d in docs:
-            pnu = _pnu_of(d.get("address_name"))
-            if pnu is None:
-                unread[i] += 1
-                continue
-            wi.append(i); pnus.append(pnu)
-            # 상호명을 같이 들고 간다 — 줄에 「병원: [일등플란트치과의원]」이 붙으면 모델이
-            # 건물을 열어 층별에서 확인하는 바퀴를 안 돈다(2026-09-19 실측 왕복 4 중 2가 그것).
-            # **저장하지 않는다.** 이 요청 안에서만 흐른다(카카오 약관 · 층별 화면과 같은 어법).
-            pnames.append((d.get("place_name") or "").strip())
+    # 범위 — 검색에 건 영역 > 건물 > 지역으로 먼저 좁힌다. 서울 전체에서 뽑으면 「병원」이 2만 동이라
+    # 3초가 넘고, 그 큰 집합을 본 SQL 에 또 싣는다(2026-09-27 실측 3.3초 → 동 제한 0.36초)
+    scope, sargs = "", []
+    if body.polygon:
+        scope = ("JOIN master.buildings bb ON bb.building_pk = b.pk"
+                 " AND ST_Intersects(bb.geom, ST_MakeValid(ST_GeomFromGeoJSON($3::text)))")
+        sargs = [json.dumps(body.polygon)]
+    elif f.building_pk:
+        scope = "WHERE b.pk = ANY($3::text[])"
+        sargs = [[f.building_pk] if isinstance(f.building_pk, str) else list(f.building_pk)]
+    elif f.bjd_code or f.region:
+        codes = [_check_bjd(f.bjd_code)] if f.bjd_code else \
+                [resolve_region(w)[0] for w in (f.region if isinstance(f.region, list) else [f.region])[:10]]
+        scope = "JOIN master.buildings bb ON bb.building_pk = b.pk AND bb.bjd_code LIKE ANY($3::text[])"
+        sargs = [[c + "%" for c in codes]]
     counts: list[dict[str, int]] = [{} for _ in words]
     hit_names: list[dict[str, list[str]]] = [{} for _ in words]
-    if pnus:
+    places_n = [0] * len(words)
+    for i, w in enumerate(words):
+        nk = norm_name(w)
+        # 상호명(트라이그램 색인) ∪ 업종 마디(GIN) — 한 질의에 OR 로 묶으면 색인을 못 탄다
         rows = await pool().fetch("""
-            SELECT k.w, x.building_pk, count(*)::int AS n,
-                   array_agg(DISTINCT k.nm) FILTER (WHERE k.nm <> '') AS nms
-              FROM unnest($1::int[], $2::text[], $3::text[]) AS k(w, pnu, nm)
-              JOIN LATERAL (
-                    SELECT b.building_pk FROM master.buildings b WHERE b.pnu = k.pnu
-                    UNION
-                    SELECT p.building_pk FROM master.parcels p WHERE p.pnu = k.pnu AND p.building_pk IS NOT NULL
-                   ) x ON TRUE
-             GROUP BY k.w, x.building_pk""", wi, pnus, pnames)
+            WITH z AS (
+              SELECT id, name, building_pks FROM master.biz
+               WHERE gone_on IS NULL AND $2 <> '' AND name_norm LIKE '%' || $2 || '%'
+              UNION
+              SELECT id, name, building_pks FROM master.biz
+               WHERE gone_on IS NULL AND cat_nodes @> ARRAY[$1::text])
+            SELECT b.pk AS building_pk, count(*)::int AS n,
+                   array_agg(DISTINCT z.name) FILTER (WHERE z.name <> '') AS nms,
+                   (SELECT count(*) FROM z)::int AS total
+              FROM z CROSS JOIN LATERAL unnest(z.building_pks) AS b(pk) """ + scope + """
+             GROUP BY b.pk""", w, nk, *sargs)
         for r in rows:
-            counts[r["w"]][r["building_pk"]] = r["n"]
+            counts[i][r["building_pk"]] = r["n"]
             if r["nms"]:
-                hit_names[r["w"]][r["building_pk"]] = sorted(r["nms"])[:5]
+                # 상호명을 같이 들고 간다 — 줄에 「병원: [일등플란트치과의원]」이 붙으면 모델이
+                # 건물을 열어 층별에서 확인하는 바퀴를 안 돈다(2026-09-19 실측 왕복 4 중 2가 그것)
+                hit_names[i][r["building_pk"]] = sorted(r["nms"])[:5]
+        places_n[i] = rows[0]["total"] if rows else 0
     idx = {w: i for i, w in enumerate(words)}
     need_and: list[set[str]] = []
     if f.biz:
@@ -1170,13 +1143,9 @@ async def resolve_biz(body: SearchIn) -> None:
         f.__dict__["_biz_n"] = counts[idx[f.biz.strip()]]
     # 낱말별 상호명 — 모델 응답 줄이 「병원: [일등플란트치과의원]」으로 낸다
     f.__dict__["_biz_names"] = {w: hit_names[idx[w]] for g in dnf for w in g}
-    f.__dict__["_biz_meta"] = [{"낱말": w, "카카오": len(hits[i]), "건물": len(counts[i]),
-                                **({"주소 못 읽음": unread[i]} if unread[i] else {})} for i, w in enumerate(words)]
-    # 카카오 상한(한 질의 45건)에 걸려 **버린 건수**. 더 못 쪼개는 타일에서만 생긴다.
-    # 「피부과 42곳」이 진짜 42곳인지 잘린 것인지 답이 갈린다 — 잘렸으면 잘렸다고 말한다.
-    lost = {w: sum(c) for w, c in zip(words, cuts, strict=True) if sum(c)}
-    if lost:
-        f.__dict__["_biz_cut"] = lost
+    # 업체 수는 서울 전체(낱말이 얼마나 흔한가) · 건물 수는 범위 안
+    f.__dict__["_biz_meta"] = [{"낱말": w, "업체": places_n[i], "건물": len(counts[i])}
+                               for i, w in enumerate(words)]
 
 
 # ── 줄에 무엇을 싣나(2026-09-18) ─────────────────────────────────────────────
@@ -1285,7 +1254,7 @@ _ECHO: dict[str, str] = {
 # fields 로 고를 수 있는 칸 — 되비칠 수 있는 것 전부 + 늘 나가는 것
 _FIELDS_OK = ({c.split(" AS ")[0] for v in _ECHO.values() for c in (v if isinstance(v, tuple) else (v,))}
               | {"lng", "lat", "col", "price_is_est", "owner_phone", "grade", "ipji",
-                 "building_use", "nohudo", "est_annual_rent"}
+                 "building_major", "building_use", "price_vs_market", "nohudo", "est_annual_rent"}
               # 조회 대장에만 있던 넷. 조건으로는 못 걸고 **보기만** 한다(2026-09-21).
               | {"structure", "height", "road_addr", "bjd_code"}
               # 측면·후면 도로폭은 조건은 없고 보기만(2026-09-22). 전면은 조건이 된다
@@ -1441,9 +1410,6 @@ def _with_match(body: SearchIn, out: dict) -> dict:
     meta = getattr(body.filters, "__dict__", {}).get("_biz_meta")
     if meta:
         out["biz"] = meta      # 낱말별 카카오 건수·건물 동수 — 무엇으로 걸렀는지 답이 말한다
-    cut = getattr(body.filters, "__dict__", {}).get("_biz_cut")
-    if cut:
-        out["biz_cut"] = cut   # 카카오 45건 상한에 걸려 버린 건수 — 잘렸으면 잘렸다고 말한다
     nm = getattr(body.filters, "__dict__", {}).get("_biz_names")
     if nm:
         # 낱말별 {건물: [상호명]} — 모델 응답이 줄에 접어 낸다. 화면은 안 읽는다.
@@ -1469,11 +1435,7 @@ async def search(body: SearchIn, user: CurrentUser = Depends(current_user)):
     if body.sort in _SORT_ALIAS:
         order = _SORT_ALIAS[body.sort].format(d=d)
     elif body.sort in _FIELDS_OK:
-        # 유동인구는 250m 격자 값이라 동률 덩어리가 크다(종로구 24,683동에 값 289개 · 한 격자에 91동).
-        # 건물번호로 끊으면 「제일 붐비는 스물」이 아니라 「제일 붐비는 격자의 아무 스물」이 된다.
-        # 같은 격자 안에선 추정가 큰 순으로 세운다(2026-09-25, 할일 A-13)
-        tie = "sale_est DESC NULLS LAST, " if body.sort in ("float_pop", "float_pop_night") else ""
-        order = f"{body.sort} {d} NULLS LAST, {tie}building_pk"
+        order = f"{body.sort} {d} NULLS LAST, building_pk"
     elif body.for_model:
         # 모델 층은 이름을 다 검사해서 보내므로 여기 오면 우리 표가 어긋난 것이다.
         # 조용히 기본으로 떨어뜨리면 「오름차순」이 내림차순으로 나가도 아무도 모른다.

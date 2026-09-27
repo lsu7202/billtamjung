@@ -242,6 +242,21 @@ async def main():
             continue
         chk(n >= floor, f"{tbl} {n:,}줄 (기준 {floor:,})", "적재가 덜 됐거나 원천이 바뀌었다")
 
+    # ── 카카오 장소(업체 크롤링, 2026-09-27) — 층별 정보·입주 업종 검색의 재료 ─────────
+    print("\n[카카오 장소] 적재됐는가 · 건물에 붙었는가 · 업체와 1:1 인가")
+    try:
+        r = await c.fetchrow("""SELECT count(*) n, count(building_pk) b FROM master.place WHERE gone_on IS NULL""")
+        chk(r["n"] >= 800_000, f"지금 있는 장소 {r['n']:,}곳 (기준 800,000)", "수집이 덜 됐거나 적재가 안 돌았다")
+        chk(r["b"] >= 0.8 * r["n"], f"건물 붙은 장소 {100.0*r['b']/max(r['n'],1):.1f}% (기준 80%)",
+            "load_places.py 의 건물 붙이기(지번 대조)가 어긋났다")
+        orphan = await c.fetchval("""SELECT count(*) FROM master.place p WHERE p.biz_id IS NULL
+                                      AND NOT coalesce(p.cat_tokens[1:2] = array['부동산','빌딩'], false)""")
+        chk(orphan == 0, f"업체로 안 이어진 장소 {orphan:,}곳", "0이어야 한다 — biz 를 다시 만드는 단계가 끊겼다")
+        nobody = await c.fetchval("SELECT count(*) FROM ref.biz_cat WHERE depth > 1 AND parent_id IS NULL")
+        chk(nobody == 0, f"업종 나무 부모 잃은 마디 {nobody:,}", "0이어야 한다")
+    except asyncpg.exceptions.UndefinedTableError:
+        chk(False, "master.place 없음", "places.crawl 적재가 안 돌았다")
+
     kinds = {r["kind"]: r["n"] for r in await c.fetch(
         "SELECT kind, count(*) n FROM master.area_event GROUP BY 1")}
     # 「정책 발표」는 보도자료라 **본문이 없어야 한다**(공공누리 4유형). 아래에서 따로 본다.

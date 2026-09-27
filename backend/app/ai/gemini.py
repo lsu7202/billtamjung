@@ -132,10 +132,27 @@ async def _cache_for(specs: list[dict], tools: list[types.Tool], mode: str) -> s
         return c.name
 
 
+# 앞 턴에서 재현하는 함수 호출엔 원래 생각 서명이 없다. 제미나이 3 은 서명 없는 함수 호출을 거절할 수 있어,
+# 문서가 알려 준 우회 값을 단다(재현한 기록이라 검증할 생각이 애초에 없다)
+_SKIP_SIG = b"skip_thought_signature_validator"
+
+
 def _contents(msgs: list[dict]) -> list[types.Content]:
-    return [types.Content(role="model" if m["role"] == "assistant" else "user",
-                          parts=[types.Part(text=m["content"])])
-            for m in msgs]
+    """이력 → 제미나이 contents. 답에 refs 가 있으면(최근 3턴, §23-4) 답 글 앞에
+    「함수 호출(model) → 함수 응답(user)」을 재현한다 — 모델에겐 자기가 부른 기록 그대로다."""
+    out: list[types.Content] = []
+    for m in msgs:
+        refs = m.get("refs") if m["role"] == "assistant" else None
+        if refs:
+            out.append(types.Content(role="model", parts=[
+                types.Part(function_call=types.FunctionCall(name=r["도구"], args=r.get("입력") or {}),
+                           thought_signature=_SKIP_SIG) for r in refs]))
+            out.append(types.Content(role="user", parts=[
+                types.Part.from_function_response(name=r["도구"], response=r.get("결과") or {}) for r in refs]))
+        if m.get("content"):
+            out.append(types.Content(role="model" if m["role"] == "assistant" else "user",
+                                     parts=[types.Part(text=m["content"])]))
+    return out
 
 
 def _answer(text: str) -> Any:

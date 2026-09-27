@@ -41,21 +41,8 @@
 .lt-chips{display:flex; gap:7px; margin-top:12px; flex-wrap:wrap; align-items:center}
 .lt-chips .um-chip.hold, .um-chip.hold{background:#FDEBEA; color:#F04452}
 .lt-chips .um-chip.hold i{color:#F04452; opacity:.7}
-.lt-top{display:grid; grid-template-columns:minmax(0,1fr) 264px; gap:12px; align-items:stretch}
-.lt-owner{display:flex; flex-direction:column; align-items:flex-start; gap:7px; cursor:pointer;
-  transition:box-shadow .14s}
-.lt-owner:hover{box-shadow:0 3px 12px rgba(0,19,43,.09)}
-.lt-owner .k{font-size:11.5px; font-weight:800; color:#8B95A1}
-.lt-owner .nm{font-size:15px; font-weight:800; color:#191F28}
-.lt-owner .nm.off{color:#B0B8C1; font-weight:600}
-.lt-owner .tag{font-size:10.5px; font-weight:800; background:#F2F4F6; border-radius:7px; padding:2px 8px; color:#6B7684}
-.lt-owner .ph{font-size:13.5px; font-weight:700; color:#3182F6; text-decoration:none}
-.lt-owner .ph.dim{color:#B0B8C1}
-.lt-owner .lt-others{margin-top:auto; padding-top:8px; display:flex; flex-direction:column; gap:4px;
-  align-items:flex-start; font-size:12px}
-.lt-pairs .lt-foot{display:flex; padding:4px 8px 2px}
 
-@media (max-width:960px){ .lt-split{grid-template-columns:1fr} .lt-top{grid-template-columns:1fr} }
+@media (max-width:960px){ .lt-split{grid-template-columns:1fr} }
 
 
 /* ══ 일정 달력 카드(2026-08-24 확정) ══ 고리 붙은 네모 · 이름·날짜·시간만 */
@@ -252,3 +239,112 @@
 .cd-ic button.on{opacity:1 !important; color:#3182F6}
 .cd-ic button.del:hover{background:#FDEBEA !important; color:#F04452}
 .cd-none{padding:14px 4px; color:#8B95A1}
+
+
+/* ══ 매물 표(2026-09-26) ══ 부기사식 표 한 장 — 토큰은 우리 것(회색 바탕·흰 카드·파랑 하나·빨강 하나).
+   칸 하나에 값이 둘이면 위아래로 쌓는다(규모 = 대지 / 연면적·층). 조작은 줄 오른쪽 아이콘 하나. */
+.lx{background:#F2F4F6; padding:14px; border-radius:22px; display:flex; flex-direction:column; gap:10px}
+.lx-bar, .lx-filt{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
+.lx-bar .sp{flex:1}
+.lx-q{width:260px; background:#FFFFFF}
+.lx-filt .um-chip{background:#FFFFFF; font-size:12.5px; padding:5px 12px}
+.lx-filt .um-chip.on{background:#EBF4FF}
+.lx-bar .um-chip{background:#FFFFFF}
+.lx-bar .um-chip.on{background:#EBF4FF}
+.lx-div{width:1px; height:16px; background:#D1D6DB; margin:0 4px}
+.lx-wrap{background:#FFFFFF; border-radius:18px; padding:6px 6px 8px; overflow-x:auto}
+.lx-t{width:100%; border-collapse:separate; border-spacing:0; font-size:13px; color:#333D4B}
+.lx-t th{font-size:11.5px; font-weight:700; color:#8B95A1; text-align:left; padding:10px 10px 8px;
+  white-space:nowrap; border-bottom:1px solid #F2F4F6; user-select:none}
+.lx-t th.s{cursor:pointer}
+.lx-t th.s:hover{color:#4E5968}
+.lx-t th.on{color:#3182F6}
+.lx-t th i{font-style:normal; margin-left:3px}
+.lx-t th.r, .lx-t td.r{text-align:right}
+.lx-t td{padding:9px 10px; border-bottom:1px solid #F7F8FA; vertical-align:middle; white-space:nowrap}
+.lx-t tbody tr{cursor:pointer; transition:background .12s}
+.lx-t tbody tr:hover td{background:#F7F8FA}
+.lx-t tbody tr.on td{background:#EBF4FF}
+.lx-t tbody tr:last-child td{border-bottom:0}
+.lx-t .off{color:#B0B8C1; font-weight:500}
+.lx-t .sub{display:block; font-size:11.5px; color:#8B95A1; font-weight:500}
+.lx-t td.num .sub{display:inline}
+.lx-t td.c-amt .sub, .lx-t td.c-rent .sub{display:block}
+.lx-t .strong{font-weight:800; color:#191F28; font-size:13.5px}
+.lx-t .red{color:#F04452}
+.lx-t .c-no{color:#6B7684; font-size:12px}
+.lx-t .c-addr b{font-weight:700; color:#191F28; font-size:13.5px}
+.lx-t .c-addr .tags{display:inline-flex; gap:4px; margin-left:6px; vertical-align:1px}
+.lx-t .c-addr .tags i{font-style:normal; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:7px;
+  background:#F2F4F6; color:#6B7684}
+.lx-t .c-addr .tags i.red{background:#FDEBEA; color:#F04452}
+.lx-t .c-addr .tags i.blue{background:#EBF4FF; color:#3182F6}
+.lx-t .c-size span{display:block; font-size:12.5px}
+.lx-t .c-amt b{display:block; font-weight:800; color:#191F28; font-size:13.5px}
+.lx-t .c-amt b.off{color:#B0B8C1; font-weight:500}
+
+.lx-t .c-rent span:first-child{display:block; font-size:12.5px}
+.lx-t .c-kind{font-size:12.5px}
+.lx-st{font-size:12px; font-weight:700; color:#4E5968; background:#F2F4F6; padding:3px 9px; border-radius:8px}
+.lx-st.red{background:#FDEBEA; color:#F04452}
+.lx-t .c-ph{width:52px; padding-right:0}
+.lx-th{display:block; width:44px; height:34px; border-radius:8px; background:#F2F4F6; overflow:hidden}
+.lx-th img{width:100%; height:100%; object-fit:cover; display:block}
+.lx-t .c-act{width:36px; text-align:right}
+.lx-ic{border:0; background:none; color:#B0B8C1; width:28px; height:28px; border-radius:999px; cursor:pointer;
+  display:inline-grid; place-items:center; opacity:0; transition:opacity .12s, background .12s}
+.lx-t tbody tr:hover .lx-ic, .lx-t tbody tr.on .lx-ic{opacity:1}
+.lx-ic:hover{background:#E8EBEE; color:#333D4B}
+.lx .lt-none{background:none; text-align:center; padding:28px 12px}
+/* 폰 — 표를 카드로 접는다. 남기는 것: 사진 · 주소 · 매매가 · 상태 · 다음 일정 */
+@media (max-width:760px){
+  .lx-q{width:100%; order:9}
+  .lx-div{display:none}
+  .lx-t thead{display:none}
+  .lx-t, .lx-t tbody{display:block}
+  .lx-t tbody tr{display:grid; grid-template-columns:52px 1fr auto; gap:2px 10px; padding:10px 8px;
+    border-bottom:1px solid #F2F4F6}
+  .lx-t td{display:none; border:0; padding:0; background:none !important}
+  .lx-t td.c-ph{display:block; grid-row:1 / span 2}
+  .lx-t td.c-addr{display:block; white-space:normal}
+  .lx-t td.c-amt{display:block; text-align:right}
+  .lx-t td.c-amt .sub{display:none}
+  .lx-t td:nth-child(9){display:block}
+  .lx-t td:nth-child(13){display:block; text-align:right}
+}
+
+/* 통합 모달 — 머리의 매물번호·표시, 요약 탭 */
+.um-no{font-size:12px; font-weight:700; color:#8B95A1}
+.um-flag{font-size:11px; font-weight:800; padding:3px 9px; border-radius:8px}
+.um-flag.red{background:#FDEBEA; color:#F04452}
+.um-flag.blue{background:#EBF4FF; color:#3182F6}
+.um-st.hold{background:#FDEBEA; color:#F04452}
+.um-sent2{font-size:21px; font-weight:800; letter-spacing:-.03em; line-height:1.5; color:#191F28; cursor:pointer;
+  border-radius:12px; padding:2px 6px; margin:-2px -6px}
+.um-sent2 b{color:#3182F6}
+.um-sent2.dim{color:#8B95A1}
+.um-sent2:hover{background:#F7F8FA}
+.um-rent{display:flex; flex-wrap:wrap; gap:6px 22px; cursor:pointer; transition:box-shadow .13s}
+.um-rent:hover{box-shadow:0 3px 12px rgba(0,19,43,.09)}
+.um-rent .cell{display:flex; flex-direction:column; gap:2px}
+.um-rent .cell i{font-style:normal; font-size:11.5px; font-weight:700; color:#8B95A1}
+.um-rent .cell b{font-size:15px; font-weight:800; color:#191F28}
+.um-rent .cell b.off{color:#B0B8C1; font-weight:600}
+.um-offer .lt-foot{display:flex; padding:4px 8px 2px}
+.um-tel{font-size:13.5px; font-weight:700; color:#3182F6; text-decoration:none; flex:0 0 auto}
+.um-when{display:flex; flex-direction:column; gap:8px; align-items:flex-start}
+.um-when input[type=date]{width:160px}
+
+/* 임대 내역(0185) — 호실 상태. 저장값이 아니라 판정이라 칩이 아니라 글자 표시다 */
+.rl-st{font-size:11px; font-weight:800; padding:2px 8px; border-radius:7px; background:#F2F4F6; color:#6B7684; margin-left:6px}
+.rl-st.vac{background:#FDEBEA; color:#F04452}
+.rl .fl2-uh{display:flex; align-items:center; gap:4px}
+.rl .fl2-uh .mini{margin-left:auto}
+
+/* 시세대비(0187) — 금액 칸 매매가 옆 작은 글자. 색은 안 쓴다(뜻 하나씩 규칙) */
+.lx-t .c-amt b .vs{font-style:normal; font-size:11px; font-weight:700; color:#6B7684; background:#F2F4F6; border-radius:6px; padding:1px 6px; margin-left:5px; vertical-align:1px}
+/* 업종 고르기(2026-09-27) — 칩 세 줄 + 찾기. 호실 칸 그리드를 가로질러 펼친다 */
+.rl .rl-cpw{grid-column:1 / -1; background:#F7F8FA; border-radius:12px; padding:10px 12px; margin:2px 0 6px}
+.rl .rl-cp{display:flex; flex-direction:column; gap:8px; align-items:flex-start}
+.rl .rl-cp .um-in{width:180px; font-size:12.5px; padding:5px 12px}
+.rl .rl-cp .chips-in{max-height:120px; overflow-y:auto}
