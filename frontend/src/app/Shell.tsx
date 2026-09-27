@@ -23,7 +23,7 @@ export function Shell() {
         <Logo markSize={22} />
         <nav className="gnb">
           <NavLink to="/search" className={({ isActive }) => (isActive ? "on" : "")}>건물 검색</NavLink>
-          <NavLink to="/sales" className={({ isActive }) => (isActive ? "on" : "")}>업무</NavLink>
+          <NavLink to="/sales" className={({ isActive }) => (isActive ? "on" : "")}>매물관리</NavLink>
           {/* 소식 — 서울 전체의 고시·공고·인허가·보도자료. 건물 상세의 「주변 소식」과 같은 자료를
               자리로 안 자르고 늘어놓은 자리다(2026-09-06) */}
           <NavLink to="/assistant" className={({ isActive }) => (isActive ? "on" : "")}>어시스턴트</NavLink>

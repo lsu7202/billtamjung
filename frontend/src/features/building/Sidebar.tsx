@@ -183,7 +183,7 @@ function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unkno
         <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--signal-bg)", display: "grid", placeItems: "center" }}><Icon name="building" size={24} /></div>
         <div style={{ fontWeight: 700, fontSize: 15 }}>아직 거래에 담지 않은 매물입니다</div>
         <p style={{ color: "var(--muted)", fontSize: 12.5, lineHeight: 1.6, margin: 0, maxWidth: 240 }}>
-          업무 탭에서 등록하면 담당자로 지정되고 소유자·매수자 관리가 열립니다.</p>
+          매물관리에서 등록하면 담당자로 지정되고 소유자·매수자 관리가 열립니다.</p>
         <button className="btn primary" style={{ padding: "9px 20px", fontSize: 14 }} onClick={goTrade}>
           거래에서 등록 →</button>
       </div>
@@ -212,7 +212,7 @@ function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unkno
 
       <div className="sb-g">
         {nextSched && (
-          <button className="sb-r act" onClick={goTrade} title="업무에서 이 일정을 엽니다">
+          <button className="sb-r act" onClick={goTrade} title="매물관리에서 이 일정을 엽니다">
             <span className="l">다음 일정</span>
             {/* 제목에서 주소를 뗀다 — 「계약 — 삼성동 147-4」의 뒷부분은 이 화면이 이미 아는 것이라
                 그대로 두면 줄이 접힌다. 앞의 낱말(계약·현장·통화)만 있으면 무슨 약속인지 안다. */}
@@ -291,7 +291,7 @@ function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unkno
       {/* 최근 기록 한 줄은 메모 탭이 받는다 — 같은 장부(contacts)를 두 탭에서 두 번 보일 이유가 없다 */}
 
       {/* 고치는 문은 맨 아래 하나 — 값들을 다 읽고 나서 여는 문이라 읽는 흐름의 끝이 제자리다 */}
-      <button className="sb-go" onClick={goTrade}>업무에서 관리 →</button>
+      <button className="sb-go" onClick={goTrade}>매물관리에서 보기 →</button>
     </div>
   );
 }
