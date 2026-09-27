@@ -145,6 +145,32 @@ UNITS: dict[str, dict] = {
         ],
     ),
 
+    # 카카오 장소(업체 크롤링, 2026-09-27 · 스펙 11) — 층별 정보의 업체와 「입주 업종」 검색의 재료.
+    # 서울 도로명 49.3만을 카카오 지도 웹에서 도로명마다 묻는다(초당 10번이면 15시간 안팎).
+    # 적재는 upsert 라 이번 수집에 안 보인 업체가 gone_on 으로 남는다(없어짐 = 다음 수집에 없으면)
+    "places.crawl": dict(
+        cadence="quarterly", label="카카오 장소(업체 크롤링)",
+        crawl=[S(["scripts/places/crawl_places.py", "--only", "kakao", "--kr", "10"], "app")],
+        load=[S(["scripts/places/load_places.py"], "app", "data/raw/_places")],
+        inputs=["data/raw/_places/*/kakao.jsonl.gz"], table="master.biz",
+        verify=[
+            # 첫 적재 실측(2026-09-27): 장소 98.4만 · 건물 붙음 87.7% · 업체 96.0만 · 층 아는 업체 48.9%
+            ("지금 있는 장소 80만 이상",
+             "select count(*)>=800000, to_char(count(*),'999,999') from master.place where gone_on is null"),
+            ("건물에 붙은 장소 80% 이상",
+             "select 100.0*count(building_pk)/nullif(count(*),0)>=80,"
+             " round(100.0*count(building_pk)/nullif(count(*),0),1)||'%' from master.place where gone_on is null"),
+            ("층 아는 업체 40% 이상",
+             "select 100.0*count(floor)/nullif(count(*),0)>=40,"
+             " round(100.0*count(floor)/nullif(count(*),0),1)||'%' from master.biz where gone_on is null"),
+            ("업종 나무에 부모 잃은 마디 없음",
+             "select count(*)=0, count(*)::text from ref.biz_cat where depth>1 and parent_id is null"),
+            ("장소와 업체가 1:1(네이버를 버려 지금은 그렇다)",
+             "select count(*)=0, count(*)::text from master.place p where p.biz_id is null"
+             " and not coalesce(p.cat_tokens[1:2] = array['부동산','빌딩'], false)"),
+        ],
+    ),
+
     # 승강기 — 별도 원천(공공데이터포털 15112638)이라 자기 단위로 선다.
     # 대장 빌드 안의 한 칸으로 두면 승강기만 갱신하려 해도 28단계를 다시 돌아야 한다(2026-09-07).
     "elevator": dict(
@@ -684,6 +710,8 @@ CRAWL_VERIFY: dict[str, list[tuple]] = {
     "news.facility": [("도시계획시설 zip 4종", "data/raw/_seoul_gis/*.zip", 10_000, None, 4)],
     "stores.localdata": [("LOCALDATA 200개 이상", "data/raw/_localdata/*", 200, None, 200)],
     "stores.sbiz": [("소상공인 상가정보", "data/raw/_sbiz/*", 1_000_000, None, 1)],
+    # 도로명 49.3만 전체를 받으면 40MB 안팎이다. 수집이 도중에 막히면 훨씬 작다
+    "places.crawl": [("카카오 장소 jsonl.gz 30MB 이상", "data/raw/_places/*/kakao.jsonl.gz", 30_000_000, None, 1)],
     "elevator": [("승강기공단 CSV 2장 · 각 10MB 이상",
                   "data/raw/한국승강기안전공단_승강기 설치 현황_*.csv",
                   10_000_000, "건물주소", 2)],
