@@ -104,10 +104,8 @@ function RentTrend({ pk }: { pk: string }) {
   );
 }
 
-export function RentPanel({ pk, unit, addr, onLedger }: {
+export function RentPanel({ pk, unit, onLedger }: {
   pk: string; unit: "py" | "m2";
-  /** 카카오맵 업체 목록 링크에 쓸 주소 — FloorRows 로 내려간다 */
-  addr?: string | null;
   /** 내 매물이면 층별 정보 머리의 「임대 내역 →」 — 팀 실측은 매물 쪽에만 있다(2026-09-26) */
   onLedger?: () => void;
 }) {
@@ -146,7 +144,7 @@ export function RentPanel({ pk, unit, addr, onLedger }: {
         <div className="rv-body">
           {/* 층별 정보 — 대장과 업체 원장만. 팀 실측(임대 내역)은 매물 모달에 있다 */}
           <div id="rt-real">
-            <FloorRows pk={pk} unit={unit} addr={addr} onLedger={onLedger} />
+            <FloorRows pk={pk} unit={unit} onLedger={onLedger} />
           </div>
 
           {/* 입주 이력 — 층별(지금) 바로 아래. 같은 층에 누가 거쳐 갔는지를 이어서 읽는다 */}

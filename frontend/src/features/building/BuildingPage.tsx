@@ -280,7 +280,7 @@ export function BuildingPage() {
           {/* 임대 — 실측(팀 입력)과 추정을 한 자리에. 「우리 2,391만 / 주변 2,508만」은
               두 값이 나란히 서야 읽히는 문장이라 탭을 가르면 아무도 견주지 않는다 */}
           {show("rent") && (
-            <RentPanel pk={pk} unit={unit} addr={b.road_addr || b.addr}
+            <RentPanel pk={pk} unit={unit}
               // 임대 내역(팀 호실·임대료·공실)은 매물 모달에 있다 — 내 매물이면 거기로 가는 길을 준다
               onLedger={(listing.data as { assignee_account_id?: number | null } | undefined)?.assignee_account_id != null
                 ? () => nav(`/sales?listing=${encodeURIComponent(pk)}&tab=rent`) : undefined} />

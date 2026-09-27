@@ -441,7 +441,7 @@ def _from_entries(cond: dict[str, Any]) -> tuple[dict, dict, list[str], str, dic
                              f"걸려면 {{\"이상\": …}} 이나 {{\"값\": […]}}")
         if not v:
             if name == "입주업체":
-                # 저장된 칸이 없다. 카카오에 무엇을 물을지 안 알려 준 것이라 뜻이 없다.
+                # 저장된 칸이 없다. 어떤 업체를 찾을지 안 알려 준 것이라 뜻이 없다.
                 raise ValueError("「입주업체」는 보기만 할 수 없다. 찾을 낱말을 줘라: "
                                  "{\"값\": [\"병원\"]}")
             continue                                  # {} = 보기만
@@ -680,11 +680,6 @@ def _shape(raw: dict, want: list[str] | None = None, *, full: int | None = None,
     out: dict[str, Any] = {}
     if raw.get("matched"):
         out["지역"] = raw["matched"]      # 「종로구」를 무엇으로 읽었는지 — 모호함을 푼다
-    if raw.get("biz_cut"):
-        # 카카오 한 질의 45건 상한에 걸려 버린 게 있다. 중간 계산(카카오 42 · 건물 93)은
-        # 안 낸다 — 숫자끼리 안 맞고 실제 결과는 넷째 숫자였다. 잘렸다는 사실만 말한다.
-        ws = " · ".join(raw["biz_cut"])
-        out["경고"] = f"{ws} 검색이 카카오 상한에 걸렸다. 결과가 전부가 아닐 수 있다"
     out["내매물"] = block("mine")         # 우리 것이 먼저 — 중개인은 자기 것을 먼저 본다
     out["일반"] = block("normal")
     # **달라고 했는데 한 줄도 안 채워진 칸은 이름을 낸다.** 빈 칸을 안 보내는 건 맞지만,
@@ -733,7 +728,7 @@ def _unpack(cond: dict[str, Any]) -> tuple[dict[str, Any], dict[str, list[str]]]
         if no:
             vals = [str(x) for x in (no if isinstance(no, list) else [no])]
             if k == "biz_dnf":
-                out["biz_not"] = vals      # 카카오라 SQL 이 아니라 집합으로 뺀다
+                out["biz_not"] = vals      # 업체 표에서 뽑은 집합으로 뺀다(resolve_biz)
             else:
                 nots[k] = vals
         if has is None or has == []:
@@ -1007,7 +1002,7 @@ def _floors_for_model(raw: dict) -> dict:
     """층별 — 대장과 업체 원장만(2026-09-26 나눔). 모든 건물에 같은 모양으로 온다.
 
       층 · 바닥면적 · 용도 · 전유부   대장(층별개요 + 전유부)
-      업체                            원장(인허가·상가정보) + 카카오. 누가 있다는 것만
+      업체                            지금 있는 업체(카카오 장소 크롤링, master.biz). 누가 있다는 것만
 
     임대료·공실은 여기 없다 — 우리 매물이면 「임대내역」 묶음에만 있다. 빈 칸 투성이 임대 칸을
     모든 건물에 붙이면 모델이 「0원」·「만실」로 읽는다.
@@ -1092,7 +1087,7 @@ async def _section(pk: str, key: str, o: dict, user: CurrentUser,
             sec["보여준수"] = _LIST_MAX
         sec["목록"] = [{"층": _floor_label(x["floor"]) if x["floor"] else None, "상호명": x["name"],
                        "업종": x["biz"], "개업": x["open_on"], "폐업": x["close_on"],
-                       # 「영업」은 신고상이다. 폐업 신고를 안 하면 남는다. **지금 있는지는 카카오로만 본다** —
+                       # 「영업」은 신고상이다. 폐업 신고를 안 하면 남는다. **지금 있는지는 크롤링으로만 본다** —
                        # 확인되면 「지금 있음」, 안 되면 「모름」. 인허가 「영업」을 그대로 넘기지 않는다
                        "상태": x["state"] if x["state"] in ("폐업", "휴업")
                                else ("지금 있음" if x.get("now") else "모름")} for x in rows[:_LIST_MAX]]

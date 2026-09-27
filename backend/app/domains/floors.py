@@ -5,14 +5,15 @@
 
   층 뼈대   = 건축물대장 층별개요(master.floor_outline)          … floor · floor_area · use
   전유부    = 건축물대장 전유부(master.building_unit)             … 전용·공용면적. 집합 27%만. 참조
-  업체      = 인허가 원장 + 상가정보(tenants.tenant_ledger)        … name · floor · area
-  링크      = 카카오(places.places_for) — 저장 안 함, 이름으로 붙임 … url
+  업체      = 지금 있는 업체 — 카카오 장소 크롤링(master.biz, tenants.biz_for) … name · floor
+              수집한 적 없는 건물만 인허가 원장 + 상가정보(tenants.tenant_ledger)로 대신한다
 
 **대장 전유부는 참조다.** 등기 단위라 실제 칸막이와 다르고, 중개사가 말하는 호실은 업체 단위다.
 
 응답:
   floors  : [{floor, floor_area, uses[], rooms[], ledger:[업체]}]  1층부터 위로 · 옥탑 · 지하
   unknown : 층을 모르는 업체
+  checked_on : 크롤링으로 확인한 날(원장으로 대신했으면 null)
 """
 from __future__ import annotations
 
@@ -22,8 +23,7 @@ from fastapi import APIRouter, Depends
 
 from ..core.db import pool
 from ..core.deps import CurrentUser, current_user
-from .places import places_for
-from .tenants import history_rows, norm_name, past_floors, tenancy_history, tenant_ledger
+from .tenants import biz_for, history_rows, norm_name, past_floors, tenancy_history, tenant_ledger
 
 router = APIRouter(prefix="/buildings/{building_pk}/floors", tags=["floors"])
 
@@ -87,27 +87,15 @@ async def building_floors(building_pk: str, _: CurrentUser = Depends(current_use
         "  FROM master.floor_outline WHERE building_pk=$1 AND floor IS NOT NULL GROUP BY floor",
         building_pk)
     ledger_units = await pool().fetch(_UNIT_SQL, building_pk)
-    ledger = await tenant_ledger(building_pk)
-    try:
-        places = (await places_for(building_pk)).get("items", [])
-    except Exception:   # noqa: BLE001 — 카카오가 없거나 막히면 전화·링크만 빠진다
-        places = []
+    # 업체 = 지금 있는 업체(크롤링, master.biz · 스펙 11 §1·§8-1). 인허가·상가정보는 「영업」이 남아 있어도
+    # 지금 있는지 말하지 못한다 — 그건 입주 이력의 몫이다. 그 건물을 수집한 적이 없을 때만 원장으로 대신한다.
+    got = await biz_for(building_pk)
+    ledger = [dict(t) for t in got["items"]] if got is not None else await tenant_ledger(building_pk)
+    checked_on = got["checked_on"] if got is not None else None
 
-    # 카카오는 이름으로 붙여 **링크만** 가져온다. 업종·전화는 화면이 안 그린다(2026-09-19).
-    # 못 붙은 것은 층 미상 업체로 더한다 — 소프트웨어 회사처럼 인허가가 없는 업종은
-    # LOCALDATA 에 아예 없어서 카카오만 안다(실측 여섯 채에서 66곳). 저장하지 않는다(약관).
-    for p in places:
-        k = norm_name(p.get("name"))
-        hit = next((t for t in ledger if _same(norm_name(t["name"]), k)), None)
-        if hit:
-            hit["url"] = hit.get("url") or p.get("url")
-        else:
-            ledger.append({"name": p.get("name"), "floor": None, "area": None, "url": p.get("url")})
-
-    # 층을 모르는 업체에 **층을 빌려 준다**(2026-09-25 대표). 카카오에 있으면 지금 있는 업체이고,
-    # 그 층은 인허가(폐업한 줄 포함)에서 가져와도 된다. 영업 중인 인허가·상가정보의 층은 이미
-    # 원장 합치기에서 붙었으니, 여기서 느는 것은 **폐업 기록의 층**이다(스무 채 표본 786곳 중 6곳).
-    # 크롤링으로 층별 목록이 바뀌면 이 길이 층을 채우는 뼈대가 된다.
+    # 층을 모르는 업체에 **층을 빌려 준다**(2026-09-25 대표). 지금 있는 업체이고, 그 층은 인허가
+    # (폐업한 줄 포함)에서 가져와도 된다. 상가정보·영업 인허가의 층은 적재 때 이미 빌렸으니(load_places),
+    # 여기서 느는 것은 **폐업 기록의 층**이다.
     hist, appr = await history_rows(building_pk)
     borrow = past_floors(hist, appr)
     for t in ledger:
@@ -147,7 +135,8 @@ async def building_floors(building_pk: str, _: CurrentUser = Depends(current_use
                        "rooms": rooms.get(sf) or [],         # 대장 전유부 — 참조
                        "ledger": [t for t in ledger if t.get("floor") and _sfloor(t["floor"]) == sf]})
     unknown = [t for t in ledger if not t.get("floor")]
-    return {"floors": floors, "unknown": unknown}
+    # checked_on = 크롤링으로 확인한 날(스펙 11 §8-1). 원장으로 대신했으면 null
+    return {"floors": floors, "unknown": unknown, "checked_on": checked_on}
 
 
 @router.get("/history", openapi_extra={"x-ai": "read"})

@@ -9,7 +9,7 @@ from ..core.db import pool, tx
 from ..core.floor_label import normalize as _norm_floor, signed as _signed_floor
 from ..core.deps import current_user, CurrentUser
 from .mirror import listing_values_fold
-from .tenants import norm_name, tenant_ledger
+from .tenants import biz_for, norm_name, tenant_ledger
 
 router = APIRouter(prefix="/buildings/{building_pk}/floor-rents", tags=["floor-rents"])
 
@@ -120,16 +120,17 @@ async def list_rents(building_pk: str, user: CurrentUser = Depends(current_user)
 
 
 async def seed_from_ledger(team_id: int, building_pk: str) -> int:
-    """매물 등록 때 원장 업체(인허가·상가정보)를 호실 줄로 한 번 복사한다(0185).
+    """매물 등록 때 **지금 있는 업체**를 호실 줄로 한 번 복사한다(0185 · 2026-09-27 크롤링으로).
 
+    원천은 층별 정보와 같다 — 크롤링(master.biz)을 수집한 건물이면 그것, 아니면 원장(인허가·상가정보).
     이미 호실 줄이 하나라도 있으면(지운 줄 포함) 아무것도 안 한다 — 팀이 손댄 기록을 덮지 않는다.
-    임대료·보증금·면적은 비운다. 영업장면적은 계약면적이 아니다(2026-09-25).
-    카카오는 넣지 않는다 — 화면 검색 결과는 저장하지 않는다. 크롤링 적재 뒤 따로 다시 채운다."""
+    임대료·보증금·면적은 비운다. 영업장면적은 계약면적이 아니다(2026-09-25)."""
     if await pool().fetchval(
             "SELECT 1 FROM app.floor_rents WHERE team_id=$1 AND building_pk=$2 LIMIT 1", team_id, building_pk):
         return 0
+    got = await biz_for(building_pk)
     rows = []
-    for t in await tenant_ledger(building_pk):
+    for t in (got["items"] if got is not None else await tenant_ledger(building_pk)):
         key = norm_name(t["name"])
         if not key:
             continue
@@ -170,6 +171,23 @@ async def set_hidden(building_pk: str, body: HiddenIn, user: CurrentUser = Depen
             building_pk, user.team_id, body.floor)
     await listing_values_fold(user.team_id, building_pk)     # 층이 사라지면 합계·수익률도 따라온다(0173)
     return {"ok": True}
+
+
+async def reseed_untouched(team_id: int, building_pk: str) -> int:
+    """팀이 **손대지 않은** 임대 내역만 지우고 다시 복사한다 — 크롤링 적재 뒤 한 번(2026-09-27 대표).
+
+    손대지 않았다 = 모든 줄이 복사해 온 줄(place_ref)이고, 지운 줄·고친 줄·돈·면적·호수가 하나도 없다.
+    하나라도 손댔으면 건드리지 않는다 — 그 표는 중개사가 확인한 기록이다."""
+    touched = await pool().fetchval(
+        """SELECT count(*) FROM app.floor_rents
+            WHERE team_id=$1 AND building_pk=$2
+              AND (place_ref IS NULL OR deleted_at IS NOT NULL OR updated_at > created_at + interval '1 second'
+                   OR rent IS NOT NULL OR deposit IS NOT NULL OR maintenance IS NOT NULL
+                   OR contract_area IS NOT NULL OR COALESCE(unit_no, '') <> '')""", team_id, building_pk)
+    if touched:
+        return 0
+    await pool().execute("DELETE FROM app.floor_rents WHERE team_id=$1 AND building_pk=$2", team_id, building_pk)
+    return await seed_from_ledger(team_id, building_pk)
 
 
 @router.put("")

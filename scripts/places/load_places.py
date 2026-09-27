@@ -13,9 +13,12 @@
   master.place_crawl_log 도로명 한 번 수집 = 1줄(질의어 · 전체 · 받은 수 · 버린 수 · 시각)
   ref.biz_cat            업종 나무(카카오 기준, §6). 경로 「의료,건강 > 병원 > 피부과」로 부모-자식
 
-## 건물 붙이기
-수집 줄마다 그 도로명의 우리 건물번호 목록(pks)이 있다. 하나면 그대로, 여럿이면 장소의 **지번**
-(「역삼동 809-12」)과 건물 대장 지번이 같은 것 하나. 여럿이 같거나 못 맞추면 null — 지어내지 않는다.
+## 건물 붙이기 — 검색(search.resolve_biz)과 같은 규칙(2026-09-27)
+장소의 **지번** → 필지번호(PNU) → 그 필지의 건물 **전부**(buildings.pnu ∪ parcels.building_pk).
+대표 지번만 보면 부속 지번에 선 업체를 놓치고, 한 필지에 건물이 여럿(본동·별동)이면 주소로 못 가르니
+하나를 고르지 않는다 → building_pks(배열). 하나로 정해질 때만 building_pk 를 채운다.
+지번을 못 읽으면 수집 줄의 도로명 건물 목록(pks)이 하나일 때만 그것을 쓴다.
+(처음엔 도로명 목록 + 지번 대조로 하나만 골라 12.1만 곳이 비었고, 카카오 검색 대비 건물 86%였다)
 
 ## 층
 상세주소 끝(「대연빌딩 2-5층」 · 「3층 301호」 · 「B1층」)에서 읽는다. 원문은 floor_raw 에 그대로 둔다.
@@ -38,7 +41,9 @@ import asyncpg
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "backend"))
+from app.core import db as app_db  # noqa: E402
 from app.core.floor_label import normalize as norm_floor  # noqa: E402
+from app.domains import search as app_search  # noqa: E402  — 지번 → PNU 는 검색과 한 함수
 from app.domains.tenants import norm_name  # noqa: E402
 
 DSN = os.environ.get("BT_DATABASE_URL") or os.environ.get(
@@ -56,11 +61,12 @@ CREATE TABLE IF NOT EXISTS master.place(
   road_addr   text,                       -- 수집한 도로명(우리 쪽 표기)
   jibun_addr  text,                       -- 카카오 지번 주소 + 상세
   floor_raw   text,                       -- 상세주소 원문. 없으면 null
-  building_pk text,                       -- 붙인 우리 건물. 못 붙으면 null
+  building_pk text,                       -- 붙인 우리 건물(하나로 정해질 때만). 못 붙으면 null
   lng double precision, lat double precision,
   biz_id      bigint,
   first_seen  date NOT NULL, last_seen date NOT NULL, gone_on date,
   UNIQUE (source, source_id));
+ALTER TABLE master.place ADD COLUMN IF NOT EXISTS building_pks text[];   -- 그 필지의 건물 전부
 CREATE INDEX IF NOT EXISTS place_bldg ON master.place(building_pk) WHERE gone_on IS NULL;
 CREATE INDEX IF NOT EXISTS place_road ON master.place(road_addr);
 
@@ -73,11 +79,13 @@ CREATE TABLE IF NOT EXISTS master.biz(
   floor_from  text,                       -- crawl | sbiz | localdata (내부 검증용 · 화면엔 안 쓴다)
   cat_nodes   text[],                     -- 업종 조상까지 펼친 것(§6). 검색은 낱말 = ANY(cat_nodes)
   first_seen  date, last_seen date, gone_on date);
+ALTER TABLE master.biz ADD COLUMN IF NOT EXISTS building_pks text[];
 
 CREATE TABLE IF NOT EXISTS master.place_crawl_log(
   crawl_day date NOT NULL, source text NOT NULL, road text NOT NULL,
   pks text[], query text, total int, got int, dropped int, at timestamptz, error text);
 CREATE INDEX IF NOT EXISTS place_crawl_log_day ON master.place_crawl_log(crawl_day, source);
+CREATE INDEX IF NOT EXISTS place_crawl_log_pks ON master.place_crawl_log USING gin(pks);   -- biz_for: 이 건물을 수집했나
 
 CREATE TABLE IF NOT EXISTS ref.biz_cat(
   id serial PRIMARY KEY, name text NOT NULL, parent_id int REFERENCES ref.biz_cat(id),
@@ -86,14 +94,13 @@ CREATE TABLE IF NOT EXISTS ref.biz_cat(
 
 BIZ_IDX = """
 CREATE INDEX IF NOT EXISTS biz_bldg ON master.biz(building_pk) WHERE gone_on IS NULL;
+CREATE INDEX IF NOT EXISTS biz_bldgs ON master.biz USING gin(building_pks);
 CREATE INDEX IF NOT EXISTS biz_cat ON master.biz USING gin(cat_nodes);
 CREATE INDEX IF NOT EXISTS biz_name ON master.biz USING gin(name_norm gin_trgm_ops);
 """
 
 # 층 — 「지하1층」·「B1층」·「2층」·「2-5층」. 호수만 있는 「B-01호」는 층이 아니다
 _FL = re.compile(r"(?:지하\s*(\d+)|B\s*(\d+)|(\d{1,2}))\s*(?:[-~]\s*\d{1,2}\s*)?층")
-# 지번 — 「역삼동 809-12」 · 「종로1가 12」 · 「산 12-3」
-_JIBUN = re.compile(r"(\S+?(?:동|가|로))\s*(\d*가)?\s+(산\s*)?(\d+(?:-\d+)?)")
 
 
 def load_reader():
@@ -119,14 +126,6 @@ def read_floor(det: str) -> str | None:
     return norm_floor(f"{int(m.group(3))}층")[0]
 
 
-def jibun_key(s: str | None) -> str | None:
-    """「서울 강남구 역삼동 809-12 대연빌딩」·「서울특별시 강남구 역삼동 809-12번지」 → 「역삼동809-12」"""
-    m = _JIBUN.search((s or "").replace("번지", " "))
-    if not m:
-        return None
-    return f"{m.group(1)}{m.group(2) or ''}{'산' if m.group(3) else ''}{m.group(4)}"
-
-
 def cat_path(p: dict) -> list[str]:
     return [p[k].strip() for k in (f"cate_name_depth{i}" for i in range(1, 6)) if (p.get(k) or "").strip()]
 
@@ -143,10 +142,14 @@ async def main(folder: str) -> None:
     await con.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
     await con.execute(DDL)
 
-    # 건물 지번 — 여러 건물이 한 도로명에 걸릴 때 가른다
-    baddr = {r["building_pk"]: jibun_key(r["addr"]) for r in await con.fetch(
-        "SELECT building_pk, addr FROM master.buildings WHERE addr IS NOT NULL")}
-    print(f"건물 지번 {len(baddr):,} · {time.time()-t0:.0f}s", flush=True)
+    # 필지 → 건물 전부(대표 지번 buildings.pnu + 부속 지번 parcels.building_pk)
+    by_pnu: dict[str, set[str]] = {}
+    for r in await con.fetch("""SELECT pnu, building_pk FROM master.buildings WHERE pnu IS NOT NULL
+                                UNION SELECT pnu, building_pk FROM master.parcels WHERE building_pk IS NOT NULL"""):
+        by_pnu.setdefault(r["pnu"], set()).add(r["building_pk"])
+    await app_db.connect()
+    await app_search.load_guards()                    # 구·동 → 법정동 코드 사전
+    print(f"필지 {len(by_pnu):,} · {time.time()-t0:.0f}s", flush=True)
 
     places: dict[str, tuple] = {}
     logs: list[tuple] = []
@@ -174,18 +177,24 @@ async def main(folder: str) -> None:
             cp = cat_path(p)
             if cp:
                 paths.add(tuple(cp))
-            if len(pks) == 1:
-                bpk = pks[0]; one += 1
+            addr = (p.get("address") or "").strip()
+            if det and addr.endswith(det):
+                addr = addr[: -len(det)].strip()          # 「… 809-12 대연빌딩 2-5층」 → 「… 809-12」
+            pnu = app_search._pnu_of(addr)
+            bset = sorted(by_pnu.get(pnu, ())) if pnu else []
+            if not bset and len(pks) == 1:
+                bset = [pks[0]]
+            if len(bset) == 1:
+                one += 1
+            elif bset:
+                many += 1
             else:
-                k = jibun_key(p.get("address"))
-                hit = [x for x in pks if k and baddr.get(x) == k]
-                bpk = hit[0] if len(hit) == 1 else None
-                many += bpk is not None
-                none += bpk is None
+                none += 1
             places[sid] = ("kakao", sid, p.get("name"), " > ".join(cp) or None, cp or None,
-                           p.get("tel") or None, road, p.get("address"), det or None, bpk,
+                           p.get("tel") or None, road, p.get("address"), det or None,
+                           bset[0] if len(bset) == 1 else None, bset or None,
                            p.get("lon"), p.get("lat"))
-    print(f"도로명 {len(roads):,} · 장소 {len(places):,} · 건물 하나 {one:,} · 지번으로 {many:,} · 못 붙임 {none:,}"
+    print(f"도로명 {len(roads):,} · 장소 {len(places):,} · 건물 하나 {one:,} · 필지 건물 여럿 {many:,} · 못 붙임 {none:,}"
           f" · {time.time()-t0:.0f}s", flush=True)
 
     async with con.transaction():
@@ -202,17 +211,18 @@ async def main(folder: str) -> None:
         # place — 임시 표로 한 번에 넣고 upsert
         await con.execute("""CREATE TEMP TABLE _pl (source text, source_id text, name text, cat_path text,
             cat_tokens text[], phone text, road_addr text, jibun_addr text, floor_raw text, building_pk text,
-            lng double precision, lat double precision) ON COMMIT DROP""")
+            building_pks text[], lng double precision, lat double precision) ON COMMIT DROP""")
         await con.copy_records_to_table("_pl", records=list(places.values()))
         await con.execute("""
             INSERT INTO master.place(source, source_id, name, cat_path, cat_tokens, phone, road_addr, jibun_addr,
-                                     floor_raw, building_pk, lng, lat, first_seen, last_seen, gone_on)
+                                     floor_raw, building_pk, building_pks, lng, lat, first_seen, last_seen, gone_on)
             SELECT source, source_id, name, cat_path, cat_tokens, phone, road_addr, jibun_addr,
-                   floor_raw, building_pk, lng, lat, $1::date, $1::date, NULL FROM _pl
+                   floor_raw, building_pk, building_pks, lng, lat, $1::date, $1::date, NULL FROM _pl
             ON CONFLICT (source, source_id) DO UPDATE SET
               name=EXCLUDED.name, cat_path=EXCLUDED.cat_path, cat_tokens=EXCLUDED.cat_tokens,
               phone=EXCLUDED.phone, road_addr=EXCLUDED.road_addr, jibun_addr=EXCLUDED.jibun_addr,
-              floor_raw=EXCLUDED.floor_raw, building_pk=EXCLUDED.building_pk, lng=EXCLUDED.lng, lat=EXCLUDED.lat,
+              floor_raw=EXCLUDED.floor_raw, building_pk=EXCLUDED.building_pk, building_pks=EXCLUDED.building_pks,
+              lng=EXCLUDED.lng, lat=EXCLUDED.lat,
               last_seen=GREATEST(master.place.last_seen, EXCLUDED.last_seen), gone_on=NULL""", cday)
         # 이번에 수집한 도로명에서 안 보인 장소 = 없어짐(§4). 실패한 도로명은 수집 목록에 없으니 안 걸린다
         await con.execute("CREATE TEMP TABLE _rd (road text PRIMARY KEY) ON COMMIT DROP")
@@ -231,7 +241,7 @@ async def main(folder: str) -> None:
     print(f"place 적재 · 없어짐 {gone} · {time.time()-t0:.0f}s", flush=True)
 
     # biz — place 에서 다시 만든다. 층 못 읽은 것은 상가정보·인허가에서 같은 이름의 층을 빌린다
-    rows = await con.fetch("""SELECT id, source_id, name, phone, building_pk, floor_raw, cat_tokens,
+    rows = await con.fetch("""SELECT id, source_id, name, phone, building_pk, building_pks, floor_raw, cat_tokens,
                                      first_seen, last_seen, gone_on
                                 FROM master.place WHERE source='kakao'
                                   AND NOT COALESCE(cat_tokens[1:2] = ARRAY['부동산','빌딩'], false)""")
@@ -255,12 +265,13 @@ async def main(folder: str) -> None:
         ledger.setdefault(r["building_pk"], []).append((norm_name(r["name"]), fl, "localdata"))
     print(f"인허가 층 더함 · {time.time()-t0:.0f}s", flush=True)
 
-    def borrow(bpk: str | None, nm: str) -> tuple[str | None, str | None]:
-        if not bpk or not nm:
+    def borrow(bpks: list[str] | None, nm: str) -> tuple[str | None, str | None]:
+        if not bpks or not nm:
             return None, None
-        for k, fl, src in ledger.get(bpk, []):
-            if k == nm or (len(k) >= 3 and len(nm) >= 3 and (k.startswith(nm) or nm.startswith(k))):
-                return fl, src
+        for bpk in bpks:
+            for k, fl, src in ledger.get(bpk, []):
+                if k == nm or (len(k) >= 3 and len(nm) >= 3 and (k.startswith(nm) or nm.startswith(k))):
+                    return fl, src
         return None, None
 
     nodes_of = {pth: pth.split(" > ") for pth in known}
@@ -270,15 +281,15 @@ async def main(folder: str) -> None:
         nm = norm_name(r["name"])
         fl, src = read_floor(r["floor_raw"]), "crawl"
         if not fl:
-            fl, src = borrow(r["building_pk"], nm)
+            fl, src = borrow(r["building_pks"], nm)
         counts[src if fl else None] += 1
         toks = list(r["cat_tokens"] or [])
-        biz.append((r["id"], r["building_pk"], r["name"], nm, r["phone"], fl, src if fl else None,
+        biz.append((r["id"], r["building_pk"], r["building_pks"], r["name"], nm, r["phone"], fl, src if fl else None,
                     nodes_of.get(" > ".join(toks), toks) or None, r["first_seen"], r["last_seen"], r["gone_on"]))
     async with con.transaction():
         await con.execute("TRUNCATE master.biz RESTART IDENTITY")
         await con.copy_records_to_table("biz", schema_name="master", records=[b[1:] for b in biz],
-                                        columns=["building_pk", "name", "name_norm", "phone", "floor", "floor_from",
+                                        columns=["building_pk", "building_pks", "name", "name_norm", "phone", "floor", "floor_from",
                                                  "cat_nodes", "first_seen", "last_seen", "gone_on"])
         # place.biz_id — 1:1 이라 넣은 순서대로 잇는다(RESTART IDENTITY 라 1부터)
         await con.execute("CREATE TEMP TABLE _bz (place_id bigint, biz_id bigint) ON COMMIT DROP")
@@ -289,6 +300,7 @@ async def main(folder: str) -> None:
     print(f"biz {len(biz):,} · 층 크롤링 {counts['crawl']:,} · 상가정보 {counts['sbiz']:,}"
           f" · 인허가 {counts['localdata']:,} · 모름 {counts[None]:,} · {time.time()-t0:.0f}s", flush=True)
     await con.close()
+    await app_db.disconnect()
 
 
 if __name__ == "__main__":

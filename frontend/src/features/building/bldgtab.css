@@ -448,9 +448,6 @@
 
 /* 카카오맵 업체 목록 링크 — 층별 임대정보 머리 오른쪽 끝, 「출처」 링크와 같은 결(작고 파랗게).
    「전체 되돌리기」가 있으면 그 오른쪽 옆에, 없으면 혼자 오른쪽 끝. (2026-09-07 대표) */
-.bg-ttl .fl2-kakao{margin-left:auto; font-size:12px; font-weight:700; color:#3182F6; text-decoration:none; padding:2px 6px; border-radius:6px}
-.bg-ttl .fl2-kakao:hover{background:#EBF3FE}
-.bg-ttl .rst:not(.add) + .fl2-kakao{margin-left:10px}   /* 「+ 층 추가하기」도 .rst 라 :not(.add) 로 가른다 */
 
 /* 층 모르는 업체 — 오른쪽 판의 층 칩 위 라벨. 칸 라벨(.dk)과 같은 결 */
 .fl2-fll{font-size:11.5px; font-weight:700; color:#8B95A1; padding:6px 0 2px}

@@ -4,6 +4,7 @@ import { rentsApi, type FloorGroup, type LedgerRoom, type Tenant } from "../../s
 
 /** 층별 정보(건물 상세) — 대장과 업체 원장만 읽는다(2026-09-26 나눔).
  *
+ *  업체는 지금 있는 업체(카카오 장소 크롤링, master.biz)다. 링크는 걸지 않는다(스펙 11 §9).
  *  팀 값(호실·임대료·공실)은 여기 없다. 그건 매물의 「임대 내역」에만 있다 — 누구나 보는 건물 상세와
  *  우리 팀이 확인한 기록을 섞지 않는다. 내 매물이면 머리에 「임대 내역 →」 한 줄로 그리로 간다.
  *
@@ -13,10 +14,8 @@ import { rentsApi, type FloorGroup, type LedgerRoom, type Tenant } from "../../s
 
 const P = 3.305785;
 
-export function FloorRows({ pk, unit, addr, onLedger }: {
+export function FloorRows({ pk, unit, onLedger }: {
   pk: string; unit: "py" | "m2";
-  /** 카카오맵 업체 목록으로 건너뛸 주소(도로명 우선). 카카오 자료는 저장하지 않는다 — 링크만(항목 L) */
-  addr?: string | null;
   /** 있으면 머리에 「임대 내역 →」 — 내 매물일 때만 부모가 준다 */
   onLedger?: () => void;
 }) {
@@ -40,10 +39,6 @@ export function FloorRows({ pk, unit, addr, onLedger }: {
     <div className="bg-card">
       <div className="bg-ttl">층별 정보
         {onLedger && <button className="rst add" onClick={onLedger}>임대 내역 →</button>}
-        {addr && (
-          <a className="fl2-kakao" href={`https://map.kakao.com/link/search/${encodeURIComponent(addr)}`}
-             target="_blank" rel="noreferrer" title="카카오맵에서 이 주소의 업체 보기">카카오맵</a>
-        )}
       </div>
 
       <div className="fl2">
@@ -73,7 +68,7 @@ export function FloorRows({ pk, unit, addr, onLedger }: {
               <div className="fl2-t">
                 {unknown.map((t) => (
                   <div className="fl2-ti" key={t.name}>
-                    {t.url ? <a href={t.url} target="_blank" rel="noreferrer">{t.name}</a> : <b>{t.name}</b>}
+                    <b>{t.name}</b>
                     {areaTxt(t.area) && <span>{areaTxt(t.area)}</span>}
                   </div>
                 ))}
@@ -104,7 +99,7 @@ export function FloorRows({ pk, unit, addr, onLedger }: {
                 <div className="fl2-t">
                   {cur.ledger.map((t) => (
                     <div className="fl2-ti" key={t.name}>
-                      {t.url ? <a href={t.url} target="_blank" rel="noreferrer">{t.name}</a> : <b>{t.name}</b>}
+                      <b>{t.name}</b>
                       {areaTxt(t.area) && <span>{areaTxt(t.area)}</span>}
                     </div>
                   ))}
