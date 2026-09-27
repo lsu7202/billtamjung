@@ -201,11 +201,6 @@ async def main():
     await db.execute("DELETE FROM app.proposals WHERE team_id=$1", team)
     await db.execute("DELETE FROM app.listings WHERE team_id=$1", team)
     await db.execute("DELETE FROM app.buyers WHERE team_id=$1", team)
-    # 크레딧은 팀이 아니라 **계정**에 붙는다
-    acc = await db.fetchval("SELECT id FROM app.accounts WHERE email=$1", email)
-    if acc:
-        await db.execute("DELETE FROM app.credit_entries WHERE account_id=$1", acc)
-        await db.execute("DELETE FROM app.credit_balances WHERE account_id=$1", acc)
     await db.execute("DELETE FROM app.team_members WHERE team_id=$1", team)
     await db.execute("DELETE FROM app.teams WHERE id=$1", team)
     await db.execute("DELETE FROM app.accounts WHERE email=$1", email)

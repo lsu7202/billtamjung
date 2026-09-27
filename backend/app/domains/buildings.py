@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from ..core.db import pool
 from ..core.deps import current_user, CurrentUser
 from ..core.market import STORES
+from ..core.shape import drop
 from ..jobs import value_score as vs
 
 router = APIRouter(prefix="/buildings", tags=["buildings"])
@@ -59,20 +60,9 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
         "elevator_ext": data.get("elevator_ext"),
         "bcr_calc": float(calc["bcr_calc"]) if calc and calc["bcr_calc"] is not None else None,
         "far_calc": float(calc["far_calc"]) if calc and calc["far_calc"] is not None else None,
-        "bcr_calc_src": calc["bcr_calc_src"] if calc else None,
-        "far_calc_src": calc["far_calc_src"] if calc else None,
     }
 
-    # 유동인구 — 실측(서울 생활인구 250m 주간 평균). 오버레이 > 실측 > 접근성 대용(2026-08-26).
-    # 격자는 건물 좌표를 나눗셈으로 접은 것이라 조회가 인덱스 한 번이다.
-    pop = await pool().fetchrow(
-        "SELECT day_avg, night_avg, peak, peak_hour FROM master.building_pop WHERE building_pk=$1", building_pk)
-    if pop and pop["day_avg"] is not None:
-        data["pop_day"] = float(pop["day_avg"])
-        data["pop_night"] = float(pop["night_avg"]) if pop["night_avg"] is not None else None
-        data["pop_peak"] = float(pop["peak"]) if pop["peak"] is not None else None
-        data["pop_peak_hour"] = pop["peak_hour"]
-    data["float_pop"] = vs.float_pop_label(data)
+    # 유동인구는 GET /buildings/{pk}/pop 이 낸다 — 여기 실린 다섯 칸을 화면이 안 읽었다(감사 2026-09-17)
 
     # 조회 로그(0048) — F-23 행동 학습의 재료. 실패해도 조회를 막지 않는다.
     try:
@@ -84,17 +74,7 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
     except Exception:
         pass
 
-    # 실측 도로폭(배치 master.building_road) — 대장 '도로접면'은 광대/중로 같은 분류라 미터 값이 없다.
-    # 지금까지 브리핑만 이 표를 읽고 S02 상세는 안 읽어서 화면이 비어 있었다(2026-08-11).
-    # setdefault — 팀이 손으로 고친 오버레이가 이미 병합돼 있으면 그 값을 덮지 않는다.
-    rw = await pool().fetchrow(
-        "SELECT front_m, side_m, rear_m, front_rn FROM master.building_road WHERE building_pk=$1",
-        building_pk)
-    if rw:
-        for k, v in (("road_front_m", rw["front_m"]), ("road_side_m", rw["side_m"]),
-                     ("road_rear_m", rw["rear_m"]), ("road_front_rn", rw["front_rn"])):
-            if v is not None and data.get(k) in (None, ""):
-                data[k] = float(v) if isinstance(v, Decimal) else v
+    # 실측 도로폭은 GET /buildings/{pk}/parcels 의 road 가 낸다 — 화면은 그쪽을 읽는다(감사 2026-09-17)
 
     # 추정가 추정(F-17 v2 배치) — 매매가 미입력 시 기본값. specs R.
     se = await pool().fetchval(
@@ -102,7 +82,7 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
     data["sale_est"] = int(se) if se is not None else None
 
     # 활용유형(F-20)·매도가능성 — 배치(master.building_score, 0038). 매력도(F-16)는 2026-09-06 에 없앴다(0161).
-    # 예전엔 리포트를 만들어야만(30크레딧) 존재하던 값이라 상세·영업 어디서도 못 썼다.
+    # 예전엔 리포트를 만들어야만 존재하던 값이라 상세·영업 어디서도 못 썼다.
     sc = await pool().fetchrow(
         """SELECT use_type, util_ratio, sell_score, sell_axes
            FROM master.building_score WHERE building_pk=$1""", building_pk)
@@ -112,32 +92,38 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
             d["sell_axes"] = json.loads(d["sell_axes"])
         data.update({k: (float(v) if isinstance(v, Decimal) else v) for k, v in d.items()})
 
-    # 마스터 예상수익률 — 검색(classified)과 동일 체인: rent(팀 total_rent×12 ?? 마스터 rent_est) ÷ 매매가(팀 sale_price ?? 추정가).
+    # 팀이 적은 값은 매물 줄 한 곳에서(0173) — 매매가·매도희망가·임대 합계·수익률.
+    # 예전엔 매매가는 오버레이, 임대는 listings 에서 따로 읽고 여기서 또 나눴는데, 그 나눗셈은
+    # 분모에 추정가를 섞었다(팀 매매가 없으면 추정가) — 검색과 다른 수익률이 상세에 섰다.
+    lv = await pool().fetchrow(
+        """SELECT sale_price, ask_price, total_rent, total_deposit, total_mgmt, vacant_area, roi,
+                  rent_full, roi_full, full_est,
+                  pp_land_team, pp_total_team, gongsi_ratio_team
+             FROM app.listings WHERE building_pk=$1 AND team_id=$2""", building_pk, user.team_id)
+    for k in ("sale_price", "ask_price", "total_rent", "total_deposit", "total_mgmt", "vacant_area", "roi",
+              "rent_full", "roi_full", "full_est",
+              "pp_land_team", "pp_total_team", "gongsi_ratio_team"):
+        v = lv[k] if lv else None
+        data[k] = float(v) if isinstance(v, Decimal) else v
+    # 파생값(0174) — 검색 필터가 걸던 열둘이 읽을 길이 없었다. 추정 수익률·평단가·공시비율·공시 상승·
+    # 실거래 등락·건폐/용적 여유. 파이프라인이 채운 칸을 읽기만 한다.
+    dv = await pool().fetchrow(
+        """SELECT roi_est, pp_land, pp_total, gongsi_total, gongsi_ratio, gongsi_up5, gongsi_up10,
+                  sale_pnl, bcr_slack, far_slack FROM master.building_derived WHERE building_pk=$1""", building_pk)
+    for k in ("roi_est", "pp_land", "pp_total", "gongsi_total", "gongsi_ratio", "gongsi_up5", "gongsi_up10",
+              "sale_pnl", "bcr_slack", "far_slack"):
+        v = dv[k] if dv else None
+        data[k] = float(v) if isinstance(v, Decimal) else v
+    # 법정 건폐·용적 — 계약 문서 화면이 여기서 읽는데 /scene 에만 있었다(감사 2026-09-17)
+    lg = await pool().fetchrow(
+        "SELECT legal_bcr, legal_far FROM master.building_legal WHERE building_pk=$1", building_pk)
+    data["legal_bcr"] = float(lg["legal_bcr"]) if lg and lg["legal_bcr"] is not None else None
+    data["legal_far"] = float(lg["legal_far"]) if lg and lg["legal_far"] is not None else None
     re = await pool().fetchval(
         "SELECT annual_rent FROM master.building_rent_est WHERE building_pk=$1", building_pk)
-
-    def _f(x):
-        try:
-            return float(x)
-        except (TypeError, ValueError):
-            return None
-    m_price = _f(data.get("sale_price")) or (float(se) if se is not None else None)
-    _tr = _f(data.get("total_rent"))
-    m_rent = (_tr * 12 if _tr else None) or (float(re) if re is not None else None)
-    data["roi"] = round(m_rent / m_price * 100, 2) if (m_rent and m_price) else None
     # 추정 연임대(원) — 머리줄의 **순수 추정 수익률**이 쓴다(0134).
     # 추정가 ÷ 추정임대로 짝을 맞춘 값이라, 실측과 섞이지 않는다.
     data["est_annual_rent"] = float(re) if re is not None else None
-
-    # 지역 지가 상승률(리포트 맥락) — 자치구별 누적 지가변동률(land_adjust)
-    if data.get("bjd_code"):
-        gu = str(data["bjd_code"])[:5]
-        la = await pool().fetch("SELECT yr, adj FROM master.land_adjust WHERE gu=$1 ORDER BY yr", gu)
-        if not la:
-            la = await pool().fetch("SELECT yr, adj FROM master.land_adjust WHERE gu='11' ORDER BY yr")
-        amap = {r["yr"]: float(r["adj"]) for r in la}
-        data["region_land_5y"] = amap.get(2020)
-        data["region_land_10y"] = amap.get(2016)
 
     # 시계열: 공시지가(대표 PNU 연도별) · 매각 이력 (S02 §3.7)
     if data.get("pnu"):
@@ -155,7 +141,15 @@ async def get_building(building_pk: str, user: CurrentUser = Depends(current_use
         {"ym": r["contract_ym"], "price": r["price"], "total_area": float(r["total_area"]) if r["total_area"] else None}
         for r in s
     ]
-    return data
+    return drop(data, _DETAIL_DROP)
+
+
+# 상세에서 걷는 칸(감사 2026-09-17). 화면 어디에도 안 그려지고 모델에겐 잡음인 것:
+#   내부 조각(*_src·*_prec·jibun_norm·sgg_code) · 최상위 elevator_ext(_ref 안 것을 읽음) ·
+#   parcel_area(필터 이름) · 점수(sell_score·util_ratio·sell_axes — 매도가능성 배치, 어느 화면도 안 씀).
+# 용도·점수 중 use_type 은 보고서가 읽어 남긴다.
+_DETAIL_DROP = ("bcr_src", "far_src", "approval_ymd_prec", "remodel_ymd_prec", "jibun_norm", "sgg_code",
+                "elevator_ext", "parcel_area", "sell_score", "util_ratio", "sell_axes")
 
 
 _POP_R = 600      # 유동인구 지도 반경(m) — 250m 격자로 대여섯 칸. 300m면 두 칸이라 그림이 안 된다
@@ -208,13 +202,13 @@ async def building_pop(building_pk: str, _: CurrentUser = Depends(current_user))
         return float(v) if v is not None else None
 
     return {
-        "grid": me["grid"],
         "day": _f(me["day_avg"]), "night": _f(me["night_avg"]),
-        "peak": _f(me["peak"]), "peak_hour": me["peak_hour"],
+        "peak_hour": me["peak_hour"],
         "hourly": [_f(v) for v in (me["hourly"] or [])],
         "days": me["days"],
-        "cells": [{"grid": r["grid"], "geojson": json.loads(r["geojson"]),
-                   "pop": _f(r["day_avg"]), "cat": r["cat"], "n": r["n"]} for r in cells],
+        # 격자 id·업체 수·피크 값은 화면이 안 읽어 뺐다(감사 2026-09-17)
+        "cells": [{"geojson": json.loads(r["geojson"]),
+                   "pop": _f(r["day_avg"]), "cat": r["cat"]} for r in cells],
         # 상권 구성 — 지도의 테두리 색이 「이 동네 성격」이라면 이건 그 비율이다.
         # 격자 지배 용도만 세면 칸마다 한 표라 큰 칸도 작은 칸도 같은 무게가 된다.
         "mix": {r["cat"]: r["n"] for r in mix if r["cat"] != "기타"},
@@ -258,26 +252,8 @@ async def building_scene(building_pk: str, _: CurrentUser = Depends(current_user
 
 # 대장 층별개요는 **AI 에게 열지 않는다.** 화면의 층별임대정보가 이것을 겹친 결과라
 # 원본을 열어 두면 모델이 대장 표를 「층별 임대」로 그린다(2026-09-09 대표). 조립은 app/ai/floors.py 가 한다
-@router.get("/{building_pk}/floor-outline")
-async def floor_outline(building_pk: str, _: CurrentUser = Depends(current_user)):
-    """층별개요(대장) 프리필 — 층·용도·층별면적(바닥, 합=연면적) + 임대료/보증금 추정(공공 상권시세). 층별임대정보 시드용(S02 §3.5).
-    rent_est/deposit_est = 마스터 추정값(유저가 입력하면 오버레이가 덮음)."""
-    rows = await pool().fetch(
-        """SELECT fo.floor, fo.use, fo.floor_area, fre.rent_est, fre.deposit_est
-           FROM master.floor_outline fo
-           LEFT JOIN master.floor_rent_est fre USING (building_pk, seq)
-           WHERE fo.building_pk=$1 ORDER BY fo.seq""",
-        building_pk)
-    return [{"floor": r["floor"], "use": r["use"],
-             "floor_area": float(r["floor_area"]) if r["floor_area"] is not None else None,
-             "rent_est": r["rent_est"], "deposit_est": r["deposit_est"]}
-            for r in rows]
-
-
-# 규제 여섯 칸(reg_godo…reg_munhwa)은 **걷어냈다**(2026-09-07). 원문에서 이름이 맞는 것만
-# 골라 담다가 건수로 93.4%가 빠졌고(토지거래허가구역·대공방어협조구역·상대보호구역이 화면에 안 떴다),
-# 0136 에서 원문 전부를 담는 `parcels.regulations` 로 갈아탔다. 그런데 옛 칸을 안 지워서
-# 빌드 단계가 빠진 2026-09-01 부터 0행인 채로 쿼리·화면에 남아 있었다.
+# 대장 층별개요(/floor-outline)는 GET /buildings/{pk}/floors 에 흡수됐다(2026-09-17). 화면이 읽던 건
+# 층 이름과 층 면적뿐이었고, 대장 용도(use)는 옛 값이라 어디에도 안 그려졌다.
 
 
 @router.get("/{building_pk}/events", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
@@ -310,7 +286,12 @@ async def area_events(building_pk: str, radius: int = 700, kind: str | None = No
                   f" >= (CURRENT_DATE - make_interval(years => ${len(args)}))")
     near = " ".join(f"WHEN '{k}' THEN {v}" for k, v in NEAR.items())
     rows = await pool().fetch(f"""
-        WITH me AS (SELECT geom FROM master.buildings WHERE building_pk=$1)
+        WITH me AS (
+                -- 건물이면 그 점, 나대지면 필지 안의 점. building_pk 는 8·9·10·14·22자리이고
+        -- pnu 는 19자리라 **한쪽만 걸린다**(2026-09-20). 건물 경로는 그대로다.
+                SELECT geom FROM master.buildings WHERE building_pk=$1
+                UNION ALL
+                SELECT ST_PointOnSurface(geom) FROM master.vacant_parcels WHERE pnu=$1)
         SELECT e.id, e.kind, e.name, e.on_date, e.on_year, e.gosi_no, e.body,
                e.source, e.source_url, p.tags,
                ST_Contains(e.geom, me.geom) AS inside,
@@ -331,18 +312,14 @@ async def area_events(building_pk: str, radius: int = 700, kind: str | None = No
         "on_year": r["on_year"], "gosi_no": r["gosi_no"], "body": r["body"],
         "source": r["source"], "source_url": r["source_url"],
         "tags": list(r["tags"] or []),
-        "relation": "구역 안" if r["inside"] else "반경 안",
-        "distance_m": 0 if r["inside"] else r["distance_m"],
         "lng": r["lng"], "lat": r["lat"],
     } for r in rows]
-    kinds: dict[str, int] = {}
-    for x in items:
-        kinds[x["kind"]] = kinds.get(x["kind"], 0) + 1
+    # relation·distance_m·kinds 는 화면이 안 읽어 뺐다(감사 2026-09-17). 거리는 lng·lat 로 충분하다
     # 지도로 그릴 때 어디가 가운데인지. 화면은 이미 건물 좌표를 알지만 AI 는 이 응답만 본다
     c = await pool().fetchrow(
         "SELECT ST_X(geom::geometry) AS lng, ST_Y(geom::geometry) AS lat"
         "  FROM master.buildings WHERE building_pk=$1", building_pk)
-    return {"items": items, "kinds": kinds, "radius": radius,
+    return {"items": items, "radius": radius,
             "center": [c["lng"], c["lat"]] if c and c["lng"] else None}
 
 
@@ -403,8 +380,10 @@ async def get_parcels(building_pk: str, user: CurrentUser = Depends(current_user
         "SELECT front_m, side_m, rear_m, front_rn FROM master.building_road WHERE building_pk=$1",
         building_pk)
     road = {k: (float(v) if isinstance(v, Decimal) else v)
-            for k, v in (dict(rw).items() if rw else [])}
-    return {"parcels": parcels, "count": len(parcels), "road": road}
+            for k, v in (dict(rw).items() if rw else []) if k != "front_rn"}
+    # 필지 줄의 공시지가·시계열은 건물 응답 것을 화면이 쓴다 — 중복이라 뺐다(감사 2026-09-17)
+    parcels = [drop(p, ("gongsi_latest", "gongsi_series")) for p in parcels]
+    return {"parcels": parcels, "road": road}
 
 
 # ── 나대지(건물이 없는 「대」 필지) ─────────────────────────────────────
@@ -471,8 +450,7 @@ async def rent_series(building_pk: str, _: CurrentUser = Depends(current_user)):
         a, b = by_year.get(last_y - n), by_year.get(last_y)
         return round((b - a) / a * 100, 1) if (a and b) else None
 
-    return {"series": series, "up5": up(5), "up10": up(10),
-            "sanggwon": cur["sanggwon"], "series_name": cur["series"]}
+    return {"series": series, "up5": up(5), "up10": up(10)}   # 상권 이름 둘은 화면이 안 읽어 뺐다
 
 
 @router.get("/parcels/{pnu}", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
@@ -619,12 +597,12 @@ async def vacant_pop(pnu: str, _: CurrentUser = Depends(current_user)):
         return float(v) if v is not None else None
 
     return {
-        "grid": me["grid"],
         "day": _f(me["day_avg"]), "night": _f(me["night_avg"]),
-        "peak": _f(me["peak"]), "peak_hour": me["peak_hour"],
+        "peak_hour": me["peak_hour"],
         "hourly": [_f(v) for v in (me["hourly"] or [])],
         "days": me["days"],
-        "cells": [{"grid": r["grid"], "geojson": json.loads(r["geojson"]),
-                   "pop": _f(r["day_avg"]), "cat": r["cat"], "n": r["n"]} for r in cells],
+        # 격자 id·업체 수·피크 값은 화면이 안 읽어 뺐다(감사 2026-09-17)
+        "cells": [{"geojson": json.loads(r["geojson"]),
+                   "pop": _f(r["day_avg"]), "cat": r["cat"]} for r in cells],
         "mix": {r["cat"]: r["n"] for r in mix if r["cat"] != "기타"},
     }

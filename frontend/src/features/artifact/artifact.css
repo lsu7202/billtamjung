@@ -1,0 +1,10 @@
+/* 자료 보기 — 바깥은 껍데기뿐이다. 안쪽 iframe 이 제 결을 지고 있다(브랜드 없음) */
+.af{display:flex; flex-direction:column; height:100%; min-height:0; background:var(--bg)}
+.af-bar{display:flex; align-items:center; gap:6px; padding:8px 12px; border-bottom:1px solid var(--line)}
+.af-bar .sp{flex:1}
+.af-btn{display:inline-flex; align-items:center; gap:6px; border:0; background:var(--surface-2);
+  color:var(--ink-2); font:inherit; font-size:12.5px; font-weight:700; text-decoration:none;
+  padding:7px 12px; border-radius:10px; cursor:pointer}
+.af-btn:hover{background:#E8EBEE; color:var(--ink)}
+.af-frame{flex:1; width:100%; border:0; background:var(--surface-2)}
+.af-err{padding:40px; text-align:center; color:var(--muted); font-size:14px}

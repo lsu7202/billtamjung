@@ -20,10 +20,8 @@ SELECT a.id,
        to_char(a.created_at AT TIME ZONE 'Asia/Seoul', 'MM-DD HH24:MI') AS 가입,
        CASE WHEN a.phone_verified_at IS NOT NULL THEN '✓' ELSE '' END   AS 폰인증,
        CASE WHEN s.provider IS NOT NULL THEN s.provider ELSE '이메일' END AS 가입경로,
-       COALESCE(b.balance, 0) AS 남은크레딧
 FROM app.accounts a
 LEFT JOIN LATERAL (SELECT provider FROM app.social_accounts WHERE account_id = a.id LIMIT 1) s ON true
-LEFT JOIN LATERAL (SELECT sum(amount) AS balance FROM app.credit_entries WHERE account_id = a.id) b ON true
 WHERE a.deleted_at IS NULL AND NOT a.is_admin
 ORDER BY a.created_at DESC;
 

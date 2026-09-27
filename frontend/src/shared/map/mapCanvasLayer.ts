@@ -45,6 +45,10 @@ function realLabel(p: CanvasPin, v: RealView): { main: string; sub: string } | n
 }
 
 const CELL = 58;        // 클러스터 격자(px)
+// 클러스터는 멀리서만(2026-09-22 대표: 「3단계 더 멀리 가야 묶이게」). 전엔 줌과 무관하게 늘 58px
+// 격자로 묶어 기본 줌 15에서도 같은 골목 핀이 다 숫자 버블이었다. 이제 줌 12 이하에서만 묶고,
+// 그 위에선 전부 낱개 가격 태그다(겹치면 겹친 대로 — 격자를 잘게 하면 작은 버블이 산처럼 쌓인다).
+const CLUSTER_ZOOM = 12;
 const MARGIN = 160;     // 뷰포트 밖 여유(팬 시 가장자리 공백 완화). 캔버스 px = 컨테이너 px + MARGIN
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 
@@ -142,11 +146,12 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
 
     // 캔버스(뷰포트+여유) 안 핀만 투영 → 격자 클러스터. 캔버스 px = paneOffset - tl + MARGIN
     const buckets = new Map<string, { xs: number; ys: number; lats: number; lngs: number; members: Member[] }>();
+    const clusterOn = map.getZoom() <= CLUSTER_ZOOM;
     for (const p of pins) {
       const off = proj.fromCoordToOffset(new naver.maps.LatLng(p.lat, p.lng));
       const cx = off.x - tl.x + MARGIN, cy = off.y - tl.y + MARGIN;
       if (cx < 0 || cy < 0 || cx > cssW || cy > cssH) continue;
-      const key = `${Math.floor(cx / CELL)},${Math.floor(cy / CELL)}`;
+      const key = clusterOn ? `${Math.floor(cx / CELL)},${Math.floor(cy / CELL)}` : p.building_pk;
       const bk = buckets.get(key);
       if (bk) { bk.xs += cx; bk.ys += cy; bk.lats += p.lat; bk.lngs += p.lng; bk.members.push({ p, cx, cy }); }
       else buckets.set(key, { xs: cx, ys: cy, lats: p.lat, lngs: p.lng, members: [{ p, cx, cy }] });
@@ -157,6 +162,9 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
       if (n === 1) items.push({ t: "pin", cx: bk.xs, cy: bk.ys, p: bk.members[0].p });
       else items.push({ t: "cluster", cx: bk.xs / n, cy: bk.ys / n, n, lat: bk.lats / n, lng: bk.lngs / n, members: bk.members });
     }
+    // 큰 버블이 위에 오게. 멀리서 여러 격자가 겹치면 작은 것(41)이 큰 것(1.5k)을 덮어
+    // 숫자가 거짓말을 했다(2026-09-22 화면 확인). 낱개 핀 → 작은 버블 → 큰 버블 순으로 그린다.
+    items.sort((a, b) => (a.t === "cluster" ? a.n : 0) - (b.t === "cluster" ? b.n : 0));
     if (hoverIdx >= items.length) hoverIdx = -1;
   }
 

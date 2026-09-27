@@ -80,16 +80,13 @@ body {
 .bt-wordmark { font-family: "Pretendard", sans-serif; font-weight: 800; letter-spacing: -.035em; color: var(--ink); line-height: 1; font-size: 19px; }
 .bt-dot { color: var(--gold); }
 .appbar .bt-wordmark { font-size: 18px; }
-/* 왼쪽은 일(검색·업무), 오른쪽은 나(크레딧·마이페이지·나가기) */
+/* 왼쪽은 일(검색·업무), 오른쪽은 나(마이페이지·나가기) */
 .appbar .gnb { display: flex; gap: 2px; }
 .appbar .gnb a { color: var(--muted); text-decoration: none; font-weight: 700; font-size: 14.5px;
   letter-spacing: -.02em; padding: 19px 13px 17px; border-bottom: 2px solid transparent; }
 .appbar .gnb a:hover { color: var(--ink-2); }
 .appbar .gnb a.on { color: #191F28; border-bottom-color: #3182F6; }
 .appbar .gnb.me a { font-size: 13.5px; }
-.appbar .credit { background: #F2F4F6; border-radius: 999px; padding: 6px 14px;
-  font-size: 12.5px; font-weight: 700; color: #6B7684; }
-.appbar .credit b { font-family: var(--mono); margin-left: 6px; color: #191F28; }
 /* 폰(2026-09-08). 「건물 검색」이 세로로 한 글자씩 쌓였다 — 조작 글자는 줄이 바뀌면
    조작이 아니다. 글자를 안 접고, 좁으면 메뉴 줄이 가로로 밀린다.
    앱 전체 폰 대응은 따로 잡는다(10-AI-어시스턴트 §20 딸린 일감). 여기선 머리만 세운다. */
@@ -100,8 +97,7 @@ body {
   .appbar .gnb { overflow-x: auto; scrollbar-width: none; }
   .appbar .gnb::-webkit-scrollbar { display: none; }
   .appbar .gnb a { font-size: 13.5px; padding: 19px 9px 17px; }
-  .appbar .credit { display: none; }
-  .appbar .sp { flex: 0 0 auto; }
+    .appbar .sp { flex: 0 0 auto; }
 }
 .appbar .gnb-out { width: 32px; height: 32px; margin-left: 2px; border: 0; border-radius: 9px;
   background: none; color: #B0B8C1; cursor: pointer;

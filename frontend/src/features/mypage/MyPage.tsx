@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { authApi, creditsApi, officeApi, reportsApi, savedApi, teamApi, type Office, type TokenOut } from "../../shared/api/endpoints";
+import { authApi, officeApi, reportsApi, savedApi, teamApi, type Office, type TokenOut } from "../../shared/api/endpoints";
 import { useAuth } from "../../shared/store/auth";
 import { Loading } from "../../shared/ui/Spinner";
 import { openDetail } from "../../shared/map/geo";
@@ -13,8 +13,8 @@ import "./mypage.css";
 /** S0M 마이페이지 — 리포트 · 사무소 · 계정.
  *
  *  2026-08-28 개편. 예전엔 판 여섯이 한 장에 세로로 쌓여 있어서, 사무소 정보를 고치려면
- *  리포트 표와 크레딧 내역을 지나 스크롤을 내려야 했다. **하는 일이 다르면 화면을 나눈다** —
- *  산출물(리포트·조건) / 우리 사무소(사무소·팀) / 나(계정·크레딧·구독) 셋으로 갈랐다.
+ *  리포트 표를 지나 스크롤을 내려야 했다. **하는 일이 다르면 화면을 나눈다** —
+ *  산출물(리포트·조건) / 우리 사무소(사무소·팀) / 나(계정·구독) 셋으로 갈랐다.
  *
  *  어법도 같이 맞췄다(CLAUDE.md):
  *  · 줄마다 서 있던 글자 네모버튼 → 고른 줄에만 뜨는 아이콘 컨트롤
@@ -22,9 +22,6 @@ import "./mypage.css";
  *  · 설명글씨 제거 — 남기는 건 라벨·값뿐
  */
 
-const TYPE_LABEL: Record<string, string> = { grant: "지급", spend: "소비", earn: "적립", expire: "소멸", adjust: "조정" };
-const REPORT_COST = 30;     // 분석보고서 1건(BT_COST_ANALYSIS 기본값)
-const BRIEFING_COST = 10;   // 브리핑 1건(BT_COST_BRIEFING)
 
 /** 고른 줄에만 뜨는 아이콘 컨트롤. 줄 오른쪽에 작게 선다. */
 function Ctl({ icon, title, tone, onClick, disabled }: {
@@ -77,7 +74,7 @@ function ReportsPanel() {
   const reports = useQuery({ queryKey: ["reports"], queryFn: reportsApi.list, refetchInterval: 3000 });
   const regen = useMutation({
     mutationFn: (r: { building_pk: string; kind: "analysis" | "briefing" }) => reportsApi.create(r.building_pk, r.kind),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["reports"] }); qc.invalidateQueries({ queryKey: ["credits"] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["reports"] }); },
   });
   const rows = reports.data ?? [];
 
@@ -88,7 +85,7 @@ function ReportsPanel() {
           {rows.length > 0 && <span className="sub">{rows.length}건</span>}</span>
       </div>
       <table className="wf mp-tbl">
-        <thead><tr><th>생성일</th><th>종류</th><th>매물</th><th className="num">크레딧</th><th>상태</th><th /></tr></thead>
+        <thead><tr><th>생성일</th><th>종류</th><th>매물</th><th>상태</th><th /></tr></thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r.id}>
@@ -96,7 +93,6 @@ function ReportsPanel() {
               <td><span className={`tag ${r.kind === "briefing" ? "plain" : "mine"}`}>
                 {r.kind === "briefing" ? "브리핑" : "분석"}</span></td>
               <td className="lnk" onClick={() => openDetail(r.building_pk)}>{r.addr ?? r.building_pk}</td>
-              <td className="num">{r.credits_spent ?? "—"}</td>
               <td>{r.status === "done"
                 ? <span className={`tag ${r.is_stale ? "stale" : "plain"}`}>{r.is_stale ? "데이터 변경됨" : "최신"}</span>
                 : <span className="dim">{r.status === "failed" ? "실패" : "생성 중…"}</span>}</td>
@@ -105,7 +101,7 @@ function ReportsPanel() {
                   <Ctl icon="external" title="열기"
                     onClick={() => nav(r.kind === "briefing" ? `/briefings/${r.id}` : `/reports/${r.id}`)} />
                   {r.is_stale && <Ctl icon="reset" tone="on"
-                    title={`다시 만들기 · ${r.kind === "briefing" ? BRIEFING_COST : REPORT_COST}크레딧`}
+                    title="다시 만들기"
                     disabled={regen.isPending}
                     onClick={() => regen.mutate({ building_pk: r.building_pk,
                       kind: (r.kind as "analysis" | "briefing") ?? "analysis" })} />}
@@ -351,37 +347,6 @@ function AccountPanel() {
   );
 }
 
-/** 크레딧 — 잔액을 리포트 몇 건인지로 환산해 주고, 그 아래가 내역이다. */
-function CreditPanel() {
-  const credits = useQuery({ queryKey: ["credits"], queryFn: creditsApi.balance });
-  const entries = useQuery({ queryKey: ["credit-entries"], queryFn: creditsApi.entries });
-  const c = credits.data;
-  const total = c?.total ?? 0;
-  const rows = entries.data ?? [];
-
-  return (
-    <div className="panel">
-      <div className="sec-head"><span className="lead"><span>크레딧</span></span>
-        <span className="mp-bal"><b>{c ? total : "—"}</b>
-          <i>리포트 {Math.floor(total / REPORT_COST)}건</i></span>
-      </div>
-      <table className="wf mp-tbl">
-        <thead><tr><th>일시</th><th>항목</th><th className="num">변동</th></tr></thead>
-        <tbody>
-          {rows.map((e, i) => (
-            <tr key={i}>
-              <td className="num sm">{new Date(e.occurred_at).toLocaleString("ko", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
-              <td>{TYPE_LABEL[e.type] ?? e.type} <span className="dim">{e.reason}</span></td>
-              <td className={`num amt${e.amount >= 0 ? "" : " out"}`}>{e.amount >= 0 ? "+" : ""}{e.amount}</td>
-            </tr>
-          ))}
-          {rows.length === 0 && <tr><td colSpan={3} className="mp-empty">내역이 없습니다</td></tr>}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 /** 구독 플랜(표시 전용) — 정식 확정가. 결제는 정식 도입. */
 const PLANS = [
   { key: "starter", name: "스타터", price: "무료체험", sub: "1개월", feats: ["지도·건물 검색", "기본 정보 열람", "빌탐정 리포트 체험"], trial: true },
@@ -431,7 +396,7 @@ export function MyPage() {
 
       {tab === "reports" && <div className="mp-two"><ReportsPanel /><SavedPanel /></div>}
       {tab === "office" && <div className="mp-two"><OfficePanel /><TeamPanel /></div>}
-      {tab === "account" && <div className="mp-cols"><AccountPanel /><CreditPanel /><PlansPanel /></div>}
+      {tab === "account" && <div className="mp-cols"><AccountPanel /><PlansPanel /></div>}
     </div>
   );
 }

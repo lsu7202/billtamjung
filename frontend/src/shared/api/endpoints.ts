@@ -6,17 +6,18 @@ export interface Suggestion { kind: "building" | "region" | "station" | "vacant"
   /** 지역이면 법정동 코드 — 고르면 그 동이 지역 필터가 된다 */
   bjd_code?: string | null;
 }
-export interface Balance { total: number; monthly: number; earned: number; purchased: number }
+export interface Balance { total: number }
 export interface FloorRent {
   id?: number; floor: string; unit_no: string; use?: string | null;
   contract_area?: number | null;   // 면적은 이것 하나(0035) — 전용면적은 우리 데이터에 없다
-  deposit: number; rent: number; maintenance: number; is_vacant: boolean | null;   // null=미지정·false=임대중·true=공실
+  deposit: number; rent: number; maintenance: number;
+  // 공실 칸은 없다(0180). 층별 줄은 들어온 업체뿐이고, 공실은 층마다 면적 하나(FloorGroup.vacant_area)
   tenant_name?: string | null;     // 상호명(0155) — 용도 대신 화면에 선다. 모르면 null
 }
 export interface Report {
   id: number; building_pk: string; kind: "analysis" | "briefing";
   status: "pending" | "generating" | "done" | "failed";
-  credits_spent?: number; created_at: string;
+  created_at: string;
   is_stale?: boolean; addr?: string; failed_reason?: string;
   // 종류별로 모양이 다르다. analysis=우리 판단(subject·preview) · briefing=사실 나열(subject·office·floors·photos)
   result_json?: ({ subject: CompsResponse["subject"]; preview: ReportPreview } & Record<string, unknown>) | null;
@@ -84,7 +85,6 @@ export interface AttrFilters {
   far_slack_min?: number | null; far_slack_max?: number | null;
   price_min?: number | null; price_max?: number | null;
   roi_min?: number | null; roi_max?: number | null;
-  roi_exvac_min?: number | null; roi_exvac_max?: number | null;
   pp_land_min?: number | null; pp_land_max?: number | null;
   pp_total_min?: number | null; pp_total_max?: number | null;
   deposit_total_min?: number | null; deposit_total_max?: number | null;
@@ -153,11 +153,6 @@ export const searchApi = {
     api<{ polygon: { type: string; coordinates: unknown } | null }>(`/search/parcel/${pk}`),
 };
 
-export const creditsApi = {
-  balance: () => api<Balance>("/credits"),
-  entries: () => api<{ occurred_at: string; type: string; bucket: string; amount: number; reason: string; ref_id: number | null }[]>("/credits/entries"),
-};
-
 export interface Office {
   name: string; office_name: string | null; agent_name: string | null; agent_title: string | null;
   phone: string | null; fax: string | null; email: string | null; office_addr: string | null; has_logo: boolean;
@@ -186,9 +181,9 @@ export const savedApi = {
 };
 
 /** 유동인구 지도 — 250m 격자에 색(지배 용도)과 진하기(주간 인구)를 같이 준다. */
-export interface PopCell { grid: string; geojson: unknown; pop: number | null; cat: string | null; n: number | null }
+export interface PopCell { geojson: unknown; pop: number | null; cat: string | null }
 export interface BuildingPop {
-  grid: string | null; day: number | null; night: number | null;
+  day: number | null; night: number | null;
   peak: number | null; peak_hour: number | null; hourly: number[]; days: number | null;
   cells: PopCell[]; mix: Record<string, number>;
 }
@@ -321,13 +316,12 @@ export interface AreaEvent {
   source: string; source_url: string | null;
   /** 해시태그 — 보도자료만 있다(주제·구·동·역·도로). 다른 원천은 빈 배열 */
   tags: string[];
-  relation: "구역 안" | "반경 안"; distance_m: number;
   /** 지도 아이콘 자리(면이면 면 안의 점) */
   lng: number | null; lat: number | null;
 }
 /** 소식 한 줄 — 서울 전체. 주변 소식과 **같은 낱말**을 쓴다(갈래·날짜·출처).
  *  다른 것은 `located` 하나뿐이다 — 자리를 아는 줄만 주변 소식에 선다. */
-export interface NewsItem extends Omit<AreaEvent, "id" | "relation" | "distance_m" | "lng" | "lat"> {
+export interface NewsItem extends Omit<AreaEvent, "id" | "lng" | "lat"> {
   src_table: string; src_key: string | null;
   /** 자리를 아는가. false 면 이 목록에만 서고 건물 반경엔 안 선다 */
   located: boolean;
@@ -366,7 +360,7 @@ export const eventsApi = {
     if (p?.kind) q.set("kind", p.kind);
     if (p?.years) q.set("years", String(p.years));
     const s = q.toString();
-    return api<{ items: AreaEvent[]; kinds: Record<string, number>; radius: number }>(
+    return api<{ items: AreaEvent[]; radius: number }>(
       `/buildings/${pk}/events${s ? `?${s}` : ""}`);
   },
 };
@@ -378,17 +372,37 @@ export interface Tenant {
   /** 카카오에서 온 것은 화면에서만 붙는다(저장 안 함) */
   url?: string | null;
 }
-export const tenantsApi = {
-  list: (pk: string) => api<{ items: Tenant[] }>(`/buildings/${pk}/tenants`),
-};
-export const placesApi = {
-  /** truncated=true 면 카카오가 주는 45곳에서 잘린 것이다(이게 전부가 아니다) */
-  list: (pk: string) => api<{ items: PlaceItem[]; truncated: boolean; source: string }>(
-    `/buildings/${pk}/places`),
+/** 층별 임대정보 한 줄 — 팀 줄에 원장·카카오가 아는 업종·전화·링크를 이름으로 붙인 것 */
+export interface FloorUnit extends FloorRent { biz?: string | null; phone?: string | null; url?: string | null }
+/** 층 하나 — 뼈대는 대장, 업체는 원장, 금액은 팀. 서버가 층으로 묶어 준다(GET /buildings/{pk}/floors, 2026-09-17) */
+/** 대장 호실(전유부) — 집합건물만. **참조다.** 등기 단위라 실제 칸막이와 다를 수 있고,
+ *  업체를 호실에 이을 자료가 없어(인허가엔 호 칸이 없다) 팀 줄과 맞추지 않는다. */
+export interface LedgerRoom { excl_area: number; common_area: number | null }
+export interface FloorGroup {
+  floor: string; floor_area: number | null;
+  uses: string[];           // 대장 층별개요 용도 — 업체가 없는 층도 무엇이 있는지는 안다
+  rooms: LedgerRoom[];      // 대장 전유부. 빈 목록이면 전유부가 없는 건물(일반건물)
+  /** 팀이 적은 공실면적(㎡, 0180). null=모름 · 0=팀이 확인한 만실 */
+  vacant_area: number | null;
+  units: FloorUnit[]; ledger: Tenant[];
+}
+
+/** 입주 이력 한 줄(2026-09-25) — LOCALDATA. 임대료는 없다. 「영업」은 신고상 상태다 */
+export interface TenancyStint {
+  name: string; biz: string | null; floor: string | null; area: number | null;
+  open_on: string | null; close_on: string | null; state: string;
+  /** 카카오에서 확인됐나. 인허가 「영업」만으로는 지금 있는지 모른다(2026-09-25 대표) */
+  now: boolean;
+}
+export const historyApi = {
+  get: (pk: string) => api<{ items: TenancyStint[]; ecommerce: number }>(`/buildings/${pk}/floors/history`),
 };
 
 export const rentsApi = {
-  list: (pk: string) => api<{ items: FloorRent[]; total: Record<string, number>; hidden_floors: string[] }>(`/buildings/${pk}/floor-rents`),
+  /** 층별 임대정보 **하나로** — 예전엔 층별개요·업체 원장·카카오·층별임대 넷을 받아 화면이 합쳤다.
+   *  items·total 은 예전 /floor-rents 와 같은 모양이라 합계·되돌리기가 그대로 읽는다 */
+  list: (pk: string) => api<{ items: FloorRent[]; total: Record<string, number>; floors: FloorGroup[]; unknown: Tenant[] }>(
+    `/buildings/${pk}/floors`),
   /** id 가 있으면 그 줄을 고친다. 호실이 빈 줄은 한 층에 여럿이라 (층, 호실)로는 못 집는다(0160) */
   upsert: (pk: string, r: FloorRent) =>
     api<{ ok: boolean; id: number }>(`/buildings/${pk}/floor-rents`, { method: "PUT", body: JSON.stringify(r) }),
@@ -396,10 +410,11 @@ export const rentsApi = {
     api(`/buildings/${pk}/floor-rents/${id}`, { method: "DELETE" }),
   /** 대장 구조로 되돌리기 — 팀 행과 없앤 층 표시를 한 번에(2026-09-04) */
   revert: (pk: string) => api(`/buildings/${pk}/floor-rents`, { method: "DELETE" }),
+  /** 층의 공실면적(㎡). null 이면 지운다 — 모름으로 돌아간다(0180) */
+  setVacancy: (pk: string, floor: string, vacant_area: number | null) =>
+    api(`/buildings/${pk}/floor-rents/vacancy`, { method: "PUT", body: JSON.stringify({ floor, vacant_area }) }),
   hideFloor: (pk: string, floor: string, hidden: boolean) =>
     api(`/buildings/${pk}/floor-rents/hidden`, { method: "POST", body: JSON.stringify({ floor, hidden }) }),
-  outline: (pk: string) =>
-    api<{ floor: string | null; use: string | null; floor_area: number | null; rent_est: number | null; deposit_est: number | null }[]>(`/buildings/${pk}/floor-outline`),
 };
 
 export interface SeriesPt { x: string; y: number; ov: boolean; master: boolean }
@@ -427,7 +442,8 @@ export const marketApi = {
     api<NearbySales>(`/market/nearby-sales/${pk}?radius_m=${radius_m}&years=${years}`),
   nearby: (b: { center_lat: number; center_lng: number; radius_m: number; building_pk?: string; polygon?: object | null; floors?: string[];
                 sale_years?: number; sale_price_min?: number | null; sale_price_max?: number | null }) =>
-    api<Record<string, unknown>>("/market/nearby", { method: "POST", body: JSON.stringify(b) }),
+    // 매각 사례만(감사 2026-09-17). 임대 comps 는 임대 탭·보고서가 따로 낸다
+    api<{ sales: Record<string, unknown>[]; radius_m: number }>("/market/nearby", { method: "POST", body: JSON.stringify(b) }),
 };
 
 export interface CompFields {
@@ -815,7 +831,7 @@ export interface Seller {
   ad_status?: string | null; ad_off?: string | null;
   co_sent_on?: string | null;      /** 공동중개 발송일(0098) — 노출의 다른 반쪽 */
   sell_on?: string | null; sell_vague?: string | null;   /** 매도 시기(0099) — 원함인 채의 정보 */
-  rent_n?: number | null; rent_vac?: number | null;      /** 임대내역 요약(정본=건물 상세) */
+  rent_n?: number | null;      /** 임대내역 요약(정본=건물 상세) */
   rent_check?: string | null;   /** 임대내역 확인 상태(0100) — null=안 받음 · 확인중. 받았다=파생 */
   owner_buyer_id?: number | null;  /** 소유자가 매수자 명단에도 있나(전화 일치) */
   last_on: string | null; last_kind: string | null; last_note: string | null;
@@ -962,11 +978,8 @@ export const convertApi = {
 
 /** 호가판(2026-08-19) — 값의 시간 흐름. 매도 쪽과 매수자별 값이 같은 축에 선다 */
 export interface OfferBoard {
-  sell: { id: number; field: string; prev: string | null; value: string | null; created_at: string }[];
-  buys: { proposal_id: number; event_id: number; buyer_name: string | null; status: string; field: string;
-          prev: string | null; value: string | null; created_at: string }[];
-  events: { event_id: number; proposal_id: number; buyer_name: string | null; side: string | null;
-            price: number; created_at: string }[];
+  sell: { id: number; field: string; value: string | null; created_at: string }[];
+  buys: { proposal_id: number; event_id: number; field: string; value: string | null; created_at: string }[];
 }
 /** 계약 문서(0128) — 종류별 한 판. body에 서식 칸 전체(주민등록번호 없음 — 서버가 마스킹). */
 export const papersApi = {

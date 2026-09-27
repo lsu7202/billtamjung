@@ -171,7 +171,7 @@ export const GROUPS: Group[] = [
         { key: "team", name: "매매가", tone: "team", hint: "내 매물" },
       ], { min: 0, max: 200, unit: "%", inf: true, ticks: "0,50,100" }),
       S("관리비", { min: 0, max: 5000, unit: "만원", inf: true, ticks: "0,1000,3000" }),
-      S("수익률(공실제외)", { min: 0, max: 8, step: 0.1, unit: "%", inf: true, handle: "left", ticks: "0,3,6" }),
+      // 「수익률(공실제외)」를 뺐다(0180). 층별 줄에 공실이 없어져 수익률과 같은 값이 됐다
       SM("공실", ["있음", "없음"]),
       S("실거래일", { min: 0, max: 30, unit: "년", inf: true, ticks: "0,10,20", ge: "이상", le: "이내", chips: [["최근 5년↓", 0, 5], ["최근 10년↓", 0, 10], ["10년↑ 미거래", 10, ""]] }),
       S("실거래손익", { min: -50, max: 200, unit: "%", inf: true, inflo: true, ticks: "-50,0,50,100" }),
@@ -229,7 +229,7 @@ const SERVER_FILTER_KEYS = new Set([
   "rent_est_min", "rent_est_max", "deposit_est_min", "deposit_est_max",
   "pp_land_team_min", "pp_land_team_max", "pp_total_team_min", "pp_total_team_max",
   "gongsi_ratio_team_min", "gongsi_ratio_team_max", "roi_min", "roi_max",
-  "roi_exvac_min", "roi_exvac_max", "pp_land_min", "pp_land_max", "pp_total_min", "pp_total_max",
+  "pp_land_min", "pp_land_max", "pp_total_min", "pp_total_max",
   "deposit_total_min", "deposit_total_max", "rent_total_min", "rent_total_max",
   "mgmt_total_min", "mgmt_total_max", "vacant", "gongsi_total_min", "gongsi_total_max",
   "gongsi_ratio_min", "gongsi_ratio_max", "gongsi_up5_min", "gongsi_up5_max",
@@ -250,7 +250,7 @@ const SERVER_FILTER_KEYS = new Set([
 const FILTER_NAME: Record<string, string> = {
   price: "매매가", sale_est: "추정가", roi: "수익률", roi_est: "추정 수익률",
   rent_est: "추정 임대료", deposit_est: "추정 보증금", rent_total: "총 월 임대료",
-  deposit_total: "총 월 보증금", mgmt_total: "총 월 관리비",
+  deposit_total: "총 보증금", mgmt_total: "총 월 관리비",
   land_area: "대지면적", total_area: "연면적", build_area: "건축면적", parcel_area: "필지면적",
   floors_above: "지상층", floors_below: "지하층", bcr: "건폐율", far: "용적률",
   legal_bcr: "법정 건폐율", legal_far: "법정 용적률",

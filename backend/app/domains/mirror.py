@@ -9,7 +9,8 @@
   일정   schedule_create · schedule_retract · schedule_log · schedule_set_state
          attendees_sync · apply_sched_op
   체결   mirror_to_listing · mirror_to_proposal   (계약·계약파기 — 한 사건의 양면)
-  가격   overlays_write(스냅샷) · overlays_restore · proposal_prices_prev/restore
+  값     listing_values_write(매매가·희망가, 스냅샷) · listing_values_restore · listing_values_fold(층별 합계·수익률)
+         proposal_prices_prev/restore
 
 원칙:
   **매수 쪽 장부는 접촉 장부다**(0141). 예전엔 짝마다 커밋 장부(proposal_events)가 따로
@@ -552,44 +553,86 @@ async def mirror_to_proposal(team_id: int, pk: str, status: str, by: int,
         await _attend(evt_sid, "buyer", rows[0]["buyer_id"])
     return rows[0]["name"]
 
-# ══════════════════ 가격 — 스냅샷과 복원(0078) ══════════════════
+# ══════════════════ 값 — 매물 줄 한 곳(0173) ══════════════════
+#
+# 팀이 건물에 적는 돈(매매가·매도희망가·임대 합계)과 그 파생(수익률)은 app.listings 한 줄에 산다.
+# 층별(floor_rents)을 고치든 총액을 직접 적든 매매가를 바꾸든, 끝에 listing_values_fold 를 한 번
+# 부른다. 읽는 쪽(검색·매수자·상세·보고서)은 이 줄만 읽고 나누지 않는다 — 산식은 여기 한 벌이다.
 
-async def overlays_write(team_id: int, pk: str, changes: dict[str, int | None],
-                         actor: int) -> str | None:
-    """오버레이 가격을 쓰기 전에 **덮이는 값**을 뜬다. 돌려줄 prev(json) 를 함께 싣는다."""
+VALUE_FIELDS = ("sale_price", "ask_price")     # 이력(field_events)을 남기는 값 칸
+
+
+async def listing_values_fold(team_id: int, pk: str) -> None:
+    """층별 실측이 있으면 그 합계로 total_* 를 덮고(0134: 층별 > 직접 입력), 수익률을 다시 낸다.
+    층별이 없으면 직접 적은 총액을 그대로 두고 수익률만 다시 낸다. 매물 줄이 없으면 아무 일도 없다.
+
+    공실은 층별 줄에 없다(0180). 층마다 적은 공실면적(app.floor_vacancy)의 합이고, 한 층도 안
+    적었으면 NULL(모름)이다. 층별 줄은 들어온 업체뿐이라 총월임대가 곧 들어오는 돈이다."""
+    await pool().execute(
+        """WITH agg AS (
+             SELECT SUM(rent) AS rent, SUM(deposit) AS deposit, SUM(maintenance) AS mgmt, count(*) AS n
+               FROM app.floor_rents WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL),
+           vac AS (
+             SELECT SUM(vacant_area) AS area FROM app.floor_vacancy WHERE building_pk=$1 AND team_id=$2)
+           UPDATE app.listings l
+              SET total_rent    = CASE WHEN a.n > 0 THEN a.rent    ELSE l.total_rent END,
+                  total_deposit = CASE WHEN a.n > 0 THEN a.deposit ELSE l.total_deposit END,
+                  total_mgmt    = CASE WHEN a.n > 0 THEN a.mgmt    ELSE l.total_mgmt END,
+                  vacant_area   = v.area
+             FROM agg a, vac v WHERE l.building_pk=$1 AND l.team_id=$2""", pk, team_id)
+    # 만실 월임대·만실 수익률(0181) — 공실면적 × 그 층 평당가(실측 → 없으면 추정). 산식은 DB 함수
+    # 하나에 있다. 여기와 마이그레이션 채우기가 같은 것을 불러야 두 길이 안 갈린다.
+    # 위에서 total_rent 를 접은 **뒤에** 부른다 — 만실의 바탕이 지금 월임대다.
+    await pool().execute("SELECT app.listing_full_fold($1, $2)", pk, team_id)
+    await pool().execute(
+        """UPDATE app.listings l
+              SET roi       = CASE WHEN l.total_rent > 0 AND l.sale_price > 0
+                                   THEN round(l.total_rent*12.0/l.sale_price*100, 2) END,
+                  -- 팀 매매가로 나눈 파생 셋(0174) — 검색 필터가 읽는다. 추정가 쪽은 building_derived
+                  pp_land_team      = CASE WHEN b.land_area > 0 AND l.sale_price > 0
+                                           THEN round(l.sale_price * 3.305785 / b.land_area) END,
+                  pp_total_team     = CASE WHEN b.total_area > 0 AND l.sale_price > 0
+                                           THEN round(l.sale_price * 3.305785 / b.total_area) END,
+                  gongsi_ratio_team = CASE WHEN l.sale_price > 0
+                                           THEN round((b.gongsi_latest * b.land_area) / l.sale_price::numeric * 100, 2) END
+             FROM master.buildings b
+            WHERE l.building_pk=$1 AND l.team_id=$2 AND b.building_pk = l.building_pk""", pk, team_id)
+
+
+async def listing_values_write(team_id: int, pk: str, changes: dict[str, int | None],
+                               actor: int) -> str | None:
+    """매매가·매도희망가를 매물 줄에 쓴다. 덮이는 값을 prev(json)로 돌려준다(커밋 되돌리기용, 0078).
+    값이 실제로 바뀌면 field_events 에 한 줄 남긴다 — 「125 → 120」이 협상의 핵심 정보다(0109)."""
+    changes = {k: v for k, v in changes.items() if k in VALUE_FIELDS}
+    if not changes:
+        return None
+    await pool().execute(
+        "INSERT INTO app.listings(building_pk, team_id) VALUES($1,$2) ON CONFLICT (building_pk, team_id) DO NOTHING",
+        pk, team_id)
+    old = await pool().fetchrow(
+        "SELECT sale_price, ask_price FROM app.listings WHERE building_pk=$1 AND team_id=$2", pk, team_id)
     prev: dict = {}
     for field, v in changes.items():
-        if v is None:
-            continue
-        old = await pool().fetchval(
-            """SELECT value FROM app.overlays
-                WHERE team_id=$1 AND target_type='building' AND target_id=$2 AND field=$3""",
-            team_id, pk, field)
-        prev[field] = old
+        before = old[field] if old else None
+        after = int(v) if v is not None else None
+        prev[field] = before
         await pool().execute(
-            """INSERT INTO app.overlays(team_id,target_type,target_id,field,value,updated_by)
-               VALUES($1,'building',$2,$3,$4,$5)
-               ON CONFLICT (team_id,target_type,target_id,field)
-               DO UPDATE SET value=EXCLUDED.value, updated_by=EXCLUDED.updated_by, updated_at=now()""",
-            team_id, pk, field, str(int(v)), actor)
-    return json.dumps(prev) if prev else None
+            f"UPDATE app.listings SET {field}=$3, updated_at=now() WHERE building_pk=$1 AND team_id=$2",  # noqa: S608
+            pk, team_id, after)
+        if before != after:
+            await pool().execute(
+                """INSERT INTO app.field_events(team_id, target_type, target_id, field, prev, value, created_by)
+                   VALUES($1,'listing',$2,$3,$4,$5,$6)""",
+                team_id, pk, field, str(before) if before is not None else None,
+                str(after) if after is not None else None, actor)
+    await listing_values_fold(team_id, pk)
+    return json.dumps(prev)
 
 
-async def overlays_restore(team_id: int, pk: str, prev_json: str, actor: int) -> None:
-    """덮었던 가격을 되돌린다 — null 은 「오버레이가 없었다」는 뜻이라 지운다."""
-    for field, old in json.loads(prev_json).items():
-        if old is None:
-            await pool().execute(
-                """DELETE FROM app.overlays
-                    WHERE team_id=$1 AND target_type='building' AND target_id=$2 AND field=$3""",
-                team_id, pk, field)
-        else:
-            await pool().execute(
-                """INSERT INTO app.overlays(team_id,target_type,target_id,field,value,updated_by)
-                   VALUES($1,'building',$2,$3,$4,$5)
-                   ON CONFLICT (team_id,target_type,target_id,field)
-                   DO UPDATE SET value=EXCLUDED.value, updated_at=now()""",
-                team_id, pk, field, old, actor)
+async def listing_values_restore(team_id: int, pk: str, prev_json: str, actor: int) -> None:
+    """커밋이 덮었던 값을 되돌린다 — prev 의 null 은 「비어 있었다」라 다시 비운다."""
+    prev = json.loads(prev_json)
+    await listing_values_write(team_id, pk, {k: prev.get(k) for k in VALUE_FIELDS if k in prev}, actor)
 
 
 async def proposal_prices_prev(team_id: int, pid: int, hope: int | None,

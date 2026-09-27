@@ -1,30 +1,36 @@
-"""나가는 문 — 고유식별정보를 지운다. 경계 ② (10-AI-어시스턴트 §3 · §22)
+"""나가는 문 — 고유식별정보를 지운다.
+
+## 문이 둘이다
+
+    사용자 입력 → scrub     → 모델
+    도구 결과   → scrub_obj → 모델
+
+둘째 문이 중요하다. 우리 `search` 응답에는 `owner_name`·`owner_phone` 이 칸으로 있다.
+사용자 입력만 막으면 **도구가 퍼 온 값으로 샌다.**
 
 ## 무엇을 지우나
 
-B 경로(처리방침 공개)로 가므로 **이름·전화는 나간다.** 지우는 것은 국외이전과 별개로
-처리 자체가 제한되는 것들이다.
+**이름·전화는 나간다(2026-09-18 확인).** 검색 응답의 `owner_name`·`owner_phone` 이
+모델에게 그대로 간다. CLAUDE.md 의 「개인정보를 외부 API 로 보내지 않는다」는
+**커밋 파서** 자리에 쓴 규칙이고, 이 길은 처리방침 공개를 전제로 내보내기로 정했다.
+두 규칙이 어긋나 보이지만 적용 대상이 다르다.
+
+지우는 것은 처리 자체가 제한되는 것들이다.
 
     주민등록번호 · 외국인등록번호     제24조의2. 동의를 받아도 안 된다
     여권 · 운전면허                   고유식별정보
     카드번호                          결제 정보
-    계좌번호(추정)                    전화번호 꼴이 아닌 11~14자리 하이픈 묶음
-
-## 어디서
-
-두 군데 다 지난다(§7). 사용자 입력만 막으면 **도구가 퍼 온 값으로 새어 나간다.**
-
-    ③e  사용자 입력 → scrub → 모델
-    ④   도구 결과   → scrub → 모델
+    계좌번호(추정)                    전화 꼴이 아닌 11자리 이상 하이픈 묶음
 
 ## 규칙으로 한다
 
-파서를 34%에서 0%로 내린 그 방식이다. 못 잡는 것이 있으면 `qa/ai/scrub_cases.py` 에
-문장을 넣고 규칙을 늘린다. **의심스러우면 지운다.** 전화번호·날짜·지번·면적은 살아야 한다.
+정규식이다. 파서를 34%에서 0%로 내린 그 방식이고, 여기에 모델을 쓰면 **가리려는 것이
+그대로 밖으로 나간다.** 못 잡는 문장이 나오면 회귀에 넣고 규칙을 늘린다.
+**의심스러우면 지운다.** 전화번호·날짜·지번·면적은 살아야 한다.
 
 ## 못 하는 것
 
-글자에만 먹는다. 스캔 이미지 속 주민번호는 그림이라 못 본다(§15-1).
+글자에만 먹는다. 스캔 이미지 속 주민번호는 그림이라 못 본다.
 """
 from __future__ import annotations
 
@@ -97,12 +103,18 @@ def scrub(text: str) -> Scrubbed:
     return Scrubbed(out, hits)
 
 
-def scrub_obj(obj):
-    """dict·list 안의 문자열을 전부 지운다. 도구 결과에 쓴다(④). 숫자·None 은 그대로."""
+def scrub_obj(obj, hits: list[str] | None = None):
+    """dict·list 안의 문자열을 전부 지운다. 도구 결과에 쓴다. 숫자·None 은 그대로.
+
+    `hits` 를 주면 무엇을 가렸는지 거기 쌓인다 — 응답이 「가린 게 있다」고 말할 근거다.
+    조용히 지우면 그것도 거짓말이다."""
     if isinstance(obj, str):
-        return scrub(obj).text
+        r = scrub(obj)
+        if hits is not None:
+            hits.extend(r.hits)
+        return r.text
     if isinstance(obj, list):
-        return [scrub_obj(x) for x in obj]
+        return [scrub_obj(x, hits) for x in obj]
     if isinstance(obj, dict):
-        return {k: scrub_obj(v) for k, v in obj.items()}
+        return {k: scrub_obj(v, hits) for k, v in obj.items()}
     return obj

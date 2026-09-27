@@ -18,6 +18,9 @@ class OverlayIn(BaseModel):
 @router.put("")
 async def upsert(body: OverlayIn, user: CurrentUser = Depends(current_user)):
     """자동저장(넛지·저장버튼 없음). 잘못된 필드·enum은 트리거가 차단."""
+    # 팀이 적는 **값**(매매가·매도희망가)은 여기가 아니라 매물 줄이다(0173). 오버레이는 대장값 정정용.
+    if body.field in ("sale_price", "ask_price", "briefing_comment"):
+        raise HTTPException(422, f"「{body.field}」는 오버레이가 아니다 — PATCH /listings/biz 의 fields 로 준다")
     # 값 이력(0109) — 덮어쓰기 전에 이전 값을 뜬다. 「125 → 120」이 협상의 핵심 정보라
     # 값만 갈아치우면 그 사실이 사라진다(조사 규범: append + 현재값은 최신 행).
     prev = await pool().fetchval(

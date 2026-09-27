@@ -4,12 +4,13 @@ FROM python:3.12-slim
 WORKDIR /srv
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 
+# 의존은 pyproject.toml **한 곳**에서 읽는다(2026-09-21). 전엔 여기 손으로 다시 적어
+# 둘이 어긋났고, pyproject 에만 있던 google-genai 가 이미지에서 빠져 컨테이너를 다시
+# 만들면 AI 층이 안 떴다. app 을 복사하기 전에 깔아야 코드만 바뀔 땐 이 층이 캐시된다.
 COPY pyproject.toml ./
-RUN pip install --upgrade pip && pip install \
-    "fastapi>=0.110" "uvicorn[standard]>=0.29" "asyncpg>=0.29" \
-    "pydantic>=2.6" "pydantic-settings>=2.2" "argon2-cffi>=23.1" \
-    "pyjwt>=2.8" "python-multipart>=0.0.9" "email-validator>=2.1" \
-    "httpx>=0.27" "google-cloud-storage>=2.16" "anthropic>=0.40"
+RUN pip install --upgrade pip \
+ && python -c "import tomllib; print('\n'.join(tomllib.load(open('pyproject.toml','rb'))['project']['dependencies']))" > /tmp/req.txt \
+ && pip install -r /tmp/req.txt && rm /tmp/req.txt
 
 COPY app ./app
 

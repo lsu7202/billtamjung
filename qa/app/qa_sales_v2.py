@@ -73,8 +73,8 @@ async def main():
         # 매매가를 적정가보다 20% 높게 넣어 vs_est가 계산되는지 본다
         est = await db.fetchval("SELECT sale_est FROM master.building_sale_est WHERE building_pk=$1", PK)
         chk("적정가 존재", est is not None, est)
-        await c.put("/overlays", headers=H, json={"target_type": "building", "target_id": PK,
-                                                  "field": "sale_price", "value": str(int(est * 1.2))})
+        await c.patch("/listings/biz", headers=H, json={"building_pk": PK,
+                                                        "fields": {"sale_price": str(int(est * 1.2))}})
 
         print("\n[4] 제안 카드 판단재료")
         rows = (await c.get("/proposals", headers=H)).json()
@@ -190,7 +190,7 @@ async def main():
         await c.delete(f"/buyers/{B}", headers=H)
         await db.execute("DELETE FROM app.listings WHERE team_id=$1 AND building_pk=$2", team, PK2)
         await db.execute("DELETE FROM app.contacts WHERE team_id=$1 AND target_type='listing' AND target_id=$2", team, PK2)
-        await db.execute("DELETE FROM app.overlays WHERE team_id=$1 AND target_id=$2 AND field='sale_price'", team, PK)
+        await db.execute("UPDATE app.listings SET sale_price=NULL, roi=NULL WHERE team_id=$1 AND building_pk=$2", team, PK)
         print("  ✓ 시드 제거")
 
     await db.close()

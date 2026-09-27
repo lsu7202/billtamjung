@@ -81,7 +81,6 @@
 .mp-pw .um-in { flex: 1; max-width: 220px; }
 .mp-msg { font-size: 12.5px; color: #3182F6; padding: 0 14px 10px; font-weight: 600; }
 
-/* ── 크레딧 잔액 — 판 머리 오른쪽에 한 덩어리 ── */
 .mp-bal { display: flex; align-items: baseline; gap: 8px; }
 .mp-bal b { font-family: var(--mono); font-size: 24px; font-weight: 800;
   letter-spacing: -.03em; color: var(--ink); }

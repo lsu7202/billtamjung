@@ -11,15 +11,26 @@ export interface Chat { id: number; title: string | null; updated_at: string }
  *  다시 열면 부품은 **지금 값**으로 그리고 글자는 그때 그대로 남는다. */
 export type Piece =
   | { t: "text"; v: string }
-  | { t: "ui"; name: string; props: Record<string, unknown> }
-  | { t: "ask"; question: string; options: string[] }
-  | { t: "next"; options: string[] };
+  | { t: "ask"; 물음: AskItem[] }
+  | { t: "ui" | "next"; [k: string]: unknown };           // 옛 대화에 남은 조각 — 안 그린다
+
+/** 되물음 하나. `고르기` 가 없어도 사용자는 직접 칠 수 있다(2026-09-25) */
+export interface AskItem { 묻는것: string; 고르기?: string[] | null; 여러개?: boolean }
 
 export interface ToolLog { name: string; input: Record<string, unknown>; ms: number; summary: string; error: string | null }
+
+/** 도구가 돌려준 건물 하나의 좌표. **화면 지도용**이라 모델에게는 안 간다(2026-09-21).
+ *  나대지면 `pk` 가 19자리 pnu 다. */
+export interface Pin {
+  pk: string; vacant: boolean; addr: string; lng: number; lat: number; col: "mine" | "normal";
+  sale_est: number | null; price: number | null; land_area: number | null; total_area: number | null;
+}
 
 export interface Msg {
   id: number; seq: number; role: "user" | "assistant";
   content: Piece[]; tool_calls: ToolLog[] | null; created_at: string;
+  /** 이 답이 돌려준 건물들 — 다시 열어도 오른쪽 지도가 선다 */
+  pins?: Pin[] | null;
 }
 
 /** 흘러오는 것 — 서버가 던지는 조각. 오류 문구는 ref.error_msg 에서 온다(서버가 문장을 안 짓는다) */
@@ -28,9 +39,8 @@ export type Ev =
   | { t: "delta"; v: string }
   | { t: "tool"; phase: "start"; id: string; name: string; input: Record<string, unknown> }
   | { t: "tool"; phase: "end"; id: string; name: string; ms: number; summary: string }
-  | { t: "ui"; name: string; props: Record<string, unknown> }
-  | { t: "ask"; question: string; options: string[] }
-  | { t: "next"; options: string[] }
+  | { t: "pins"; items: Pin[] }
+  | { t: "ask"; 물음: AskItem[] }
   | { t: "text"; v: string; confidence?: string }
   | { t: "error"; code: string; title: string; body: string | null; action: string | null; level: string }
   | { t: "done"; message_id: number | null; title: string | null; stop: string;

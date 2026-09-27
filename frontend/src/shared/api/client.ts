@@ -1,7 +1,7 @@
 // fetch 래퍼: Bearer 부착 + 401 시 refresh 1회 재시도(01-상세설계 §6)
 import { useAuth } from "../store/auth";
 
-const BASE = "/api";
+export const BASE = "/api";
 
 // 토큰이 만료되면 화면의 여러 쿼리가 동시에 401을 받는다(로그: 401 10여 건이 한 번에).
 // 각자 refresh를 부르면 같은 요청이 그 수만큼 나가므로, 진행 중인 것 하나를 공유한다.
@@ -42,6 +42,21 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
     throw new Error(body.detail ?? res.statusText);
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
+}
+
+/** 글 그대로 받기(구운 HTML 등). api<T> 는 JSON 을 전제해서 못 쓴다. */
+export async function apiText(path: string, retry = true): Promise<string> {
+  const access = useAuth.getState().access;
+  const headers = new Headers();
+  if (access) headers.set("Authorization", `Bearer ${access}`);
+  const res = await fetch(`${BASE}${path}`, { headers, credentials: "include" });
+  if (res.status === 401 && retry) {
+    const t = await refresh();
+    if (t) return apiText(path, false);
+    useAuth.getState().clear();
+  }
+  if (!res.ok) throw new Error(res.statusText);
+  return res.text();
 }
 
 /** 인증 헤더 실은 파일 다운로드(Bearer는 <a href>로 못 실어서 blob으로). */

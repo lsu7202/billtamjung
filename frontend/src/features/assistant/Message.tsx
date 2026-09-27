@@ -5,49 +5,39 @@
  *
  *  도구 흔적은 접힌 한 줄이다. 「자료를 읽었다」는 사실만 보이고, 누르면 무엇을 불렀는지 편다.
  *  기다리는 동안 무슨 도구를 부르는지 보이는 것만으로 체감이 다르다(§7 · 스펙 ⑦). */
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
-import type { Piece, ToolLog } from "./api";
+import type { Piece, Pin, ToolLog } from "./api";
 import { Markdown } from "./Markdown";
-import { BuildingCard } from "./pieces/BuildingCard";
-import { SearchResult } from "./pieces/SearchResult";
-import { GRID_PIECES } from "./pieces/Panel";
+import { BuildingHit, mentions } from "./pieces/BuildingHit";
 
-/** 모델이 지목할 수 있는 부품. **여기 없으면 안 그린다** — 새 부품은 기본이 금지(§12-1) */
-const PIECES: Record<string, (props: Record<string, unknown>) => JSX.Element | null> = {
-  building_card: (p) => (typeof p.pk === "string" ? <BuildingCard pk={p.pk} /> : null),
-  search_result: (p) => <SearchResult filters={(p.filters as Record<string, unknown>) ?? {}} polygon={p.polygon} />,
-  // 그릇 열(§12-1-1) — kv · stats · table · chart · list · map · media · panel · floors · calendar.
-  // 값은 서버가 채워 보낸다(여기선 그리기만 한다). 지도는 panel 이 재귀로 다시 쓰므로
-  // 목록의 정본은 pieces/Panel.tsx 에 둔다 — 두 벌이면 한쪽만 늘어난다
-  ...GRID_PIECES,
-};
-
-export function Pieces({ pieces, onPick, live }: {
-  pieces: Piece[]; onPick?: (t: string) => void; live?: boolean;
+/** 답은 **글**이다. 모델이 부품을 지목하지 않는다 — 규격을 씌우면 답이 이상해져 걷어 냈다
+ *  (2026-09-21 대표). 화면이 글을 읽고 건물 카드만 끼운다. 옛 대화에 남은 다른 조각(ui·ask)은
+ *  그리지 않고 지나간다. */
+export function Pieces({ pieces, live, pins, onFocus }: {
+  pieces: Piece[]; live?: boolean;
+  /** 이 답이 돌려준 건물들. 글이 그 주소를 부르는 문단 앞에 카드가 선다 */
+  pins?: Pin[];
+  /** 카드의 로드뷰를 누르면 — 오른쪽 지도가 그 건물로 간다 */
+  onFocus?: (pin: Pin) => void;
 }) {
+  // 같은 건물은 한 번만. 답 한 통 안에서 센다
+  const used = new Set<string>();
   return (
     <>
       {pieces.map((p, i) => {
         if (p.t === "text") {
           const v = p.v.trim();
-          return v ? <div className="as-m assistant md" key={i}><Markdown text={v} /></div> : null;
-        }
-        if (p.t === "ui") {
-          const make = PIECES[p.name];
-          return make ? <div className="as-piece" key={i}>{make(p.props ?? {})}</div> : null;
-        }
-        // 「다음 걸음」 칩은 뺐다(2026-09-09 대표). 옛 대화에 남은 조각은 그냥 지나간다
-        if (p.t === "next") return null;
-        if (p.t === "ask") {
+          if (!v) return null;
+          if (!pins?.length) return <div className="as-m assistant md" key={i}><Markdown text={v} /></div>;
+          // 문단 단위로 가른다. 표·목록은 빈 줄을 안 넘으니 따로 그려도 같다
           return (
-            <div className="as-ask" key={i}>
-              <div className="q">{p.question}</div>
-              <div className="chips">
-                {p.options.map((o) => (
-                  <button key={o} className="chip" disabled={!onPick} onClick={() => onPick?.(o)}>{o}</button>
-                ))}
-              </div>
+            <div className="as-m assistant md" key={i}>
+              {v.split(/\n{2,}/).map((c, j) => {
+                const hit = pins.find((pn) => !used.has(pn.pk) && mentions(c, pn.addr));
+                if (hit) used.add(hit.pk);
+                return <Fragment key={j}>{hit && <BuildingHit pin={hit} onFocus={onFocus} />}<Markdown text={c} /></Fragment>;
+              })}
             </div>
           );
         }

@@ -20,13 +20,16 @@
     서울특별시 강남구 선릉로155길 25 (신사동)  → 서울 강남구 선릉로155길 25    7건
     (괄호를 안 떼면)                                                        0건
 
-지번과 도로명은 같은 곳을 가리키므로 결과도 같다. 지번을 먼저 묻고, 한 건도 없으면
-도로명으로 한 번 더 묻는다. 큰 건물은 한 쪽에만 걸리는 경우가 있다.
+**도로명을 먼저 묻고, 필지마다 지번으로도 묻는다**(2026-09-25 대표 발견).
+대장 주소의 지번은 **대표지번 하나뿐**이다. 건물이 여러 필지에 걸치면 가게는 부속지번으로 등록돼
+대표지번 검색에 안 나온다 — 연지동 275-1 로 물으면 3곳, 275-2 로 물어야 경희한의원·노래카페가 나온다.
+도로명(대학로1길 10)은 두 필지를 한꺼번에 준다(5곳). 도로명 없이 지번으로만 등록된 가게도 있어 둘 다 묻는다.
+예전엔 지번을 먼저 묻고 한 건이라도 나오면 도로명을 안 물었다 — 그래서 부속지번 가게가 통째로 빠졌다.
 
 ## 몇 건까지 오나
 
-카카오는 한 쪽 15건, 최대 3쪽까지만 준다(`pageable_count`=45). 강남파이낸스센터처럼
-186곳이 등록된 건물은 45곳까지만 볼 수 있다. 그 이상은 API 로 못 가져온다.
+카카오는 **한 질의에** 한 쪽 15건, 최대 3쪽까지만 준다(`pageable_count`=45). 강남파이낸스센터처럼
+186곳이 등록된 건물은 한 질의로 45곳까지만 볼 수 있다. 질의를 도로명·필지별로 나눠 합치면 조금 는다.
 """
 from __future__ import annotations
 
@@ -34,17 +37,15 @@ import re
 import time
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import HTTPException
 
 from ..core.config import settings
 from ..core.db import pool
-from ..core.deps import CurrentUser, current_user
-
-router = APIRouter(prefix="/buildings/{building_pk}/places", tags=["places"])
 
 KAKAO_URL = "https://dapi.kakao.com/v2/local/search/keyword.json"
 PAGE_SIZE = 15          # 카카오 상한
 MAX_PAGES = 3           # 15 x 3 = 45. 카카오가 더는 안 준다
+MAX_JIBUN = 6           # 필지가 많은 건물(수십 필지)에서 질의가 불어나지 않게. 도로명이 대부분을 덮는다
 CACHE_TTL = 6 * 3600    # 초. 간판은 하루 만에 안 바뀐다
 CACHE_MAX = 500         # 건물 수. 넘으면 오래된 것부터 버린다
 
@@ -93,17 +94,17 @@ async def _ask_kakao(query: str, want_more: bool) -> list[dict]:
     return out
 
 
-def _pick(docs: list[dict], jibun: str, road: str) -> list[dict]:
-    """**이 주소의 것만** 남긴다.
+def _pick(docs: list[dict], jibuns: set[str], road: str) -> list[dict]:
+    """**이 건물의 것만** 남긴다.
 
-    카카오는 이름이 비슷한 곳도 같이 준다(질의가 주소여도 그렇다). 지번이나 도로명이
-    우리 것과 정확히 같은 것만 남긴다 — 옆 건물 간판을 이 건물 임차인으로 보이게 하면
+    카카오는 이름이 비슷한 곳도 같이 준다(질의가 주소여도 그렇다). 지번이 이 건물 **필지 중
+    하나**와 같거나 도로명이 같은 것만 남긴다 — 옆 건물 간판을 이 건물 임차인으로 보이게 하면
     그 화면은 그날로 못 믿는 화면이 된다.
     """
     seen: set[str] = set()
     out: list[dict] = []
     for d in docs:
-        if _key(d.get("address_name")) != jibun and _key(d.get("road_address_name")) != road:
+        if _key(d.get("address_name")) not in jibuns and (not road or _key(d.get("road_address_name")) != road):
             continue
         pid = str(d.get("id") or d.get("place_name"))
         if pid in seen:
@@ -125,34 +126,58 @@ def _pick(docs: list[dict], jibun: str, road: str) -> list[dict]:
     return out
 
 
-@router.get("")
-async def building_places(building_pk: str, user: CurrentUser = Depends(current_user)):
-    """이 건물 주소에 등록된 업체. 없으면 빈 목록이고 오류가 아니다."""
-    _ = user
+async def _jibuns(building_pk: str, addr: str | None, bjd: str | None) -> list[str]:
+    """이 건물의 필지마다 카카오에 물을 지번 — 대표지번 먼저, 부속지번 뒤.
+    대장 주소에서 「서울 종로구 연지동」 앞머리를 떼어 쓰고 번지는 pnu 에서 만든다
+    (pnu = 법정동 10 · 산 1 · 본번 4 · 부번 4). 다른 법정동에 걸친 필지는 앞머리를 모르니 건너뛴다."""
+    head = re.sub(r"\s+\S+$", "", _norm_addr(addr))           # 「서울 종로구 연지동 275-1」 → 앞머리
+    out = [_norm_addr(addr)] if addr else []
+    # **지적도에 있는 필지만** 묻는다. 대장 부속지번엔 이미 합쳐져 사라진 번지가 남아 있다 —
+    # 연지동 이 건물은 대장이 275-2·275-3 을 적는데 지적도엔 275-3 이 없다(2026-09-25 대표 확인)
+    rows = await pool().fetch(
+        """SELECT bp.pnu FROM master.building_parcels bp
+             JOIN master.parcels p ON p.pnu = bp.pnu
+            WHERE bp.building_pk=$1
+            ORDER BY (bp.role = '대표') DESC, bp.pnu""", building_pk)
+    for r in rows:
+        pnu = r["pnu"] or ""
+        if len(pnu) != 19 or (bjd and not pnu.startswith(bjd)) or not head:
+            continue
+        bon, bu = int(pnu[11:15]), int(pnu[15:19])
+        q = f"{head} {'산 ' if pnu[10] == '2' else ''}{bon}{f'-{bu}' if bu else ''}"
+        if q not in out:
+            out.append(q)
+    return out[:MAX_JIBUN]
+
+
+async def places_for(building_pk: str) -> dict:
+    """이 건물 주소로 카카오에서 찾은 업체(전화·링크). GET /buildings/{pk}/floors 가 쓴다(2026-09-17).
+    저장하지 않는다 — 프로세스 캐시만. 예전 /places 라우트는 여기로 흡수됐다."""
     hit = _cache.get(building_pk)
     if hit and time.time() - hit[0] < CACHE_TTL:
         return hit[1]
 
     b = await pool().fetchrow(
-        "SELECT addr, road_addr FROM master.buildings WHERE building_pk=$1", building_pk)
+        "SELECT addr, road_addr, bjd_code FROM master.buildings WHERE building_pk=$1", building_pk)
     if b is None:
         raise HTTPException(404, "건물을 찾을 수 없습니다")
     if not settings.kakao_client_id:
         raise HTTPException(503, "카카오 키가 설정되지 않았습니다")
 
-    jibun_q, road_q = _norm_addr(b["addr"]), _norm_addr(b["road_addr"])
-    jibun_k, road_k = _key(b["addr"]), _key(b["road_addr"])
+    road_q, road_k = _norm_addr(b["road_addr"]), _key(b["road_addr"])
+    jibun_qs = await _jibuns(building_pk, b["addr"], b["bjd_code"])
+    jibun_ks = {_key(q) for q in jibun_qs}
 
     docs: list[dict] = []
-    if jibun_q:
-        docs = await _ask_kakao(jibun_q, want_more=True)
-    items = _pick(docs, jibun_k, road_k)
-    # 지번으로 한 건도 못 찾으면 도로명으로 한 번 더. 큰 건물은 한쪽에만 걸리기도 한다
-    if not items and road_q:
-        items = _pick(await _ask_kakao(road_q, want_more=True), jibun_k, road_k)
+    full = False
+    for q in ([road_q] if road_q else []) + jibun_qs:
+        got = await _ask_kakao(q, want_more=True)
+        full = full or len(got) >= MAX_PAGES * PAGE_SIZE
+        docs.extend(got)
+    items = _pick(docs, jibun_ks, road_k)
 
     # 45건에서 잘렸는지 알린다 — 「이게 전부」로 읽히면 안 된다
-    out = {"items": items, "truncated": len(items) >= MAX_PAGES * PAGE_SIZE, "source": "kakao"}
+    out = {"items": items, "truncated": full, "source": "kakao"}
     if len(_cache) >= CACHE_MAX:
         for k in sorted(_cache, key=lambda k: _cache[k][0])[:CACHE_MAX // 5]:
             _cache.pop(k, None)

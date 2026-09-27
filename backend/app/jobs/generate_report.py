@@ -1,8 +1,8 @@
 """보고서 비동기 생성 잡. specs R · 01-상세설계 §3.2.
 
 플로우: 데이터 조립(master+overlay+층별임대) → 가치점수(F-16, 레지스트리 파라미터)
-→ python-pptx 생성 → 저장(베타 로컬 / 프로덕션 GCS) → 성공 트랜잭션 안에서 크레딧 차감.
-실패 → status=failed + 사유, 크레딧 미차감.
+→ 저장(베타 로컬 / 프로덕션 GCS).
+실패 → status=failed + 사유.
 
 엔트리 2개: run_generate(로컬 BackgroundTasks) · POST /jobs/generate-report(Cloud Tasks).
 """
@@ -52,13 +52,17 @@ async def _assemble(building_pk: str, team_id: int) -> dict:
     merged = await pool().fetchval("SELECT app.building_view($1,$2)", building_pk, team_id)
     b = json.loads(merged) if isinstance(merged, str) else (merged or {})
     rents = await pool().fetch(
-        """SELECT deposit, rent, maintenance, is_vacant FROM app.floor_rents
+        """SELECT deposit, rent, maintenance FROM app.floor_rents
            WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL""",
         building_pk, team_id,
     )
     b["total_deposit"] = sum(r["deposit"] or 0 for r in rents)
     b["total_rent"] = sum(r["rent"] or 0 for r in rents)
-    b["vacant_count"] = sum(1 for r in rents if r["is_vacant"])
+    # 매매가·매도희망가는 매물 줄에서(0173) — 오버레이엔 더 이상 없다
+    lv = await pool().fetchrow(
+        "SELECT sale_price, ask_price FROM app.listings WHERE building_pk=$1 AND team_id=$2", building_pk, team_id)
+    b["sale_price"] = lv["sale_price"] if lv else None
+    b["ask_price"] = lv["ask_price"] if lv else None
 
     # 가치점수 입력 보강(F-16) — 토지 속성은 대표필지에서, 연수는 날짜→환산
     if b.get("pnu"):
@@ -325,7 +329,7 @@ async def _nearby_rent_apply(building_pk: str, subject: dict, team_id: int) -> d
         f"""SELECT floor, area, rent, deposit FROM (
               SELECT fr.floor, fr.contract_area::float AS area, fr.rent::float AS rent, COALESCE(fr.deposit,0)::float AS deposit
               FROM app.floor_rents fr JOIN master.buildings b ON b.building_pk = fr.building_pk
-              WHERE fr.deleted_at IS NULL AND fr.is_vacant IS NOT TRUE AND fr.building_pk <> $4
+              WHERE fr.deleted_at IS NULL AND fr.building_pk <> $4
                 AND fr.rent > 0 AND fr.contract_area > 0 AND {_COMP_SPATIAL}
               UNION ALL
               SELECT fo.floor, sum(fo.floor_area)::float, sum(fre.rent_est)::float, sum(COALESCE(fre.deposit_est,0))::float
@@ -636,7 +640,7 @@ async def _briefing_snapshot(building_pk: str, b: dict, team_id: int) -> dict:
     hidden = {r["floor"] for r in await pool().fetch(
         "SELECT floor FROM app.floor_hidden WHERE building_pk=$1 AND team_id=$2", building_pk, team_id)}
     team_rows = await pool().fetch(
-        """SELECT floor, unit_no, use, contract_area, deposit, rent, maintenance, is_vacant
+        """SELECT floor, unit_no, use, contract_area, deposit, rent, maintenance
            FROM app.floor_rents WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL""",
         building_pk, team_id)
     team_floors = {r["floor"] for r in team_rows}
@@ -648,13 +652,13 @@ async def _briefing_snapshot(building_pk: str, b: dict, team_id: int) -> dict:
         {"floor": r["floor"], "unit_no": r["unit_no"], "use": r["use"],
          "contract_area": _fnum(r["contract_area"]),
          "deposit": r["deposit"], "rent": r["rent"], "maintenance": r["maintenance"],
-         "is_vacant": r["is_vacant"], "est": False}
+         "est": False}
         for r in team_rows if r["floor"] not in hidden
     ] + [
         {"floor": r["floor"], "unit_no": None, "use": r["use"],
          "contract_area": _fnum(r["floor_area"]),
          "deposit": r["deposit_est"], "rent": r["rent_est"], "maintenance": None,
-         "is_vacant": None, "est": True}
+         "est": True}
         for r in est_rows if r["floor"] not in hidden and r["floor"] not in team_floors
     ]
     floors.sort(key=lambda x: _floor_key(x["floor"]), reverse=True)
@@ -699,7 +703,7 @@ async def _briefing_snapshot(building_pk: str, b: dict, team_id: int) -> dict:
             "floors_above", "floors_below", "height", "parking", "elevator", "approval_ymd", "remodel_ymd",
             "use_zone", "main_use_name", "etc_use", "structure", "jimok", "land_use", "road_frontage",
             "road_front_m", "road_side_m", "road_rear_m", "road_front_rn",
-            "legal_far", "legal_bcr", "briefing_comment",
+            "legal_far", "legal_bcr",
             "shape", "slope", "station_dist", "gongsi_latest", "sale_price", "sale_est",
             "last_sale_price", "last_sale_ym", "lng", "lat")
     # 좌표 — _assemble이 싣지 않는다. 위치도 지도가 이 값으로 중심을 잡는다.
@@ -733,7 +737,7 @@ async def _briefing_snapshot(building_pk: str, b: dict, team_id: int) -> dict:
 
 
 async def run_generate(report_id: int, team_id: int) -> dict:
-    """잡 본체. 성공=크레딧 차감+완료 / 실패=failed+미차감.
+    """잡 본체. 성공=완료 / 실패=failed.
     산출물은 result_json 스냅샷 하나 — 웹 리포트(/reports/:id)가 이걸 렌더한다.
     PPTX 내보내기는 폐지(웹 덱과 구성이 어긋나 유지 비용만 컸다)."""
     try:
@@ -790,20 +794,18 @@ async def run_generate(report_id: int, team_id: int) -> dict:
         if rep["kind"] == "briefing":
             snapshot = await _briefing_snapshot(rep["building_pk"], b, team_id)
 
-        cost = settings.cost_briefing if rep["kind"] == "briefing" else settings.cost_analysis
-        async with tx() as conn:  # 성공 트랜잭션: 차감+완료+워터마크 원자
-            await conn.execute("SELECT app.deduct_credit($1,$2,$3)", rep["account_id"], cost, report_id)
+        async with tx() as conn:  # 성공 트랜잭션: 완료+워터마크 원자(크레딧 제도 폐지 2026-09-24)
             await conn.execute(
                 """UPDATE app.reports SET status='done', completed_at=now(),
-                     credits_spent=$2, formula_set_version=$3, result_json=$6,
+                     formula_set_version=$2, result_json=$5,
                      master_version=(SELECT version FROM master.master_version),
-                     source_watermark=COALESCE(app.building_watermark($4,$5), now())
+                     source_watermark=COALESCE(app.building_watermark($3,$4), now())
                    WHERE id=$1""",
-                report_id, cost, fs_version, rep["building_pk"], team_id,
+                report_id, fs_version, rep["building_pk"], team_id,
                 json.dumps(snapshot) if snapshot else None,
             )
-        return {"ok": True, "credits": cost}
-    except Exception as e:  # 실패: 미차감
+        return {"ok": True}
+    except Exception as e:
         async with tx() as conn:
             await conn.execute(
                 "UPDATE app.reports SET status='failed', failed_reason=$2 WHERE id=$1",

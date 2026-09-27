@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TenancyHistory, useTenancyHistory } from "./TenancyHistory";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../shared/api/client";
 import { Loading } from "../../shared/ui/Spinner";
@@ -112,6 +113,7 @@ export function RentPanel({ pk, unit, items, total, refresh, addr }: {
   addr?: string | null;
 }) {
   const { loading, sub, rs, floors, totalArea, landArea } = useReportModel(null, pk);
+  const hist = useTenancyHistory(pk);
 
   // 같은 층으로 묶고(라벨이 갈려 있다) 위에서 아래로
   const fl = Object.values((floors ?? []).reduce((m: Record<string, FloorRow>, x) => {
@@ -138,6 +140,7 @@ export function RentPanel({ pk, unit, items, total, refresh, addr }: {
       <div className="rv-wrap">
         <Toc items={[
           { id: "rt-real", label: "층별 임대정보" },
+          ...(hist.data && (hist.data.items.length || hist.data.ecommerce) ? [{ id: "rt-hist", label: "입주 이력" }] : []),
           { id: "rt-trend", label: "임대 시세 추이" },
           ...(fl.length ? [{ id: "rt-est", label: "임대료·보증금 추정" }] : []),
         ]} />
@@ -146,6 +149,9 @@ export function RentPanel({ pk, unit, items, total, refresh, addr }: {
           <div id="rt-real">
             <FloorRows pk={pk} items={items} total={total} unit={unit} refresh={refresh} addr={addr} />
           </div>
+
+          {/* 입주 이력 — 층별(지금) 바로 아래. 같은 층에 누가 거쳐 갔는지를 이어서 읽는다 */}
+          <TenancyHistory pk={pk} id="rt-hist" />
 
           <RentTrend pk={pk} />
 

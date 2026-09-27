@@ -17,14 +17,10 @@ LOCALDATA 는 상호명·**면적·전화**를 주고(층 80% · 개업일은 �
 """
 from __future__ import annotations
 
+import datetime as dt
 import re
 
-from fastapi import APIRouter, Depends
-
 from ..core.db import pool
-from ..core.deps import CurrentUser, current_user
-
-router = APIRouter(prefix="/buildings/{building_pk}/tenants", tags=["tenants"])
 
 _STRIP = re.compile(r"\([^)]*\)|㈜|\(주\)|주식회사|유한회사|\s+")
 
@@ -35,38 +31,26 @@ def norm_name(s: str | None) -> str:
     return re.sub(r"점$", "", t) if len(t) > 2 else t
 
 
-def _phone(p: str | None) -> str | None:
-    """LOCALDATA 전화는 「34540022」·「025418815」·「07074252189」 꼴이 섞여 있다. 자리 수로 줄을 긋는다."""
-    d = re.sub(r"\D", "", p or "")
-    if len(d) == 8:                       # 서울 국번만 — 02 가 빠진 것
-        return f"02-{d[:4]}-{d[4:]}"
-    if d.startswith("02") and len(d) in (9, 10):
-        return f"02-{d[2:-4]}-{d[-4:]}"
-    if len(d) in (10, 11) and d[:2] in ("01", "07", "05", "03", "04", "06"):
-        return f"{d[:3]}-{d[3:-4]}-{d[-4:]}"
-    return None if len(d) < 8 else d
-
-
 def _floor(n: int | None, base: bool) -> str | None:
     if n is None:
         return None
-    return f"지하{n}층" if base else f"{n}층"
+    # 인허가는 지하를 **음수**로 적는다(-1). 그대로 쓰면 「지하-1층」이 된다(2026-09-25)
+    return f"지하{abs(n)}층" if base or n < 0 else f"{n}층"
 
 
-@router.get("", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
-async def building_tenants(building_pk: str, _: CurrentUser = Depends(current_user)):
+async def tenant_ledger(building_pk: str) -> list[dict]:
+    """업체 원장(인허가+상가정보)을 이름으로 접은 목록. GET /buildings/{pk}/floors 가 쓴다(2026-09-17).
+    예전 /tenants 라우트는 여기로 흡수됐다 — 화면은 넷을 따로 받아 합치지 않는다."""
     rows = await pool().fetch(
         """WITH pc AS (SELECT p.pnu, p.geom FROM master.building_parcels bp
                         JOIN master.parcels p ON p.pnu = bp.pnu
                        WHERE bp.building_pk = $1)
-           SELECT 'localdata' AS src, l.name, l.floor_no, l.is_base, l.area::float AS area,
-                  l.open_on, NULLIF(NULLIF(btrim(l.biz1), ''), '-') AS biz, l.phone
+           SELECT 'localdata' AS src, l.name, l.floor_no, l.is_base, l.area::float AS area, l.open_on
              FROM master.localdata_permit l, pc
             WHERE l.state = '영업' AND l.geom && pc.geom AND ST_Contains(pc.geom, l.geom)
            UNION ALL
-           SELECT 'sbiz', s.name, s.floor_no, s.is_base, NULL, NULL, COALESCE(c.cat, s.cat2), NULL
-             FROM master.sbiz_store s JOIN pc ON pc.pnu = s.pnu
-             LEFT JOIN ref.biz_category c ON c.source = 'sbiz' AND c.key = s.cat2""",
+           SELECT 'sbiz', s.name, s.floor_no, s.is_base, NULL, NULL
+             FROM master.sbiz_store s JOIN pc ON pc.pnu = s.pnu""",
         building_pk)
 
     merged: dict[str, dict] = {}
@@ -76,8 +60,8 @@ async def building_tenants(building_pk: str, _: CurrentUser = Depends(current_us
             continue
         m = merged.get(k)
         if m is None:
-            m = merged[k] = {"name": r["name"], "floor": None, "area": None, "open_on": None,
-                             "biz": None, "phone": None, "src": set()}
+            m = merged[k] = {"name": r["name"], "floor": None, "area": None,
+                             "open_on": None, "src": set()}
         m["src"].add(r["src"])
         # 이름은 원장 표기 중 짧은 것(「(주)」가 붙은 쪽보다 간판에 가깝다)
         if r["name"] and len(r["name"]) < len(m["name"]):
@@ -88,13 +72,6 @@ async def building_tenants(building_pk: str, _: CurrentUser = Depends(current_us
             m["area"] = r["area"]
         if r["open_on"] and (m["open_on"] is None or r["open_on"] > m["open_on"]):
             m["open_on"] = r["open_on"]
-        # 업종은 소상공인의 일곱 갈래가 먼저(짧고 한 벌), 없으면 LOCALDATA 업태 그대로
-        if r["src"] == "sbiz" and r["biz"]:
-            m["biz"] = r["biz"]
-        elif m["biz"] is None and r["biz"]:
-            m["biz"] = r["biz"]
-        if m["phone"] is None:
-            m["phone"] = _phone(r["phone"])
 
     # 접두로 한 번 더 접는다 — 「더라운드 삼성점」(LOCALDATA) 과 「더라운드」(소상공인) 는
     #   같은 가게다. 짧은 이름이 세 글자 이상이고 긴 이름의 머리일 때만. 층은 짧은 쪽에 없으면 긴 쪽 것을 쓴다
@@ -104,15 +81,165 @@ async def building_tenants(building_pk: str, _: CurrentUser = Depends(current_us
         if base is None or base not in merged or k not in merged:
             continue
         a, b = merged[base], merged.pop(k)
-        for f in ("floor", "area", "open_on", "biz", "phone"):
+        for f in ("floor", "area", "open_on"):
             if a[f] is None:
                 a[f] = b[f]
         a["src"] |= b["src"]
 
+    # 업종·전화는 안 낸다(2026-09-19). 업종은 **찾을 때** 쓰는 값이지 볼 때 쓰는 값이 아니고,
+    # 상호가 있으면 사용자는 그게 뭐 하는 곳인지 안다. 게다가 세 원천이 서로 다른 말을 한다 —
+    # 우마쿠라는 LOCALDATA 「한식」·우리 8갈래 「먹자」·카카오 「일식집」이고 고를 근거가 없다.
+    # 찾는 쪽은 검색 필터 biz 가 카카오 키워드로 따로 한다.
     items = [{
         "name": m["name"], "floor": m["floor"], "area": m["area"],
-        "biz": m["biz"], "phone": m["phone"],
     } for m in merged.values()]
     # 층 있는 것부터, 층 안에서는 이름순. 층 미상은 뒤로
     items.sort(key=lambda x: (x["floor"] is None, x["floor"] or "", x["name"]))
-    return {"items": items, "raw": len(rows)}
+    return items
+
+
+# ── 입주 이력(2026-09-25 대표) ─────────────────────────────────────────────────
+#
+# LOCALDATA 는 **과거가 강하고 현재가 약한** 원천이다. 「영업」은 폐업 신고를 안 하면 그대로 남지만
+# (직권말소·취소로 뒤늦게 지운 것만 16.7만 건), 개업일·폐업일은 신고 기록이라 지나간 일은 정리돼 있다.
+# 그래서 층별 임대정보(지금)가 아니라 **이력**으로 쓴다. 임대료는 없다 — 누가 언제 들어왔다 나갔나다.
+#
+# 거르는 것:
+#   · 건물 **사용승인 전에 닫은** 업체 — 같은 필지의 옛 건물 업체다(연지동 「금수 다방」 1981~1993)
+#   · 통신판매업 — 층이 0%이고 주소만 올린 것이 섞인다(159평에 347곳). 줄로 안 세우고 수만 센다
+#   · 이름 없는 신고(CCTV·과속방지턱 등 *_info) — 업체가 아니다
+_HIST_SQL = """
+WITH pc AS (SELECT p.geom FROM master.building_parcels bp
+              JOIN master.parcels p ON p.pnu = bp.pnu WHERE bp.building_pk = $1)
+SELECT l.name, l.kind, NULLIF(trim(l.biz2), '') AS biz, l.floor_no, l.is_base, l.area::float AS area,
+       l.state, l.open_on, l.close_on, l.phone
+  FROM master.localdata_permit l, pc
+ WHERE l.geom && pc.geom AND ST_Contains(pc.geom, l.geom) AND l.name IS NOT NULL
+"""
+_NO_DATE = dt.date(1901, 1, 1)      # 원장에 1900-01-01 이 「모름」으로 박혀 있다
+_ECOMMERCE = "ecommerce_businesses"
+
+
+async def history_rows(building_pk: str) -> tuple[list[dict], dt.date | None]:
+    """이 건물 필지 안의 인허가 전부(폐업 포함)와 사용승인일. 입주 이력과 층 빌려오기가 같이 쓴다."""
+    appr = await pool().fetchval(
+        "SELECT approval_ymd FROM master.buildings WHERE building_pk=$1", building_pk)
+    return [dict(r) for r in await pool().fetch(_HIST_SQL, building_pk)], appr
+
+
+def _before_building(r: dict, appr: dt.date | None) -> bool:
+    return bool(appr and r["close_on"] and r["close_on"] < appr)
+
+
+def past_floors(rows: list[dict], appr: dt.date | None) -> dict[str, str]:
+    """이름 → 층. 층을 모르는 업체에 **층을 빌려 줄** 표다(2026-09-25 대표).
+    카카오·네이버에 있으면 지금 있는 업체이고, 그 층은 인허가(폐업한 줄 포함)에서 가져와도 된다.
+    같은 이름이 여러 층이면 가장 최근에 연 줄의 층을 쓴다(건물 안에서 옮겼을 수 있다)."""
+    best: dict[str, tuple[dt.date, str]] = {}
+    for r in rows:
+        if r["floor_no"] is None or r["kind"] == _ECOMMERCE or _before_building(r, appr):
+            continue
+        k = norm_name(r["name"])
+        if not k:
+            continue
+        o = r["open_on"] or _NO_DATE
+        if k not in best or o > best[k][0]:
+            best[k] = (o, _floor(r["floor_no"], r["is_base"]))
+    return {k: v[1] for k, v in best.items()}
+
+
+def _digits(s: str | None) -> str:
+    d = re.sub(r"\D", "", s or "")
+    return d if len(d) >= 7 else ""
+
+
+async def tenancy_history(building_pk: str) -> dict:
+    """입주 이력 — 층별로 묶고, 층 안에서는 최근에 연 순서. 같은 업체의 인허가 여러 줄
+    (일반음식점 + 휴게음식점 등)은 기간이 겹치면 하나로 접는다. 다시 연 것은 따로 선다.
+
+    **지금 있는지는 카카오로만 본다**(2026-09-25 대표). 인허가 「영업」은 폐업 신고를 안 하면 남는
+    신고 상태라, 그것만으로 「지금 있음」을 말하지 않는다. 카카오에서 이름이나 전화로 확인되면
+    `now=True`, 아니면 `now=False` — 폐업일도 없으니 **끝을 모르는** 줄이다(연지동 (주)파라메딕).
+    카카오 결과는 저장하지 않는다(약관). 나중에 네이버·크롤링이 여기 같이 들어온다."""
+    from .places import places_for       # 늦게 들여온다 — places 가 이 모듈을 들여올 수 있다
+    rows, appr = await history_rows(building_pk)
+    try:
+        kk = (await places_for(building_pk)).get("items", [])
+    except Exception:   # noqa: BLE001 — 카카오가 막히면 「지금 있음」이 하나도 안 선다(모름으로 둔다)
+        kk = []
+    # 카카오 이름엔 동네 이름이 지점명처럼 붙는다 — 「미스터**연지동**순두부」 = 인허가 「미스터순두부」.
+    # 건물이 있는 동(·가) 이름을 양쪽에서 빼고 한 번 더 견준다. 네이버를 붙일 때도 같은 규칙을 쓴다
+    addr = await pool().fetchval("SELECT addr FROM master.buildings WHERE building_pk=$1", building_pk) or ""
+    dongs = [d for d in re.findall(r"(\S+?(?:동|가))(?:\d|\s|$)", addr) if len(d) >= 2]
+
+    def strip_dong(n: str) -> str:
+        for d in dongs:
+            n = n.replace(norm_name(d), "")
+        return n
+
+    k_names = [norm_name(p.get("name")) for p in kk]
+    k_names += [strip_dong(n) for n in k_names if strip_dong(n) != n]
+    k_phones = {_digits(p.get("phone")) for p in kk} - {""}
+    ecommerce = 0
+    stints: list[dict] = []
+    for r in sorted(rows, key=lambda x: x["open_on"] or _NO_DATE):
+        if _before_building(r, appr):
+            continue
+        if r["kind"] == _ECOMMERCE:
+            ecommerce += r["state"] == "영업"
+            continue
+        k = norm_name(r["name"])
+        if not k:
+            continue
+        o = r["open_on"] if r["open_on"] and r["open_on"] >= _NO_DATE else None
+        c = r["close_on"]
+        live = r["state"] in ("영업", "휴업")
+        # 같은 이름 · 기간이 겹치면 한 업체다(끝이 안 보이면 이어진 것으로 본다)
+        prev = next((x for x in reversed(stints) if _same_name(x["k"], k)
+                     and (x["live"] or x["close_on"] is None or o is None or o <= x["close_on"])), None)
+        if prev:
+            prev["live"] = prev["live"] or live
+            prev["close_on"] = None if prev["live"] else max(filter(None, [prev["close_on"], c]), default=None)
+            prev["floor"] = prev["floor"] or _floor(r["floor_no"], r["is_base"])
+            prev["area"] = max(filter(None, [prev["area"], r["area"]]), default=None)
+            prev["biz"] = prev["biz"] or r["biz"]
+            prev["state"] = "영업" if prev["live"] else prev["state"]
+        else:
+            prev = {"k": k, "name": r["name"], "biz": r["biz"],
+                    "floor": _floor(r["floor_no"], r["is_base"]), "area": r["area"],
+                    "open_on": o, "close_on": None if live else c,
+                    "state": r["state"], "live": live, "phones": set()}
+            stints.append(prev)
+        # 전화를 모은다 — 이름이 달라도 전화가 같으면 카카오의 그 업체다
+        if (ph := _digits(r["phone"])):
+            prev["phones"].add(ph)
+    # 층별(1층부터 위로 · 지하 · 층 미상) → 층 안에서는 최근에 연 순서
+    def fkey(x: dict):
+        f = x["floor"]
+        if f is None:
+            return (2, 0)
+        n = int(re.sub(r"\D", "", f) or 0)
+        return (1, n) if f.startswith("지하") else (0, n)
+    stints.sort(key=lambda x: (fkey(x), -(x["open_on"] or _NO_DATE).toordinal()))
+    # 지금 영업 중인데 층이 없으면 **상가정보의 층**을 빌린다 — 같은 업체의 현재 층이다.
+    # 폐업한 줄에는 안 빌린다. 상가정보는 지금 판이라 과거의 층을 말하지 않는다
+    sb = await pool().fetch(
+        """SELECT s.name, s.floor_no, s.is_base FROM master.sbiz_store s
+             JOIN master.building_parcels bp ON bp.pnu = s.pnu
+            WHERE bp.building_pk = $1 AND s.floor_no IS NOT NULL""", building_pk)
+    sbf = [(norm_name(r["name"]), _floor(r["floor_no"], r["is_base"])) for r in sb]
+    for x in stints:
+        if x["live"] and not x["floor"]:
+            x["floor"] = next((f for n, f in sbf if n and _same_name(n, x["k"])), None)
+    # 지금 있나 — 신고상 영업인 줄만 카카오에 물어본다. 폐업한 줄은 묻지 않는다(끝난 일이다)
+    for x in stints:
+        x["now"] = bool(x["live"] and (
+            any(n and (_same_name(n, x["k"]) or _same_name(n, strip_dong(x["k"]))) for n in k_names)
+            or (x["phones"] & k_phones)))
+    stints.sort(key=lambda x: (fkey(x), -(x["open_on"] or _NO_DATE).toordinal()))
+    items = [{kk: v for kk, v in x.items() if kk not in ("k", "live", "phones")} for x in stints]
+    return {"items": items, "ecommerce": ecommerce}
+
+
+def _same_name(a: str, b: str) -> bool:
+    return a == b or (len(a) >= 3 and len(b) >= 3 and (a.startswith(b) or b.startswith(a)))

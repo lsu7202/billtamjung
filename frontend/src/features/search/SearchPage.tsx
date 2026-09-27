@@ -186,7 +186,7 @@ export function SearchPage() {
    *  0건이 아니라 **무엇 중에 0건인지**를 말해야 그 오해가 안 생긴다. */
   const teamKeys = ["price_min", "price_max", "roi_min", "roi_max",
     "deposit_total_min", "deposit_total_max", "rent_total_min", "rent_total_max",
-    "mgmt_total_min", "mgmt_total_max", "roi_exvac_min", "roi_exvac_max", "vacant",
+    "mgmt_total_min", "mgmt_total_max", "vacant",
     "pp_land_team_min", "pp_land_team_max", "pp_total_team_min", "pp_total_team_max",
     "gongsi_ratio_team_min", "gongsi_ratio_team_max",
     "urgencies", "meongdos", "use_changes", "myeolsils",
@@ -337,8 +337,7 @@ export function SearchPage() {
         price: b.sale_price != null ? Number(b.sale_price) : null,
         price_is_est: b.sale_price == null,
         roi: b.roi != null ? Number(b.roi) : null,               // 마스터 수익률(buildings.get)
-        roi_est: b.est_annual_rent != null && b.sale_est
-          ? Math.round((Number(b.est_annual_rent) / Number(b.sale_est)) * 1e4) / 100 : null,
+        roi_est: b.roi_est != null ? Number(b.roi_est) : null,   // 저장된 파생값(0174) — 핀과 같은 출처
         sale_est: b.sale_est != null ? Number(b.sale_est) : null, // 배치 추정가 — 사이드바가 핀과 동일하게 표시
         land_area: b.land_area != null ? Number(b.land_area) : null,
         floors_above: b.floors_above != null ? Number(b.floors_above) : null,

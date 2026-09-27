@@ -13,6 +13,29 @@ from pydantic import BaseModel, Field
 
 from ..core.db import pool, tx
 from ..core.deps import current_user, CurrentUser
+from ..core.shape import drop, keep
+
+# ── 응답에서 걷는 칸(감사 2026-09-17) — 화면 어디에도 안 그려지는 것. 이 목록이 곧 응답 스키마다.
+# 매수자×매물 짝: 계약 조건·현장 메모·매수자 인적(계약 문서가 읽는 것은 남김)·다음 일정·매물 규모·
+# 추정 짝·사진·사다리 판정 재료·값 이력(호가판이 따로 낸다)
+PROPOSAL_DROP = ("team_id", "report_id", "note", "created_by", "created_at", "visited_on", "visit_note",
+                 "commission_amount", "commission_split", "report_filed_on", "terms", "brief_note",
+                 "buyer_nationality", "next_sched_title", "next_sched_on", "next_sched_at",
+                 "land_area", "total_area", "use_zone", "price_is_est", "sale_est", "use_type", "vs_est_pct",
+                 "roi", "photo_id", "d_stage", "deal_cells", "cell_sched", "price_log")
+# 매물 보드 줄: 다음 일정·추정가·접수일·점수·사진·보고서 유무·광고/노출/시기 칸·마지막 접촉·사다리 낱말.
+# price 는 list_price 와 같은 값이 두 번 실린 것.
+SELLER_DROP = ("next_sched_title", "next_sched_on", "next_sched_at", "est_price", "received_on", "sell_score",
+               "use_type", "photo_id", "photo_n", "photo_kinds", "has_report", "has_briefing",
+               "nohudo", "ipji", "ad_status", "ad_off", "co_sent_on", "sell_on",
+               "last_on", "last_kind", "last_note", "stage", "passed", "land_area", "total_area", "price")
+# 오늘 화면 항목
+TODAY_SCHED_DROP = ("kind", "proposal_id", "assignee_account_id", "assignee_name")
+TODAY_TURN_DROP = ("side", "days", "id", "since", "briefed", "price", "owner_id", "intent", "last_on",
+                   "grade", "sell_score")
+# 접촉(메모창): 내부 키·커밋 스냅샷·짝 id
+CONTACT_DROP = ("team_id", "target_type", "target_id", "created_by", "status", "auto", "prev",
+                "src_schedule_id", "proposal_id")
 # 거울 동사는 전부 mirror.py 한 곳 — 커밋↔일정↔참석자↔가격이 같은 함수로 오간다.
 # 여기서 인라인으로 다시 쓰면 반쪽 거울이 또 생긴다(2026-08-14 QA의 교훈).
 from .mirror import (
@@ -21,7 +44,7 @@ from .mirror import (
     schedule_create, schedule_retract, schedule_log, schedule_set_state,
     attendees_sync, apply_sched_op, event_mark, event_unmark, resolve_anchor, mirror_skips,
     SCHED_CATEGORIES,
-    overlays_write, overlays_restore, proposal_prices_prev, proposal_prices_restore,
+    listing_values_write, listing_values_restore, proposal_prices_prev, proposal_prices_restore,
 )
 
 router = APIRouter(tags=["sales"])
@@ -315,22 +338,16 @@ async def list_proposals(buyer_id: int | None = None, building_pk: str | None = 
                   ns.*,
                   b.addr, b.land_area, b.total_area, b.use_zone, cs.cell_sched,
                   plog.price_log, sl2.scheds,
-                  COALESCE(so.v::numeric, se.sale_est) AS price,
-                  (so.v IS NULL) AS price_is_est,
+                  COALESCE(l2.sale_price, se.sale_est) AS price,
+                  (l2.sale_price IS NULL) AS price_is_est,
                   -- 카드에 값 판단 재료를 같이 낸다. "3.2억"만 있으면 비싼지 싼지 모른다.
                   se.sale_est, sc.use_type,
-                  CASE WHEN se.sale_est > 0 AND so.v IS NOT NULL
-                       THEN round((so.v::numeric / se.sale_est - 1) * 100, 1) END AS vs_est_pct,
-                  -- 수익률 = **총임대료 × 12** ÷ 값(0134). 검색·상세와 같은 분자다.
-                  -- 예전엔 여기만 마스터 추정(re.annual_rent)을 써서, 팀이 층별 임대를 다 넣어도
-                  -- 매수자 화면만 추정으로 계산했다.
-                  CASE WHEN COALESCE(fa.rent_total, l2.total_rent) > 0
-                        AND COALESCE(so.v::numeric, se.sale_est) > 0
-                       THEN round(COALESCE(fa.rent_total, l2.total_rent) * 12.0
-                                  / COALESCE(so.v::numeric, se.sale_est) * 100, 2) END AS roi,
-                  -- 연임대(원) = 총임대료 × 12. 투자 시뮬의 수입 쪽(0133·0134).
-                  -- 마스터 추정을 안 쓴다: ROE는 레버리지가 걸려 임대 오차가 몇 배로 증폭된다.
-                  COALESCE(fa.rent_total, l2.total_rent) * 12.0 AS annual_rent,
+                  CASE WHEN se.sale_est > 0 AND l2.sale_price IS NOT NULL
+                       THEN round((l2.sale_price::numeric / se.sale_est - 1) * 100, 1) END AS vs_est_pct,
+                  -- 수익률·연임대는 매물 줄에 접어 둔 값이다(0173). 여기서 나누지 않는다.
+                  -- 팀 매매가가 없으면 수익률도 없다(미지정은 null) — 추정가로 나누던 옛 폴백은 뺐다.
+                  l2.roi,
+                  l2.total_rent * 12.0 AS annual_rent,
                   p.hope_price, p.deal_price,
                   ph.id AS photo_id,
                   -- ③사다리(0093) — 준비도. nego_rank(합의~거래종료)와 다른 층이다
@@ -367,20 +384,12 @@ async def list_proposals(buyer_id: int | None = None, building_pk: str | None = 
            -- 임대 총계의 정본(0134) — 층별 실측이 있으면 그 합계, 없으면 직접 적은 총액.
            -- 하이브리드(팀 입력 + 미입력층 대장 추정)는 폐지했다: 한 숫자에 실측과 추정을 안 섞는다.
            LEFT JOIN app.listings l2 ON l2.building_pk = p.building_pk AND l2.team_id = p.team_id
-           LEFT JOIN LATERAL (SELECT SUM(rent) AS rent_total, count(*) AS rows
-                                FROM app.floor_rents fr
-                               WHERE fr.building_pk = p.building_pk AND fr.team_id = p.team_id
-                                 AND fr.deleted_at IS NULL) fa ON TRUE
            -- 팀이 올린 사진 한 장(외관 우선) — 제안 카드 썸네일
            LEFT JOIN LATERAL (SELECT id FROM app.photos f
                                WHERE f.building_pk = p.building_pk AND f.team_id = p.team_id
                                  AND f.deleted_at IS NULL
                                ORDER BY (f.kind = 'exterior') DESC, f.sort_order, f.id
                                LIMIT 1) ph ON TRUE
-           LEFT JOIN LATERAL (SELECT value AS v FROM app.overlays o
-                               WHERE o.team_id = p.team_id AND o.target_type='building'
-                                 AND o.target_id = p.building_pk AND o.field='sale_price'
-                                 AND o.value ~ '^[0-9.]+$') so ON TRUE
            LEFT JOIN LATERAL (SELECT s.title AS next_sched_title, s.on_date AS next_sched_on,
                                      s.at_time AS next_sched_at
                                 FROM app.schedules s
@@ -433,7 +442,7 @@ async def list_proposals(buyer_id: int | None = None, building_pk: str | None = 
              AND ($3::text IS NULL OR p.building_pk = $3)
            ORDER BY p.updated_at DESC""",
         user.team_id, buyer_id, building_pk, user.account_id, user.role)
-    return [dict(r) for r in rows]
+    return [drop(dict(r), PROPOSAL_DROP) for r in rows]
 
 
 @router.post("/proposals", status_code=201)
@@ -1137,9 +1146,9 @@ async def offer_board(building_pk: str, user: CurrentUser = Depends(current_user
             WHERE p.team_id=$1 AND p.building_pk=$2
             ORDER BY p.id, f.created_at""", user.team_id, building_pk)
     # 값 이력의 정본은 하나다(app.field_events · 0141) — 커밋 장부에서 따로 긁어 올리지 않는다.
-    return {"sell": [dict(r) for r in sell],
-            "buys": [dict(r) for r in buys if r["field"]],
-            "events": []}
+    # prev·매수자 이름·상태는 화면이 안 읽고, events 는 늘 빈 배열이라 뺐다(감사 2026-09-17)
+    return {"sell": [keep(dict(r), ("id", "field", "value", "created_at")) for r in sell],
+            "buys": [keep(dict(r), ("proposal_id", "event_id", "field", "value", "created_at")) for r in buys if r["field"]]}
 
 
 @router.delete("/sales/offer-events/{src}/{eid}")
@@ -1842,7 +1851,7 @@ async def list_owners(mine: bool = False, user: CurrentUser = Depends(current_us
         if not _can_see(user, d.get("assignee_account_id")):
             d["phone"] = _mask(d.get("phone"))
             d["phone_masked"] = True
-        out.append(d)
+        out.append(keep(d, ("id", "name", "phone")))   # 일정 창이 이름만 읽는다(감사 2026-09-17)
     return out
 
 
@@ -1922,14 +1931,13 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                   (b.building_pk IS NULL AND vp.pnu IS NOT NULL) AS is_vacant,
                   -- 매매가는 **사람이 넣은 값만**(2026-08-18) — 마스터(추정가)로 미리 채우지
                   -- 않는다. 채워 두면 다들 호가인 줄 알아 오해가 선다. 추정가는 보조지표.
-                  so.v::numeric AS price,
-                  so.v::numeric AS list_price, se.sale_est AS est_price,
+                  l.sale_price AS price,
+                  l.sale_price AS list_price, se.sale_est AS est_price,
                   l.listing_no, l.received_on,
                   dp.deal_price,
-                  ap.v::numeric AS ask_price,   -- 매도희망가 — S02 가격 협의와 같은 오버레이
-                  -- 수익률 = 연임대(마스터 추정) ÷ 매매가 — 매매가가 비면 수익률도 빈다(미지정은 null)
-                  CASE WHEN re.annual_rent > 0 AND so.v::numeric > 0
-                       THEN round(re.annual_rent / so.v::numeric * 100, 2) END AS roi,
+                  l.ask_price,                  -- 매도희망가 — 매물 줄의 값(0173)
+                  -- 수익률 = 매물 줄에 접어 둔 값(총임대×12 ÷ 매매가). 추정 임대로 나누던 옛 식은 뺐다.
+                  l.roi,
                   sc.sell_score, sc.use_type, ph.id AS photo_id,
                   -- 자료 창의 파생 상태(2026-08-18) — 정본은 건물 상세. 여기선 읽기만.
                   (SELECT count(*) FROM app.photos f
@@ -1953,7 +1961,7 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                   l.meongdo, l.use_change, l.myeolsil, l.nohudo, l.ipji,
                   l.ad_status, l.ad_off, l.co_sent_on,
                   l.sell_on, l.sell_vague, l.rent_check,
-                  fr.rent_n, fr.rent_vac,
+                  fr.rent_n,
                   ob.id AS owner_buyer_id,
                   c.last_on, c.last_kind, c.last_note, sl.cell_last_on,
                   -- 사다리 단계는 **파생**이다(0091 뷰) — 목록·상세·대시보드가 같은 계산을 본다
@@ -1982,14 +1990,6 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                                  AND f.deleted_at IS NULL
                                ORDER BY (f.kind = 'exterior') DESC, f.sort_order, f.id
                                LIMIT 1) ph ON TRUE
-           LEFT JOIN LATERAL (SELECT value AS v FROM app.overlays ov
-                               WHERE ov.team_id = l.team_id AND ov.target_type='building'
-                                 AND ov.target_id = l.building_pk AND ov.field='sale_price'
-                                 AND ov.value ~ '^[0-9.]+$') so ON TRUE
-           LEFT JOIN LATERAL (SELECT value AS v FROM app.overlays ov
-                               WHERE ov.team_id = l.team_id AND ov.target_type='building'
-                                 AND ov.target_id = l.building_pk AND ov.field='ask_price'
-                                 AND ov.value ~ '^[0-9.]+$') ap ON TRUE
            -- 다음 일정 — 머리의 「상태 + 다음 일정」 재료(2026-08-15). 예정만, 오늘 이후만.
            LEFT JOIN LATERAL (SELECT s.title AS next_sched_title, s.on_date AS next_sched_on,
                                      s.at_time AS next_sched_at
@@ -2024,8 +2024,7 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
            -- 「소유자 찾기 시작 전」 표식(2026-08-18) — 손으로 회색에 되돌린 지점.
            -- 움직임(last_on)은 표식 **이후**만 센다(표식 줄 자신은 id> 로 저절로 빠진다)
            -- 임대내역 요약(정보 창 「밖에서 아는 것」) — 정본은 건물 상세의 임대차 표
-           LEFT JOIN LATERAL (SELECT count(*) AS rent_n,
-                                     count(*) FILTER (WHERE is_vacant) AS rent_vac
+           LEFT JOIN LATERAL (SELECT count(*) AS rent_n
                                 FROM app.floor_rents f2
                                WHERE f2.building_pk = l.building_pk AND f2.team_id = l.team_id
                                  AND f2.deleted_at IS NULL) fr ON TRUE
@@ -2086,7 +2085,7 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
         if not _can_see(user, d.get("assignee_account_id")):
             d["owner_phone"] = _mask(d.get("owner_phone"))
             d["phone_masked"] = True
-        out.append(d)
+        out.append(drop(d, SELLER_DROP))
     return out
 
 
@@ -2111,7 +2110,7 @@ async def delete_contact(cid: int, user: CurrentUser = Depends(current_user)):
     await schedule_retract(user.team_id, contact_id=cid)   # 일정 + 참석자 거울 + 상태 로그(H1)
     # 이 커밋이 덮었던 가격을 되돌린다(0078)
     if row["prev"]:
-        await overlays_restore(user.team_id, row["target_id"], row["prev"], user.account_id)
+        await listing_values_restore(user.team_id, row["target_id"], row["prev"], user.account_id)
     if row["target_type"] == "listing":
         # 거울 거두기(0067) — 사람이 쓴 계약·계약파기를 지웠으면 반대편 짝의 사실도 거짓이 된다.
         if not row["auto"] and row["status"] in MIRRORED:
@@ -2523,9 +2522,7 @@ async def sales_today(mine: bool = True, user: CurrentUser = Depends(current_use
                JOIN app.listings l2 ON l2.building_pk=p.building_pk AND l2.team_id=p.team_id
                WHERE p.team_id=$1 AND p.hope_price IS NOT NULL AND p.dropped_at IS NULL
                  AND ($2::bigint IS NULL OR l2.assignee_account_id=$2)) AS negotiating_n,
-             (SELECT COALESCE(sum(ov.value::numeric),0) FROM app.listings l3
-               LEFT JOIN app.overlays ov ON ov.team_id=l3.team_id AND ov.target_type='building'
-                    AND ov.target_id=l3.building_pk AND ov.field='sale_price' AND ov.value ~ '^[0-9.]+$'
+             (SELECT COALESCE(sum(l3.sale_price),0) FROM app.listings l3
                WHERE l3.team_id=$1 AND NOT {SELLER_DONE.format(t="l3")}
                  AND ($2::bigint IS NULL OR l3.assignee_account_id=$2)) AS listed,
              (SELECT count(*) FROM app.listings l4 WHERE l4.team_id=$1
@@ -2567,15 +2564,12 @@ async def sales_today(mine: bool = True, user: CurrentUser = Depends(current_use
                    OR p.briefed_on IS NOT NULL) AS briefed,
                   (p.hope_price IS NOT NULL) AS has_hope,
                   y.name AS buyer_name, b.addr,
-                  COALESCE(so.v::numeric, se.sale_est) AS price
+                  COALESCE(l5.sale_price, se.sale_est) AS price
            FROM app.proposals p
            JOIN app.buyers y ON y.id = p.buyer_id AND y.deleted_at IS NULL
            LEFT JOIN master.buildings b ON b.building_pk = p.building_pk
            LEFT JOIN master.building_sale_est se ON se.building_pk = p.building_pk
-           LEFT JOIN LATERAL (SELECT value AS v FROM app.overlays ov
-                               WHERE ov.team_id=p.team_id AND ov.target_type='building'
-                                 AND ov.target_id=p.building_pk AND ov.field='sale_price'
-                                 AND ov.value ~ '^[0-9.]+$') so ON TRUE
+           LEFT JOIN app.listings l5 ON l5.building_pk=p.building_pk AND l5.team_id=p.team_id
            WHERE p.team_id=$1 AND p.dropped_at IS NULL AND p.picked_at IS NULL
              AND ($2::bigint IS NULL OR y.assignee_account_id = $2)
              -- 보류 중인 짝은 재촉하지 않는다 — 공이 아무에게도 없다
@@ -2707,8 +2701,13 @@ async def sales_today(mine: bool = True, user: CurrentUser = Depends(current_use
 
     # 내 차례는 급한 순 — 오래 밀린 것부터. 첫전화(기록 없음)는 맨 위.
     my_turn.sort(key=lambda x: -(999 if x["kind"] == "첫전화" else (x.get("days") or 0)))
-    return {"today_sched": today_sched, "overdue": overdue, "upcoming": upcoming,
-            "money": money, "month": month, "stats": stats, "my_turn": my_turn, "waiting": waiting, "starters": starters}
+    # 요약줄(money·month·stats)·매도신호(starters)·기다림(waiting)은 대시보드가 안 읽어 뺐다(감사 2026-09-17).
+    # 일정 항목의 담당·짝 id, 내 차례 항목의 판정 재료도 화면엔 안 선다.
+    return {"today_sched": [drop(x, TODAY_SCHED_DROP) for x in today_sched],
+            "overdue": [drop(x, TODAY_SCHED_DROP) for x in overdue],
+            "upcoming": [drop(x, TODAY_SCHED_DROP) for x in upcoming],
+            "my_turn": [drop(x, TODAY_TURN_DROP) for x in my_turn]}
+
 
 
 # ── 접촉 이력 ───────────────────────────────────────────
@@ -2744,7 +2743,7 @@ async def list_contacts(target_type: str, target_id: str,
            WHERE c.team_id=$1 AND c.target_type=$2 AND c.target_id=$3
            ORDER BY c.occurred_on DESC, c.id DESC LIMIT 100""",
         user.team_id, target_type, target_id)
-    return [dict(r) for r in rows]
+    return [drop(dict(r), CONTACT_DROP) for r in rows]
 
 
 @router.post("/contacts", status_code=201)
@@ -2773,7 +2772,7 @@ async def create_contact(body: ContactIn, user: CurrentUser = Depends(current_us
     # 가격을 덮기 전에 이전 값을 뜬다 — 이 커밋을 지우면 이 값으로 돌아간다(0078)
     prev: str | None = None
     if body.target_type == "listing" and (body.list_price is not None or body.hope_price is not None):
-        prev = await overlays_write(
+        prev = await listing_values_write(
             user.team_id, body.target_id,
             {"sale_price": body.list_price, "ask_price": body.hope_price}, user.account_id)
     cid = await pool().fetchval(
