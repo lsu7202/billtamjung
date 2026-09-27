@@ -1041,6 +1041,7 @@ def _ledger_for_model(raw: dict, total: dict) -> dict:
         d = {"상호": u.get("tenant_name"), "업종": u.get("cat_nodes") or None, "호수": u.get("unit_no") or None,
              "상태": "임대중" if u.get("occupied") else "공실",
              "계약면적": round(u["contract_area"], 2) if u.get("contract_area") else None,
+             "전용면적": round(u["excl_area"], 2) if u.get("excl_area") else None,
              "보증금": u.get("deposit"), "월임대": u.get("rent"), "관리비": u.get("maintenance")}
         return {k: v for k, v in d.items() if v is not None}
     res: dict[str, Any] = {}

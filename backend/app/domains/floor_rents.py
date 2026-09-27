@@ -23,9 +23,9 @@ class RentIn(BaseModel):
     id: int | None = None     # 있으면 그 줄을 고친다(0160). 호실이 빈 줄은 여럿이라 (층, 호실)로는 못 찾는다
     floor: str | None = None  # None = 층 미상(0185). 층 칩으로 옮기면 여기가 찬다
     unit_no: str = ""         # 모르면 빈칸 — 순번을 지어 넣지 않는다
-    use: str | None = None
     contract_area: float | None = None     # ㎡ 저장(§5.3) — 프론트가 평↔㎡ 변환해 항상 ㎡로 전송
-                                           # 면적은 이것 하나뿐(0035) — 전용면적은 우리 데이터에 없다
+    excl_area: float | None = None         # 전용면적 ㎡(0190). 보는 값 — 공실·평당가 셈은 계약면적
+    cat_nodes: list[str] | None = None     # 업종 나무(0189) — 고르기 목록(/biz-cats)의 경로
     deposit: int | None = None     # 원 정수. None = 모름(0185 — 0 은 「안 받음」과 헷갈려 기본값에서 뺐다)
     rent: int | None = None
     maintenance: int | None = None
@@ -37,7 +37,7 @@ class RentIn(BaseModel):
 async def team_floor_rows(building_pk: str, team_id: int) -> tuple[list[dict], list[str]]:
     """팀 층별 줄(없앤 층 제외)과 없앤 층 목록. /floor-rents 와 /floors 가 같이 쓴다(2026-09-17)."""
     rows = await pool().fetch(
-        """SELECT id, floor, unit_no, use, contract_area::float AS contract_area,
+        """SELECT id, floor, unit_no, contract_area::float AS contract_area, excl_area::float AS excl_area,
                   deposit, rent, maintenance, tenant_name, place_ref, cat_nodes,
                   app.unit_occupied(tenant_name, place_ref, rent) AS occupied
            FROM app.floor_rents
@@ -175,31 +175,31 @@ async def upsert_rent(building_pk: str, body: RentIn, user: CurrentUser = Depend
         # 줄을 id 로 고친다(0160). 호실이 빈 줄이 한 층에 여럿이라 (층, 호실)로는 그 줄을 못 집는다
         rid = await pool().fetchval(
             """UPDATE app.floor_rents
-                  SET floor=$3, unit_no=$4, use=$5, contract_area=$6, deposit=$7, rent=$8,
-                      maintenance=$9, tenant_name=$10, deleted_at=NULL, updated_at=now()
+                  SET floor=$3, unit_no=$4, contract_area=$5, excl_area=$6, deposit=$7, rent=$8,
+                      maintenance=$9, tenant_name=$10, cat_nodes=$12, deleted_at=NULL, updated_at=now()
                 WHERE id=$11 AND building_pk=$1 AND team_id=$2
             RETURNING id""",
-            building_pk, user.team_id, body.floor, body.unit_no, body.use, body.contract_area,
-            body.deposit, body.rent, body.maintenance, body.tenant_name, body.id)
+            building_pk, user.team_id, body.floor, body.unit_no, body.contract_area, body.excl_area,
+            body.deposit, body.rent, body.maintenance, body.tenant_name, body.id, body.cat_nodes or None)
         if rid is not None:
             await listing_values_fold(user.team_id, building_pk)
             return {"ok": True, "id": rid}
     # 호실을 적은 줄은 (층, 호실)로 upsert — 같은 호실을 두 번 만들지 않는다. 빈 호실은 그냥 새 줄이다
     rid = await pool().fetchval(
         """INSERT INTO app.floor_rents
-             (building_pk,team_id,floor,unit_no,use,contract_area,
-              deposit,rent,maintenance,tenant_name)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+             (building_pk,team_id,floor,unit_no,contract_area,excl_area,
+              deposit,rent,maintenance,tenant_name,cat_nodes)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
            ON CONFLICT (building_pk,team_id,floor,unit_no) WHERE unit_no <> ''
-           DO UPDATE SET use=EXCLUDED.use,
+           DO UPDATE SET excl_area=EXCLUDED.excl_area, cat_nodes=EXCLUDED.cat_nodes,
              contract_area=EXCLUDED.contract_area, deposit=EXCLUDED.deposit,
              rent=EXCLUDED.rent, maintenance=EXCLUDED.maintenance,
              tenant_name=EXCLUDED.tenant_name,
              deleted_at=NULL, updated_at=now()
            RETURNING id""",
-        building_pk, user.team_id, body.floor, body.unit_no, body.use,
-        body.contract_area,
-        body.deposit, body.rent, body.maintenance, body.tenant_name,
+        building_pk, user.team_id, body.floor, body.unit_no,
+        body.contract_area, body.excl_area,
+        body.deposit, body.rent, body.maintenance, body.tenant_name, body.cat_nodes or None,
     )
     await listing_values_fold(user.team_id, building_pk)     # 층별 → 매물 줄 합계·수익률(0173)
     return {"ok": True, "id": rid}

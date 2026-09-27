@@ -344,3 +344,8 @@
 /* 시세대비(0187) — 금액 칸 매매가 옆 작은 글자. 색은 안 쓴다(뜻 하나씩 규칙) */
 .lx-t .c-amt b .vs{font-style:normal; font-size:11px; font-weight:700; color:#6B7684; background:#F2F4F6; border-radius:6px; padding:1px 6px; margin-left:5px; vertical-align:1px}
 .rl .rl-cat{font-style:normal; font-size:12px; font-weight:500; color:#8B95A1; margin-left:8px; white-space:nowrap}
+/* 업종 고르기(2026-09-27) — 칩 세 줄 + 찾기. 호실 칸 그리드를 가로질러 펼친다 */
+.rl .rl-cpw{grid-column:1 / -1; background:#F7F8FA; border-radius:12px; padding:10px 12px; margin:2px 0 6px}
+.rl .rl-cp{display:flex; flex-direction:column; gap:8px; align-items:flex-start}
+.rl .rl-cp .um-in{width:180px; font-size:12.5px; padding:5px 12px}
+.rl .rl-cp .chips-in{max-height:120px; overflow-y:auto}

@@ -296,6 +296,15 @@ async def main(folder: str) -> None:
         await con.copy_records_to_table("_bz", records=[(b[0], i + 1) for i, b in enumerate(biz)])
         await con.execute("UPDATE master.place p SET biz_id = b.biz_id FROM _bz b WHERE b.place_id = p.id")
         await con.execute(BIZ_IDX)
+        # 업종 마디마다 지금 있는 업체 수 — 업종 고르기 목록이 10곳 이상인 마디만 쓴다(0190)
+        await con.execute("ALTER TABLE ref.biz_cat ADD COLUMN IF NOT EXISTS n int")
+        await con.execute("""
+            UPDATE ref.biz_cat c SET n = COALESCE(x.n, 0)
+              FROM ref.biz_cat c2 LEFT JOIN (
+                SELECT array_to_string(cat_nodes[1:k], ' > ') AS path, count(*) AS n
+                  FROM master.biz, generate_series(1, 5) k
+                 WHERE gone_on IS NULL AND cardinality(cat_nodes) >= k GROUP BY 1) x ON x.path = c2.path
+             WHERE c.id = c2.id""")
     await con.execute("ANALYZE master.place; ANALYZE master.biz")
     print(f"biz {len(biz):,} · 층 크롤링 {counts['crawl']:,} · 상가정보 {counts['sbiz']:,}"
           f" · 인허가 {counts['localdata']:,} · 모름 {counts[None]:,} · {time.time()-t0:.0f}s", flush=True)

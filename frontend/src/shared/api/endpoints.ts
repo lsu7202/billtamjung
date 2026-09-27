@@ -11,8 +11,9 @@ export interface Balance { total: number }
 export interface FloorRent {
   id?: number;
   floor: string | null;            // null = 층 미상
-  unit_no: string; use?: string | null;
-  contract_area?: number | null;   // 면적은 이것 하나(0035) — 전용면적은 우리 데이터에 없다
+  unit_no: string;
+  contract_area?: number | null;   // 계약면적 ㎡ — 공실·평당가 셈의 기준
+  excl_area?: number | null;       // 전용면적 ㎡(0190) — 보는 값
   deposit?: number | null; rent?: number | null; maintenance?: number | null;   // null = 모름
   tenant_name?: string | null;     // 상호명(0155). 모르면 null
   place_ref?: string | null;       // 매물 등록 때 원장에서 복사한 업체의 열쇠
@@ -411,6 +412,8 @@ export const rentsApi = {
   list: (pk: string) => api<{ items: FloorRent[]; floors: LedgerFloor[]; unknown: FloorRent[];
     total: { deposit: number | null; rent: number | null; maintenance: number | null; vacant_area: number | null } }>(
     `/buildings/${pk}/floor-rents`),
+  /** 업종 고르기 목록 — 크롤링 업종 나무 3단 · 업체 10곳 이상 · 가나다순 */
+  cats: () => api<{ path: string[]; name: string; depth: number }[]>("/biz-cats"),
   /** 층별 정보(건물 상세) — 대장과 원장 업체만 */
   info: (pk: string) => api<{ floors: FloorGroup[]; unknown: Tenant[] }>(`/buildings/${pk}/floors`),
   /** id 가 있으면 그 줄을 고친다. 호실이 빈 줄은 한 층에 여럿이라 (층, 호실)로는 못 집는다(0160) */

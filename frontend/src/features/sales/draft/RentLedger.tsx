@@ -53,8 +53,50 @@ function Txt({ v, w, onSave, num }: { v: string; w: number; onSave: (v: string) 
   );
 }
 
+type Cat = { path: string[]; name: string; depth: number };
+
+/** 업종 고르기 — 칩 세 줄(대 → 중 → 소)과 찾기 한 줄. 어디서 멈춰도 저장되고, 고른 칩을 다시 누르면 그 단이 빠진다.
+ *  목록은 크롤링 업종 나무(가나다순, /biz-cats). 드롭다운이 아니라 칩이다(CLAUDE.md UI 어법) */
+function CatPicker({ cur, cats, onPick }: { cur: string[]; cats: Cat[]; onPick: (p: string[] | null) => void }) {
+  const [q, setQ] = useState("");
+  const kids = (parent: string[]) => cats.filter((c) => c.depth === parent.length + 1
+    && parent.every((p, i) => c.path[i] === p));
+  const pick = (c: Cat) => {
+    const same = cur.length === c.depth && c.path.every((p, i) => cur[i] === p);
+    const next = same ? c.path.slice(0, -1) : c.path;
+    onPick(next.length ? next : null);
+  };
+  const row = (parent: string[]) => {
+    const list = kids(parent);
+    if (!list.length) return null;
+    return (
+      <span className="chips-in" key={parent.join(">") || "root"}>
+        {list.map((c) => (
+          <button key={c.name} className={cur[c.depth - 1] === c.name ? "on" : ""} onClick={() => pick(c)}>{c.name}</button>
+        ))}
+      </span>
+    );
+  };
+  const hits = q.trim() ? cats.filter((c) => c.name.includes(q.trim())).slice(0, 20) : [];
+  return (
+    <div className="rl-cp">
+      <input className="um-in" autoFocus placeholder="찾기" value={q} onChange={(e) => setQ(e.target.value)} />
+      {q.trim() ? (
+        <span className="chips-in">
+          {hits.map((c) => <button key={c.path.join(">")} onClick={() => { onPick(c.path); setQ(""); }}>{c.path.join(" › ")}</button>)}
+          {!hits.length && <span className="off">없음</span>}
+        </span>
+      ) : (
+        <>{row([])}{cur[0] && row(cur.slice(0, 1))}{cur[1] && row(cur.slice(0, 2))}</>
+      )}
+    </div>
+  );
+}
+
 export function RentLedger({ pk, onSaved }: { pk: string; onSaved: () => void }) {
   const q = useQuery({ queryKey: ["rent-ledger", pk], queryFn: () => rentsApi.list(pk) });
+  const catsQ = useQuery({ queryKey: ["biz-cats"], queryFn: rentsApi.cats, staleTime: 10 * 60_000 });
+  const [catOpen, setCatOpen] = useState<number | null>(null);   // 업종을 고르는 호실
   const floors: LedgerFloor[] = q.data?.floors ?? [];
   const unknown: FloorRent[] = q.data?.unknown ?? [];   // 층 미상 호실
   const total = q.data?.total;
@@ -70,8 +112,9 @@ export function RentLedger({ pk, onSaved }: { pk: string; onSaved: () => void })
     setBusy(true);
     try {
       await rentsApi.upsert(pk, {
-        id: u.id, floor: u.floor, unit_no: u.unit_no ?? "", use: u.use ?? null,
-        contract_area: u.contract_area ?? null, tenant_name: u.tenant_name ?? null,
+        id: u.id, floor: u.floor, unit_no: u.unit_no ?? "",
+        contract_area: u.contract_area ?? null, excl_area: u.excl_area ?? null,
+        tenant_name: u.tenant_name ?? null, cat_nodes: u.cat_nodes ?? null,
         deposit: u.deposit ?? null, rent: u.rent ?? null, maintenance: u.maintenance ?? null,
         ...patch,
       } as FloorRent);
@@ -108,9 +151,19 @@ export function RentLedger({ pk, onSaved }: { pk: string; onSaved: () => void })
       )}
       <div className="fl2-g">
         <span className="dk">상호명</span><span className="dv"><Txt v={u.tenant_name ?? ""} w={220} onSave={(v) => put(u, { tenant_name: v || null })} /></span>
+        <span className="dk">업종</span><span className="dv">
+          <button className="um-vp" onClick={() => setCatOpen(catOpen === u.id ? null : u.id ?? null)}>
+            <b className={u.cat_nodes?.length ? "" : "off"}>{u.cat_nodes?.length ? u.cat_nodes.join(" › ") : "—"}</b></button>
+        </span>
+        {catOpen === u.id && (
+          <div className="rl-cpw"><CatPicker cur={u.cat_nodes ?? []} cats={catsQ.data ?? []}
+            onPick={(p) => put(u, { cat_nodes: p })} /></div>
+        )}
         <span className="dk">호수</span><span className="dv"><Txt v={u.unit_no ?? ""} w={110} onSave={(v) => put(u, { unit_no: v })} /></span>
         <span className="dk">계약면적</span><span className="dv"><Txt num v={u.contract_area != null ? (u.contract_area / P).toFixed(1) : ""} w={110}
           onSave={(v) => { const n = parseFloat(v.replace(/[^\d.]/g, "")); put(u, { contract_area: Number.isFinite(n) ? n * P : null }); }} /></span>
+        <span className="dk">전용면적</span><span className="dv"><Txt num v={u.excl_area != null ? (u.excl_area / P).toFixed(1) : ""} w={110}
+          onSave={(v) => { const n = parseFloat(v.replace(/[^\d.]/g, "")); put(u, { excl_area: Number.isFinite(n) ? n * P : null }); }} /></span>
         <span className="dk">보증금</span><span className="dv"><Money v={u.deposit} onSave={(w) => put(u, { deposit: w })} /></span>
         <span className="dk">월 임대료</span><span className="dv"><Money man v={u.rent} onSave={(w) => put(u, { rent: w })} /></span>
         <span className="dk">월 관리비</span><span className="dv"><Money man v={u.maintenance} onSave={(w) => put(u, { maintenance: w })} /></span>

@@ -900,12 +900,12 @@ export function DocPage() {
             <tbody>
               {/* 「호」 대신 임차인 — 호실 칸을 없앴고(2026-09-25) 현황표의 주인공은 누가 들었느냐다.
                   「비고(공실)」 칸도 뺐다. 공실은 줄이 아니라 층의 면적이라 아래 한 줄로 선다(0180) */}
-              <tr><th style={{ width: "14mm" }}>층</th><th>임차인</th><th style={{ width: "26mm" }}>용도</th>
+              <tr><th style={{ width: "14mm" }}>층</th><th>임차인</th><th style={{ width: "26mm" }}>업종</th>
                 <th style={{ width: "22mm" }}>계약면적(㎡)</th><th style={{ width: "26mm" }}>보증금(원)</th>
                 <th style={{ width: "24mm" }}>월세(원)</th><th style={{ width: "24mm" }}>관리비(원)</th></tr>
               {rentRows.map((x, i) => (
                 <tr key={i}><td className="c">{x.floor}</td><td>{x.tenant_name ?? ""}</td>
-                  <td>{x.use ?? ""}</td><td className="r">{x.contract_area ?? ""}</td>
+                  <td>{x.cat_nodes?.length ? x.cat_nodes[x.cat_nodes.length - 1] : ""}</td><td className="r">{x.contract_area ?? ""}</td>
                   <td className="r">{comma(x.deposit ?? null)}</td><td className="r">{comma(x.rent ?? null)}</td>
                   <td className="r">{comma(x.maintenance ?? null)}</td></tr>
               ))}

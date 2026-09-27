@@ -553,8 +553,8 @@ async def _briefing_snapshot(building_pk: str, b: dict, team_id: int) -> dict:
     hidden = {r["floor"] for r in await pool().fetch(
         "SELECT floor FROM app.floor_hidden WHERE building_pk=$1 AND team_id=$2", building_pk, team_id)}
     team_rows = await pool().fetch(
-        """SELECT floor, unit_no, use, contract_area, deposit, rent, maintenance
-           FROM app.floor_rents WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL""",
+        """SELECT floor, unit_no, cat_nodes[cardinality(cat_nodes)] AS use, contract_area, deposit, rent, maintenance
+           FROM app.floor_rents WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL""",   # 용도 칸은 없앴다(0190) — 업종 마지막 마디
         building_pk, team_id)
     team_floors = {r["floor"] for r in team_rows}
     est_rows = await pool().fetch(
