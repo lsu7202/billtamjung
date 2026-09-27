@@ -1980,7 +1980,11 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                   vs.s1_owner, vs.s2_touch, vs.s3_intent, vs.s4_info, vs.s5_asset, vs.s6_match, vs.s6_open,
                   vs.cells, ldc.cells AS deal_cells, COALESCE(ng.nego, 0) AS nego,
                   -- 열린 보류 — 「지금은 안 본다」와 그 사유(0090·0140)
-                  st.id AS stop_id, st.stage AS stop_stage, st.reason AS stop_reason
+                  st.id AS stop_id, st.stage AS stop_stage, st.reason AS stop_reason,
+                  -- 표 검색이 메모 내용까지 찾는다(부기사는 비밀메모까지 찾는다). 메모창과 같은 줄(kind=메모)
+                  (SELECT string_agg(m2.note, ' ') FROM app.contacts m2
+                    WHERE m2.team_id = l.team_id AND m2.target_type = 'listing'
+                      AND m2.target_id = l.building_pk AND m2.kind = '메모') AS memo_text
            FROM app.listings l
            LEFT JOIN app.owners o ON o.id = l.owner_id AND o.deleted_at IS NULL   -- 0058
            LEFT JOIN master.buildings b ON b.building_pk = l.building_pk

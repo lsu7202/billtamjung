@@ -860,6 +860,8 @@ export interface Seller {
   s4_info?: boolean; s5_asset?: boolean; s6_match?: boolean;
   /** 열린 멈춤 — 멈춘 동안은 「연락할 차례」에서 빠진다(S04b §2.3) */
   stop_id?: number | null; stop_stage?: StopStage | null; stop_reason?: string | null;
+  /** 메모창 글을 이어 붙인 것 — 표 검색용 */
+  memo_text?: string | null;
   /** 협의 단계 1~4(0127) — 이 매물에 붙은 매수자들 중 가장 앞선 것 */
   nego?: number | null;
   /** 나대지 매물(2026-08-27) — building_pk 가 'P'+pnu. 건물이 아니라 빈 땅이다 */

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listingsApi, proposalsApi, salesApi, type Seller } from "../../shared/api/endpoints";
 import { md, shortAddr, wonAcc } from "../../shared/format";
@@ -24,7 +24,24 @@ import "./draft/salestab.css";
  * 대시보드 「재통화」와 같은 기준(7일)이라, 넘으면 빨강이다. */
 
 type Lane = "own" | "watch" | "done";
-type SortKey = "listing_no" | "addr" | "size" | "price" | "rent" | "roi" | "checked_on" | "next";
+type SortKey = "received_on" | "updated_at" | "listing_no" | "addr" | "size" | "price" | "rent" | "roi" | "checked_on" | "next";
+/** 정렬 pill 의 목록 — 부기사 탭(등록일·수정일·가격·면적·매물번호)에 우리 열(수익률·확인일)을 더했다 */
+const SORTS: [SortKey, string][] = [["received_on", "등록일"], ["updated_at", "수정일"], ["listing_no", "매물번호"],
+  ["price", "금액"], ["size", "면적"], ["roi", "수익률"], ["checked_on", "확인일"]];
+type RangeKey = "price" | "land" | "total";
+type Range = [number | null, number | null];
+/** 범위 거르기 — 입력 단위(억·평)와 저장 단위(원·㎡) 사이 환산 */
+const RANGES: { k: RangeKey; label: string; unit: string; of: (r: Seller) => number | null | undefined; per: number }[] = [
+  { k: "price", label: "금액", unit: "억", of: (r) => r.list_price, per: 1e8 },
+  { k: "land", label: "대지", unit: "평", of: (r) => r.land_area, per: 3.305785 },
+  { k: "total", label: "연면적", unit: "평", of: (r) => r.total_area, per: 3.305785 },
+];
+/** 주소 「서울특별시 강남구 삼성동 158-19번지」 → [구, 동] */
+const regionOf = (addr: string | null | undefined): [string | null, string | null] => {
+  const p = (addr ?? "").split(" ");
+  return [p[1] || null, p[2] || null];
+};
+const ko = (a: string, b: string) => a.localeCompare(b, "ko");
 const RECALL_DAYS = 7;          // backend buyers.RECALL_DAYS 와 같은 값
 
 const daysSince = (d: string | null | undefined) =>
@@ -37,6 +54,32 @@ const floorsOf = (r: Seller) => {
   if (!a && !b) return null;
   return `${b ? `B${b}~` : ""}${a}F`;
 };
+
+/** 범위 칩 — 누르면 최소~최대 입력이 열리고, 벗어나면 닫힌다. 빈 칸은 한쪽이 열린 범위 */
+function RangeChip({ label, unit, v, open, onOpen, onClose, onChange }: {
+  label: string; unit: string; v: Range; open: boolean;
+  onOpen: () => void; onClose: () => void; onChange: (v: Range) => void;
+}) {
+  const on = v[0] != null || v[1] != null;
+  const n = (x: number | null) => (x == null ? "" : x.toLocaleString());
+  const txt = on ? `${label} ${n(v[0])}~${n(v[1])}${unit}` : label;
+  const num = (t: string) => { const x = parseFloat(t.replace(/,/g, "")); return Number.isFinite(x) ? x : null; };
+  return (
+    <span className="lx-rg" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) onClose(); }}>
+      <button className={`um-chip ${on ? "on" : ""}`} onClick={() => (open ? onClose() : onOpen())}>{txt}</button>
+      {open && (
+        <span className="lx-rg-pop" onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") onClose(); }}>
+          <input autoFocus inputMode="decimal" defaultValue={v[0] ?? ""} placeholder="최소"
+            onChange={(e) => onChange([num(e.target.value), v[1]])} />
+          <span>~</span>
+          <input inputMode="decimal" defaultValue={v[1] ?? ""} placeholder="최대"
+            onChange={(e) => onChange([v[0], num(e.target.value)])} />
+          <span className="u">{unit}</span>
+        </span>
+      )}
+    </span>
+  );
+}
 
 /** 표 썸네일 — 사진은 인증을 거쳐 받는다(blob). 목록이 준 대표 사진 id 하나만 */
 function Thumb({ pk, id }: { pk: string; id: number | null | undefined }) {
@@ -69,8 +112,19 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
   const [who, setWho] = useState<number | null>(null);          // 담당 거르기
   const [major, setMajor] = useState<string | null>(null);      // 대분류 거르기
   const [kind, setKind] = useState<string | null>(null);        // 소분류 거르기
-  const [flag, setFlag] = useState<null | "urgent" | "exclusive">(null);
-  const [sort, setSort] = useState<{ k: SortKey; asc: boolean } | null>(null);
+  const [flag, setFlag] = useState<null | "urgent" | "exclusive" | "hold">(null);
+  const [gu, setGu] = useState<string | null>(null);           // 지역 — 구, 고르면 동이 열린다
+  const [dong, setDong] = useState<string | null>(null);
+  const [grade, setGrade] = useState<string | null>(null);
+  const [pvm, setPvm] = useState<string | null>(null);         // 시세대비
+  const [ranges, setRanges] = useState<Record<RangeKey, Range>>({ price: [null, null], land: [null, null], total: [null, null] });
+  const [rgOpen, setRgOpen] = useState<RangeKey | null>(null);
+  // 기본 정렬 = 등록일 최신(부기사 기본). 열 머리와 정렬 pill 이 같은 값을 바꾼다
+  const [sort, setSort] = useState<{ k: SortKey; asc: boolean }>({ k: "received_on", asc: false });
+  const [sortOpen, setSortOpen] = useState(false);
+  const [more, setMore] = useState(false);                     // 둘째 줄 펼침
+  const [over, setOver] = useState(false);                     // 둘째 줄이 한 줄을 넘나
+  const filtRef = useRef<HTMLDivElement>(null);
   const [add, setAdd] = useState(false);
 
   const list = rows.data ?? [];
@@ -82,15 +136,30 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
 
   const shown = useMemo(() => {
     const t = q.trim();
+    const inRange = (r: Seller) => RANGES.every(({ k, of, per }) => {
+      const [lo, hi] = ranges[k];
+      if (lo == null && hi == null) return true;
+      const x = of(r);
+      if (x == null) return false;              // 모르는 값은 범위를 걸면 빠진다
+      return (lo == null || x >= lo * per) && (hi == null || x <= hi * per);
+    });
     let out = laneRows.filter((r) =>
-      (!t || (r.addr ?? "").includes(t) || (r.owner_name ?? "").includes(t) || (r.listing_no ?? "").includes(t))
+      (!t || [r.addr, r.owner_name, r.listing_no, nameOf(r.assignee_account_id), r.memo_text]
+        .some((x) => (x ?? "").includes(t)))
       && (who == null || r.assignee_account_id === who)
+      && (gu == null || regionOf(r.addr)[0] === gu)
+      && (dong == null || regionOf(r.addr)[1] === dong)
       && (major == null || r.building_major === major)
       && (kind == null || (r.building_use ?? []).includes(kind))
-      && (flag == null || (flag === "urgent" ? isUrgent(r) : r.exclusive === true)));
-    if (sort) {
+      && (grade == null || r.grade === grade)
+      && (pvm == null || r.price_vs_market === pvm)
+      && (flag == null || (flag === "urgent" ? isUrgent(r) : flag === "hold" ? r.stop_id != null : r.exclusive === true))
+      && inRange(r));
+    {
       const v = (r: Seller): string | number | null =>
-        sort.k === "listing_no" ? r.listing_no
+        sort.k === "received_on" ? r.received_on
+        : sort.k === "updated_at" ? r.updated_at
+        : sort.k === "listing_no" ? r.listing_no
           : sort.k === "addr" ? r.addr
             : sort.k === "size" ? r.total_area ?? r.land_area
               : sort.k === "price" ? r.list_price ?? null
@@ -109,7 +178,28 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
       });
     }
     return out;
-  }, [laneRows, q, who, major, kind, flag, sort]);
+  }, [laneRows, q, who, gu, dong, major, kind, grade, pvm, flag, ranges, sort, members.data]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 지역 칩 — 이 갈래에 실제로 있는 구·동만
+  const gus = useMemo(() => [...new Set(laneRows.map((r) => regionOf(r.addr)[0]).filter(Boolean) as string[])].sort(ko), [laneRows]);
+  const dongs = useMemo(() => gu == null ? [] : [...new Set(laneRows.filter((r) => regionOf(r.addr)[0] === gu)
+    .map((r) => regionOf(r.addr)[1]).filter(Boolean) as string[])].sort(ko), [laneRows, gu]);
+  const anyFilter = who != null || gu != null || major != null || kind != null || grade != null || pvm != null
+    || flag != null || Object.values(ranges).some(([a, b]) => a != null || b != null);
+  const reset = () => {
+    setWho(null); setGu(null); setDong(null); setMajor(null); setKind(null); setGrade(null); setPvm(null);
+    setFlag(null); setRanges({ price: [null, null], land: [null, null], total: [null, null] });
+  };
+  // 둘째 줄이 한 줄을 넘으면 접고, 끝에 펼침 아이콘
+  useLayoutEffect(() => {
+    const el = filtRef.current;
+    if (!el) return;
+    const check = () => setOver(el.scrollHeight > el.clientHeight + 2 || (more && el.scrollHeight > 44));
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
 
   const cur = list.find((r) => r.building_pk === open?.pk) ?? null;
   const unknown = open && !rows.isLoading && !cur ? open.pk : null;   // 아직 안 담은 건물로 넘어왔다
@@ -135,9 +225,9 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
   };
 
   const th = (k: SortKey | null, label: string, cls = "") => (
-    <th className={`${cls} ${k ? "s" : ""} ${sort?.k === k ? "on" : ""}`}
-      onClick={k ? () => setSort((s) => (s?.k === k ? (s.asc ? { k, asc: false } : null) : { k, asc: true })) : undefined}>
-      {label}{k && sort?.k === k && <i>{sort.asc ? "↑" : "↓"}</i>}
+    <th className={`${cls} ${k ? "s" : ""} ${sort.k === k ? "on" : ""}`}
+      onClick={k ? () => setSort((s) => (s.k === k ? { k, asc: !s.asc } : { k, asc: true })) : undefined}>
+      {label}{k && sort.k === k && <i>{sort.asc ? "↑" : "↓"}</i>}
     </th>
   );
   const chip = (on: boolean, label: string, onClick: () => void, n?: number) => (
@@ -152,16 +242,30 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
         {chip(lane === "own", "매물", () => setLane("own"), owned.length)}
         {chip(lane === "watch", "관심", () => setLane("watch"), watched.length)}
         {chip(lane === "done", "계약", () => setLane("done"), sold.length)}
-        <input className="lt-q lx-q" value={q} placeholder="주소 · 소유자 · 매물번호"
+        <input className="lt-q lx-q" value={q} placeholder="주소 · 소유자 · 매물번호 · 담당 · 메모"
           onChange={(e) => setQ(e.target.value)} />
         <span className="sp" />
+        <span className="lx-rg" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setSortOpen(false); }}>
+          <button className="lx-sort" onClick={() => setSortOpen(!sortOpen)}>
+            {SORTS.find(([k]) => k === sort.k)?.[1] ?? { addr: "주소", rent: "임대", next: "다음 일정" }[sort.k as string]}
+            <i>{sort.asc ? "↑" : "↓"}</i></button>
+          {sortOpen && (
+            <span className="lx-rg-pop lx-sort-pop">
+              {SORTS.map(([k, l]) => chip(sort.k === k, sort.k === k ? `${l} ${sort.asc ? "↑" : "↓"}` : l,
+                () => setSort((s) => (s.k === k ? { k, asc: !s.asc } : { k, asc: k === "listing_no" }))))}
+            </span>
+          )}
+        </span>
         <button className="lt-add" title="매물 등록" onClick={() => setAdd(true)}>
           <Icon name="plus" size={14} /></button>
       </div>
-      <div className="lx-filt">
+      <div ref={filtRef} className={`lx-filt ${!more && rgOpen == null ? "lx-fold" : ""} ${over ? "has-more" : ""}`}>
         {(members.data ?? []).length > 1 && (members.data ?? []).map((m) =>
           chip(who === m.account_id, m.name, () => setWho(who === m.account_id ? null : m.account_id)))}
         {(members.data ?? []).length > 1 && <span className="lx-div" />}
+        {gus.map((g) => chip(gu === g, g, () => { setGu(gu === g ? null : g); setDong(null); }))}
+        {dongs.map((d) => chip(dong === d, d, () => setDong(dong === d ? null : d)))}
+        {gus.length > 0 && <span className="lx-div" />}
         {options("building_major").map((o) =>
           chip(major === o.code, o.label, () => setMajor(major === o.code ? null : o.code)))}
         <span className="lx-div" />
@@ -170,6 +274,22 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
         <span className="lx-div" />
         {chip(flag === "urgent", "급매", () => setFlag(flag === "urgent" ? null : "urgent"))}
         {chip(flag === "exclusive", "전속", () => setFlag(flag === "exclusive" ? null : "exclusive"))}
+        {chip(flag === "hold", "보류", () => setFlag(flag === "hold" ? null : "hold"))}
+        <span className="lx-div" />
+        {options("grade").map((o) => chip(grade === o.code, o.label, () => setGrade(grade === o.code ? null : o.code)))}
+        <span className="lx-div" />
+        {options("price_vs_market").map((o) => chip(pvm === o.code, o.label, () => setPvm(pvm === o.code ? null : o.code)))}
+        <span className="lx-div" />
+        {RANGES.map(({ k, label, unit }) => (
+          <RangeChip key={k} label={label} unit={unit} v={ranges[k]} open={rgOpen === k}
+            onOpen={() => setRgOpen(k)} onClose={() => setRgOpen((o) => (o === k ? null : o))}
+            onChange={(v) => setRanges((m) => ({ ...m, [k]: v }))} />
+        ))}
+        <span className="lx-fend">
+          {anyFilter && <button className="lx-ic" title="거르기 지움" onClick={reset}><Icon name="reset" size={13} /></button>}
+          {over && <button className="lx-ic" title={more ? "접기" : "펼치기"} onClick={() => setMore(!more)}>
+            <i className="chev">{more ? "▴" : "▾"}</i></button>}
+        </span>
       </div>
 
       <div className="lx-wrap">

@@ -252,6 +252,27 @@
 .lx-bar .um-chip{background:#FFFFFF}
 .lx-bar .um-chip.on{background:#EBF4FF}
 .lx-div{width:1px; height:16px; background:#D1D6DB; margin:0 4px}
+/* 둘째 줄 — 한 줄로 접고, 넘치면 끝의 ▾ 로 펼친다 */
+.lx-filt{position:relative}
+.lx-filt.lx-fold{max-height:30px; overflow:hidden}
+.lx-filt.has-more{padding-right:64px}
+.lx-fend{position:absolute; right:0; top:0; display:flex; gap:2px; background:#F2F4F6; padding-left:6px}
+.lx-fend .lx-ic{opacity:1; color:#8B95A1}
+.lx-fend .chev{font-style:normal; font-size:11px; color:#8B95A1}
+/* 범위 칩·정렬 pill 의 펼침 */
+.lx-rg{position:relative; display:inline-flex}
+.lx-rg-pop{position:absolute; top:calc(100% + 6px); left:0; z-index:20; display:flex; align-items:center; gap:6px;
+  background:#FFFFFF; border-radius:12px; padding:8px 10px; box-shadow:0 4px 16px rgba(0,0,0,.10); white-space:nowrap}
+.lx-rg-pop input{width:72px; border:0; background:#F2F4F6; border-radius:999px; padding:6px 10px; font:inherit;
+  font-size:12.5px; text-align:right; outline:none}
+.lx-rg-pop input:focus{box-shadow:0 0 0 1.5px #3182F6}
+.lx-rg-pop span{font-size:12px; color:#8B95A1}
+.lx-sort{border:0; background:#FFFFFF; border-radius:999px; padding:6px 12px; font:inherit; font-size:12.5px;
+  color:#191F28; cursor:pointer}
+.lx-sort i{font-style:normal; color:#3182F6; margin-left:4px}
+.lx-sort-pop{left:auto; right:0; flex-wrap:wrap; width:220px; white-space:normal}
+.lx-sort-pop .um-chip{background:#F2F4F6; font-size:12.5px; padding:5px 12px}
+.lx-sort-pop .um-chip.on{background:#EBF4FF}
 .lx-wrap{background:#FFFFFF; border-radius:18px; padding:6px 6px 8px; overflow-x:auto}
 .lx-t{width:100%; border-collapse:separate; border-spacing:0; font-size:13px; color:#333D4B}
 .lx-t th{font-size:11.5px; font-weight:700; color:#8B95A1; text-align:left; padding:10px 10px 8px;
