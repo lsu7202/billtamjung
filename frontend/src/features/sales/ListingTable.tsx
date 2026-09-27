@@ -278,7 +278,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
               options("building_major").map((o) => chip(major === o.code, o.label, () => setMajor(major === o.code ? null : o.code))))}
             {pp("kind", "소분류", labOf("building_use", kind),
               options("building_use").map((o) => chip(kind === o.code, o.label, () => setKind(kind === o.code ? null : o.code))))}
-            {pp("flag", "구분", flag ? flagTxt[flag] : null,
+            {pp("flag", "여부", flag ? flagTxt[flag] : null,
               (Object.keys(flagTxt) as (keyof typeof flagTxt)[]).map((f) => chip(flag === f, flagTxt[f], () => setFlag(flag === f ? null : f))))}
             {pp("grade", "등급", labOf("grade", grade),
               options("grade").map((o) => chip(grade === o.code, o.label, () => setGrade(grade === o.code ? null : o.code))))}
