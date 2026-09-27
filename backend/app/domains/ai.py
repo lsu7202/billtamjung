@@ -165,21 +165,24 @@ async def chat_delete(chat_id: int, user: CurrentUser = Depends(current_user)):
 
 async def _append(chat_id: int, role: str, content: list, *, tool_calls=None, pins=None,
                   model: str | None = None, tok_in: int | None = None, tok_out: int | None = None,
-                  stop: str | None = None) -> dict:
+                  stop: str | None = None, refs=None) -> dict:
     """대화 끝에 한 줄. seq 는 표에서 센다 — 메모리 카운터는 서버가 둘이면 어긋난다."""
     r = await pool().fetchrow(
         """INSERT INTO app.ai_message
-             (chat_id, seq, role, content, tool_calls, pins, model, tok_in, tok_out, stop_reason)
+             (chat_id, seq, role, content, tool_calls, pins, model, tok_in, tok_out, stop_reason, refs)
            VALUES ($1, (SELECT coalesce(max(seq), 0) + 1 FROM app.ai_message WHERE chat_id = $1),
-                   $2, $3::jsonb, $4::jsonb, $5::jsonb, $6, $7, $8, $9)
+                   $2, $3::jsonb, $4::jsonb, $5::jsonb, $6, $7, $8, $9, $10::jsonb)
            RETURNING id, seq, created_at""",
         chat_id, role, agent.dumps(content),
         agent.dumps(tool_calls) if tool_calls else None,
         agent.dumps(pins) if pins else None,
-        model, tok_in, tok_out, stop)
+        model, tok_in, tok_out, stop, agent.dumps(refs) if refs else None)
     await pool().execute("UPDATE app.ai_chat SET updated_at = now() WHERE id = $1", chat_id)
     return {"id": r["id"], "seq": r["seq"], "role": role, "content": content,
             "tool_calls": tool_calls, "pins": pins, "created_at": r["created_at"].isoformat()}
+
+
+REF_TURNS = 3      # 도구 결과를 다시 넘길 최근 답 수(§23-4, 대표 「3턴까지」)
 
 
 class AskIn(BaseModel):
@@ -204,13 +207,19 @@ async def chat_send(chat_id: int, body: AskIn, user: CurrentUser = Depends(curre
     def ev(d: dict) -> str:
         return "data: " + json.dumps(d, ensure_ascii=False, default=str) + "\n\n"
 
-    # 앞선 대화 — 글 조각만. 도구 결과는 안 싣는다(할일 A-14: 다시 물으면 다시 검색한다)
+    # 앞선 대화 — 글 조각 + **최근 3턴은 도구 호출과 줄인 결과**(§23-4 · A-14). 「그 중 첫 번째」·
+    # 「아까 자료」를 모델이 대화 기록에서 바로 읽는다. 그 앞 턴은 글만(통째로 넘기면 턴마다 쌓인다)
     prev = await pool().fetch(
-        "SELECT role, content FROM app.ai_message WHERE chat_id = $1 ORDER BY seq", chat_id)
+        "SELECT role, content, refs FROM app.ai_message WHERE chat_id = $1 ORDER BY seq", chat_id)
     hist = [{"role": r["role"],
-             "content": "".join(p.get("v", "") for p in (_j(r["content"]) or []) if p.get("t") == "text")}
+             "content": "".join(p.get("v", "") for p in (_j(r["content"]) or []) if p.get("t") == "text"),
+             "refs": _j(r["refs"]) if r["role"] == "assistant" else None}
             for r in prev]
-    hist = [h for h in hist if h["content"]]
+    recent = [i for i, h in enumerate(hist) if h["role"] == "assistant"][-REF_TURNS:]
+    for i, h in enumerate(hist):
+        if i not in recent or not h["refs"]:
+            h.pop("refs", None)
+    hist = [h for h in hist if h["content"] or h.get("refs")]
     await _append(chat_id, "user", [{"t": "text", "v": text}])
     new_title = None
     if not chat["title"]:
@@ -257,7 +266,7 @@ async def chat_send(chat_id: int, body: AskIn, user: CurrentUser = Depends(curre
                     m = await _append(chat_id, "assistant", body,
                                       tool_calls=tool_log or None, pins=pins or None,
                                       model=piece.get("model"), tok_in=piece.get("tok_in"),
-                                      tok_out=piece.get("tok_out"), stop="end_turn")
+                                      tok_out=piece.get("tok_out"), stop="end_turn", refs=piece.get("refs"))
                     yield ev({"t": "done", "message_id": m["id"], "title": new_title, "stop": "end_turn",
                               "scrubbed": scrubbed, "tok_in": piece["tok_in"], "tok_out": piece["tok_out"]})
         except agent.AiUnavailable as e:
