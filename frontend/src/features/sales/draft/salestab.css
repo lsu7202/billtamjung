@@ -252,13 +252,19 @@
 .lx-bar .um-chip{background:#FFFFFF}
 .lx-bar .um-chip.on{background:#EBF4FF}
 .lx-div{width:1px; height:16px; background:#D1D6DB; margin:0 4px}
-/* 둘째 줄 — 한 줄로 접고, 넘치면 끝의 ▾ 로 펼친다 */
-.lx-filt{position:relative}
-.lx-filt.lx-fold{max-height:30px; overflow:hidden}
-.lx-filt.has-more{padding-right:64px}
-.lx-fend{position:absolute; right:0; top:0; display:flex; gap:2px; background:#F2F4F6; padding-left:6px}
-.lx-fend .lx-ic{opacity:1; color:#8B95A1}
-.lx-fend .chev{font-style:normal; font-size:11px; color:#8B95A1}
+/* 둘째 줄 — 필터 이름 pill. 누르면 아래로 선택지가 펼쳐진다 */
+.lx-pn{display:inline-flex; align-items:center; gap:5px}
+.lx-pn b{font-weight:600; color:#3182F6}
+.lx-pn i{font-style:normal; font-size:11px; color:#B0B8C1; transform:translateY(-1px)}
+.lx-pn.open i{color:#3182F6}
+.lx-pop{flex-direction:column; align-items:flex-start; gap:8px; white-space:normal; min-width:max-content; max-width:420px; outline:none}
+.lx-pop > .um-chip, .lx-pr .um-chip{background:#F2F4F6; font-size:12.5px; padding:5px 12px}
+.lx-pop > .um-chip.on, .lx-pr .um-chip.on{background:#EBF4FF}
+.lx-pop:has(> .um-chip){flex-direction:row; flex-wrap:wrap}
+.lx-pr{display:flex; flex-wrap:wrap; gap:6px}
+.lx-pr + .lx-pr{padding-top:8px; border-top:1px solid #F2F4F6}
+.lx-rgin{display:flex; align-items:center; gap:6px}
+.lx-reset{opacity:1 !important; color:#8B95A1}
 /* 범위 칩·정렬 pill 의 펼침 */
 .lx-rg{position:relative; display:inline-flex}
 .lx-rg-pop{position:absolute; top:calc(100% + 6px); left:0; z-index:20; display:flex; align-items:center; gap:6px;

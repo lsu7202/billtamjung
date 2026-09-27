@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listingsApi, proposalsApi, salesApi, type Seller } from "../../shared/api/endpoints";
 import { md, shortAddr, wonAcc } from "../../shared/format";
@@ -55,31 +55,42 @@ const floorsOf = (r: Seller) => {
   return `${b ? `B${b}~` : ""}${a}F`;
 };
 
-/** 범위 칩 — 누르면 최소~최대 입력이 열리고, 벗어나면 닫힌다. 빈 칸은 한쪽이 열린 범위 */
-function RangeChip({ label, unit, v, open, onOpen, onClose, onChange }: {
-  label: string; unit: string; v: Range; open: boolean;
-  onOpen: () => void; onClose: () => void; onChange: (v: Range) => void;
+/** 필터 이름 pill — 누르면 아래에 선택지가 펼쳐지고, 밖을 누르면 닫힌다(2026-09-27 대표).
+ *  고른 값이 있으면 이름 옆에 그 값을 적고 파랑으로 선다 */
+function Pop({ label, val, open, onToggle, onClose, children }: {
+  label: string; val: string | null; open: boolean;
+  onToggle: () => void; onClose: () => void; children: React.ReactNode;
 }) {
-  const on = v[0] != null || v[1] != null;
-  const n = (x: number | null) => (x == null ? "" : x.toLocaleString());
-  const txt = on ? `${label} ${n(v[0])}~${n(v[1])}${unit}` : label;
-  const num = (t: string) => { const x = parseFloat(t.replace(/,/g, "")); return Number.isFinite(x) ? x : null; };
   return (
     <span className="lx-rg" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) onClose(); }}>
-      <button className={`um-chip ${on ? "on" : ""}`} onClick={() => (open ? onClose() : onOpen())}>{txt}</button>
+      <button className={`um-chip lx-pn ${val ? "on" : ""} ${open ? "open" : ""}`} onClick={onToggle}>
+        {label}{val && <b>{val}</b>}<i>▾</i></button>
       {open && (
-        <span className="lx-rg-pop" onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") onClose(); }}>
-          <input autoFocus inputMode="decimal" defaultValue={v[0] ?? ""} placeholder="최소"
-            onChange={(e) => onChange([num(e.target.value), v[1]])} />
-          <span>~</span>
-          <input inputMode="decimal" defaultValue={v[1] ?? ""} placeholder="최대"
-            onChange={(e) => onChange([v[0], num(e.target.value)])} />
-          <span className="u">{unit}</span>
+        <span className="lx-rg-pop lx-pop" tabIndex={-1}
+          onKeyDown={(e) => { if (e.key === "Escape" || (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT")) onClose(); }}>
+          {children}
         </span>
       )}
     </span>
   );
 }
+
+/** 범위 입력 — 빈 칸은 한쪽이 열린 범위 */
+function RangeBody({ unit, v, onChange }: { unit: string; v: Range; onChange: (v: Range) => void }) {
+  const num = (t: string) => { const x = parseFloat(t.replace(/,/g, "")); return Number.isFinite(x) ? x : null; };
+  return (
+    <span className="lx-rgin">
+      <input autoFocus inputMode="decimal" defaultValue={v[0] ?? ""} placeholder="최소"
+        onChange={(e) => onChange([num(e.target.value), v[1]])} />
+      <span>~</span>
+      <input inputMode="decimal" defaultValue={v[1] ?? ""} placeholder="최대"
+        onChange={(e) => onChange([v[0], num(e.target.value)])} />
+      <span>{unit}</span>
+    </span>
+  );
+}
+const rangeTxt = (v: Range, unit: string) =>
+  v[0] == null && v[1] == null ? null : `${v[0]?.toLocaleString() ?? ""}~${v[1]?.toLocaleString() ?? ""}${unit}`;
 
 /** 표 썸네일 — 사진은 인증을 거쳐 받는다(blob). 목록이 준 대표 사진 id 하나만 */
 function Thumb({ pk, id }: { pk: string; id: number | null | undefined }) {
@@ -118,13 +129,10 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
   const [grade, setGrade] = useState<string | null>(null);
   const [pvm, setPvm] = useState<string | null>(null);         // 시세대비
   const [ranges, setRanges] = useState<Record<RangeKey, Range>>({ price: [null, null], land: [null, null], total: [null, null] });
-  const [rgOpen, setRgOpen] = useState<RangeKey | null>(null);
+  const [pop, setPop] = useState<string | null>(null);         // 펼친 필터 하나
   // 기본 정렬 = 등록일 최신(부기사 기본). 열 머리와 정렬 pill 이 같은 값을 바꾼다
   const [sort, setSort] = useState<{ k: SortKey; asc: boolean }>({ k: "received_on", asc: false });
   const [sortOpen, setSortOpen] = useState(false);
-  const [more, setMore] = useState(false);                     // 둘째 줄 펼침
-  const [over, setOver] = useState(false);                     // 둘째 줄이 한 줄을 넘나
-  const filtRef = useRef<HTMLDivElement>(null);
   const [add, setAdd] = useState(false);
 
   const list = rows.data ?? [];
@@ -190,17 +198,6 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
     setWho(null); setGu(null); setDong(null); setMajor(null); setKind(null); setGrade(null); setPvm(null);
     setFlag(null); setRanges({ price: [null, null], land: [null, null], total: [null, null] });
   };
-  // 둘째 줄이 한 줄을 넘으면 접고, 끝에 펼침 아이콘
-  useLayoutEffect(() => {
-    const el = filtRef.current;
-    if (!el) return;
-    const check = () => setOver(el.scrollHeight > el.clientHeight + 2 || (more && el.scrollHeight > 44));
-    check();
-    const ro = new ResizeObserver(check);
-    ro.observe(el);
-    return () => ro.disconnect();
-  });
-
   const cur = list.find((r) => r.building_pk === open?.pk) ?? null;
   const unknown = open && !rows.isLoading && !cur ? open.pk : null;   // 아직 안 담은 건물로 넘어왔다
 
@@ -259,37 +256,39 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
         <button className="lt-add" title="매물 등록" onClick={() => setAdd(true)}>
           <Icon name="plus" size={14} /></button>
       </div>
-      <div ref={filtRef} className={`lx-filt ${!more && rgOpen == null ? "lx-fold" : ""} ${over ? "has-more" : ""}`}>
-        {(members.data ?? []).length > 1 && (members.data ?? []).map((m) =>
-          chip(who === m.account_id, m.name, () => setWho(who === m.account_id ? null : m.account_id)))}
-        {(members.data ?? []).length > 1 && <span className="lx-div" />}
-        {gus.map((g) => chip(gu === g, g, () => { setGu(gu === g ? null : g); setDong(null); }))}
-        {dongs.map((d) => chip(dong === d, d, () => setDong(dong === d ? null : d)))}
-        {gus.length > 0 && <span className="lx-div" />}
-        {options("building_major").map((o) =>
-          chip(major === o.code, o.label, () => setMajor(major === o.code ? null : o.code)))}
-        <span className="lx-div" />
-        {options("building_use").map((o) =>
-          chip(kind === o.code, o.label, () => setKind(kind === o.code ? null : o.code)))}
-        <span className="lx-div" />
-        {chip(flag === "urgent", "급매", () => setFlag(flag === "urgent" ? null : "urgent"))}
-        {chip(flag === "exclusive", "전속", () => setFlag(flag === "exclusive" ? null : "exclusive"))}
-        {chip(flag === "hold", "보류", () => setFlag(flag === "hold" ? null : "hold"))}
-        <span className="lx-div" />
-        {options("grade").map((o) => chip(grade === o.code, o.label, () => setGrade(grade === o.code ? null : o.code)))}
-        <span className="lx-div" />
-        {options("price_vs_market").map((o) => chip(pvm === o.code, o.label, () => setPvm(pvm === o.code ? null : o.code)))}
-        <span className="lx-div" />
-        {RANGES.map(({ k, label, unit }) => (
-          <RangeChip key={k} label={label} unit={unit} v={ranges[k]} open={rgOpen === k}
-            onOpen={() => setRgOpen(k)} onClose={() => setRgOpen((o) => (o === k ? null : o))}
-            onChange={(v) => setRanges((m) => ({ ...m, [k]: v }))} />
-        ))}
-        <span className="lx-fend">
-          {anyFilter && <button className="lx-ic" title="거르기 지움" onClick={reset}><Icon name="reset" size={13} /></button>}
-          {over && <button className="lx-ic" title={more ? "접기" : "펼치기"} onClick={() => setMore(!more)}>
-            <i className="chev">{more ? "▴" : "▾"}</i></button>}
-        </span>
+      <div className="lx-filt">
+        {(() => {
+          const pp = (key: string, label: string, val: string | null, body: React.ReactNode) => (
+            <Pop key={key} label={label} val={val} open={pop === key}
+              onToggle={() => setPop(pop === key ? null : key)} onClose={() => setPop((o) => (o === key ? null : o))}>
+              {body}
+            </Pop>
+          );
+          const labOf = (k: string, c: string | null) => (c == null ? null : options(k).find((o) => o.code === c)?.label ?? c);
+          const flagTxt = { urgent: "급매", exclusive: "전속", hold: "보류" } as const;
+          const mem = members.data ?? [];
+          return <>
+            {mem.length > 1 && pp("who", "담당", nameOf(who),
+              mem.map((m) => chip(who === m.account_id, m.name, () => setWho(who === m.account_id ? null : m.account_id))))}
+            {gus.length > 0 && pp("region", "지역", gu ? `${gu}${dong ? ` ${dong}` : ""}` : null, <>
+              <span className="lx-pr">{gus.map((g) => chip(gu === g, g, () => { setGu(gu === g ? null : g); setDong(null); }))}</span>
+              {dongs.length > 0 && <span className="lx-pr">{dongs.map((d) => chip(dong === d, d, () => setDong(dong === d ? null : d)))}</span>}
+            </>)}
+            {pp("major", "대분류", labOf("building_major", major),
+              options("building_major").map((o) => chip(major === o.code, o.label, () => setMajor(major === o.code ? null : o.code))))}
+            {pp("kind", "소분류", labOf("building_use", kind),
+              options("building_use").map((o) => chip(kind === o.code, o.label, () => setKind(kind === o.code ? null : o.code))))}
+            {pp("flag", "구분", flag ? flagTxt[flag] : null,
+              (Object.keys(flagTxt) as (keyof typeof flagTxt)[]).map((f) => chip(flag === f, flagTxt[f], () => setFlag(flag === f ? null : f))))}
+            {pp("grade", "등급", labOf("grade", grade),
+              options("grade").map((o) => chip(grade === o.code, o.label, () => setGrade(grade === o.code ? null : o.code))))}
+            {pp("pvm", "시세대비", labOf("price_vs_market", pvm),
+              options("price_vs_market").map((o) => chip(pvm === o.code, o.label, () => setPvm(pvm === o.code ? null : o.code))))}
+            {RANGES.map(({ k, label, unit }) => pp(k, label, rangeTxt(ranges[k], unit),
+              <RangeBody unit={unit} v={ranges[k]} onChange={(v) => setRanges((m) => ({ ...m, [k]: v }))} />))}
+            {anyFilter && <button className="lx-ic lx-reset" title="거르기 지움" onClick={reset}><Icon name="reset" size={13} /></button>}
+          </>;
+        })()}
       </div>
 
       <div className="lx-wrap">
