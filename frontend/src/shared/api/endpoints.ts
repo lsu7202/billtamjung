@@ -137,6 +137,7 @@ export interface AdCard {
   phone: string | null; agent_name: string | null; office_name: string | null; reg_no: string | null;
   mine: boolean; photo_id: number | null;
   photo_ids: number[] | null; addr: string | null; updated_on: string | null;
+  office_addr: string | null; rep_name: string | null; office_phone: string | null; created_at: string;
 }
 /** 탐색 목록 카드(S05) — 광고 여럿은 한 장(price_min~max), 내 매물이면 mine */
 export interface ListCard {
@@ -146,6 +147,7 @@ export interface ListCard {
   ad_id: number | null; title: string | null; brokerage: string | null; posted_on: string | null;
   office_name: string | null; agent_name: string | null; ad_photo_id: number | null;
   mine: boolean; my_price: number | null; received_on: string | null; my_photo_id: number | null;
+  ad_created_at: string | null; use_type: string | null; assignee_name: string | null; my_office: string | null;
 }
 /** 크롤링 매물(중개사만) — 광고가 아니라 참고 자료. 날짜 · 게시자를 모르면 null */
 export interface CrawlRow {

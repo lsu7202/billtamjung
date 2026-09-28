@@ -369,3 +369,36 @@
 .mo-panel.detail .mo-search, .mo-panel.detail .mo-chips, .mo-panel.detail .mo-layers,
 .mo-panel.detail .mo-kinds, .mo-panel.detail .mo-hint, .mo-panel.detail .mo-yr { display: none; }
 .mo-panel.detail .sd-head { padding-top: 10px; }
+/* 사진 넘김 — 거리뷰가 첫 장 */
+.sd-gal { position: relative; margin: 0 -13px; background: #F2F4F6; }
+.sd-gal .sel-road { height: 240px; }
+.sd-gal .sd-gal-img { display: block; width: 100%; height: auto; max-height: 420px; object-fit: contain; }
+.sd-gal .adf-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; border: 0; border-radius: 999px;
+  background: rgba(25,31,40,.55); color: #FFFFFF; font-size: 16px; cursor: pointer; z-index: 3; }
+.sd-gal .adf-nav.l { left: 8px; } .sd-gal .adf-nav.r { right: 8px; }
+.sd-gal .adf-cnt { position: absolute; right: 8px; bottom: 8px; background: rgba(25,31,40,.6); color: #FFFFFF; font-size: 11px;
+  border-radius: 999px; padding: 2px 8px; z-index: 3; }
+/* 아래 고정 줄 — 중개사 + 상담요청 */
+.sd-bar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 10px 13px; border-top: 1px solid #F2F4F6; background: #FFFFFF; }
+.sd-bar-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sd-bar-t b { font-size: 14px; color: #191F28; }
+.sd-bar-t span { font-size: 12px; color: #4E5968; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd-bar-ask { border: 0; border-radius: 10px; background: #EBF4FF; color: #3182F6; padding: 9px 16px; font: inherit; font-size: 13.5px;
+  font-weight: 700; cursor: pointer; }
+/* 목록 카드(디스코식, 09-28) — 윗줄 중개사 · 아래 글(유형 · 주소 · 매매가 · 규모) + 오른쪽 정사각 썸네일 */
+.lc { flex-direction: column; gap: 8px; padding: 12px 14px; }
+.lc-top { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid #F2F4F6; }
+.lc-top .adf-av { width: 28px; height: 28px; font-size: 12px; }
+.lc-top b { font-size: 13px; color: #191F28; }
+.lc-top .lc-off { font-size: 12px; color: #8B95A1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.lc-top .lc-ago { margin-left: auto; font-size: 11.5px; color: #8B95A1; flex: 0 0 auto; padding-right: 26px; }
+.lc-main { display: flex; gap: 12px; align-items: flex-start; }
+.lc-main .lc-b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.lc-tag { font-size: 12px; color: #8B95A1; min-height: 14px; }
+.lc-t { display: flex; align-items: baseline; gap: 6px; }
+.lc-t em { font-style: normal; font-size: 16px; font-weight: 800; color: #3182F6; }
+.lc-t b { font-size: 17px; font-weight: 800; color: #191F28; }
+.lc-main .lc-ph { flex: 0 0 84px; height: 84px; border-radius: 10px; }
+.lc-main .lc-ph img { width: 100%; height: 100%; object-fit: cover; }
+.sd-gal .adf-nav, .sd-gal .adf-cnt { z-index: 20; }
+.sd-gal .sel-road::after { display: none; }   /* 「로드뷰」 표시는 넘김 숫자(「거리뷰 · 1 / 4」)가 대신한다 */

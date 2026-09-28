@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { searchApi, buildingsApi, listingsApi, buyersApi, type AttrFilters } from "../../shared/api/endpoints";
 import { useIsBroker } from "../../shared/store/auth";
 import { SideDetail } from "./SideDetail";
+import { Avatar } from "./AdCards";
 import { AuthImg } from "../../shared/ui/AuthImg";
 import { valueLabel } from "../../shared/map/mapCanvasLayer";
 import { openDetail, mergeGeo } from "../../shared/map/geo";
@@ -19,6 +20,12 @@ import { Segmented } from "../../shared/ui/Segmented";
 
 
 const PY = 3.3058;                                    // ㎡→평
+/** 올린 지 — 「19분 전」 · 「3시간 전」 · 「5일 전」(디스코식) */
+const ago = (t?: string | null) => {
+  if (!t) return "";
+  const m = Math.max(0, Math.round((Date.now() - new Date(t).getTime()) / 60000));
+  return m < 60 ? `${m}분 전` : m < 1440 ? `${Math.round(m / 60)}시간 전` : `${Math.round(m / 1440)}일 전`;
+};
 const pyOf = (m2?: number | null) => (m2 == null ? "—" : `${(m2 / PY).toFixed(m2 / PY < 100 ? 1 : 0)}평`);
 
 // 라벨이 곧 조건 키다 — 낱말을 통일한 판(2026-08-27)이라 옛 세션은 버린다.
@@ -498,23 +505,27 @@ export function SearchPage() {
                     const unitSuf = realBasis === "total" ? "" : `/${realUnit === "py" ? "평" : "㎡"}`;
                     const price = ad ? (c!.price_min == null ? "가격 비공개"
                         : c!.price_min === c!.price_max ? `매매 ${fmt(c!.price_min)}${unitSuf}` : `매매 ${fmt(c!.price_min)} ~ ${fmt(c!.price_max)}${unitSuf}`)
-                      : c?.mine ? (c.my_price != null ? `매매 ${fmt(c.my_price)}${unitSuf}` : "매매가 미정") : "";
+                      : c?.mine ? (c.my_price != null ? `매매 ${fmt(c.my_price)}${unitSuf}` : "미정") : "";
                     const photo = ad && c!.ad_photo_id ? `/api/ads/${c!.ad_id}/photos/${c!.ad_photo_id}` : null;
                     return (
                       <div key={p.building_pk} className="lc"
                         onClick={() => { setPicked(p); if (p.lng && p.lat) setCenterReq({ lng: p.lng, lat: p.lat }); }}>
-                        <div className="lc-ph">{photo ? <AuthImg src={photo} /> : <Icon name="building" size={18} />}</div>
-                        <div className="lc-b">
-                          <div className="lc-t">
-                            {c?.mine && <span className="ml-tag mine">내</span>}
-                            {ad && <span className="ml-tag ad">광고{(c!.ad_n ?? 0) > 1 ? ` ${c!.ad_n}` : ""}</span>}
-                            {c?.sold && !ad && <span className="ml-tag sold">거래완료</span>}
-                            <b className="num">{price}</b>
+                        {/* 윗줄 = 중개사(디스코식) — 광고면 올린 중개사 · 올린 지, 광고 없는 내 매물이면 우리 담당 */}
+                        <div className="lc-top">
+                          <Avatar name={(ad ? c!.agent_name ?? c!.office_name : c?.assignee_name ?? c?.my_office) ?? "?"} />
+                          <b>{(ad ? c!.agent_name : c?.assignee_name) ?? "담당 미정"}</b>
+                          <span className="lc-off">{(ad ? c!.office_name : c?.my_office) ?? ""}</span>
+                          <span className="lc-ago">{ad ? ago(c!.ad_created_at) : c?.mine ? "내 매물" : ""}</span>
+                        </div>
+                        <div className="lc-main">
+                          <div className="lc-b">
+                            <div className="lc-tag">{c?.use_type ? `#${c.use_type}` : ""}{c?.sold && !ad ? " · 거래완료" : ""}</div>
+                            <div className="lc-a">{p.addr.replace("서울특별시 ", "").replace("번지", "")}</div>
+                            <div className="lc-t"><em>매매</em><b className="num">{price.replace(/^매매 /, "")}</b></div>
+                            <div className="lc-s num">대지 {pyOf(c?.land_area ?? p.land_area)} · 연 {pyOf(c?.total_area ?? p.total_area)}{
+                              c?.floors_above != null ? ` · ${c.floors_above}F${c.floors_below ? ` / B${c.floors_below}` : ""}` : ""}</div>
                           </div>
-                          <div className="lc-a">{(c?.main_use_name ?? "")}{c?.main_use_name ? " · " : ""}{p.addr.replace("서울특별시 ", "").replace("번지", "")}</div>
-                          <div className="lc-s num">대지 {pyOf(c?.land_area ?? p.land_area)} · 연 {pyOf(c?.total_area ?? p.total_area)}{
-                            c?.floors_above != null ? ` · ${c.floors_below ? `B${c.floors_below}/` : ""}${c.floors_above}F` : ""}</div>
-                          {ad && <div className="lc-g">{c!.office_name}{c!.agent_name ? ` · ${c!.agent_name}` : ""}</div>}
+                          <div className="lc-ph">{photo ? <AuthImg src={photo} /> : <Icon name="building" size={18} />}</div>
                         </div>
                         <button className="ml-hide" title="접어두기"
                           onClick={(e) => { e.stopPropagation(); setHidden((v) => [...v, p.building_pk]); }}>

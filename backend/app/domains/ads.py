@@ -28,6 +28,8 @@ async def building_ads(building_pk: str, user: CurrentUser = Depends(any_user)):
                    a.use_type, a.title, a.body, a.posted_on, a.closed_on,
                    COALESCE(a.contact_phone, t.phone) AS phone,
                    ac.name AS agent_name, COALESCE(t.office_name, t.name) AS office_name, t.reg_no,
+                   -- 중개 등록정보 카드(디스코식) — 소재지 · 대표 · 대표연락처 · 올린 시각
+                   t.office_addr, t.agent_name AS rep_name, t.phone AS office_phone, a.created_at,
                    (a.team_id = $2) AS mine,
                    (SELECT ap.photo_id FROM app.ad_photos ap WHERE ap.ad_id = a.id
                      ORDER BY ap.sort, ap.photo_id LIMIT 1) AS photo_id,
@@ -104,7 +106,8 @@ async def ad_cards(body: CardsIn, user: CurrentUser = Depends(any_user)):
            SELECT k.building_pk, b.addr, b.land_area::float, b.total_area::float,
                   b.floors_above, b.floors_below, b.main_use_name, ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat,
                   ad.ad_n, ad.price_min, ad.price_max, COALESCE(ad.sold, false) AS sold,
-                  la.id AS ad_id, la.title, la.brokerage, la.posted_on,
+                  la.id AS ad_id, la.title, la.brokerage, la.posted_on, la.created_at AS ad_created_at, COALESCE(la.use_type, l.building_major) AS use_type,
+                  am.name AS assignee_name, COALESCE(tm.office_name, tm.name) AS my_office,
                   COALESCE(t.office_name, t.name) AS office_name, ac.name AS agent_name,
                   (SELECT ap.photo_id FROM app.ad_photos ap WHERE ap.ad_id = la.id
                     ORDER BY ap.sort, ap.photo_id LIMIT 1) AS ad_photo_id,
@@ -119,7 +122,9 @@ async def ad_cards(body: CardsIn, user: CurrentUser = Depends(any_user)):
              LEFT JOIN app.ads la ON la.id = ad.lead_id
              LEFT JOIN app.teams t ON t.id = la.team_id
              LEFT JOIN app.accounts ac ON ac.id = COALESCE(la.contact_account_id, la.created_by)
-             LEFT JOIN app.listings l ON l.building_pk = k.building_pk AND l.team_id = $2""",
+             LEFT JOIN app.listings l ON l.building_pk = k.building_pk AND l.team_id = $2
+             LEFT JOIN app.accounts am ON am.id = l.assignee_account_id
+             LEFT JOIN app.teams tm ON tm.id = l.team_id""",
         pks, user.team_id)
     order = {pk: i for i, pk in enumerate(pks)}
     return sorted((dict(r) for r in rows), key=lambda r: order.get(r["building_pk"], 0))

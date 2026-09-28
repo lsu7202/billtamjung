@@ -1,13 +1,14 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { buildingsApi, marketApi, rentsApi } from "../../shared/api/endpoints";
+import { buildingsApi, marketApi, rentsApi, type AdCard } from "../../shared/api/endpoints";
 import { RoadviewMini } from "../../shared/map/Roadview";
 import type { MapPin } from "../../shared/map/MapPanel";
 import { TradeCompare } from "../building/TradeCompare";
 import { Icon } from "../../shared/ui/Icon";
 import { transitOf, lineColor } from "../building/LocationPanel";
-import { AdCards } from "./AdCards";
+import { AdCards, Avatar, InquiryModal } from "./AdCards";
+import { AuthImg } from "../../shared/ui/AuthImg";
 
 /** 탐색 사이드 판의 상세(S05 · 2026-09-28 대표 승인) — 목록에서 고르면 같은 판이 이것으로 바뀐다.
  *
@@ -45,6 +46,9 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
 
   const b = bq.data ?? {};
   const adsQ = useQuery({ queryKey: ["bAds", pk], queryFn: () => buildingsApi.ads(pk), enabled: !vacant });
+  // 대표 광고 — 노출 중인 것 중 가장 최근(서버 순서). 사진 넘김과 아래 고정 줄이 이것을 쓴다
+  const lead: AdCard | null = (adsQ.data ?? []).find((a) => a.state === "노출") ?? null;
+  const [ask, setAsk] = useState(false);
   const adPrices = (adsQ.data ?? []).filter((a) => a.state === "노출" && a.price != null).map((a) => a.price as number);
   const salePrice = adPrices.length ? Math.min(...adPrices)
     : b.sale_price != null && b.sale_price !== "" ? Number(b.sale_price) : null;
@@ -99,14 +103,13 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
       </div>
 
       <div className="sd-body" ref={bodyRef} onScroll={onScroll}>
-        {/* 로드뷰 — 광고 사진이 있으면 빼서 높이를 아낀다(광고 사진이 곧 이 건물 사진이다) */}
-        {picked.lng && picked.lat && !(adsQ.data ?? []).some((a) => (a.photo_ids ?? []).length > 0)
-          ? <RoadviewMini lng={picked.lng} lat={picked.lat} className="sel-road" /> : null}
+        {/* 사진 한 자리(대표 09-28) — 거리뷰가 첫 장, 옆으로 넘기면 광고에 올린 사진 */}
+        <Gallery picked={picked} lead={lead} />
 
         {/* 매물 — 광고 · (중개사) 내 매물 · 시장 호가. 비어도 칸은 선다 */}
         <section data-sec="ad">
           <h4>매물</h4>
-          <AdCards pk={pk} empty={<div className="sd-none">등록된 매물이 없습니다</div>} />
+          <AdCards pk={pk} photos={false} ask={false} empty={<div className="sd-none">등록된 매물이 없습니다</div>} />
           {broker && !vacant && (
             <button className="sd-link" onClick={() => nav(`/sales?listing=${encodeURIComponent(pk)}`)}>
               {mine ? "매물관리에서 보기" : "매물관리에 담기"} ›</button>
@@ -211,6 +214,38 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
             <Icon name="hide" size={14} />접어두기</button>
         </div>
       </div>
+      {/* 아래 고정 줄(디스코식) — 중개사 프로필 + 상담요청. 판을 스크롤해도 늘 보인다.
+          노출 중인 광고가 있고 우리 팀 광고가 아닐 때만 */}
+      {lead && lead.state === "노출" && !lead.mine && (
+        <div className="sd-bar">
+          <Avatar name={lead.agent_name ?? lead.office_name ?? "중"} />
+          <div className="sd-bar-t"><b>{lead.agent_name ?? "담당"}</b><span>{lead.office_name ?? ""}</span></div>
+          <button className="sd-bar-ask" onClick={() => setAsk(true)}>상담요청</button>
+        </div>
+      )}
+      {ask && lead && <InquiryModal ad={lead} onClose={() => setAsk(false)} />}
+    </div>
+  );
+}
+
+/** 사진 넘김 — 첫 장은 거리뷰(늘 있다), 그다음은 대표 광고에 올린 사진. 사진은 올린 비율 그대로 */
+function Gallery({ picked, lead }: { picked: MapPin; lead: AdCard | null }) {
+  const photos = lead?.photo_ids ?? [];
+  const n = 1 + photos.length;
+  const [i, setI] = useState(0);
+  const hasRv = !!(picked.lng && picked.lat);
+  return (
+    <div className="sd-gal">
+      {i === 0
+        ? (hasRv ? <RoadviewMini lng={picked.lng} lat={picked.lat} className="sel-road" /> : <div className="sel-road" />)
+        : <AuthImg className="sd-gal-img" src={`/api/ads/${lead!.id}/photos/${photos[i - 1]}`} />}
+      {n > 1 && (
+        <>
+          <button className="adf-nav l" onClick={() => setI((i - 1 + n) % n)}>‹</button>
+          <button className="adf-nav r" onClick={() => setI((i + 1) % n)}>›</button>
+          <span className="adf-cnt num">{i === 0 ? "거리뷰" : `사진 ${i}`} · {i + 1} / {n}</span>
+        </>
+      )}
     </div>
   );
 }

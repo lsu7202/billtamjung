@@ -12,26 +12,30 @@ import { formatPhone } from "../building/KV";
  *  **광고 내용 전체가 바로 선다**(대표 09-28). 밸류맵처럼 눌러야 모달로 뜨는 게 아니라
  *  사진(올린 비율 그대로 · 여러 장이면 넘김) · 매매가 · 주소 · 제목 · 설명 · 중개사 정보 · 상담요청이 한 판에.
  *  노출 중이고 우리 팀 광고가 아니면 「상담요청」. 거래완료는 회색으로 남는다(밸류맵). */
-export function AdCards({ pk, empty }: { pk: string; empty?: React.ReactNode }) {
+export function AdCards({ pk, empty, photos = true, ask: withAsk = true }: {
+  pk: string; empty?: React.ReactNode;
+  /** 사이드 판은 사진을 맨 위 넘김(거리뷰 다음)에 모으고, 상담요청은 아래 고정 줄로 뺀다 */
+  photos?: boolean; ask?: boolean;
+}) {
   const q = useQuery({ queryKey: ["bAds", pk], queryFn: () => buildingsApi.ads(pk), enabled: !pk.startsWith("P") });
   const [ask, setAsk] = useState<AdCard | null>(null);
   const list = q.data ?? [];
   if (!list.length) return <>{empty ?? null}</>;
   return (
     <div className="sel-ads">
-      {list.map((a) => <AdFull key={a.id} a={a} onAsk={() => setAsk(a)} />)}
+      {list.map((a) => <AdFull key={a.id} a={a} showPhotos={photos} onAsk={withAsk ? () => setAsk(a) : undefined} />)}
       {ask && <InquiryModal ad={ask} onClose={() => setAsk(null)} />}
     </div>
   );
 }
 
-function AdFull({ a, onAsk }: { a: AdCard; onAsk: () => void }) {
+function AdFull({ a, onAsk, showPhotos }: { a: AdCard; onAsk?: () => void; showPhotos: boolean }) {
   const photos = a.photo_ids ?? (a.photo_id ? [a.photo_id] : []);
   const [i, setI] = useState(0);
   const sold = a.state === "거래완료";
   return (
     <article className={`adf ${sold ? "sold" : ""}`}>
-      {photos.length > 0 && (
+      {showPhotos && photos.length > 0 && (
         <div className="adf-ph">
           {/* 올린 비율 그대로 — 자르지 않는다 */}
           <AuthImg className="adf-img" src={`/api/ads/${a.id}/photos/${photos[i]}`} />
@@ -53,24 +57,32 @@ function AdFull({ a, onAsk }: { a: AdCard; onAsk: () => void }) {
         {a.addr && <div className="adf-addr">{a.addr.replace("서울특별시 ", "").replace("번지", "")}</div>}
         <div className="adf-title">{a.title}</div>
         {a.body && <div className="adf-body">{a.body}</div>}
-        {/* 중개사 정보 — 사무소 · 담당 · 등록번호 · 전화 · 올린 날 */}
-        <div className="adf-ag">
-          <div className="adf-ag1"><b>{a.office_name ?? "중개사무소"}</b>{a.agent_name && <span>{a.agent_name}</span>}</div>
-          <div className="adf-ag2">
-            {a.reg_no && <span>등록번호 {a.reg_no}</span>}
-            {a.phone && !sold && <span className="num">{a.phone}</span>}
-            <span>{sold ? `거래완료 ${a.closed_on ?? ""}` : `올린 날 ${a.posted_on}`}</span>
-          </div>
+        <div className="adf-when">{sold ? `거래완료 ${a.closed_on ?? ""}` : `올린 날 ${a.posted_on}`}</div>
+        {/* 중개 등록정보(디스코식) — 사무소 · 담당 / 등록번호 · 소재지 · 대표 · 대표연락처. 모르는 줄은 안 선다 */}
+        <div className="adf-reg">
+          <div className="adf-reg-h"><Avatar name={a.agent_name ?? a.office_name ?? "중"} />
+            <div><b>{a.agent_name ?? "담당"}</b><span>{a.office_name ?? ""}</span></div></div>
+          <dl>
+            {a.reg_no && <><dt>등록번호</dt><dd className="num">{a.reg_no}</dd></>}
+            {a.office_addr && <><dt>소재지</dt><dd>{a.office_addr}</dd></>}
+            {a.rep_name && <><dt>대표</dt><dd>{a.rep_name}</dd></>}
+            {(a.office_phone || a.phone) && !sold && <><dt>연락처</dt><dd className="num">{a.phone ?? a.office_phone}</dd></>}
+          </dl>
         </div>
-        {a.state === "노출" && !a.mine && <button className="ad-ask" onClick={onAsk}>상담요청</button>}
+        {onAsk && a.state === "노출" && !a.mine && <button className="ad-ask" onClick={onAsk}>상담요청</button>}
       </div>
     </article>
   );
 }
 
+/** 중개사 얼굴 자리 — 사진 칸이 아직 없어 이름 첫 글자(마이페이지 사진 올리기 때 바꾼다) */
+export function Avatar({ name }: { name: string }) {
+  return <span className="adf-av">{name.trim().slice(0, 1)}</span>;
+}
+
 /** 상담요청 폼(모달) — 유형 · 내용(200자) · 이름 · 전화 · 동의. 이름 · 전화는 계정 값으로 미리 채운다.
  *  매도 문의면 「팔려는 건물 주소」가 나온다(비워도 된다, 대표 09-28 가안). */
-function InquiryModal({ ad, onClose }: { ad: AdCard; onClose: () => void }) {
+export function InquiryModal({ ad, onClose }: { ad: AdCard; onClose: () => void }) {
   const me = useQuery({ queryKey: ["me"], queryFn: authApi.me });
   const [kind, setKind] = useState<InquiryKind>("매수 문의");
   const [body, setBody] = useState("");
