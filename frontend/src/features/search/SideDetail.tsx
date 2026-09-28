@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { buildingsApi, rentsApi, type AdCard, type CrawlRow } from "../../shared/api/endpoints";
+import { buildingsApi, rentsApi, type AdCard } from "../../shared/api/endpoints";
 import { RoadviewMini, type RoadView } from "../../shared/map/Roadview";
 import type { MapPin } from "../../shared/map/MapPanel";
-import { Icon, type IconName } from "../../shared/ui/Icon";
+import { Icon } from "../../shared/ui/Icon";
 import { transitOf, lineColor } from "../building/LocationPanel";
 import { Avatar, InquiryModal } from "./AdCards";
 import { AuthImg } from "../../shared/ui/AuthImg";
@@ -16,7 +16,7 @@ import { PhotoViewer } from "./PhotoViewer";
  *
  *  탭 없이 위에서 아래로 한 번에 스크롤한다.
  *  윗줄(← · 공유 · 저장 · ⋮) → 사진(거리뷰 첫 장 · 전체화면) → 제목 · 설명 → 회색 띠 위 가격 카드 →
- *  중개사 · 연락처 → 기본/건물정보 · 시세 · 층별 임대 · 교통(접기) → 기타정보 → 중개 등록정보 → 아래 고정 줄.
+ *  중개사 · 문의 → 기본정보 · 시세 · 층별 임대 · 교통(접기) → 상세보기 → 중개 등록정보 → 아래 고정 줄.
  *  모르는 값은 「-」를 찍지 않고 그 줄을 세우지 않는다. 주변 실거래 견주기 막대는 뺐다(대표 09-28). */
 
 const PY = 3.305785;
@@ -75,7 +75,6 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
       setCopied(true); setTimeout(() => setCopied(false), 1500);
     } catch { /* 권한 없음 */ }
   };
-  const openScope = (scope: string) => window.open(`/buildings/${pk}?scope=${scope}`, "_blank", "noopener");
 
   // 판이 바뀌면 맨 위로
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -120,26 +119,24 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
 
   return (
     <div className="sd dc">
-      {/* 윗줄 — ← 목록 · 공유(링크 복사) · 저장(3묶음) · ⋮ */}
+      {/* 윗줄 — ← 목록 · 공유(링크 복사) · 접어두기 · ⋮(중개사: 매물관리) */}
       <div className="dc-top">
         <button className="dc-ic" title="목록" onClick={onBack}><Icon name="back" size={24} /></button>
         <span className="sp" />
         {copied && <span className="dc-toast">링크를 복사했습니다</span>}
         <button className="dc-ic" title="공유" onClick={share}><Icon name="share" size={19} /></button>
-        <button className="dc-ic" title="저장" disabled><Icon name="star" size={19} /></button>
-        <div className="dc-more">
-          <button className="dc-ic dots" title="더 보기" onClick={() => setMenu(!menu)}>⋮</button>
-          {menu && (
-            <div className="dc-menu" onMouseLeave={() => setMenu(false)}>
-              <button onClick={onDetail}>상세보기</button>
-              {broker && !vacant && (
+        <button className="dc-ic" title="접어두기" onClick={onHide}><Icon name="hide" size={19} /></button>
+        {broker && !vacant && (
+          <div className="dc-more">
+            <button className="dc-ic dots" title="더 보기" onClick={() => setMenu(!menu)}>⋮</button>
+            {menu && (
+              <div className="dc-menu" onMouseLeave={() => setMenu(false)}>
                 <button onClick={() => nav(`/sales?listing=${encodeURIComponent(pk)}`)}>
                   {mine ? "매물관리에서 보기" : "매물관리에 담기"}</button>
-              )}
-              <button onClick={onHide}>접어두기</button>
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="sd-body dc-body" ref={bodyRef}>
@@ -153,7 +150,7 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
           </div>
         )}
 
-        {/* 회색 띠 위 가격 카드 + 세 값 */}
+        {/* 회색 띠 위 가격 카드 */}
         <div className="dc-band">
           <div className="dc-card">
             {(lead?.use_type || lead?.brokerage === "전속") && (
@@ -177,11 +174,6 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
             <div className="dc-addr">{addr}{mine && <span className="ml-tag mine">내</span>}</div>
             {s("road_addr") && <div className="dc-road">{s("road_addr")}</div>}
           </div>
-          <div className="dc-stats">
-            <div><span>연면적</span><b className="num">{pyl(total) ?? "—"}</b></div>
-            <div><span>용도지역</span><b>{(s("use_zone") ?? "—").replace("지역", "")}</b></div>
-            <div><span>용적률</span><b className="num">{far != null ? `${far.toFixed(1)}%` : "—"}</b></div>
-          </div>
         </div>
 
         {/* 중개사 · 연락처 */}
@@ -190,7 +182,7 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
             {agent}
             {phone && (
               <>
-                <div className="dc-q">이 매물이 궁금하다면?</div>
+                <div className="dc-q">이 매물 문의하기</div>
                 <a className="dc-call" href={`tel:${phone.replace(/\D/g, "")}`}>
                   <span className="num">{formatPhone(phone)}</span><i><Icon name="phone" size={18} /></i></a>
               </>
@@ -200,10 +192,10 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
 
         <div className="dc-gap" />
 
-        {/* 기본/건물정보 · 시세 · 층별 임대 · 교통 — 접기 */}
-        <Fold title="기본/건물정보" open>
-          {basic.length > 0 && <><h5>기본정보</h5>{basic}<hr /></>}
-          <h5>건물정보</h5>
+        {/* 기본정보 · 시세 · 층별 임대 · 교통 · (중개사) 시장 호가 — 접기 */}
+        {/* 기본정보 — 광고에 적은 값(보증금 · 월세 · 융자금 · 입주가능일) 다음에 대장(건물 · 토지) 값 */}
+        <Fold title="기본정보" open>
+          {basic.length > 0 && <>{basic}<hr /></>}
           {bldgRows.length ? bldgRows : <div className="dc-none">대장 정보가 없습니다</div>}
         </Fold>
         <Fold title="시세" open>
@@ -237,14 +229,19 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
           )}
         </Fold>
 
-        {/* 기타정보 — 건물 상세의 해당 탭으로(새 탭) */}
-        <div className="dc-sec">
-          <h4>기타정보</h4>
-          <Link icon="trend" label="실거래가" onClick={() => openScope("trade")} />
-          {!vacant && <Link icon="building" label="건축물대장" onClick={() => openScope("bldg")} />}
-          <Link icon="parcel" label="토지" onClick={() => openScope("bldg")} />
-          {broker && (crawl.data ?? []).length > 0 && <CrawlLink rows={crawl.data!} />}
-        </div>
+        {broker && (crawl.data ?? []).length > 0 && (
+          <Fold title={`시장 호가 ${crawl.data!.length}`}>
+            {crawl.data!.map((c) => (
+              <div key={c.id} className="dc-row">
+                <span>{c.deal} · {c.floor ? `${c.floor}층` : "층 미상"}{c.contract_area ? ` · ${pyl(c.contract_area)}` : ""}</span>
+                <b className="num">{c.deal === "매매" ? eok(c.price) : `${eok(c.deposit)} / ${eok(c.rent)}`}</b>
+              </div>
+            ))}
+          </Fold>
+        )}
+
+        {/* 상세보기 — 실거래 · 대장 · 토지는 상세(새 탭)에서 */}
+        <div className="dc-sec"><button className="dc-detail" onClick={onDetail}>상세보기</button></div>
 
         {/* 중개 등록정보 */}
         {lead && (
@@ -293,35 +290,7 @@ function Fold({ title, open = false, children }: { title: string; open?: boolean
   );
 }
 
-function Link({ icon, label, onClick }: { icon: IconName; label: string; onClick: () => void }) {
-  return (
-    <button className="dc-link" onClick={onClick}>
-      <i><Icon name={icon} size={18} /></i><span>{label}</span><em>›</em>
-    </button>
-  );
-}
 
-/** 시장 호가(중개사만) — 줄을 누르면 펼친다 */
-function CrawlLink({ rows }: { rows: CrawlRow[] }) {
-  const [o, setO] = useState(false);
-  return (
-    <>
-      <button className="dc-link" onClick={() => setO(!o)}>
-        <i><Icon name="value" size={18} /></i><span>시장 호가 <b className="num">{rows.length}</b></span><em>{o ? "‹" : "›"}</em>
-      </button>
-      {o && (
-        <div className="dc-crawl">
-          {rows.map((c) => (
-            <div key={c.id} className="dc-row">
-              <span>{c.deal} · {c.floor ? `${c.floor}층` : "층 미상"}{c.contract_area ? ` · ${pyl(c.contract_area)}` : ""}</span>
-              <b className="num">{c.deal === "매매" ? eok(c.price) : `${eok(c.deposit)} / ${eok(c.rent)}`}</b>
-            </div>
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
 
 /** 사진 넘김 — 첫 장은 거리뷰, 그다음은 대표 광고에 올린 사진(올린 비율 그대로). ⤢ 로 전체화면.
  *  전체화면에서 옮긴 거리뷰 자리 · 방향을 닫을 때 판이 이어받는다. */

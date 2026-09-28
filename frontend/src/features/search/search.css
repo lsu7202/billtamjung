@@ -522,3 +522,6 @@
 .pv-th:hover { opacity: 1; }
 .pv-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .pv-th.rv { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #FFFFFF; font-size: 11px; font-weight: 700; }
+.dc-detail { width: 100%; border: 0; border-radius: 12px; background: #F2F4F6; color: #333D4B; padding: 14px; font: inherit;
+  font-size: 15px; font-weight: 700; cursor: pointer; }
+.dc-detail:hover { background: #E5E8EB; }

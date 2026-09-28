@@ -495,7 +495,6 @@ export function SearchPage() {
                     <button className="mo-here" onClick={() => setListBox(view!.bbox)}>
                       <Icon name="reset" size={12} />현재 위치 매물 <b className="num">{nowN}</b>개</button>
                   )}
-                  {!layers.sale && <div className="sel-empty">매매를 켜면 매물 목록이 섭니다</div>}
                   {listPins.slice(0, 60).map((p) => {
                     const c = cardOf.get(p.building_pk);
                     const ad = c && (c.ad_n ?? 0) > 0;
