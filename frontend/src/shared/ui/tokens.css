@@ -158,3 +158,38 @@ table.wf .num { text-align: right; font-family: var(--mono); font-variant-numeri
 /* 고객관리 옆 미확인 문의 수(S05) */
 .gnb .gnb-dot { font-style: normal; display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px;
   margin-left: 4px; border-radius: 999px; background: #F04452; color: #FFFFFF; font-size: 10px; font-weight: 800; vertical-align: 2px; }
+
+/* 공통 셸 — 왼쪽 고정 레일(2026-09-28). 위 머리(.appbar)를 대신한다.
+   흰 바탕 + 오른쪽 hairline. 고른 메뉴 = 연파랑 둥근 바탕 + 파랑(선택은 어디서나 파랑 하나). */
+.shell { display: flex; height: 100vh; }
+.shell-main { flex: 1; min-width: 0; min-height: 0; overflow: auto; position: relative; }
+.srail { flex: 0 0 72px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 0 16px;
+  background: #fff; border-right: 1px solid var(--line); z-index: 50; }
+.srail .sp { flex: 1; }
+.srail-logo { display: inline-flex; margin-bottom: 14px; }
+.srail-nav { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.srail-a { width: 62px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 0 7px; border-radius: 12px;
+  color: #4E5968; text-decoration: none; }
+.srail-a i { position: relative; display: inline-flex; font-style: normal; }
+.srail-a span { font-size: 11px; font-weight: 600; letter-spacing: -.03em; white-space: nowrap; }
+.srail-a:hover { background: #F2F4F6; color: #191F28; }
+.srail-a.on { background: #EBF4FF; color: #3182F6; }
+.srail-a.on span { font-weight: 700; }
+.srail-dot { position: absolute; top: -5px; right: -9px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: #F04452;
+  color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; font-style: normal; box-shadow: 0 0 0 2px #fff; }
+.srail-out { width: 40px; height: 40px; border: 0; border-radius: 10px; background: none; color: #8B95A1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; margin-bottom: 6px; }
+.srail-out:hover { background: #F2F4F6; color: #4E5968; }
+.srail-me { width: 38px; height: 38px; border-radius: 999px; background: #3182F6; color: #fff; font-size: 15px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.srail-me.on { box-shadow: 0 0 0 3px #EBF4FF, 0 0 0 4px #3182F6; }
+body.map-full .srail { display: none !important; }
+/* 폰 — 레일이 아래 탭 줄로 눕는다 */
+@media (max-width: 720px) {
+  .shell { flex-direction: column-reverse; }
+  .srail { flex: 0 0 auto; flex-direction: row; padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px)); border-right: 0; border-top: 1px solid var(--line); }
+  .srail-logo, .srail .sp, .srail-out { display: none; }
+  .srail-nav { flex-direction: row; flex: 1; justify-content: space-around; gap: 0; }
+  .srail-a { width: auto; padding: 6px 6px 4px; }
+  .srail-me { width: 30px; height: 30px; font-size: 13px; }
+}

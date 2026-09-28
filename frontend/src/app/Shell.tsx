@@ -1,19 +1,16 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth, useIsBroker } from "../shared/store/auth";
 import { useQuery } from "@tanstack/react-query";
-import { inquiriesApi } from "../shared/api/endpoints";
-import { Logo } from "../shared/ui/Brand";
-import { Icon } from "../shared/ui/Icon";
+import { authApi, inquiriesApi } from "../shared/api/endpoints";
+import { BrandMark } from "../shared/ui/Brand";
+import { Icon, type IconName } from "../shared/ui/Icon";
 
-/** 공통 GNB 셸.
+/** 공통 셸 — 왼쪽 고정 레일(2026-09-28 개편).
  *
- *  2026-08-28 개편. 검은 바에 금색 밑줄이던 헤더를 흰 바에 파란 밑줄로 바꿨다.
- *  아래가 전부 「회색 바탕 위 흰 카드」인데 머리만 검어서 화면이 두 판으로 갈렸고,
- *  금색은 로고에만 남기기로 한 브랜드 색이라 선택 표시로 쓰면 뜻이 겹쳤다.
- *
- *  배치도 성격으로 갈랐다 — **왼쪽은 일, 오른쪽은 나.**
- *  건물 검색·업무는 하루 종일 오가는 자리라 로고 옆에 붙이고,
- *  마이페이지·로그아웃은 하루에 한 번 보는 자리라 반대쪽 끝으로 보냈다.
+ *  위 머리(흰 바 58px)를 걷고 메뉴를 왼쪽 세로 레일로 옮겼다. 지피티 · 제미나이 결 —
+ *  화면 높이를 통째로 쓰고, 탐색에선 레일 바로 옆에 사이드 판이 붙는다.
+ *  메뉴는 아이콘 + 밑 글자(매물관리 · 고객관리 · 일정은 아이콘만으로 안 갈린다).
+ *  위는 일(메뉴), 아래는 나(나가기 · 마이페이지).
  */
 export function Shell() {
   const nav = useNavigate();
@@ -21,34 +18,40 @@ export function Shell() {
   // 화면은 하나, 기능은 계정 종류로(S05 §1) — 고객에겐 매물관리 · 고객관리 · 일정이 없다.
   // 어시스턴트는 도구가 팀 값을 읽어서 고객용 도구 묶음(④) 전까지 중개사만.
   const broker = useIsBroker();
-  // 미확인 문의 수 — 고객관리 옆 숫자 점(S05). 1분마다 다시 센다
+  // 미확인 문의 수 — 고객관리 아이콘 모서리 숫자 점(S05). 1분마다 다시 센다
   const inq = useQuery({ queryKey: ["inq-count"], queryFn: inquiriesApi.count, enabled: broker, refetchInterval: 60_000 });
+  const me = useQuery({ queryKey: ["me"], queryFn: authApi.me });
+  const unread = inq.data?.unread ?? 0;
+
+  const item = (to: string, icon: IconName, label: string, dot?: number) => (
+    <NavLink to={to} className={({ isActive }) => `srail-a ${isActive ? "on" : ""}`}>
+      <i><Icon name={icon} size={21} />{dot ? <b className="srail-dot num">{dot > 99 ? "99+" : dot}</b> : null}</i>
+      <span>{label}</span>
+    </NavLink>
+  );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-      <header className="appbar">
-        <Logo markSize={22} />
-        <nav className="gnb">
-          <NavLink to="/search" className={({ isActive }) => (isActive ? "on" : "")}>탐색</NavLink>
+    <div className="shell">
+      <aside className="srail">
+        <NavLink to="/search" className="srail-logo" title="빌탐정"><BrandMark size={26} /></NavLink>
+        <nav className="srail-nav">
+          {item("/search", "search", "탐색")}
           {broker && <>
-            <NavLink to="/sales" className={({ isActive }) => (isActive ? "on" : "")}>매물관리</NavLink>
-            <NavLink to="/customers" className={({ isActive }) => (isActive ? "on" : "")}>고객관리
-              {(inq.data?.unread ?? 0) > 0 && <i className="gnb-dot num">{inq.data!.unread}</i>}</NavLink>
-            <NavLink to="/schedule" className={({ isActive }) => (isActive ? "on" : "")}>일정</NavLink>
+            {item("/sales", "building", "매물관리")}
+            {item("/customers", "team", "고객관리", unread)}
+            {item("/schedule", "calendar", "일정")}
+            {item("/assistant", "comment", "어시스턴트")}
           </>}
-          {/* 소식 — 서울 전체의 고시·공고·인허가·보도자료. 건물 상세의 「주변 소식」과 같은 자료를
-              자리로 안 자르고 늘어놓은 자리다(2026-09-06) */}
-          {broker && <NavLink to="/assistant" className={({ isActive }) => (isActive ? "on" : "")}>어시스턴트</NavLink>}
-          <NavLink to="/news" className={({ isActive }) => (isActive ? "on" : "")}>소식</NavLink>
+          {/* 소식 — 서울 전체의 고시 · 공고 · 인허가 · 보도자료(2026-09-06) */}
+          {item("/news", "megaphone", "소식")}
         </nav>
         <span className="sp" />
-        <nav className="gnb me">
-          <NavLink to="/mypage" className={({ isActive }) => (isActive ? "on" : "")}>마이페이지</NavLink>
-        </nav>
-        <button className="gnb-out" title="로그아웃"
-          onClick={() => { clear(); nav("/login"); }}><Icon name="leave" size={16} /></button>
-      </header>
-      <main style={{ flex: 1, minHeight: 0, padding: 0, overflow: "auto" }}>
+        <button className="srail-out" title="로그아웃" onClick={() => { clear(); nav("/login"); }}>
+          <Icon name="leave" size={19} /></button>
+        <NavLink to="/mypage" className={({ isActive }) => `srail-me ${isActive ? "on" : ""}`} title="마이페이지">
+          {(me.data?.name ?? "나").trim().slice(0, 1)}</NavLink>
+      </aside>
+      <main className="shell-main">
         <Outlet />
       </main>
     </div>
