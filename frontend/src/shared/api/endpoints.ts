@@ -175,6 +175,7 @@ export const searchApi = {
     }),
   pins: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string; mine_only?: boolean;
               tab?: SearchTab; chip?: "" | "mine" | "ads"; sale_years?: number;
+              sale_from?: number | null; sale_to?: number | null;
               bbox?: [number, number, number, number] }) =>
     api<MapPinDTO[]>("/search/pins", {                // 지도 핀: 페이징 없이 전체 매물(경량)
       method: "POST",
@@ -184,6 +185,7 @@ export const searchApi = {
         filters: { bjd_code: p.bjd_code ?? null, ...(p.filters ?? {}) },
         sort: p.sort ?? "price",
         tab: p.tab ?? "all", chip: p.chip ?? "", sale_years: p.sale_years ?? 3, bbox: p.bbox ?? null,
+        sale_from: p.sale_from ?? null, sale_to: p.sale_to ?? null,
       }),
     }),
   snap: (polygon: object) =>                          // 자석 스냅(후처리): 그린 영역 → 필지 합집합 폴리곤

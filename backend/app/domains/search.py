@@ -479,6 +479,9 @@ class SearchIn(BaseModel):
     tab: str = "all"                  # all | deal | ad
     chip: str = ""                    # ad 탭: "" 전체 | mine 내 매물 | ads 광고만
     sale_years: int = 3               # deal 탭 기간(대표 09-28 기본 3년)
+    # 기간 범위(연도) — 고르면 sale_years 대신. 2013~2015 처럼(대표 09-28). to 가 없으면 지금까지
+    sale_from: int | None = None
+    sale_to: int | None = None
     # 지도 화면 범위 [서, 남, 동, 북](경위도) — 탐색 화면은 검색 없이 지도가 보이는 만큼 부른다(09-28)
     bbox: list[float] | None = None
 
@@ -899,9 +902,7 @@ def _tab_sql(body: SearchIn, args: list, mine_is: str) -> str:
     raw 에서 거른다 — classified 바깥에 두면 서울 전역 매매 탭이 58만 행을 다 만들고 버린다.
     ad_agg 에 줄이 있으면 광고(노출 · 거래완료)가 있는 건물이다."""
     if body.tab == "deal":
-        args.append(max(1, min(body.sale_years or 3, 30)))
-        return (f" AND b.last_sale_price IS NOT NULL AND b.last_sale_ym >= "
-                f"to_char(now() - make_interval(years => ${len(args)}::int), 'YYYYMM')")
+        return " AND ds.price IS NOT NULL"     # 기간 안 거래가 있는 건물(ds 는 _build_base 의 LATERAL)
     if body.tab == "ad":
         if body.chip == "mine":
             return f" AND {mine_is}"
@@ -937,6 +938,22 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
     # 가르는 것은 classified 의 CASE 다. 한쪽만 고쳤다가 13건이 5건으로 나왔다(2026-09-19).
     mine_is = "l.id IS NOT NULL" if body.for_model else "l.assignee_account_id IS NOT NULL"
     mine_is_out = "has_listing" if body.for_model else "assignee_account_id IS NOT NULL"
+    # 실거래 보기 — 건물마다 기간 안 가장 최근 거래(ds). 핀 값 · 년월이 이것으로 바뀐다(0192 인덱스)
+    deal_join = ""
+    sale_cols = "b.last_sale_price, b.last_sale_ym"
+    if body.tab == "deal":
+        import datetime as _dt
+        y = _dt.date.today().year
+        if body.sale_from:
+            lo, hi = f"{body.sale_from}01", f"{body.sale_to or y}12"
+        else:
+            d = _dt.date.today()
+            lo, hi = f"{d.year - max(1, min(body.sale_years or 3, 30))}{d.month:02d}", "999912"
+        args.extend([lo, hi])
+        deal_join = (f"        LEFT JOIN LATERAL (SELECT sh.price, sh.contract_ym FROM master.sales_history sh"
+                     f" WHERE sh.building_pk = b.building_pk AND sh.contract_ym BETWEEN ${len(args)-1} AND ${len(args)}"
+                     f" ORDER BY sh.contract_ym DESC LIMIT 1) ds ON TRUE\n")
+        sale_cols = "ds.price AS last_sale_price, ds.contract_ym AS last_sale_ym"
     col_filt = f" AND {mine_is}" if col == "mine" else ""
     col_filt += _tab_sql(body, args, mine_is)
     if body.bbox and len(body.bbox) == 4:
@@ -1000,7 +1017,7 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
                br.front_m AS road_front, br.side_m AS road_side, br.rear_m AS road_rear,
                {reg_col} AS reg_names,
                ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat,
-               b.last_sale_price, b.last_sale_ym,
+               {sale_cols},
                -- 팀이 적은 값은 **매물 줄 한 곳**(app.listings, 0173)에서 온다. 매매가·매도희망가·
                -- 임대 합계·수익률 전부. 층별(floor_rents)은 쓸 때 mirror 가 여기로 접어 두므로
                -- 검색은 조인도 나눗셈도 안 한다. 예전엔 overlays·floor_rents 를 CTE 로 매번 모았다.
@@ -1044,7 +1061,7 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
         LEFT JOIN master.sales_agg sa ON sa.building_pk = b.building_pk   -- MV(0028): 매 검색마다 11.4만행 재집계하던 CTE 대체
         LEFT JOIN photo_ex ph ON ph.building_pk = b.building_pk
         LEFT JOIN ad_agg aa ON aa.building_pk = b.building_pk
-        WHERE TRUE {poly_sql} {master_filt} {col_filt}
+{deal_join}        WHERE TRUE {poly_sql} {master_filt} {col_filt}
       ),
       classified AS (
         SELECT building_pk, addr, land_area, total_area, floors_above, floors_below, use_zone,

@@ -191,7 +191,7 @@ const LINE_COLOR: [string, string][] = [
   ["과천선", "#00A5DE"], ["경부선", "#0052A4"], ["경인선", "#0052A4"], ["경원선", "#0052A4"],
   ["수도권 광역급행철도", "#9A6292"],
 ];
-const lineColor = (v: string) =>
+export const lineColor = (v: string) =>
   LINE_COLOR.find(([k]) => v.startsWith(k))?.[1] ?? "#8B95A1";
 
 /** 교통 — 호선마다 가장 가까운 역 하나, 그리고 버스 정류소 둘. 두 줄이면 끝난다.
@@ -204,6 +204,29 @@ const lineColor = (v: string) =>
  *  버스 접근은 유동인구와 곧바로 이어진다 — 지하철이 먼 자리일수록 더 그렇다.
  *  정류장 이름이 길어(「봉은사역.코엑스인터컨티넨탈」) 지하철과 같은 줄에 못 섞고 아래 줄로 뺀다.
  */
+/** 역(호선별 최단) · 버스(이름으로 접은 가까운 둘) — 입지 탭과 탐색 사이드 판이 같이 쓴다 */
+export function transitOf(b: Record<string, unknown>) {
+  const parse = (v: unknown) => {
+    try {
+      const a = typeof v === "string" ? JSON.parse(v || "[]") : (v ?? []);
+      return Array.isArray(a) ? a as Record<string, unknown>[] : [];
+    } catch { return []; }
+  };
+  const bus: { name: string; dist: number }[] = [];
+  parse(b.bus_json).forEach((x) => {
+    const name = String(x.정류장명 ?? "");
+    if (!name || bus.some((v) => v.name === name) || bus.length >= 2) return;
+    bus.push({ name, dist: Number(x.거리) || 0 });
+  });
+  const seen = new Map<string, { name: string; dist: number }>();
+  parse(b.subway_json).forEach((x) => {
+    const line = String(x.호선 ?? "");
+    if (!line || seen.has(line)) return;
+    seen.set(line, { name: String(x.역명 ?? ""), dist: Number(x.거리) || 0 });
+  });
+  return { subway: [...seen.entries()].sort((a, c) => a[1].dist - c[1].dist), bus };
+}
+
 function Transit({ b, id }: { b: Record<string, unknown>; id?: string }) {
   const parse = (v: unknown) => {
     try {

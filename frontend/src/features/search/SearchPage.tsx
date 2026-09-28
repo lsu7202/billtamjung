@@ -77,6 +77,8 @@ export function SearchPage() {
    *  필터는 **어떤 건물을 남길까**, 여기는 **어느 시기 거래를 볼까**(2026-09-05 확정).
    *  목록에서 빼지 않고 값만 지워 회색 점으로 세우는 것도 그래서다. */
   const [saleFrom, setSaleFrom] = useState<number | null>((saved.saleFrom as number) ?? null);
+  // 범위의 끝 해(2013~2015). 없으면 지금까지. 연도를 두 번 누르면 시작 · 끝이 된다(대표 09-28)
+  const [saleTo, setSaleTo] = useState<number | null>((saved.saleTo as number) ?? null);
   const [yrOpen, setYrOpen] = useState(false);
   // 그린 영역은 여러 개 쌓인다 — 예전엔 단일 객체라 새로 그리면 앞의 것이 사라졌다.
   // 서버로는 mergeGeo로 MultiPolygon 하나로 합쳐 보낸다(서버는 손댈 것이 없다).
@@ -121,8 +123,8 @@ export function SearchPage() {
 
   // 조건 변경 시 스냅샷 저장(전환·새로고침 복원용)
   useEffect(() => {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ q, layers, realBasis, realUnit, saleYears, saleFrom, polygons, sort, filters, fValues, fRegions, pages, hidden }));
-  }, [q, layers, realBasis, realUnit, saleYears, saleFrom, polygons, sort, filters, fValues, fRegions, pages, hidden]);
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ q, layers, realBasis, realUnit, saleYears, saleFrom, saleTo, polygons, sort, filters, fValues, fRegions, pages, hidden }));
+  }, [q, layers, realBasis, realUnit, saleYears, saleFrom, saleTo, polygons, sort, filters, fValues, fRegions, pages, hidden]);
   const bjd = fRegions[0]?.bjd_code ?? "";                       // 단일지역(멀티는 백엔드 확장 예정)
   // 지역·영역이 바뀌어 매물 집합이 바뀌면 핀 레이어가 지도를 맞춘다(mapCanvasLayer.setPins) — 여기서 또 맞추지 않는다
   const filterCount = activeCount(fValues, fRegions);
@@ -149,8 +151,9 @@ export function SearchPage() {
     enabled: layers.sale, placeholderData: (prev) => prev,
   });
   const dealPins = useQuery<MapPin[]>({
-    queryKey: ["pinsDeal", view?.bbox, saleYearsSrv],
-    queryFn: () => searchApi.pins({ tab: "deal", sale_years: saleYearsSrv, bbox: view!.bbox }) as Promise<MapPin[]>,
+    queryKey: ["pinsDeal", view?.bbox, saleYearsSrv, saleFrom, saleTo],
+    queryFn: () => searchApi.pins({ tab: "deal", sale_years: saleYearsSrv, bbox: view!.bbox,
+      sale_from: saleFrom, sale_to: saleTo }) as Promise<MapPin[]>,
     enabled: layers.deal && near, placeholderData: (prev) => prev,
   });
   const allPins = useQuery<MapPin[]>({
@@ -392,7 +395,7 @@ export function SearchPage() {
                 {([["sale", "매매"], ["deal", "실거래"], ["all", "전체 건물"]] as const).map(([k, l]) => (
                   <span key={k} className={`ly ${layers[k] ? "on" : ""}`}>
                     <button onClick={() => { setLayers((v) => ({ ...v, [k]: !v[k] })); if (k === "deal") setYrOpen(false); }}>{l}
-                      {k === "deal" && layers.deal && <small>{saleFrom ? `${saleFrom}~` : saleYears ? `${saleYears}년` : "전체"}</small>}</button>
+                      {k === "deal" && layers.deal && <small>{saleFrom ? `${saleFrom}~${saleTo ?? ""}` : saleYears ? `${saleYears}년` : "전체"}</small>}</button>
                     {/* 실거래 기간은 실거래 칩 옆 ▾ 에서(밸류맵 「실거래 필터」) — 건물 조건이 아니라 「어느 시기 거래를 견줄까」다 */}
                     {k === "deal" && layers.deal && (
                       <button className="ly-cv" title="기간" onClick={() => setYrOpen((v) => !v)}>▾</button>
@@ -403,16 +406,25 @@ export function SearchPage() {
               {layers.deal && yrOpen && (
                 <div className="mo-yr">
                   <div className="yr-q">
-                    {[[0, "전체"], [3, "3년"], [5, "5년"], [10, "10년"]].map(([v, t]) => (
+                    {[[1, "1년"], [3, "3년"], [5, "5년"], [10, "10년"], [0, "전체"]].map(([v, t]) => (
                       <button key={v as number} className={!saleFrom && saleYears === v ? "on" : ""}
-                        onClick={() => { setSaleFrom(null); setSaleYears(v as number); setYrOpen(false); }}>{t as string}</button>
+                        onClick={() => { setSaleFrom(null); setSaleTo(null); setSaleYears(v as number); setYrOpen(false); }}>{t as string}</button>
                     ))}
                   </div>
+                  {/* 연도 범위 — 한 번 누르면 그 해부터 지금까지, 한 번 더 누르면 거기까지(2013 → 2015 = 2013~2015). 세 번째는 새로 시작 */}
                   <div className="yr-y">
-                    {Array.from({ length: new Date().getFullYear() - 2005 }, (_, i) => new Date().getFullYear() - i).map((y) => (
-                      <button key={y} className={saleFrom === y ? "on" : ""}
-                        onClick={() => { setSaleFrom(y); setSaleYears(0); setYrOpen(false); }}>{y}~</button>
-                    ))}
+                    {Array.from({ length: new Date().getFullYear() - 2005 }, (_, i) => new Date().getFullYear() - i).map((y) => {
+                      const inR = saleFrom != null && y >= saleFrom && y <= (saleTo ?? new Date().getFullYear());
+                      return (
+                        <button key={y} className={inR ? "on" : ""}
+                          onClick={() => {
+                            setSaleYears(0);
+                            if (saleFrom == null || saleTo != null) { setSaleFrom(y); setSaleTo(null); return; }
+                            if (y === saleFrom) { setSaleTo(null); return; }
+                            setSaleFrom(Math.min(saleFrom, y)); setSaleTo(Math.max(saleFrom, y));
+                          }}>{y}</button>
+                      );
+                    })}
                   </div>
                 </div>
               )}

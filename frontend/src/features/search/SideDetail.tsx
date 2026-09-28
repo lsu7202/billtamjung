@@ -6,6 +6,7 @@ import { RoadviewMini } from "../../shared/map/Roadview";
 import type { MapPin } from "../../shared/map/MapPanel";
 import { TradeCompare } from "../building/TradeCompare";
 import { Icon } from "../../shared/ui/Icon";
+import { transitOf, lineColor } from "../building/LocationPanel";
 
 /** 탐색 사이드 판의 상세(S05 · 2026-09-28 대표 승인) — 목록에서 고르면 같은 판이 이것으로 바뀐다.
  *
@@ -19,7 +20,7 @@ const eok = (v: number | null | undefined) =>
 const pyl = (m2: number | null | undefined) => (m2 == null ? "—" : `${(m2 / PY).toFixed(m2 / PY < 100 ? 1 : 0)}평`);
 const ym = (s: string | null | undefined) => (s && /^\d{6}$/.test(s) ? `${s.slice(2, 4)}.${s.slice(4)}` : "");
 
-const TABS = [["ad", "매물"], ["price", "시세"], ["bldg", "건물"], ["rent", "임대"], ["loc", "입지"]] as const;
+const TABS = [["ad", "매물"], ["price", "시세"], ["bldg", "건물"], ["rent", "임대"], ["loc", "교통"]] as const;
 type TabKey = typeof TABS[number][0];
 
 export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
@@ -41,7 +42,6 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
   const crawl = useQuery({ queryKey: ["bCrawl", pk], queryFn: () => buildingsApi.crawl(pk), enabled: broker && !vacant });
   const near = useQuery({ queryKey: ["nearbySales", pk], queryFn: () => marketApi.nearbySales(pk), enabled: !vacant });
   const floors = useQuery({ queryKey: ["floor-info", pk], queryFn: () => rentsApi.info(pk), enabled: !vacant });
-  const pop = useQuery({ queryKey: ["bPop", pk], queryFn: () => buildingsApi.pop(pk), enabled: !vacant });
 
   const b = bq.data ?? {};
   const n = (k: string) => (b[k] != null && b[k] !== "" ? Number(b[k]) : null);
@@ -189,15 +189,28 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
           )}
         </section>
 
-        {/* 입지 */}
+        {/* 교통 — 역(호선별 가장 가까운 역)과 버스 정류장. 유동인구 같은 해석 값은 안 싣는다(대표 09-28) */}
         <section data-sec="loc">
-          <h4>입지</h4>
-          <div className="sd-grid">
-            {cell("역까지", n("station_dist") != null ? `${Math.round(n("station_dist")!)}m` : "—")}
-            {cell("도로접면", (b.road_frontage as string) || "—")}
-            {cell("유동인구 주간", pop.data?.day != null ? `${Math.round(pop.data.day).toLocaleString()}명` : "—")}
-            {cell("유동인구 야간", pop.data?.night != null ? `${Math.round(pop.data.night).toLocaleString()}명` : "—")}
-          </div>
+          <h4>교통</h4>
+          {(() => {
+            const t = transitOf(b);
+            if (!t.subway.length && !t.bus.length) return <div className="sd-none">가까운 역 · 정류장 정보가 없습니다</div>;
+            return (
+              <div className="sd-tr">
+                {t.subway.map(([line, st]) => (
+                  <div key={line} className="sd-trr">
+                    <i className="lb" style={{ background: lineColor(line) }}>{line}</i>
+                    <b>{st.name}</b><span className="num">{st.dist.toLocaleString()}m</span>
+                  </div>
+                ))}
+                {t.bus.map((s2) => (
+                  <div key={s2.name} className="sd-trr">
+                    <i className="lb bus">버스</i><b>{s2.name}</b><span className="num">{s2.dist.toLocaleString()}m</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </section>
 
         <div className="sel-acts">
