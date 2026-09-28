@@ -288,7 +288,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
               <span className="lx-pr">{gus.map((g) => chip(gu === g, g, () => { setGu(gu === g ? null : g); setDong(null); }))}</span>
               {dongs.length > 0 && <span className="lx-pr">{dongs.map((d) => chip(dong === d, d, () => setDong(dong === d ? null : d)))}</span>}
             </>)}
-            {pp("major", "대분류", labOf("building_major", major),
+            {pp("major", "매물 유형", labOf("building_major", major),
               options("building_major").map((o) => chip(major === o.code, o.label, () => setMajor(major === o.code ? null : o.code))))}
             {pp("kind", "소분류", labOf("building_use", kind),
               options("building_use").map((o) => chip(kind === o.code, o.label, () => setKind(kind === o.code ? null : o.code))))}

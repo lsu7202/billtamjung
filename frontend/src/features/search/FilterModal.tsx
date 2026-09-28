@@ -341,7 +341,7 @@ function toFilters(v: Values, members: { account_id: number; name: string }[] = 
   const assignees = ms("담당자").map((nm) => members.find((m) => m.name === nm)?.account_id).filter((x): x is number => x != null);
   return {
     use_zones: arr(zones), jimoks: arr(ms("지목")), land_uses: arr(ms("토지이용상황")),
-    shapes: arr(ms("지형/형상")), road_frontages: arr(ms("도로접면")), slopes: arr(ms("지세")),
+    shapes: arr(ms("지형/형상")), road_frontages: arr(ms("도로접면")), slopes: arr(ms("지세")), kinds: arr(ms("매물 유형")),
     main_uses: arr(ms("주용도")),                          // DB main_use_name과 직접 일치
     etc_use: txt("기타용도"),
     biz: txt("입주 업종"),

@@ -365,3 +365,8 @@
 .sd-trr .lb.bus { background: #8B95A1; }
 .sd-trr b { color: #191F28; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sd-trr .num { margin-left: auto; color: #8B95A1; }
+/* 매물 유형 — 보기 칩 아래 한 줄(여러 개 같이) */
+.mo-kinds { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 11px 6px; }
+.mo-kinds button { border: 0; background: #F2F4F6; color: #8B95A1; border-radius: 999px; padding: 4px 10px;
+  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.mo-kinds button.on { background: #EBF4FF; color: #3182F6; }

@@ -49,6 +49,8 @@ export const authApi = {
 };
 
 export interface AttrFilters {
+  /** 매물 유형(0193) — 빌딩 · 상가주택 · 공장·창고 · 숙박 · 기타 */
+  kinds?: string[] | null;
   /** 값의 출처가 갈리는 항목(0134) — 접두 없는 것이 팀 값, _est/_team 이 갈래 */
   sale_est_min?: number | null; sale_est_max?: number | null;
   roi_est_min?: number | null; roi_est_max?: number | null;

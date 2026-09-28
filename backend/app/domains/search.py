@@ -287,6 +287,9 @@ class Filters(BaseModel):
     road_frontages: list[str] | None = Field(None, description="도로접면. 값은 GET /enums 의 road_frontage")  # 도로접면
     shapes: list[str] | None = Field(None, description="지형 형상")          # 지형형상
     slopes: list[str] | None = Field(None, description="지세")          # 지세
+    # 매물 유형(0193) — 빌딩 · 상가주택 · 공장·창고 · 숙박 · 기타. 광고는 중개사가 고른 값, 내 매물은 대분류,
+    # 그 밖은 대장으로 센 값(building_derived.use_kind). 실거래 보기에는 안 걸린다(신고 유형 칸이 아직 없다)
+    kinds: list[str] | None = Field(None, description="매물 유형")
     # 규제(토지이용계획) — 필지 하나라도 그 규제가 포함·저촉·접함이면 걸린다. 정비구역·재정비촉진지구도
     # 여기 든다(정비 129,153동 중 99.9%가 필지 규제에 「정비」로 적혀 있다, 2026-09-22 실측).
     regulations: list[str] | None = Field(None, description="토지이용계획의 규제 이름(지구단위계획구역·정비구역·재정비촉진지구·개발제한구역 등). 필지 하나라도 걸리면")
@@ -956,6 +959,14 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
         sale_cols = "ds.price AS last_sale_price, ds.contract_ym AS last_sale_ym"
     col_filt = f" AND {mine_is}" if col == "mine" else ""
     col_filt += _tab_sql(body, args, mine_is)
+    # 매물 유형 — 광고가 있으면 광고의 유형, 없으면 (내 매물 대분류 ∨ 대장 유형).
+    # 유형을 모르는 **내 매물**은 거르지 않는다 — 모르는 것을 빼면 담아 둔 매물이 사라진다(미지정은 null)
+    if body.filters and body.filters.kinds and body.tab != "deal":
+        args.append(body.filters.kinds)
+        k = len(args)
+        col_filt += (f" AND (CASE WHEN aa.ad_kinds IS NOT NULL THEN aa.ad_kinds && ${k}::text[]"
+                     f" ELSE COALESCE(l.building_major, bd.use_kind) = ANY(${k}::text[])"
+                     f" OR (l.id IS NOT NULL AND COALESCE(l.building_major, bd.use_kind) IS NULL) END)")
     if body.bbox and len(body.bbox) == 4:
         args.extend(body.bbox)
         n = len(args)
@@ -999,7 +1010,8 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
         SELECT building_pk,
                count(*) FILTER (WHERE state = '노출' AND expires_on >= current_date) AS ad_n,
                min(price) FILTER (WHERE state = '노출' AND expires_on >= current_date AND price_open) AS ad_price_min,
-               bool_or(state = '거래완료') AS ad_sold
+               bool_or(state = '거래완료') AS ad_sold,
+               array_agg(DISTINCT use_type) FILTER (WHERE use_type IS NOT NULL) AS ad_kinds
           FROM app.ads WHERE state IN ('노출','거래완료') GROUP BY building_pk),
       raw AS (
         SELECT b.building_pk, b.addr, b.land_area, b.total_area, b.gongsi_latest,

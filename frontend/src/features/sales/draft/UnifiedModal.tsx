@@ -457,7 +457,7 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
               <div className="um-pane">
                 <div className="tc um-offer">
                   {/* 대분류 — 하나(0184) · 소분류 — 여럿(0182). 소분류는 칩을 누를 때마다 저장, 창은 안 닫힌다 */}
-                  {erow("building_major", "대분류", lab("building_major", r.building_major),
+                  {erow("building_major", "매물 유형", lab("building_major", r.building_major),
                     <Chips mode="inline" opts={options("building_major")} cur={r.building_major ?? "미지정"}
                       onSelect={(v) => pick({ building_major: v === "미지정" ? null : v })} />)}
                   {erow("building_use", "소분류",

@@ -9,7 +9,7 @@ import { valueLabel } from "../../shared/map/mapCanvasLayer";
 import { openDetail, mergeGeo } from "../../shared/map/geo";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
 import { FilterModal, activeCount, conditionChips, type Values, type RegionPick } from "./FilterModal";
-import { pruneFilters, filterChips } from "./filterConfig";
+import { pruneFilters, filterChips, KINDS, DEFAULT_KINDS } from "./filterConfig";
 import "./search.css";
 import { Icon } from "../../shared/ui/Icon";
 import { Segmented } from "../../shared/ui/Segmented";
@@ -62,6 +62,8 @@ export function SearchPage() {
   const [layers, setLayers] = useState<{ sale: boolean; deal: boolean; all: boolean }>(
     (saved.layers as { sale: boolean; deal: boolean; all: boolean }) ?? { sale: true, deal: false, all: false });
   const [chip, setChip] = useState<"" | "mine" | "ads">("");     // 매매(중개사): 전체 · 내 매물 · 광고만
+  // 매물 유형(0193) — 사이드 판 칩과 필터 창이 같은 값. 빈 목록 = 다 봄. 기본은 기타만 끈다
+  const [kinds, setKinds] = useState<string[]>((saved.kinds as string[]) ?? DEFAULT_KINDS);
   const priceMode = "fair" as const;   // 핀마다 lens 를 싣는다(실거래 핀만 real)
   // 지도 화면 범위 — 지도가 멈출 때마다. 목록은 「현재 위치 매물 N개」를 눌러야 따라온다(디스코 방식)
   const [view, setView] = useState<{ bbox: [number, number, number, number]; zoom: number } | null>(null);
@@ -123,8 +125,8 @@ export function SearchPage() {
 
   // 조건 변경 시 스냅샷 저장(전환·새로고침 복원용)
   useEffect(() => {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ q, layers, realBasis, realUnit, saleYears, saleFrom, saleTo, polygons, sort, filters, fValues, fRegions, pages, hidden }));
-  }, [q, layers, realBasis, realUnit, saleYears, saleFrom, saleTo, polygons, sort, filters, fValues, fRegions, pages, hidden]);
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ q, layers, kinds, realBasis, realUnit, saleYears, saleFrom, saleTo, polygons, sort, filters, fValues, fRegions, pages, hidden }));
+  }, [q, layers, kinds, realBasis, realUnit, saleYears, saleFrom, saleTo, polygons, sort, filters, fValues, fRegions, pages, hidden]);
   const bjd = fRegions[0]?.bjd_code ?? "";                       // 단일지역(멀티는 백엔드 확장 예정)
   // 지역·영역이 바뀌어 매물 집합이 바뀌면 핀 레이어가 지도를 맞춘다(mapCanvasLayer.setPins) — 여기서 또 맞추지 않는다
   const filterCount = activeCount(fValues, fRegions);
@@ -142,12 +144,13 @@ export function SearchPage() {
   // 실거래 기간 → 서버. 연도를 직접 골랐으면 그 해부터, 0 = 전체(30년)
   const saleYearsSrv = saleFrom ? new Date().getFullYear() - saleFrom + 1 : (saleYears || 30);
   const area = { bjd_code: polygon ? undefined : bjd || undefined, polygon: polygon ?? undefined };
+  const filtersK: AttrFilters = { ...filters, kinds: kinds.length ? kinds : undefined };
   // 실거래 · 전체 건물은 수가 많아 화면 범위로만, 가까이 당겼을 때만 부른다. 매매(광고 · 내 매물)는 적어서 서울 전역
   const NEAR = 15;
   const near = !!view && view.zoom >= NEAR;
   const salePins = useQuery<MapPin[]>({
-    queryKey: ["pinsSale", area, filters, chip],
-    queryFn: () => searchApi.pins({ ...area, filters, sort, tab: "ad", chip }) as Promise<MapPin[]>,
+    queryKey: ["pinsSale", area, filtersK, chip],
+    queryFn: () => searchApi.pins({ ...area, filters: filtersK, sort, tab: "ad", chip }) as Promise<MapPin[]>,
     enabled: layers.sale, placeholderData: (prev) => prev,
   });
   const dealPins = useQuery<MapPin[]>({
@@ -157,8 +160,8 @@ export function SearchPage() {
     enabled: layers.deal && near, placeholderData: (prev) => prev,
   });
   const allPins = useQuery<MapPin[]>({
-    queryKey: ["pinsAll", area, filters, view?.bbox],
-    queryFn: () => searchApi.pins({ ...area, filters, sort, tab: "all", bbox: view!.bbox }) as Promise<MapPin[]>,
+    queryKey: ["pinsAll", area, filtersK, view?.bbox],
+    queryFn: () => searchApi.pins({ ...area, filters: filtersK, sort, tab: "all", bbox: view!.bbox }) as Promise<MapPin[]>,
     enabled: layers.all && near, placeholderData: (prev) => prev,
   });
   // 접어둔 것은 **여기서** 뺀다. 지도도 목록도 같은 목록을 보므로 한 곳에서 거른다.
@@ -286,8 +289,13 @@ export function SearchPage() {
 
       {showFilter && (
         <FilterModal
-          initialValues={fValues} initialRegions={fRegions} initialPolygon={polygon} initialHidden={hidden}
-          onApply={(r) => { setFilters(r.filters); setFValues(r.values); setFRegions(r.regions); setPolygons(r.polygon ? [r.polygon] : []); setHidden(r.hidden ?? []); resetPages(); }}
+          initialValues={{ ...fValues, "매물 유형": kinds }} initialRegions={fRegions} initialPolygon={polygon} initialHidden={hidden}
+          onApply={(r) => {
+            // 매물 유형은 사이드 판 칩과 한 값 — 필터 창에서 바꾸면 칩도 따라온다
+            const { ["매물 유형"]: mk, ...rest } = r.values as Record<string, unknown>;
+            setKinds(Array.isArray(mk) ? (mk as string[]) : []);
+            const { kinds: _k, ...rf } = r.filters as AttrFilters; void _k;
+            setFilters(rf); setFValues(rest as Values); setFRegions(r.regions); setPolygons(r.polygon ? [r.polygon] : []); setHidden(r.hidden ?? []); resetPages(); }}
           onClose={() => setShowFilter(false)}
           onDraw={() => setShowFilter(false)}
         />
@@ -428,6 +436,13 @@ export function SearchPage() {
                   </div>
                 </div>
               )}
+              {/* 매물 유형 — 여러 개를 같이 켠다. 필터 창의 「매물 유형」과 같은 값 */}
+              <div className="mo-kinds">
+                {KINDS.map((k) => (
+                  <button key={k} className={kinds.includes(k) ? "on" : ""}
+                    onClick={() => setKinds((v) => (v.includes(k) ? v.filter((x) => x !== k) : [...v, k]))}>{k}</button>
+                ))}
+              </div>
               {(layers.deal || layers.all) && !near && (
                 <div className="mo-hint">실거래 · 전체 건물은 지도를 더 확대하면 보입니다</div>
               )}

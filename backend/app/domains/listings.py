@@ -16,7 +16,7 @@ LISTING_FIELDS = {
     "urgency", "grade", "ipji", "intent",
     "meongdo", "use_change", "myeolsil", "nohudo", "building_use",
     "price_vs_market",  # 시세대비(0187) — 저렴·적정·비쌈. 사람이 매긴다
-    "building_major",   # 대분류(0184) — 통사옥·상가주택·기타 하나. 소분류(building_use)는 여럿   # S02 업무탭·S01b 필터
+    "building_major",   # 매물 유형(0184 · 0193) — 빌딩·상가주택·공장·창고·숙박·기타 하나. 소분류(building_use)는 여럿   # S02 업무탭·S01b 필터
     # 업무 사다리(0090·S04b) — 접촉 창이 없어 통화 결과는 커밋 칩이 여기로 쓴다.
     "call_result",
     "exclusive",    # 전속(0182) — 참·거짓·null(모름)
