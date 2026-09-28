@@ -365,3 +365,7 @@
 .sd-price.three { grid-template-columns: 1fr 1fr 1fr; }
 .sd-price.three b { font-size: 15.5px; }
 .sd-price > div.sale { background: #FFFFFF; box-shadow: inset 0 0 0 1.5px #191F28; }
+/* 상세를 열면 판 전체를 상세가 쓴다 */
+.mo-panel.detail .mo-search, .mo-panel.detail .mo-chips, .mo-panel.detail .mo-layers,
+.mo-panel.detail .mo-kinds, .mo-panel.detail .mo-hint, .mo-panel.detail .mo-yr { display: none; }
+.mo-panel.detail .sd-head { padding-top: 10px; }

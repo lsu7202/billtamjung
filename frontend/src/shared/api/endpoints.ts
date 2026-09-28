@@ -136,6 +136,7 @@ export interface AdCard {
   title: string; body: string | null; posted_on: string; closed_on: string | null;
   phone: string | null; agent_name: string | null; office_name: string | null; reg_no: string | null;
   mine: boolean; photo_id: number | null;
+  photo_ids: number[] | null; addr: string | null; updated_on: string | null;
 }
 /** 탐색 목록 카드(S05) — 광고 여럿은 한 장(price_min~max), 내 매물이면 mine */
 export interface ListCard {

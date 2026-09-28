@@ -99,7 +99,9 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
       </div>
 
       <div className="sd-body" ref={bodyRef} onScroll={onScroll}>
-        {picked.lng && picked.lat ? <RoadviewMini lng={picked.lng} lat={picked.lat} className="sel-road" /> : null}
+        {/* 로드뷰 — 광고 사진이 있으면 빼서 높이를 아낀다(광고 사진이 곧 이 건물 사진이다) */}
+        {picked.lng && picked.lat && !(adsQ.data ?? []).some((a) => (a.photo_ids ?? []).length > 0)
+          ? <RoadviewMini lng={picked.lng} lat={picked.lat} className="sel-road" /> : null}
 
         {/* 매물 — 광고 · (중개사) 내 매물 · 시장 호가. 비어도 칸은 선다 */}
         <section data-sec="ad">

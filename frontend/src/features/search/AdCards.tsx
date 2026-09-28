@@ -2,18 +2,16 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { authApi, buildingsApi, inquiriesApi, type AdCard, type InquiryKind } from "../../shared/api/endpoints";
-import { wonAcc } from "../../shared/format";
+import { won } from "../../shared/format";
 import "./adcards.css";
 import { AuthImg } from "../../shared/ui/AuthImg";
 import { formatPhone } from "../building/KV";
 
-function AdBody({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
-  return <div className={`ad-body-t ${open ? "open" : ""}`} onClick={() => setOpen(!open)}>{text}</div>;
-}
-
-/** 광고 카드(S05) — 탐색 사이드 판과 건물 상세가 같은 부품을 쓴다. 누구나 본다.
- *  노출 중이고 우리 팀 광고가 아니면 「상담요청」이 붙는다. 거래완료는 회색으로 남는다(밸류맵). */
+/** 광고(S05) — 탐색 사이드 판과 건물 상세가 같은 부품을 쓴다. 누구나 본다.
+ *
+ *  **광고 내용 전체가 바로 선다**(대표 09-28). 밸류맵처럼 눌러야 모달로 뜨는 게 아니라
+ *  사진(올린 비율 그대로 · 여러 장이면 넘김) · 매매가 · 주소 · 제목 · 설명 · 중개사 정보 · 상담요청이 한 판에.
+ *  노출 중이고 우리 팀 광고가 아니면 「상담요청」. 거래완료는 회색으로 남는다(밸류맵). */
 export function AdCards({ pk, empty }: { pk: string; empty?: React.ReactNode }) {
   const q = useQuery({ queryKey: ["bAds", pk], queryFn: () => buildingsApi.ads(pk), enabled: !pk.startsWith("P") });
   const [ask, setAsk] = useState<AdCard | null>(null);
@@ -21,26 +19,52 @@ export function AdCards({ pk, empty }: { pk: string; empty?: React.ReactNode }) 
   if (!list.length) return <>{empty ?? null}</>;
   return (
     <div className="sel-ads">
-      {list.map((a) => (
-        <div key={a.id} className={`sel-ad ${a.state === "거래완료" ? "sold" : ""}`}>
-          {a.photo_id && <AuthImg className="ad-ph" src={`/api/ads/${a.id}/photos/${a.photo_id}`} />}
-          <div className="ad-top">
-            <b className="num">{a.state === "거래완료" ? "거래완료" : a.price != null ? `매매 ${wonAcc(a.price)}` : "가격 비공개"}</b>
-            {a.brokerage === "전속" && <span className="ad-tag">전속</span>}
-            {a.use_type && <span className="ad-tag gray">{a.use_type}</span>}
-          </div>
-          <div className="ad-title">{a.title}</div>
-          {/* 매물 설명 — 중개사가 쓴 글. 세 줄로 접고 누르면 편다 */}
-          {a.body && <AdBody text={a.body} />}
-          <div className="ad-agent">{a.office_name}{a.agent_name ? ` · ${a.agent_name}` : ""}
-            {a.phone && a.state === "노출" && <span className="num"> · {a.phone}</span>}</div>
-          {a.state === "노출" && !a.mine && (
-            <button className="ad-ask" onClick={() => setAsk(a)}>상담요청</button>
-          )}
-        </div>
-      ))}
+      {list.map((a) => <AdFull key={a.id} a={a} onAsk={() => setAsk(a)} />)}
       {ask && <InquiryModal ad={ask} onClose={() => setAsk(null)} />}
     </div>
+  );
+}
+
+function AdFull({ a, onAsk }: { a: AdCard; onAsk: () => void }) {
+  const photos = a.photo_ids ?? (a.photo_id ? [a.photo_id] : []);
+  const [i, setI] = useState(0);
+  const sold = a.state === "거래완료";
+  return (
+    <article className={`adf ${sold ? "sold" : ""}`}>
+      {photos.length > 0 && (
+        <div className="adf-ph">
+          {/* 올린 비율 그대로 — 자르지 않는다 */}
+          <AuthImg className="adf-img" src={`/api/ads/${a.id}/photos/${photos[i]}`} />
+          {photos.length > 1 && (
+            <>
+              <button className="adf-nav l" onClick={() => setI((i - 1 + photos.length) % photos.length)}>‹</button>
+              <button className="adf-nav r" onClick={() => setI((i + 1) % photos.length)}>›</button>
+              <span className="adf-cnt num">{i + 1} / {photos.length}</span>
+            </>
+          )}
+        </div>
+      )}
+      <div className="adf-b">
+        <div className="adf-price">
+          <b className="num">{sold ? "거래완료" : a.price != null ? `매매 ${won(a.price)}` : "가격 비공개"}</b>
+          {a.use_type && <span className="ad-tag gray">{a.use_type}</span>}
+          {a.brokerage === "전속" && <span className="ad-tag">전속</span>}
+        </div>
+        {a.addr && <div className="adf-addr">{a.addr.replace("서울특별시 ", "").replace("번지", "")}</div>}
+        <div className="adf-title">{a.title}</div>
+        {a.body && <div className="adf-body">{a.body}</div>}
+        {/* 중개사 정보 — 사무소 · 담당 · 등록번호 · 전화 · 올린 날 */}
+        <div className="adf-ag">
+          <div className="adf-ag1"><b>{a.office_name ?? "중개사무소"}</b>{a.agent_name && <span>{a.agent_name}</span>}</div>
+          <div className="adf-ag2">
+            {a.reg_no && <span>등록번호 {a.reg_no}</span>}
+            {a.phone && !sold && <span className="num">{a.phone}</span>}
+            <span>{sold ? `거래완료 ${a.closed_on ?? ""}` : `올린 날 ${a.posted_on}`}</span>
+          </div>
+        </div>
+        {a.state === "노출" && !a.mine && <button className="ad-ask" onClick={onAsk}>상담요청</button>}
+      </div>
+    </article>
   );
 }
 

@@ -350,7 +350,8 @@ export function SearchPage() {
 
           {/* 떠 있는 패널 — 접으면 지도가 통째로 드러난다 */}
           {panelOpen ? (
-            <div className="mo-panel">
+            <div className={`mo-panel ${picked ? "detail" : ""}`}>
+              {/* 건물을 고르면 상세가 판 전체를 쓴다(대표 09-28) — 검색 · 칩은 「‹ 목록」으로 돌아오면 다시 선다 */}
               {/* 검색 — 패널 머리. 자동완성은 그 아래로 편다 */}
               <div className="mo-search">
                 <div className="mo-q">

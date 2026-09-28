@@ -30,7 +30,12 @@ async def building_ads(building_pk: str, user: CurrentUser = Depends(any_user)):
                    ac.name AS agent_name, COALESCE(t.office_name, t.name) AS office_name, t.reg_no,
                    (a.team_id = $2) AS mine,
                    (SELECT ap.photo_id FROM app.ad_photos ap WHERE ap.ad_id = a.id
-                     ORDER BY ap.sort, ap.photo_id LIMIT 1) AS photo_id
+                     ORDER BY ap.sort, ap.photo_id LIMIT 1) AS photo_id,
+                   -- 사이드바에 광고 전체가 바로 선다(대표 09-28) — 사진 전부 · 주소 · 수정일
+                   (SELECT array_agg(ap.photo_id ORDER BY ap.sort, ap.photo_id) FROM app.ad_photos ap
+                     WHERE ap.ad_id = a.id) AS photo_ids,
+                   (SELECT b.addr FROM master.buildings b WHERE b.building_pk = a.building_pk) AS addr,
+                   a.updated_at::date AS updated_on
               FROM app.ads a
               JOIN app.teams t ON t.id = a.team_id
               LEFT JOIN app.accounts ac ON ac.id = COALESCE(a.contact_account_id, a.created_by)

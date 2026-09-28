@@ -51,5 +51,8 @@ export const PIN_COLORS: Record<string, string> = {
 
 export function priceLabel(price: number | null): string {
   if (price == null) return "—";
-  return price >= 1e8 ? `${Math.round(price / 1e8)}억` : `${Math.round(price / 1e4)}만`;
+  // 100억 아래는 소수 한 자리(9.5억 · 13.5억) — 정수로 반올림하면 9.5억 매물이 「10억」으로 선다(2026-09-28)
+  if (price >= 1e10) return `${Math.round(price / 1e8)}억`;
+  if (price >= 1e8) return `${String(Math.round(price / 1e7) / 10).replace(/\.0$/, "")}억`;
+  return `${Math.round(price / 1e4).toLocaleString()}만`;
 }
