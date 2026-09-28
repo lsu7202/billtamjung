@@ -317,7 +317,18 @@
 .lx-t .c-ph{width:52px; padding-right:0}
 .lx-th{display:block; width:44px; height:34px; border-radius:8px; background:#F2F4F6; overflow:hidden}
 .lx-th img{width:100%; height:100%; object-fit:cover; display:block}
-.lx-t .c-act{width:36px; text-align:right}
+.lx-t .c-act{width:64px; text-align:right; white-space:nowrap}
+/* 이관 — 고르기 동그라미는 줄에 올리거나 하나라도 골랐을 때만 보인다 */
+.lx-t .c-sel{width:28px; padding-right:0}
+.lx-ck{border:0; width:18px; height:18px; border-radius:999px; background:#FFFFFF; box-shadow:inset 0 0 0 1.5px #D1D6DB;
+  color:transparent; display:inline-grid; place-items:center; cursor:pointer; opacity:0; padding:0}
+.lx-t tbody tr:hover .lx-ck, .lx-wrap.selecting .lx-ck{opacity:1}
+.lx-ck.on{background:#3182F6; box-shadow:none; color:#FFFFFF}
+.lx-selbar{display:flex; align-items:center; gap:6px; background:#EBF4FF; border-radius:14px; padding:8px 12px; font-size:13px; color:#191F28}
+.lx-selbar > span:not(.sp){color:#8B95A1; margin-right:4px}
+.lx-selbar .sp{flex:1}
+.lx-selbar .um-chip{background:#FFFFFF; font-size:12.5px; padding:5px 12px}
+.lx-selbar .lx-ic{opacity:1}
 .lx-ic{border:0; background:none; color:#B0B8C1; width:28px; height:28px; border-radius:999px; cursor:pointer;
   display:inline-grid; place-items:center; opacity:0; transition:opacity .12s, background .12s}
 .lx-t tbody tr:hover .lx-ic, .lx-t tbody tr.on .lx-ic{opacity:1}

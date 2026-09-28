@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { listingsApi, proposalsApi, salesApi, type Seller } from "../../shared/api/endpoints";
+import { contactsApi, listingsApi, proposalsApi, salesApi, type Seller } from "../../shared/api/endpoints";
 import { md, shortAddr, wonAcc } from "../../shared/format";
 import { Loading } from "../../shared/ui/Spinner";
 import { Icon } from "../../shared/ui/Icon";
@@ -26,6 +26,11 @@ import "./draft/salestab.css";
 /** 상태(2026-09-27) — 매물·관심·계약 세 갈래를 목록 하나로 합쳤다(부기사처럼). 기본은 계약을 뺀 전부 */
 type St = "unowned" | "active" | "done";
 const ST: [St, string][] = [["unowned", "소유자 미확보"], ["active", "진행"], ["done", "계약"]];
+/** 확인일 구간(2026-09-28) — 부기사 「수정일 확인」. 색을 늘리지 않고 필터로 찾는다 */
+type Chk = "m1" | "m3" | "m6" | "old" | "none";
+const CHK: [Chk, string][] = [["m1", "1개월 안"], ["m3", "1~3개월"], ["m6", "3~6개월"], ["old", "6개월 넘음"], ["none", "기록 없음"]];
+const chkOf = (d: number | null): Chk =>
+  d == null ? "none" : d <= 30 ? "m1" : d <= 90 ? "m3" : d <= 180 ? "m6" : "old";
 const stOf = (r: Seller): St => (r.s6_match ? "done" : r.has_owner ? "active" : "unowned");
 type SortKey = "received_on" | "updated_at" | "listing_no" | "addr" | "size" | "price" | "rent" | "roi" | "checked_on" | "next";
 /** 정렬 pill 의 목록 — 부기사 탭(등록일·수정일·가격·면적·매물번호)에 우리 열(수익률·확인일)을 더했다 */
@@ -132,7 +137,10 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
   const [grade, setGrade] = useState<string | null>(null);
   const [pvm, setPvm] = useState<string | null>(null);         // 시세대비
   const [ranges, setRanges] = useState<Record<RangeKey, Range>>({ price: [null, null], land: [null, null], total: [null, null] });
-  const [pop, setPop] = useState<string | null>(null);         // 펼친 필터 하나
+  const [pop, setPop] = useState<string | null>(null);
+  const [chk, setChk] = useState<Chk | null>(null);            // 확인일 구간
+  const [sel, setSel] = useState<Set<string>>(new Set());      // 이관할 줄
+  const [busy, setBusy] = useState(false);         // 펼친 필터 하나
   // 기본 정렬 = 등록일 최신(부기사 기본). 열 머리와 정렬 pill 이 같은 값을 바꾼다
   const [sort, setSort] = useState<{ k: SortKey; asc: boolean }>({ k: "received_on", asc: false });
   const [sortOpen, setSortOpen] = useState(false);
@@ -162,6 +170,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
       && (grade == null || r.grade === grade)
       && (pvm == null || r.price_vs_market === pvm)
       && (flag == null || (flag === "urgent" ? isUrgent(r) : flag === "hold" ? r.stop_id != null : r.exclusive === true))
+      && (chk == null || chkOf(daysSince(r.checked_on)) === chk)
       && inRange(r));
     {
       const v = (r: Seller): string | number | null =>
@@ -186,16 +195,16 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
       });
     }
     return out;
-  }, [laneRows, q, who, gu, dong, major, kind, grade, pvm, flag, ranges, sort, members.data]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [laneRows, q, who, gu, dong, major, kind, grade, pvm, flag, chk, ranges, sort, members.data]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // 지역 칩 — 이 갈래에 실제로 있는 구·동만
   const gus = useMemo(() => [...new Set(laneRows.map((r) => regionOf(r.addr)[0]).filter(Boolean) as string[])].sort(ko), [laneRows]);
   const dongs = useMemo(() => gu == null ? [] : [...new Set(laneRows.filter((r) => regionOf(r.addr)[0] === gu)
     .map((r) => regionOf(r.addr)[1]).filter(Boolean) as string[])].sort(ko), [laneRows, gu]);
-  const anyFilter = st != null || who != null || gu != null || major != null || kind != null || grade != null || pvm != null
+  const anyFilter = chk != null || st != null || who != null || gu != null || major != null || kind != null || grade != null || pvm != null
     || flag != null || Object.values(ranges).some(([a, b]) => a != null || b != null);
   const reset = () => {
-    setSt(null); setWho(null); setGu(null); setDong(null); setMajor(null); setKind(null); setGrade(null); setPvm(null);
+    setChk(null); setSt(null); setWho(null); setGu(null); setDong(null); setMajor(null); setKind(null); setGrade(null); setPvm(null);
     setFlag(null); setRanges({ price: [null, null], land: [null, null], total: [null, null] });
   };
   const cur = list.find((r) => r.building_pk === open?.pk) ?? null;
@@ -214,6 +223,25 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
       building_pk: cur.building_pk, addr: cur.addr });
   }, [cur?.building_pk, cur?.owner_id, setCtx]);   // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 오늘 확인 — 장부에 「확인」 한 줄. 확인일은 그 줄에서 저절로 선다(0182 트리거)
+  const markChecked = async (pk: string) => {
+    await contactsApi.create({ target_type: "listing", target_id: pk, kind: "확인", note: "확인" });
+    rows.refetch();
+    qc.invalidateQueries({ queryKey: ["contacts"] });
+  };
+  // 이관 — 고른 줄의 담당을 한꺼번에(부기사 「선택 → 담당 변경」)
+  const transfer = async (to: number) => {
+    setBusy(true);
+    try { await Promise.all([...sel].map((pk) => listingsApi.claim(pk, to))); }
+    finally { setBusy(false); }
+    setSel(new Set());
+    rows.refetch();
+  };
+  const toggleSel = (pk: string) => setSel((s0) => {
+    const s1 = new Set(s0);
+    if (s1.has(pk)) s1.delete(pk); else s1.add(pk);
+    return s1;
+  });
   const refresh = () => {
     rows.refetch();
     qc.invalidateQueries({ queryKey: ["contacts"] });
@@ -251,6 +279,9 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
           return <>
             {pp("st", "상태", ST.find(([k]) => k === st)?.[1] ?? null,
               ST.map(([k, l]) => chip(st === k, l, () => setSt(st === k ? null : k), list.filter((r) => stOf(r) === k).length)))}
+            {pp("chk", "확인일", CHK.find(([k]) => k === chk)?.[1] ?? null,
+              CHK.map(([k, l]) => chip(chk === k, l, () => setChk(chk === k ? null : k),
+                laneRows.filter((r) => chkOf(daysSince(r.checked_on)) === k).length)))}
             {mem.length > 1 && pp("who", "담당", nameOf(who),
               mem.map((m) => chip(who === m.account_id, m.name, () => setWho(who === m.account_id ? null : m.account_id))))}
             {gus.length > 0 && pp("region", "지역", gu ? `${gu}${dong ? ` ${dong}` : ""}` : null, <>
@@ -287,9 +318,19 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
         <button className="lt-add" title="매물 등록" onClick={() => setAdd(true)}>
           <Icon name="plus" size={14} /></button>
       </div>
-      <div className="lx-wrap">
+      {sel.size > 0 && (
+        <div className="lx-selbar">
+          <b>{sel.size}건</b><span>담당 넘기기</span>
+          {(members.data ?? []).map((m) =>
+            <button key={m.account_id} className="um-chip" disabled={busy} onClick={() => transfer(m.account_id)}>{m.name}</button>)}
+          <span className="sp" />
+          <button className="lx-ic on" title="선택 해제" onClick={() => setSel(new Set())}><Icon name="close" size={13} /></button>
+        </div>
+      )}
+      <div className={`lx-wrap ${sel.size ? "selecting" : ""}`}>
         <table className="lx-t">
           <thead><tr>
+            {th(null, "", "c-sel")}
             {th(null, "", "c-ph")}
             {th("listing_no", "매물번호", "c-no")}
             {th("addr", "주소")}
@@ -316,6 +357,10 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
               return (
                 <tr key={r.building_pk} className={open?.pk === r.building_pk ? "on" : ""}
                   onClick={() => setOpen({ pk: r.building_pk })}>
+                  <td className="c-sel" onClick={(e) => { e.stopPropagation(); toggleSel(r.building_pk); }}>
+                    <button className={`lx-ck ${sel.has(r.building_pk) ? "on" : ""}`} title="고르기">
+                      <Icon name="check" size={11} /></button>
+                  </td>
                   <td className="c-ph"><Thumb pk={r.building_pk} id={r.photo_id} /></td>
                   <td className="c-no num">{r.listing_no ?? "—"}</td>
                   <td className="c-addr">
@@ -353,6 +398,8 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
                     ? <>{md(r.next_sched_on)} <span className="sub">{r.next_sched_cat ?? r.next_sched_title ?? ""}</span></>
                     : <span className="off">—</span>}</td>
                   <td className="c-act" onClick={(e) => e.stopPropagation()}>
+                    <button className="lx-ic" title="오늘 확인" onClick={() => markChecked(r.building_pk)}>
+                      <Icon name="check" size={14} /></button>
                     <button className="lx-ic" title="건물 상세" onClick={() => openDetail(r.building_pk)}>
                       <Icon name="external" size={14} /></button>
                   </td>
