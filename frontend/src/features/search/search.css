@@ -280,3 +280,65 @@
 .sel-crawl .sc-row .d { color: #8B95A1; }
 .sel-crawl .sc-row .v { text-align: right; }
 .sel-crawl .sc-more { font-size: 11px; color: #8B95A1; text-align: right; margin-top: 2px; }
+
+/* ── 탐색 판(S05 · 2026-09-28, 밸류맵 결) ── */
+/* 보기 — 켜고 끄는 칩 셋(여러 개 같이) */
+.mo-layers { display: flex; gap: 6px; padding: 10px 11px 4px; }
+.mo-layers button { flex: 1; border: 0; border-radius: 10px; padding: 8px 0; font: inherit; font-size: 13px; font-weight: 700;
+  background: #F2F4F6; color: #8B95A1; cursor: pointer; }
+.mo-layers button.on { background: #3182F6; color: #FFFFFF; }
+.mo-hint { font-size: 11.5px; color: #8B95A1; padding: 2px 13px 6px; }
+.mo-here { display: flex; align-items: center; gap: 5px; margin: 6px auto 4px; border: 0; background: #191F28; color: #FFFFFF;
+  border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.mo-here b { color: #FFFFFF; }
+.ml-head.sub { margin-top: 10px; border-top: 6px solid #F2F4F6; }
+/* 목록 카드 — 사진 · 가격 · 용도·주소 · 대지·연·층 · 중개사 */
+.lc { position: relative; display: flex; gap: 10px; padding: 11px 13px; border-bottom: 1px solid #F2F4F6; cursor: pointer; }
+.lc:hover { background: #F9FAFB; }
+.lc-ph { flex: 0 0 76px; height: 64px; border-radius: 10px; background: #F2F4F6; color: #B0B8C1;
+  display: grid; place-items: center; overflow: hidden; }
+.lc-ph img { width: 100%; height: 100%; object-fit: cover; }
+.lc-b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lc-t { display: flex; align-items: center; gap: 5px; }
+.lc-t b { font-size: 15px; font-weight: 800; color: #191F28; }
+.lc-t .ml-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
+.lc-a { font-size: 12.5px; color: #333D4B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc-s { font-size: 11.5px; color: #8B95A1; }
+.lc-g { font-size: 11.5px; color: #4E5968; }
+.lc .ml-hide { position: absolute; right: 8px; top: 8px; }
+/* 상세 — 머리 고정 + 탭 고정, 본문 스크롤 */
+.mo-body.sd-wrap { overflow: hidden; display: flex; flex-direction: column; }
+.sd { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.sd-head { padding: 4px 13px 0; border-bottom: 1px solid #F2F4F6; }
+.sd-addr { font-size: 16px; font-weight: 800; color: #191F28; display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.sd-addr .ml-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
+.sd-road { font-size: 12px; color: #8B95A1; margin-top: 2px; min-height: 16px; }
+.sd-tabs { display: flex; margin-top: 8px; }
+.sd-tabs button { flex: 1; border: 0; background: none; font: inherit; font-size: 13px; font-weight: 700; color: #8B95A1;
+  padding: 8px 0 9px; border-bottom: 2px solid transparent; cursor: pointer; }
+.sd-tabs button.on { color: #191F28; border-bottom-color: #191F28; }
+.sd-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 13px 16px; position: relative; }
+.sd-body section { padding-top: 16px; }
+.sd-body h4 { margin: 0 0 8px; font-size: 14px; font-weight: 800; color: #191F28; }
+.sd-none { font-size: 12.5px; color: #8B95A1; background: #F9FAFB; border-radius: 10px; padding: 14px; text-align: center; }
+.sd-link { margin-top: 8px; border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 700; color: #3182F6; cursor: pointer; padding: 0; }
+.sd-price { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+.sd-price > div { background: #F2F4F6; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; }
+.sd-price > div.est { background: #EBF4FF; }
+.sd-price i { font-style: normal; font-size: 11.5px; color: #8B95A1; }
+.sd-price b { font-size: 17px; font-weight: 800; color: #191F28; }
+.sd-price .est b { color: #3182F6; }
+.sd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #F2F4F6; border-radius: 12px; overflow: hidden; }
+.sd-c { background: #FFFFFF; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.sd-c i { font-style: normal; font-size: 11px; color: #8B95A1; }
+.sd-c b { font-size: 13px; font-weight: 700; color: #191F28; }
+.sd-floors { display: flex; flex-direction: column; }
+.sd-fl { display: flex; gap: 10px; font-size: 12.5px; padding: 5px 2px; border-bottom: 1px solid #F7F8FA; }
+.sd-fl b { flex: 0 0 48px; color: #191F28; }
+.sd-fl span { color: #333D4B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd-fl .off { font-style: normal; color: #B0B8C1; }
+/* 목록 카드의 접어두기 — 줄에 올렸을 때만(목록 줄과 같은 어법) */
+.lc .ml-hide { width: 26px; height: 26px; display: none; align-items: center; justify-content: center; border: 0;
+  border-radius: 999px; background: #FFFFFF; color: #8B95A1; cursor: pointer; }
+.lc:hover .ml-hide { display: inline-flex; }
+.lc .ml-hide:hover { color: #3182F6; background: #EBF4FF; }

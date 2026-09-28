@@ -8,6 +8,8 @@ export interface CanvasPin {
   col: "mine" | "normal"; price: number | null; last_sale_price?: number | null; sale_est?: number | null;
   /** 핀 종류(S05) — 색은 이걸로. 없으면 col */
   kind?: "mine" | "ad" | "sold" | "normal";
+  /** 이 핀만의 값 보기 — 보기(매매 · 실거래 · 전체 건물)를 겹쳐 켜면 핀마다 값이 다르다. 없으면 레이어 전체 mode */
+  lens?: "fair" | "real";
   /** 실거래를 총액·단가로 견주는 재료. 단가 분모는 대지면적이 기본이다 */
   last_sale_ym?: string | null; land_area?: number | null; total_area?: number | null;
 }
@@ -55,7 +57,7 @@ const MARGIN = 160;     // 뷰포트 밖 여유(팬 시 가장자리 공백 완�
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 
 export interface CanvasLayer {
-  setPins(pins: CanvasPin[]): void;
+  setPins(pins: CanvasPin[], fit?: boolean): void;
   setSelected(pk: string | null): void;
   setPriceMode(mode: PriceMode): void;
   setRealView(v: RealView): void;
@@ -180,7 +182,7 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
     if (it.t === "cluster") { drawCluster(it.cx, it.cy, it.n, hover); return; }
     const sel = it.p.building_pk === selected;
     // fair(추정가)=배치 sale_est(상업만 적재됨) 또는 팀 매매가 · 실거래=실제 거래가. 값 없으면 회색 점(주거·비대상).
-    if (mode === "real") {
+    if ((it.p.lens ?? mode) === "real") {
       const lb = realLabel(it.p, view);
       if (!lb) { it.box = undefined; drawDot(it.cx, it.cy, hover, sel); return; }
       it.box = drawPin(it.cx, it.cy, lb.main, PIN_COLORS[it.p.kind ?? it.p.col], hover, sel, lb.sub);
@@ -290,8 +292,14 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
   const zm = naver.maps.Event.addListener(map, "zoom_changed", hidePop);
 
   return {
-    setPins(next) {
+    setPins(next, fit = true) {
       pins = next;
+      if (!fit) {                         // 지도가 움직이는 대로 불러오는 화면(탐색)은 지도를 핀에 맞추지 않는다
+        fitKey = pins.map((p) => p.building_pk).sort().join(",");
+        const pj = overlay.getProjection();
+        if (pj) { compute(pj); render(); }
+        return;
+      }
       // **핀 구성이 바뀔 때만** 지도를 맞춘다(2026-09-06). 검색 페이지는 상태가 하나만 바뀌어도 핀 배열을 새로 만들어
       // 여기로 보내는데, 그때마다 맞추면 역·주소로 옮긴 지도가 곧바로 핀 상자(강남 내 매물)로 되돌아간다 —
       // 「종로5가역 엔터 → 움직이다 다시 돌아옴」이 그것이다. 같은 건물 집합이면 순서·가격이 바뀌어도 안 움직인다.

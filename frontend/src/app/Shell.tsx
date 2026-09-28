@@ -25,7 +25,7 @@ export function Shell() {
       <header className="appbar">
         <Logo markSize={22} />
         <nav className="gnb">
-          <NavLink to="/search" className={({ isActive }) => (isActive ? "on" : "")}>건물 검색</NavLink>
+          <NavLink to="/search" className={({ isActive }) => (isActive ? "on" : "")}>탐색</NavLink>
           {broker && <>
             <NavLink to="/sales" className={({ isActive }) => (isActive ? "on" : "")}>매물관리</NavLink>
             <NavLink to="/customers" className={({ isActive }) => (isActive ? "on" : "")}>고객관리</NavLink>

@@ -20,6 +20,8 @@ export interface MapPin {
   col: "mine" | "normal";
   /** 핀 종류(S05) — 색은 이걸로 가른다. 없으면 col 로 */
   kind?: "mine" | "ad" | "sold" | "normal";
+  /** 이 핀만의 값 보기(실거래 핀은 real) */
+  lens?: "fair" | "real";
   ad_n?: number;
   ad_price_min?: number | null;
   price: number | null;
@@ -81,7 +83,7 @@ const fmtArea = (a: number) => `${a >= 10000 ? `${(a / 10000).toFixed(2)}ha` : `
 
 export function MapPanel({
   pins, onPick, onPolygon, polygons, polygonActive, selectedPk, selectedCol, onParcelClick, centerReq, priceMode = "fair",
-  realView, fitPadding,
+  realView, fitPadding, autoFit = true, onView,
 }: {
   pins: MapPin[];
   onPick: (pk: string) => void;
@@ -98,6 +100,10 @@ export function MapPanel({
   /** bounds 를 맞출 때 비울 여백. 기본은 검색 화면(왼쪽에 떠 있는 패널 ≈350px). 어시스턴트의
    *  440px 지도에 그 기본을 쓰니 60px 에 맞추느라 수도권 전체로 빠졌다(2026-09-21 화면 확인) */
   fitPadding?: { top: number; right: number; bottom: number; left: number };
+  /** 핀이 바뀌면 지도를 핀에 맞추나(기본 참). 탐색 화면은 지도가 먼저라 끈다 */
+  autoFit?: boolean;
+  /** 지도가 멈출 때마다 화면 범위 [서, 남, 동, 북] · 확대 단계 — 탐색 화면이 이만큼만 부른다 */
+  onView?: (v: { bbox: [number, number, number, number]; zoom: number }) => void;
 }) {
   const divRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -211,7 +217,21 @@ export function MapPanel({
     pinLayerRef.current = layer;
     return () => { layer.destroy(); pinLayerRef.current = null; };
   }, [ready]);
-  useEffect(() => { pinLayerRef.current?.setPins(pins as CanvasPin[]); }, [pins, ready]);
+  useEffect(() => { pinLayerRef.current?.setPins(pins as CanvasPin[], autoFit); }, [pins, ready, autoFit]);
+  // 화면 범위 알리기 — idle(움직임이 멈춤)마다, 그리고 처음 한 번
+  const onViewRef = useRef(onView); onViewRef.current = onView;
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    const naver = window.naver; const map = mapRef.current;
+    const tell = () => {
+      const b = map.getBounds(); if (!b || !onViewRef.current) return;
+      const sw = b.getSW(), ne = b.getNE();
+      onViewRef.current({ bbox: [sw.lng(), sw.lat(), ne.lng(), ne.lat()], zoom: map.getZoom() });
+    };
+    tell();
+    const l = naver.maps.Event.addListener(map, "idle", tell);
+    return () => naver.maps.Event.removeListener(l);
+  }, [ready]);
   useEffect(() => { pinLayerRef.current?.setPriceMode(priceMode); }, [priceMode, ready]);
   useEffect(() => {
     if (realView) pinLayerRef.current?.setRealView(realView);

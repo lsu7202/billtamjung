@@ -7,6 +7,7 @@ import mimetypes
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 from ..core.db import pool
 from ..core.deps import current_user, any_user, CurrentUser
@@ -68,3 +69,53 @@ async def building_crawl(building_pk: str, _: CurrentUser = Depends(current_user
             ORDER BY deal, NULLIF(regexp_replace(floor, '\\D', '', 'g'), '')::int NULLS LAST, id""",
         building_pk)
     return [dict(r) for r in rows]
+
+
+class CardsIn(BaseModel):
+    pks: list[str]
+
+
+@router.post("/ads/cards")
+async def ad_cards(body: CardsIn, user: CurrentUser = Depends(any_user)):
+    """탐색 사이드 판 목록 카드(S05, 09-28) — 건물마다 한 장.
+
+    어떤 건물을 낼지는 핀(/search/pins, 매매 보기)이 이미 골랐다(필터 · 범위). 여기선 카드 재료만 모은다.
+    · 광고가 여럿이면 한 장으로 묶는다(디스코 「동일매물 N개」) — 가격은 최저~최고, 대표는 가장 최근 광고
+    · 내 매물(중개사)은 팀 매매가 · 팀 사진 · 접수일. 광고도 있으면 광고가 카드의 얼굴이다
+    """
+    pks = list(dict.fromkeys(body.pks))[:200]
+    if not pks:
+        return []
+    rows = await pool().fetch(
+        f"""WITH k AS (SELECT unnest($1::text[]) AS building_pk),
+           ad AS (
+             SELECT a.building_pk,
+                    count(*) FILTER (WHERE a.state = '노출') AS ad_n,
+                    min(a.price) FILTER (WHERE a.state = '노출' AND a.price_open) AS price_min,
+                    max(a.price) FILTER (WHERE a.state = '노출' AND a.price_open) AS price_max,
+                    bool_or(a.state = '거래완료') AS sold,
+                    (array_agg(a.id ORDER BY (a.state = '노출') DESC, a.posted_on DESC, a.id DESC))[1] AS lead_id
+               FROM app.ads a JOIN k USING (building_pk)
+              WHERE {_VISIBLE} GROUP BY a.building_pk)
+           SELECT k.building_pk, b.addr, b.land_area::float, b.total_area::float,
+                  b.floors_above, b.floors_below, b.main_use_name, ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat,
+                  ad.ad_n, ad.price_min, ad.price_max, COALESCE(ad.sold, false) AS sold,
+                  la.id AS ad_id, la.title, la.brokerage, la.posted_on,
+                  COALESCE(t.office_name, t.name) AS office_name, ac.name AS agent_name,
+                  (SELECT ap.photo_id FROM app.ad_photos ap WHERE ap.ad_id = la.id
+                    ORDER BY ap.sort, ap.photo_id LIMIT 1) AS ad_photo_id,
+                  -- 내 매물(중개사만 — 고객은 team_id 가 없어 조인이 비는다)
+                  (l.id IS NOT NULL AND l.assignee_account_id IS NOT NULL) AS mine,
+                  l.sale_price AS my_price, l.received_on,
+                  (SELECT f.id FROM app.photos f WHERE f.building_pk = k.building_pk AND f.team_id = $2
+                     AND f.deleted_at IS NULL ORDER BY (f.kind = 'exterior') DESC, f.sort_order, f.id LIMIT 1) AS my_photo_id
+             FROM k
+             JOIN master.buildings b ON b.building_pk = k.building_pk
+             LEFT JOIN ad ON ad.building_pk = k.building_pk
+             LEFT JOIN app.ads la ON la.id = ad.lead_id
+             LEFT JOIN app.teams t ON t.id = la.team_id
+             LEFT JOIN app.accounts ac ON ac.id = COALESCE(la.contact_account_id, la.created_by)
+             LEFT JOIN app.listings l ON l.building_pk = k.building_pk AND l.team_id = $2""",
+        pks, user.team_id)
+    order = {pk: i for i, pk in enumerate(pks)}
+    return sorted((dict(r) for r in rows), key=lambda r: order.get(r["building_pk"], 0))

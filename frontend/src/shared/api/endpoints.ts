@@ -136,6 +136,15 @@ export interface AdCard {
   phone: string | null; agent_name: string | null; office_name: string | null; reg_no: string | null;
   mine: boolean; photo_id: number | null;
 }
+/** 탐색 목록 카드(S05) — 광고 여럿은 한 장(price_min~max), 내 매물이면 mine */
+export interface ListCard {
+  building_pk: string; addr: string; land_area: number | null; total_area: number | null;
+  floors_above: number | null; floors_below: number | null; main_use_name: string | null; lng: number; lat: number;
+  ad_n: number | null; price_min: number | null; price_max: number | null; sold: boolean;
+  ad_id: number | null; title: string | null; brokerage: string | null; posted_on: string | null;
+  office_name: string | null; agent_name: string | null; ad_photo_id: number | null;
+  mine: boolean; my_price: number | null; received_on: string | null; my_photo_id: number | null;
+}
 /** 크롤링 매물(중개사만) — 광고가 아니라 참고 자료. 날짜 · 게시자를 모르면 null */
 export interface CrawlRow {
   id: number; deal: "매매" | "임대";
@@ -165,7 +174,8 @@ export const searchApi = {
       }),
     }),
   pins: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string; mine_only?: boolean;
-              tab?: SearchTab; chip?: "" | "mine" | "ads"; sale_years?: number }) =>
+              tab?: SearchTab; chip?: "" | "mine" | "ads"; sale_years?: number;
+              bbox?: [number, number, number, number] }) =>
     api<MapPinDTO[]>("/search/pins", {                // 지도 핀: 페이징 없이 전체 매물(경량)
       method: "POST",
       body: JSON.stringify({
@@ -173,7 +183,7 @@ export const searchApi = {
         mine_only: p.mine_only ?? false,
         filters: { bjd_code: p.bjd_code ?? null, ...(p.filters ?? {}) },
         sort: p.sort ?? "price",
-        tab: p.tab ?? "all", chip: p.chip ?? "", sale_years: p.sale_years ?? 3,
+        tab: p.tab ?? "all", chip: p.chip ?? "", sale_years: p.sale_years ?? 3, bbox: p.bbox ?? null,
       }),
     }),
   snap: (polygon: object) =>                          // 자석 스냅(후처리): 그린 영역 → 필지 합집합 폴리곤
@@ -233,6 +243,8 @@ export const buildingsApi = {
   vacantPop: (pnu: string) => api<BuildingPop>(`/buildings/parcels/${pnu}/pop`),
   /** 광고 카드(누구나) · 크롤링 매물(중개사만) — S05 */
   ads: (pk: string) => api<AdCard[]>(`/buildings/${pk}/ads`),
+  /** 탐색 목록 카드 — 건물마다 한 장(광고 묶음 · 내 매물) */
+  cards: (pks: string[]) => api<ListCard[]>("/ads/cards", { method: "POST", body: JSON.stringify({ pks }) }),
   crawl: (pk: string) => api<CrawlRow[]>(`/buildings/${pk}/crawl`),
   vacantScene: (pnu: string) => api<{
     roads: { rn: string; road_bt: number | null; geojson: unknown }[];

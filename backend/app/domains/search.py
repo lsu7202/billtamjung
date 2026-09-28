@@ -479,6 +479,8 @@ class SearchIn(BaseModel):
     tab: str = "all"                  # all | deal | ad
     chip: str = ""                    # ad 탭: "" 전체 | mine 내 매물 | ads 광고만
     sale_years: int = 3               # deal 탭 기간(대표 09-28 기본 3년)
+    # 지도 화면 범위 [서, 남, 동, 북](경위도) — 탐색 화면은 검색 없이 지도가 보이는 만큼 부른다(09-28)
+    bbox: list[float] | None = None
 
 
 class SnapIn(BaseModel):
@@ -937,6 +939,10 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
     mine_is_out = "has_listing" if body.for_model else "assignee_account_id IS NOT NULL"
     col_filt = f" AND {mine_is}" if col == "mine" else ""
     col_filt += _tab_sql(body, args, mine_is)
+    if body.bbox and len(body.bbox) == 4:
+        args.extend(body.bbox)
+        n = len(args)
+        col_filt += f" AND b.geom && ST_MakeEnvelope(${n-3}::float8, ${n-2}::float8, ${n-1}::float8, ${n}::float8, 4326)"
     # 내 매물만 볼 때는 listings 를 **INNER JOIN** 으로 바꿔 담당 매물(수십 건)에서 시작한다.
     # LEFT JOIN + WHERE 로 두면 플래너가 buildings_v2 58만 행을 먼저 다 만들고 마지막에
     # 5건으로 줄였다(2026-08-28 실측 2.1s). 지역·폴리곤이 있으면 그쪽이 이미 좁히므로
