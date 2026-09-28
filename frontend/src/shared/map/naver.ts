@@ -39,11 +39,14 @@ export async function geocode(query: string): Promise<{ lng: number; lat: number
 }
 
 /** 분류색(전 화면 통일 — 네이버지도-연동 §2) */
-/* S01 매물 카테고리 핀 색 = 리스트 헤더 토큰과 동일해야 함(지도↔리스트 일관). 광고 --green · 내 --blue · 일반 --purple · 본매물 --ink */
+/* 핀 색(S05, 2026-09-28 · 토스 결) — 뜻 하나씩. 내 매물 파랑 · 광고 검정 · 거래완료 · 일반(추정) 회색.
+   보라(일반)는 색 체계 확정(08-24) 때 폐지됐는데 핀에 남아 있었다 */
 export const PIN_COLORS: Record<string, string> = {
-  mine: "#2B5AA8",   // --blue
-  normal: "#6E56E8", // --purple
-  self: "#262320",   // --ink
+  mine: "#3182F6",   // 파랑 — 내 매물
+  ad: "#191F28",     // 검정 — 광고
+  sold: "#B0B8C1",   // 회색 — 거래완료 광고
+  normal: "#8B95A1", // 회색 — 추정 · 실거래
+  self: "#191F28",
 };
 
 export function priceLabel(price: number | null): string {

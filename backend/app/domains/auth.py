@@ -55,7 +55,10 @@ async def _issue(resp: Response, acc: dict, remember: bool = True) -> TokenOut:
         "SELECT team_id, role FROM app.team_members WHERE account_id=$1 AND left_at IS NULL LIMIT 1",
         acc["id"],
     )
-    access = security.make_access(acc["id"], row["team_id"], row["role"], acc["tier"])
+    kind = await pool().fetchval("SELECT kind FROM app.accounts WHERE id=$1", acc["id"]) or "중개사"
+    # 팀이 없는 계정(고객)도 들어온다 — 전엔 row 가 None 이면 500 이었다
+    access = security.make_access(acc["id"], row["team_id"] if row else None,
+                                  row["role"] if row else None, acc["tier"], kind)
     _set_refresh(resp, acc["id"], remember)
     return TokenOut(access_token=access, tier=acc["tier"])
 
@@ -147,15 +150,15 @@ async def logout(resp: Response):
     return {"ok": True}
 
 
-from ..core.deps import current_user, CurrentUser  # noqa: E402
+from ..core.deps import current_user, any_user, CurrentUser  # noqa: E402
 from fastapi import Depends  # noqa: E402
 
 
 @router.get("/me")
-async def me(user: CurrentUser = Depends(current_user)):
+async def me(user: CurrentUser = Depends(any_user)):
     row = await pool().fetchrow("SELECT name, email, job_role, gender FROM app.accounts WHERE id=$1", user.account_id)
     return {"account_id": user.account_id, "team_id": user.team_id, "job_role": row["job_role"] if row else None, "gender": row["gender"] if row else None,
-            "role": user.role, "tier": user.tier,
+            "role": user.role, "tier": user.tier, "kind": user.kind,
             "name": row["name"] if row else None, "email": row["email"] if row else None}
 
 
@@ -179,7 +182,7 @@ class ProfileIn(BaseModel):
 
 
 @router.patch("/profile")
-async def patch_profile(body: ProfileIn, user: CurrentUser = Depends(current_user)):
+async def patch_profile(body: ProfileIn, user: CurrentUser = Depends(any_user)):
     """온보딩(/welcome) 단계별 저장 — 보낸 필드만 갱신(소셜·이메일 가입 공통 수집 경로)."""
     sets, args = [], []
     for k in ("name", "job_role", "office_name", "office_status", "career_years", "prior_tools", "expect_feature", "referral_source", "interest_region", "gender"):
@@ -194,7 +197,7 @@ async def patch_profile(body: ProfileIn, user: CurrentUser = Depends(current_use
 
 
 @router.patch("/password")
-async def change_password(body: PwChange, user: CurrentUser = Depends(current_user)):
+async def change_password(body: PwChange, user: CurrentUser = Depends(any_user)):
     acc = await pool().fetchrow("SELECT password_hash FROM app.accounts WHERE id=$1", user.account_id)
     if not acc or not security.verify_password(body.current, acc["password_hash"] or ""):
         raise HTTPException(400, "현재 비밀번호가 올바르지 않습니다")

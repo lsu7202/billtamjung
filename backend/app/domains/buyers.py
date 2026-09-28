@@ -28,7 +28,6 @@ PROPOSAL_DROP = ("team_id", "report_id", "note", "created_by", "created_at", "vi
 # 매물 표(2026-09-26)가 다음 일정·접수일·사진·규모·등급·입지·노후도·시기 날짜를 되살려 쓴다.
 SELLER_DROP = ("next_sched_at", "est_price", "sell_score",
                "photo_n", "photo_kinds", "has_report", "has_briefing",
-               "ad_status", "ad_off",
                "last_on", "last_kind", "last_note", "stage", "passed", "price")
 # 오늘 화면 항목
 TODAY_SCHED_DROP = ("kind", "proposal_id", "assignee_account_id", "assignee_name")
@@ -1968,7 +1967,6 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                           WHERE rp.building_pk = l.building_pk AND tm2.team_id = l.team_id
                             AND rp.status = 'done' AND rp.kind = 'briefing') AS has_briefing,
                   l.meongdo, l.use_change, l.myeolsil, l.nohudo, l.ipji,
-                  l.ad_status, l.ad_off,
                   l.sell_on, l.sell_vague, l.rent_check,
                   fr.rent_n,
                   ob.id AS owner_buyer_id,

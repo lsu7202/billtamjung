@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 from ..core.db import pool
-from ..core.deps import current_user, CurrentUser
+from ..core.deps import current_user, any_user, CurrentUser
 from ..core.market import STORES
 from ..core.shape import drop
 from ..jobs import value_score as vs
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/buildings", tags=["buildings"])
 
 
 @router.get("/{building_pk}", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
-async def get_building(building_pk: str, user: CurrentUser = Depends(current_user)):
+async def get_building(building_pk: str, user: CurrentUser = Depends(any_user)):
     """화면값 = master + 팀 오버레이 COALESCE(app.building_view)."""
     merged = await pool().fetchval("SELECT app.building_view($1, $2)", building_pk, user.team_id)
     if merged is None:
@@ -155,7 +155,7 @@ _POP_R = 600      # 유동인구 지도 반경(m) — 250m 격자로 대여섯 �
 
 
 @router.get("/{building_pk}/pop", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
-async def building_pop(building_pk: str, _: CurrentUser = Depends(current_user)):
+async def building_pop(building_pk: str, _: CurrentUser = Depends(any_user)):
     """유동인구 지도(분석 탭) — 250m 격자에 **색과 진하기를 같이** 준다.
 
     상권과 유동인구는 겹치는 정보가 아니라 다른 차원이다: 무슨 동네냐(색=지배 용도)와
@@ -215,7 +215,7 @@ async def building_pop(building_pk: str, _: CurrentUser = Depends(current_user))
 
 
 @router.get("/{building_pk}/scene")
-async def building_scene(building_pk: str, _: CurrentUser = Depends(current_user)):
+async def building_scene(building_pk: str, _: CurrentUser = Depends(any_user)):
     """입체 지적도(분석 탭) 재료 — 접한 도로 구간 + 법정 건폐/용적.
 
     필지 폴리곤은 상세 응답(parcel_geom)에 이미 있어 여기서 다시 내지 않는다.
@@ -257,7 +257,7 @@ async def building_scene(building_pk: str, _: CurrentUser = Depends(current_user
 
 @router.get("/{building_pk}/events", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def area_events(building_pk: str, radius: int = 700, kind: str | None = None,
-                      years: int | None = None, _: CurrentUser = Depends(current_user)):
+                      years: int | None = None, _: CurrentUser = Depends(any_user)):
     """주변 소식 — master.area_event 에서 이 건물 둘레의 사건을 날짜순으로.
 
     표에는 사건만 담고 **건물과의 관계는 여기서 낸다**(건물×사건을 미리 곱하면 천만 줄이 넘는다).
@@ -323,7 +323,7 @@ async def area_events(building_pk: str, radius: int = 700, kind: str | None = No
 
 
 @router.get("/{building_pk}/parcels", openapi_extra={"x-ai": "read"})
-async def get_parcels(building_pk: str, user: CurrentUser = Depends(current_user)):
+async def get_parcels(building_pk: str, user: CurrentUser = Depends(any_user)):
     """필지 셀렉터(S02 §3.6): 대표+부속 필지별 속성·공시지가 시계열·규제 + 건물 요약(OR 집계)."""
     rows = await pool().fetch(
         """WITH dong AS (SELECT DISTINCT ON (bjd_code) bjd_code, dong FROM master.region_index)
@@ -413,7 +413,7 @@ def _pct(v) -> float | None:
 
 
 @router.get("/{building_pk}/rent-series")
-async def rent_series(building_pk: str, _: CurrentUser = Depends(current_user)):
+async def rent_series(building_pk: str, _: CurrentUser = Depends(any_user)):
     """임대 시세 추이 — 이 건물의 지난 임대료를 역산한다(2026-08-28).
 
     우리가 가진 건 **지금** 추정 임대료 하나뿐이다. 과거 값은 한국부동산원 임대동향
@@ -453,7 +453,7 @@ async def rent_series(building_pk: str, _: CurrentUser = Depends(current_user)):
 
 
 @router.get("/parcels/{pnu}", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
-async def get_vacant_parcel(pnu: str, user: CurrentUser = Depends(current_user)):
+async def get_vacant_parcel(pnu: str, user: CurrentUser = Depends(any_user)):
     """나대지 상세 — 필지 하나. 건물이 없으므로 building_pk 가 아니라 pnu 로 가리킨다."""
     r = await pool().fetchrow(
         """SELECT v.pnu, v.addr, v.bjd_code, v.sgg_code, v.area, v.jimok, v.land_use, v.use_zone,
@@ -524,7 +524,7 @@ async def get_vacant_parcel(pnu: str, user: CurrentUser = Depends(current_user))
 
 
 @router.get("/parcels/{pnu}/scene")
-async def vacant_scene(pnu: str, _: CurrentUser = Depends(current_user)):
+async def vacant_scene(pnu: str, _: CurrentUser = Depends(any_user)):
     """나대지 입체 지적도 재료 — 접한 도로 + 법정 건폐/용적.
 
     건물용(`/{building_pk}/scene`)은 buildings.geom 을 기준으로 도로를 찾는데,
@@ -547,7 +547,7 @@ async def vacant_scene(pnu: str, _: CurrentUser = Depends(current_user)):
 
 
 @router.get("/parcels/{pnu}/pop", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
-async def vacant_pop(pnu: str, _: CurrentUser = Depends(current_user)):
+async def vacant_pop(pnu: str, _: CurrentUser = Depends(any_user)):
     """나대지 유동인구 — 건물용과 **같은 그림**. 생활인구는 땅의 성질이지 건물의 것이 아니다.
 
     건물용은 building_pop(건물↔격자 매핑)에서 제 격자를 찾는데 나대지엔 그 행이 없다.

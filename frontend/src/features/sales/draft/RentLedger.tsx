@@ -1,3 +1,4 @@
+import { MarketAsks } from "../../building/MarketAsks";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { rentsApi, type FloorRent, type LedgerFloor } from "../../../shared/api/endpoints";
@@ -230,6 +231,8 @@ export function RentLedger({ pk, onSaved }: { pk: string; onSaved: () => void })
           <span className="okpad" />
         </div>
       )}
+      {/* 시장 호가(크롤링) — 임대 내역 옆 참고 줄(S05 §7) */}
+      <MarketAsks pk={pk} />
     </div>
   );
 }

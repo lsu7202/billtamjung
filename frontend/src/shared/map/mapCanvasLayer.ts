@@ -6,6 +6,8 @@ import { PIN_COLORS, priceLabel } from "./naver";
 export interface CanvasPin {
   building_pk: string; addr?: string; lng: number; lat: number;
   col: "mine" | "normal"; price: number | null; last_sale_price?: number | null; sale_est?: number | null;
+  /** 핀 종류(S05) — 색은 이걸로. 없으면 col */
+  kind?: "mine" | "ad" | "sold" | "normal";
   /** 실거래를 총액·단가로 견주는 재료. 단가 분모는 대지면적이 기본이다 */
   last_sale_ym?: string | null; land_area?: number | null; total_area?: number | null;
 }
@@ -181,12 +183,12 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
     if (mode === "real") {
       const lb = realLabel(it.p, view);
       if (!lb) { it.box = undefined; drawDot(it.cx, it.cy, hover, sel); return; }
-      it.box = drawPin(it.cx, it.cy, lb.main, PIN_COLORS[it.p.col], hover, sel, lb.sub);
+      it.box = drawPin(it.cx, it.cy, lb.main, PIN_COLORS[it.p.kind ?? it.p.col], hover, sel, lb.sub);
       return;
     }
     const pv = it.p.sale_est ?? it.p.price ?? null;
     if (pv == null) { it.box = undefined; drawDot(it.cx, it.cy, hover, sel); }
-    else it.box = drawPin(it.cx, it.cy, priceLabel(pv), PIN_COLORS[it.p.col], hover, sel);
+    else it.box = drawPin(it.cx, it.cy, priceLabel(pv), PIN_COLORS[it.p.kind ?? it.p.col], hover, sel);
   }
 
   // 추정가 산정 대상 아님(주거) · 값 없음 → 작은 회색 점(지도 정리 + 상업 매물 부각)

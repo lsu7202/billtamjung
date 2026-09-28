@@ -2,7 +2,9 @@ import { LoadingOverlay } from "../../shared/ui/Spinner";
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { searchApi, buildingsApi, listingsApi, marketApi, buyersApi, type AttrFilters, type NearbySales } from "../../shared/api/endpoints";
+import { searchApi, buildingsApi, listingsApi, marketApi, buyersApi, type AttrFilters, type NearbySales,
+  type SearchTab, type AdCard, type CrawlRow } from "../../shared/api/endpoints";
+import { useIsBroker } from "../../shared/store/auth";
 import { openDetail, mergeGeo } from "../../shared/map/geo";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
 import { TradeCompare } from "../building/TradeCompare";
@@ -35,8 +37,10 @@ const pyl = (m2?: number | null) => (m2 == null ? "—" : `${py(m2)}평`);   // 
  *  수익률은 classified가 총임대료(층별 실측 합계 ?? 직접 입력 총액) × 12 ÷ 값 으로 산출해
  *  핀에 실려옴(picked.roi). 추정 임대는 안 섞는다(0134).
  *  활용유형도 이제 배치다(0038, 매력도는 2026-09-06 삭제) — 남은 라이브 계산값(미래가치·사옥적합도)만 리포트에서. */
-function SelCard({ picked, bldg, nearby, onDetail, onHide }: {
+function SelCard({ picked, bldg, nearby, ads, crawl, broker, onDetail, onHide }: {
   picked: MapPin; bldg?: Record<string, unknown>; nearby?: NearbySales;
+  /** 광고 카드(누구나) · 크롤링 매물(중개사만) — S05 §2 사이드 판 */
+  ads?: AdCard[]; crawl?: CrawlRow[]; broker: boolean;
   onDetail: () => void;
   /** 접어두기 — 목록 줄에만 있던 것을 여기에도 둔다(2026-08-29).
    *  고르고 나서야 「아니네」가 판가름 나는데, 그때 목록으로 되돌아가 그 줄을 다시
@@ -69,8 +73,25 @@ function SelCard({ picked, bldg, nearby, onDetail, onHide }: {
         : <div className="sel-road" />}
       <div className="sel-body">
         <div className="sel-addr">{picked.addr.replace("서울특별시 ", "").replace("번지", "")}
-          <span className={`ml-tag ${picked.col}`}>{picked.col === "mine" ? "내" : "일반"}</span>
+          {picked.col === "mine" && <span className="ml-tag mine">내</span>}
         </div>
+        {/* ① 광고 — 이 건물에 올라온 매매 광고. 노출 중이 위, 거래완료는 회색. 없으면 칸이 안 선다 */}
+        {(ads ?? []).length > 0 && (
+          <div className="sel-ads">
+            {ads!.map((a) => (
+              <div key={a.id} className={`sel-ad ${a.state === "거래완료" ? "sold" : ""}`}>
+                <div className="ad-top">
+                  <b className="num">{a.state === "거래완료" ? "거래완료" : a.price != null ? `매매 ${eok1(a.price)}` : "가격 문의"}</b>
+                  {a.brokerage === "전속" && <span className="ad-tag">전속</span>}
+                  {a.violation && <span className="ad-tag red">위반건축물</span>}
+                </div>
+                <div className="ad-title">{a.title}</div>
+                <div className="ad-agent">{a.office_name}{a.agent_name ? ` · ${a.agent_name}` : ""}
+                  {a.phone && a.state === "노출" && <span className="num"> · {a.phone}</span>}</div>
+              </div>
+            ))}
+          </div>
+        )}
         {/* 건물 상세 머리줄과 **같은 문법**이다(2026-08-27) — 고르는 화면과 여는 화면이
             같은 값을 같은 얼굴로 보여야, 눌러 들어갔을 때 「그 건물이 맞나」를 다시 안 센다.
             값은 추정 짝(연파랑)과 실측 짝(회색)으로 가른다: 추정가·추정 수익률은 둘 다
@@ -87,6 +108,7 @@ function SelCard({ picked, bldg, nearby, onDetail, onHide }: {
               그대로 쓰면 추정 분모가 실측 자리로 새어 들어온다 — 그래서 매매가가 있을 때만 센다. */}
           {(() => {
             const hasPrice = picked.price_is_est === false && !!picked.price;
+            if (!broker) return null;   // 매매가 · 수익률은 팀이 아는 값 — 고객에겐 이 짝이 없다
             return (
               <span className="hd-grp real">
                 <span className={`pill ${hasPrice ? "" : "off"}`}><i>매매가</i>
@@ -109,6 +131,22 @@ function SelCard({ picked, bldg, nearby, onDetail, onHide }: {
                     ? Math.round(nearby.median_price / landPy) : null }}
           mine={{ price: picked.last_sale_price ?? null, per: realPer, perLand: realPerLand }}
           est={{ price: fair, per: estPer, perLand: estPerLand }} />
+        {/* ③ 크롤링 매물(중개사만) — 시장에 나온 호가. 광고가 아니라 참고 */}
+        {broker && (crawl ?? []).length > 0 && (
+          <div className="sel-crawl">
+            <div className="sc-h">시장 호가 <b className="num">{crawl!.length}</b></div>
+            {crawl!.slice(0, 8).map((c) => (
+              <div key={c.id} className="sc-row num">
+                <span className="d">{c.deal}</span>
+                <span className="f">{c.floor ? `${c.floor}층` : "—"}</span>
+                <span className="a">{c.contract_area != null ? `${py(c.contract_area)}평` : "—"}</span>
+                <span className="v">{c.deal === "매매" ? eok1(c.price)
+                  : `${c.deposit != null ? eok1(c.deposit) : "—"} / ${c.rent != null ? eok1(c.rent) : "—"}`}</span>
+              </div>
+            ))}
+            {crawl!.length > 8 && <div className="sc-more">외 {crawl!.length - 8}건 · 상세에서</div>}
+          </div>
+        )}
         <div className="sel-acts">
           <button className="sel-detail" onClick={onDetail}>상세보기 →</button>
           <button className="sel-hide" title="이 조건에서 접어두기" onClick={onHide}>
@@ -151,11 +189,16 @@ export function SearchPage() {
   });
   const [q, setQ] = useState((saved.q as string) ?? "");
   const [active, setActive] = useState(-1);
-  const [priceMode, setPriceMode] = useState<"fair" | "real">((saved.priceMode as "fair" | "real") ?? "fair");   // 핀 태그 가격
+  const broker = useIsBroker();
+  // 검색 탭(S05 §2) — 실거래 · 매매 · 전체. 예전 「추정가 / 실거래가」 토글을 대신한다.
+  // 핀 값: 실거래=거래가 · 매매=광고가(내 매물은 매매가) · 전체=추정가
+  const [tab, setTab] = useState<SearchTab>((saved.tab as SearchTab) ?? "all");
+  const [chip, setChip] = useState<"" | "mine" | "ads">("");     // 매매 탭(중개사): 전체 · 내 매물 · 광고만
+  const priceMode = tab === "deal" ? "real" as const : "fair" as const;
   // 실거래를 지도에서 견주는 눈금(밸류맵식). **기본은 대지면적 · 평**이다 — 연면적이 아니다.
   const [realBasis, setRealBasis] = useState<"total" | "land" | "bldg">((saved.realBasis as any) ?? "land");
   const [realUnit, setRealUnit] = useState<"py" | "m2">((saved.realUnit as any) ?? "py");
-  const [saleYears, setSaleYears] = useState<number>((saved.saleYears as number) ?? 0);   // 0 = 전체
+  const [saleYears, setSaleYears] = useState<number>((saved.saleYears as number) ?? 3);   // 0 = 전체 · 기본 3년(대표 09-28)
   /** 시작 연도를 직접 고른 경우(밸류맵식). 고르면 `saleYears` 대신 이것이 이긴다.
    *
    *  **이건 「거르기」가 아니라 「보기 범위」다.** 검색 필터의 「실거래일」과 같은 값을 두
@@ -224,8 +267,8 @@ export function SearchPage() {
 
   // 조건 변경 시 스냅샷 저장(전환·새로고침 복원용)
   useEffect(() => {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ q, priceMode, realBasis, realUnit, saleYears, saleFrom, polygons, sort, filters, fValues, fRegions, pages, hidden }));
-  }, [q, priceMode, realBasis, realUnit, saleYears, saleFrom, polygons, sort, filters, fValues, fRegions, pages, hidden]);
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ q, tab, realBasis, realUnit, saleYears, saleFrom, polygons, sort, filters, fValues, fRegions, pages, hidden }));
+  }, [q, tab, realBasis, realUnit, saleYears, saleFrom, polygons, sort, filters, fValues, fRegions, pages, hidden]);
   const bjd = fRegions[0]?.bjd_code ?? "";                       // 단일지역(멀티는 백엔드 확장 예정)
   // 지역·영역이 바뀌어 매물 집합이 바뀌면 핀 레이어가 지도를 맞춘다(mapCanvasLayer.setPins) — 여기서 또 맞추지 않는다
   const filterCount = activeCount(fValues, fRegions);
@@ -244,7 +287,10 @@ export function SearchPage() {
   // 로그인하고 들어와서 지역을 고르기 전까지 아무것도 안 뜨는 게 제일 큰 불만이었다.
   // 팀이 넣은 값으로 거를 때도 내 매물만 본다(2026-08-27) — 남의 건물엔 매매가도 총임대료도
   // 상태도 없어서 「일반」 열이 뜰 이유가 없다. 조건을 지우면 저절로 두 열로 돌아간다.
-  const mineOnly = (!bjd && !polygon) || byTeam;
+  // 매매 탭은 광고 · 내 매물만 보므로 서울 전역도 가볍다 — 지역 없이도 연다.
+  const mineOnly = tab !== "ad" && ((!bjd && !polygon) || byTeam);
+  // 실거래 기간 → 서버(탭이 거른다). 연도를 직접 골랐으면 그 해부터, 0 = 전체(30년)
+  const saleYearsSrv = saleFrom ? new Date().getFullYear() - saleFrom + 1 : (saleYears || 30);
   // 영역(폴리곤)이 있으면 지역범위 대체(S01 §3.6c)
   const result = useQuery<SearchResult>({
     queryKey: ["search3", bjd, polygon, sort, filters, pages, mineOnly],
@@ -257,10 +303,11 @@ export function SearchPage() {
   });
   // 지도 핀 — 리스트는 페이징하되 지도엔 조건에 맞는 '전체' 매물을 표시(페이징 없음)
   const mapPins = useQuery<MapPin[]>({
-    queryKey: ["mapPins", bjd, polygon, sort, filters, mineOnly],
+    queryKey: ["mapPins", bjd, polygon, sort, filters, mineOnly, tab, chip, tab === "deal" ? saleYearsSrv : 0],
     queryFn: () => searchApi.pins({
       bjd_code: polygon ? undefined : bjd || undefined,
       polygon: polygon ?? undefined, filters, sort, mine_only: mineOnly,
+      tab, chip: tab === "ad" ? chip : "", sale_years: saleYearsSrv,
     }) as Promise<MapPin[]>,
     placeholderData: (prev) => prev,   // 조건이 바뀌어도 옛 핀을 들고 있는다 — 지도가 안 비워진다
   });
@@ -275,7 +322,10 @@ export function SearchPage() {
     ? (() => { const d = new Date(); d.setFullYear(d.getFullYear() - saleYears);
                return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`; })()
     : null;
-  const mapPinsShown = (priceMode === "real" && ymCut)
+  // 매매 탭 핀 값 = 광고 최저가(비공개면 없음) · 내 매물은 매매가(없으면 추정가). 라벨은 sale_est 자리를 읽는다
+  const mapPinsShown = tab === "ad"
+    ? mapPinList.map((p) => ({ ...p, sale_est: p.kind === "mine" ? p.price : (p.ad_price_min ?? null) }))
+    : (priceMode === "real" && ymCut)
     ? mapPinList.map((p) => (p.last_sale_ym && p.last_sale_ym >= ymCut ? p : { ...p, last_sale_price: null }))
     : mapPinList;
   // 내 매물이 늘 먼저 선다 — 값순 안에서 담당 매물만 위로 올린다(2026-08-28 회귀 복구).
@@ -379,6 +429,16 @@ export function SearchPage() {
     queryKey: ["nearbySales", picked?.building_pk],
     queryFn: () => marketApi.nearbySales(picked!.building_pk), enabled: !!picked,
   });
+  // 사이드 판 — 광고 카드(누구나) · 크롤링 매물(중개사만. 고객은 API 가 403 이라 부르지도 않는다)
+  const pickedAds = useQuery({
+    queryKey: ["bAds", picked?.building_pk],
+    queryFn: () => buildingsApi.ads(picked!.building_pk), enabled: !!picked && !picked.building_pk.startsWith("P"),
+  });
+  const pickedCrawl = useQuery({
+    queryKey: ["bCrawl", picked?.building_pk],
+    queryFn: () => buildingsApi.crawl(picked!.building_pk),
+    enabled: !!picked && broker && !picked.building_pk.startsWith("P"),
+  });
 
   const total = result.data ? result.data.mine.total + result.data.normal.total : 0;
 
@@ -481,13 +541,18 @@ export function SearchPage() {
                 </div>
               )}
 
-              {/* 핀 값 · 범례 · 정렬 */}
+              {/* 검색 탭(S05) — 누구에게나 같은 셋. 매매 탭의 칩만 중개사에게 더 선다 */}
               <div className="mo-top">
-                <Segmented value={priceMode} onChange={setPriceMode} size="sm"
-                  options={[{ value: "fair", label: "추정가" }, { value: "real", label: "실거래가" }]} />
+                <Segmented value={tab} onChange={(v) => { setTab(v); setPicked(null); }} size="sm"
+                  options={[{ value: "deal", label: "실거래" }, { value: "ad", label: "매매" }, { value: "all", label: "전체" }]} />
                 <span className="sp" />
-                <span className="mo-lg"><b style={{ background: "var(--blue)" }} />내</span>
-                <span className="mo-lg"><b style={{ background: "var(--muted)" }} />일반</span>
+                {tab === "ad" && broker && (
+                  <span className="mo-chips2">
+                    {([["", "전체"], ["mine", "내 매물"], ["ads", "광고만"]] as const).map(([v, l]) => (
+                      <button key={v} className={chip === v ? "on" : ""} onClick={() => setChip(v)}>{l}</button>
+                    ))}
+                  </span>
+                )}
               </div>
 
               {/* 실거래 견주기 — 총액이냐 단가냐, 단가면 무엇으로 나누고 어느 단위로 낼 것이냐 */}
@@ -530,6 +595,7 @@ export function SearchPage() {
                 <div className="mo-body">
                   <button className="mo-back" onClick={() => setPicked(null)}>‹ 목록</button>
                   <SelCard picked={picked} bldg={pickedBldg.data} nearby={nearbySales.data}
+                    ads={pickedAds.data} crawl={pickedCrawl.data} broker={broker}
                     onDetail={() => go(picked!.building_pk)}
                     onHide={() => {
                       // 접었으면 그 건물은 이 조건에서 사라진다 — 고른 채로 두면 없는 것을 보고 있게 된다
@@ -540,7 +606,8 @@ export function SearchPage() {
               ) : (
                 <div className="mo-body">
                   <div className="ml-head">
-                    <span>{byTeam ? "내 매물 " : "이 영역 "}<b className="num">{mapPinList.length}</b>건{
+                    <span>{tab === "ad" ? (chip === "mine" ? "내 매물 " : chip === "ads" ? "광고 " : "매매 ")
+                      : tab === "deal" ? "실거래 " : byTeam || mineOnly ? "내 매물 " : "이 영역 "}<b className="num">{mapPinList.length}</b>건{
                       mapPins.isFetching ? " · 불러오는 중…"
                       : mapPinList.length < total ? ` · 전체 ${total.toLocaleString()}건 中` : ""}</span>
                     {/* 접어둔 줄 되돌리기 — 접기는 건물이 아니라 **조건**에 붙는 값이라
@@ -556,21 +623,33 @@ export function SearchPage() {
                     <div key={p.building_pk} className="ml-row"
                       onClick={() => { setPicked(p); if (p.lng && p.lat) setCenterReq({ lng: p.lng, lat: p.lat }); }}>
                       <span className="ml-a">{p.addr.replace("서울특별시 ", "").replace("번지", "")}
-                        <span className={`ml-tag ${p.col}`}>{p.col === "mine" ? "내" : "일반"}</span>
+                        {p.kind === "mine" && <span className="ml-tag mine">내</span>}
+                        {p.kind === "ad" && <span className="ml-tag ad">광고{(p.ad_n ?? 0) > 1 ? ` ${p.ad_n}` : ""}</span>}
+                        {p.kind === "sold" && <span className="ml-tag sold">거래완료</span>}
                       </span>
                       {/* 값과 수익률은 늘 **같은 출신**으로 짝짓는다(0134). 출처는 색이 말한다:
                           연파랑은 빌탐정 추정가, 검정은 팀이 적은 값. */}
+                      {tab === "deal" ? (
+                        <span className="ml-nums">{won(p.last_sale_price ?? null)}
+                          {p.last_sale_ym && <small> · {p.last_sale_ym.slice(2, 4)}.{p.last_sale_ym.slice(4, 6)}</small>}</span>
+                      ) : tab === "ad" && p.kind !== "mine" ? (
+                        <span className="ml-nums">{p.ad_price_min != null ? won(p.ad_price_min) : "가격 문의"}</span>
+                      ) : (
                       <span className={`ml-nums ${p.price_is_est ? "est" : ""}`}>{won(p.price)}
                         {p.price_is_est
                           ? (p.roi_est != null && <small> · {p.roi_est}%</small>)
                           : (p.roi != null && <small> · {p.roi}%</small>)}</span>
+                      )}
                       <button className="ml-hide" title="접어두기"
                         onClick={(e) => { e.stopPropagation(); setHidden((v) => [...v, p.building_pk]); }}>
                         <Icon name="hide" size={13} /></button>
                     </div>
                   ))}
                   {mapPinList.length > 100 && <div className="ml-row" style={{ justifyContent: "center", color: "var(--muted)", cursor: "default" }}>목록은 상위 100건 · 지도에서 전체 확인</div>}
-                  {mapPinList.length === 0 && <div className="sel-empty">이 영역에 표시할 매물이 없습니다</div>}
+                  {mapPinList.length === 0 && <div className="sel-empty">{
+                    tab === "ad" ? "올라온 매매 광고가 없습니다"
+                    : !bjd && !polygon && !broker ? "지역이나 주소를 찾아 보세요"
+                    : "이 영역에 표시할 매물이 없습니다"}</div>}
                 </div>
               )}
             </div>

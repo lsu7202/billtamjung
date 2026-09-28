@@ -120,6 +120,28 @@ export interface MapPinDTO {
   roi: number | null; last_sale_price: number | null;
   /** 지도에서 실거래를 총액·단가로 견주는 재료(밸류맵식). 단가 기본 분모는 대지면적이다 */
   last_sale_ym?: string | null; land_area?: number | null; total_area?: number | null;
+  /** 핀 종류(S05) — 내 매물 · 광고 · 거래완료 · 일반. 색이 이걸로 갈린다 */
+  kind?: PinKind; ad_n?: number; ad_price_min?: number | null;
+}
+export type PinKind = "mine" | "ad" | "sold" | "normal";
+/** 검색 탭(S05 §2) — 실거래 · 매매 · 전체. 화면은 하나고 탭만 바뀐다 */
+export type SearchTab = "deal" | "ad" | "all";
+
+/** 사이드 판 광고 카드(누구나) — 가격 비공개면 price 는 null */
+export interface AdCard {
+  id: number; state: "노출" | "거래완료"; brokerage: "일반" | "전속";
+  price: number | null; price_open: boolean;
+  land_area: number | null; total_area: number | null; floors_above: number | null; floors_below: number | null;
+  violation: boolean | null; title: string; posted_on: string; closed_on: string | null;
+  phone: string | null; agent_name: string | null; office_name: string | null; reg_no: string | null;
+  mine: boolean; photo_id: number | null;
+}
+/** 크롤링 매물(중개사만) — 광고가 아니라 참고 자료. 날짜 · 게시자를 모르면 null */
+export interface CrawlRow {
+  id: number; deal: "매매" | "임대";
+  price: number | null; deposit: number | null; rent: number | null; mgmt: number | null;
+  floor: string | null; contract_area: number | null; excl_area: number | null;
+  office_name: string | null; agent_name: string | null; phone: string | null; last_seen: string | null;
 }
 
 export const searchApi = {
@@ -142,7 +164,8 @@ export const searchApi = {
         page_mine: p.page_mine ?? 1, page_normal: p.page_normal ?? 1,
       }),
     }),
-  pins: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string; mine_only?: boolean }) =>
+  pins: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string; mine_only?: boolean;
+              tab?: SearchTab; chip?: "" | "mine" | "ads"; sale_years?: number }) =>
     api<MapPinDTO[]>("/search/pins", {                // 지도 핀: 페이징 없이 전체 매물(경량)
       method: "POST",
       body: JSON.stringify({
@@ -150,6 +173,7 @@ export const searchApi = {
         mine_only: p.mine_only ?? false,
         filters: { bjd_code: p.bjd_code ?? null, ...(p.filters ?? {}) },
         sort: p.sort ?? "price",
+        tab: p.tab ?? "all", chip: p.chip ?? "", sale_years: p.sale_years ?? 3,
       }),
     }),
   snap: (polygon: object) =>                          // 자석 스냅(후처리): 그린 영역 → 필지 합집합 폴리곤
@@ -207,6 +231,9 @@ export const buildingsApi = {
   // 응답 모양은 건물용과 같게 맞췄다 — 같은 컴포넌트가 그린다.
   vacant: (pnu: string) => api<Record<string, unknown>>(`/buildings/parcels/${pnu}`),
   vacantPop: (pnu: string) => api<BuildingPop>(`/buildings/parcels/${pnu}/pop`),
+  /** 광고 카드(누구나) · 크롤링 매물(중개사만) — S05 */
+  ads: (pk: string) => api<AdCard[]>(`/buildings/${pk}/ads`),
+  crawl: (pk: string) => api<CrawlRow[]>(`/buildings/${pk}/crawl`),
   vacantScene: (pnu: string) => api<{
     roads: { rn: string; road_bt: number | null; geojson: unknown }[];
     /** 법정 건폐/용적(%) 목록. 값이 하나면 [55], 걸쳐서 병기되면 [50,60] (0153). */
@@ -829,7 +856,6 @@ export interface Seller {
   has_briefing?: boolean;   /** 브리핑자료 — 생성 폐지 상태(kind=analysis만)라 당분간 false */
   meongdo?: string | null; use_change?: string | null; myeolsil?: string | null;
   nohudo?: string | null; ipji?: string | null;
-  ad_status?: string | null; ad_off?: string | null;
   /** 매물 표(0182) — 분류(여럿)·등급·전속·확인일(사람이 쓴 마지막 기록일)·층수 */
   building_major?: string | null;
   price_vs_market?: string | null;   /** 시세대비(0187) — 저렴·적정·비쌈 */

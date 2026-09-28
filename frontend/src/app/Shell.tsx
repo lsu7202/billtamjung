@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { useAuth } from "../shared/store/auth";
+import { useAuth, useIsBroker } from "../shared/store/auth";
 import { Logo } from "../shared/ui/Brand";
 import { Icon } from "../shared/ui/Icon";
 
@@ -16,6 +16,9 @@ import { Icon } from "../shared/ui/Icon";
 export function Shell() {
   const nav = useNavigate();
   const clear = useAuth((s) => s.clear);
+  // 화면은 하나, 기능은 계정 종류로(S05 §1) — 고객에겐 매물관리 · 고객관리 · 일정이 없다.
+  // 어시스턴트는 도구가 팀 값을 읽어서 고객용 도구 묶음(④) 전까지 중개사만.
+  const broker = useIsBroker();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
@@ -23,12 +26,14 @@ export function Shell() {
         <Logo markSize={22} />
         <nav className="gnb">
           <NavLink to="/search" className={({ isActive }) => (isActive ? "on" : "")}>건물 검색</NavLink>
-          <NavLink to="/sales" className={({ isActive }) => (isActive ? "on" : "")}>매물관리</NavLink>
-          <NavLink to="/customers" className={({ isActive }) => (isActive ? "on" : "")}>고객관리</NavLink>
-          <NavLink to="/schedule" className={({ isActive }) => (isActive ? "on" : "")}>일정</NavLink>
+          {broker && <>
+            <NavLink to="/sales" className={({ isActive }) => (isActive ? "on" : "")}>매물관리</NavLink>
+            <NavLink to="/customers" className={({ isActive }) => (isActive ? "on" : "")}>고객관리</NavLink>
+            <NavLink to="/schedule" className={({ isActive }) => (isActive ? "on" : "")}>일정</NavLink>
+          </>}
           {/* 소식 — 서울 전체의 고시·공고·인허가·보도자료. 건물 상세의 「주변 소식」과 같은 자료를
               자리로 안 자르고 늘어놓은 자리다(2026-09-06) */}
-          <NavLink to="/assistant" className={({ isActive }) => (isActive ? "on" : "")}>어시스턴트</NavLink>
+          {broker && <NavLink to="/assistant" className={({ isActive }) => (isActive ? "on" : "")}>어시스턴트</NavLink>}
           <NavLink to="/news" className={({ isActive }) => (isActive ? "on" : "")}>소식</NavLink>
         </nav>
         <span className="sp" />

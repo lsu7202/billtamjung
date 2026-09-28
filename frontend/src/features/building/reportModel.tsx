@@ -1,6 +1,7 @@
 /** 보고서 단일 콘텐츠 모델 — 덱(ReportPage)·애니메이션(ReportStory) 공용.
  * ★ 값·분석 의견·종합 서술 등 '보고서에 들어가는 모든 내용'을 여기서 한 번만 계산한다.
  *   두 화면은 이 모델을 그대로 렌더만 하고 디자인(레이아웃·색·모션)만 다르게 한다 → 내용 불일치 원천 차단. */
+import { useIsBroker } from "../../shared/store/auth";
 import { useQuery } from "@tanstack/react-query";
 import { reportsApi, buildingsApi, type CompUsed, type RentFloor } from "../../shared/api/endpoints";
 
@@ -59,7 +60,9 @@ export function useReportModel(reportId: number | null, pkParam?: string) {
   const snap = rq.data?.result_json ?? null;
   const pk = reportId != null ? (rq.data?.building_pk ?? "") : (pkParam ?? "");
   const needLive = reportId == null || (!!rq.data && !snap);
-  const cq = useQuery({ enabled: needLive && !!pk, queryKey: ["report-comps", pk], queryFn: () => reportsApi.comps(pk) });
+  // comps 는 팀 값(오버레이 · 팀 임대 comp)을 섞어 내서 중개사만 부른다(S05). 고객은 대장 · 추정가만
+  const broker = useIsBroker();
+  const cq = useQuery({ enabled: needLive && !!pk && broker, queryKey: ["report-comps", pk], queryFn: () => reportsApi.comps(pk) });
   const bq = useQuery({ enabled: !!pk, queryKey: ["building", pk], queryFn: () => buildingsApi.get(pk) });
 
   const sub = snap?.subject ?? cq.data?.subject;

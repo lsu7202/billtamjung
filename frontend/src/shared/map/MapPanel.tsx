@@ -18,6 +18,10 @@ export interface MapPin {
   lng: number;
   lat: number;
   col: "mine" | "normal";
+  /** 핀 종류(S05) — 색은 이걸로 가른다. 없으면 col 로 */
+  kind?: "mine" | "ad" | "sold" | "normal";
+  ad_n?: number;
+  ad_price_min?: number | null;
   price: number | null;
   last_sale_price?: number | null;
   sale_est?: number | null;

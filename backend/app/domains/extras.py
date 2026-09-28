@@ -3,7 +3,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from ..core.db import pool
-from ..core.deps import current_user, CurrentUser
+from ..core.deps import current_user, any_user, CurrentUser
 
 router = APIRouter(tags=["extras"])
 
@@ -25,7 +25,7 @@ _cat_cache: tuple[float, list] | None = None
 
 
 @router.get("/biz-cats")
-async def biz_cats(_: CurrentUser = Depends(current_user)):
+async def biz_cats(_: CurrentUser = Depends(any_user)):
     """[{path: [대, 중, 소], name, depth}] — 가나다순. 화면이 부모 경로로 묶어 칩 세 줄을 만든다."""
     import time
     global _cat_cache
@@ -45,7 +45,7 @@ async def biz_cats(_: CurrentUser = Depends(current_user)):
 
 
 @router.get("/enums", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
-async def enums(_: CurrentUser = Depends(current_user)):
+async def enums(_: CurrentUser = Depends(any_user)):
     """전 enum 그룹 {enum_key: [{code,label,tier}]} — 드롭다운·코드↔라벨 매핑(레지스트리)."""
     import time
     global _enum_cache
@@ -64,7 +64,7 @@ async def enums(_: CurrentUser = Depends(current_user)):
 
 
 @router.get("/fields", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
-async def fields(_: CurrentUser = Depends(current_user)):
+async def fields(_: CurrentUser = Depends(any_user)):
     """필드 레지스트리 {field_key: {label,unit,data_type,enum_key,editable,display_group}}."""
     rows = await pool().fetch(
         """SELECT field_key, label, unit, data_type::text, layer::text, enum_key,
@@ -81,7 +81,7 @@ class SavedSearchIn(BaseModel):
 
 
 @router.post("/saved-searches")
-async def save_search(body: SavedSearchIn, user: CurrentUser = Depends(current_user)):
+async def save_search(body: SavedSearchIn, user: CurrentUser = Depends(any_user)):
     if not body.name.strip() or not body.conditions:
         raise HTTPException(422, "이름과 조건이 필요합니다")
     sid = await pool().fetchval(
@@ -93,7 +93,7 @@ async def save_search(body: SavedSearchIn, user: CurrentUser = Depends(current_u
 
 
 @router.get("/saved-searches")
-async def list_searches(user: CurrentUser = Depends(current_user)):
+async def list_searches(user: CurrentUser = Depends(any_user)):
     rows = await pool().fetch(
         "SELECT id,name,conditions_json,created_at FROM app.saved_searches WHERE account_id=$1 ORDER BY created_at DESC",
         user.account_id,
@@ -110,7 +110,7 @@ class SavedSearchPatch(BaseModel):
 
 
 @router.patch("/saved-searches/{sid}")
-async def update_search(sid: int, body: SavedSearchPatch, user: CurrentUser = Depends(current_user)):
+async def update_search(sid: int, body: SavedSearchPatch, user: CurrentUser = Depends(any_user)):
     if body.name is None and body.conditions is None:
         raise HTTPException(422, "바꿀 항목이 없습니다")
     if body.name is not None and not body.name.strip():
@@ -131,7 +131,7 @@ async def update_search(sid: int, body: SavedSearchPatch, user: CurrentUser = De
 
 
 @router.delete("/saved-searches/{sid}")
-async def delete_search(sid: int, user: CurrentUser = Depends(current_user)):
+async def delete_search(sid: int, user: CurrentUser = Depends(any_user)):
     await pool().execute(
         "DELETE FROM app.saved_searches WHERE id=$1 AND account_id=$2", sid, user.account_id
     )
@@ -155,7 +155,7 @@ async def wiki_post(building_pk: str, body: WikiIn, user: CurrentUser = Depends(
 
 
 @router.get("/buildings/{building_pk}/wiki", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
-async def wiki_list(building_pk: str, user: CurrentUser = Depends(current_user)):
+async def wiki_list(building_pk: str, user: CurrentUser = Depends(any_user)):
     rows = await pool().fetch(
         """SELECT w.id, w.category, w.body, w.created_at,
                   COALESCE(a.name,'탈퇴한 사용자') AS author,

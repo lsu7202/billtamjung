@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { rentsApi, type FloorGroup, type LedgerRoom, type Tenant } from "../../shared/api/endpoints";
+import { MarketAsks } from "./MarketAsks";
 
 /** 층별 정보(건물 상세) — 대장과 업체 원장만 읽는다(2026-09-26 나눔).
  *
@@ -111,6 +112,7 @@ export function FloorRows({ pk, unit, onLedger }: {
           )}
         </div>
       </div>
+      <MarketAsks pk={pk} unit={unit} />
     </div>
   );
 }

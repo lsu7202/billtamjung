@@ -6,7 +6,7 @@ import statistics
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from ..core.db import pool
-from ..core.deps import current_user, CurrentUser
+from ..core.deps import current_user, any_user, CurrentUser
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -47,7 +47,7 @@ def _flag_outliers(items: list[dict], key: str) -> None:
 
 
 @router.post("/nearby")
-async def nearby(body: NearbyIn, _: CurrentUser = Depends(current_user)):
+async def nearby(body: NearbyIn, _: CurrentUser = Depends(any_user)):
     # 임대 comps(팀 실측 + 마스터 추정 300건, 층별 평균)는 뺐다(감사 2026-09-17). 실거래 탭은
     # sales 만 읽는데 응답 108KB 의 대부분이 rents 였다. 임대 추정은 임대 탭·보고서가 따로 낸다.
     # 매각 comps: 반경 내 매각 이력 — S03 §3.3. 기간·가격대는 상권 조건을 따른다.
@@ -90,7 +90,7 @@ async def nearby(body: NearbyIn, _: CurrentUser = Depends(current_user)):
 # nearby()는 임대 추정 comp까지 무는 무거운 조회라 카드용으로는 매각 사례만 가볍게 뽑는다.
 @router.get("/nearby-sales/{building_pk}", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def nearby_sales(building_pk: str, radius_m: int = 500, years: int = 5, limit: int = 8,
-                       _: CurrentUser = Depends(current_user)):
+                       _: CurrentUser = Depends(any_user)):
     """반경 내 최근 매각 사례 — 가까운 순. 본매물 제외, 매물당 최근 거래 1건(DISTINCT ON).
     per_area = 연면적 평단가(원/평). 04 슬라이드 비교와 같은 축이라 두 화면이 같은 말을 한다."""
     radius_m = max(100, min(radius_m, 3000))

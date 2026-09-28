@@ -2,6 +2,7 @@ import { Loading } from "../../shared/ui/Spinner";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useIsBroker } from "../../shared/store/auth";
 import {
   buildingsApi, overlaysApi, listingsApi, seriesApi, reportsApi, proposalsApi,
 } from "../../shared/api/endpoints";
@@ -95,8 +96,10 @@ export function BuildingPage() {
       .filter((e) => !cut || ((e.on_date ? +e.on_date.slice(0, 4) : e.on_year) ?? 9999) >= cut)
       .map((e) => ({ id: e.id, lng: e.lng!, lat: e.lat!, name: e.name ?? "", source_url: e.source_url, ...eventIcon(e) }));
   }, [areaEv.data, evYears]);
-  const series = useQuery({ queryKey: ["series", pk], queryFn: () => seriesApi.get(pk) });
-  const listing = useQuery({ queryKey: ["listing", pk], queryFn: () => listingsApi.get(pk) });
+  // 화면은 하나, 팀 값은 중개사만(S05 §1) — 고객이면 부르지 않는다(API 도 403)
+  const broker = useIsBroker();
+  const series = useQuery({ queryKey: ["series", pk], queryFn: () => seriesApi.get(pk), enabled: broker });
+  const listing = useQuery({ queryKey: ["listing", pk], queryFn: () => listingsApi.get(pk), enabled: broker });
 
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const editField = useMutation({
@@ -245,12 +248,12 @@ export function BuildingPage() {
           )}
           {/* 실측 짝 — 매매가와 수익률은 한 덩어리다. 수익률의 분모가 매매가임이 자리로 드러나
               이름에 분모를 또 박지 않는다(사이드바는 묶음이 없어 「매매가 대비 수익률」로 쓴다). */}
-          <span className="hd-grp real">
+          {broker && <span className="hd-grp real">
             <span className={`pill ${price ? "" : "off"}`}><i>매매가</i>
               <b>{price ? wonShort(price) : "—"}</b></span>
             <span className={`pill ${est.roiReal != null ? "" : "off"}`}><i>수익률</i>
               <b>{est.roiReal != null ? `${est.roiReal.toFixed(2)}%` : "—"}</b></span>
-          </span>
+          </span>}
           <span className="pill"><i>면적({unit === "py" ? "평" : "㎡"})</i><b>{areaVal()}</b></span>
           <span className="pill"><i>층수</i>
             <b>{`${Number(b.floors_below) > 0 ? `B${b.floors_below}F/` : ""}${b.floors_above != null ? `${b.floors_above}F` : ""}` || "—"}</b></span>
@@ -392,7 +395,7 @@ export function BuildingPage() {
             <PhotoPanel lng={b.lng} lat={b.lat} pk={pk} area={marketArea} onArea={saveArea} comps={comps} events={evPins}
               parcelGeom={selParcel} />
           )}
-          <Sidebar pk={pk} />
+          {broker && <Sidebar pk={pk} />}
         </div>
       </div>
 
@@ -400,6 +403,7 @@ export function BuildingPage() {
       {/* 하단 바(2026-08-27 알약으로) — 주인공은 「매물 분석하기」 하나라 그것만 검정.
           브리핑은 회색 알약, 되돌리기는 유령 글자, 단위는 슬라이딩 토글(Segmented). */}
       <div className="panel bt-foot" style={{ position: "sticky", bottom: 0, display: "flex", gap: 8, alignItems: "center", padding: "7px 14px", zIndex: 20 }}>
+        {broker && <>
         <button className="fp dark" onClick={() => { setReportOpen(true); setGenState(null); }}>매물 분석하기</button>
         <button className="fp" disabled={briefing.isPending}
           onClick={() => { setBriefOpen(true); setGenState(null); }}>브리핑 자료</button>
@@ -411,6 +415,7 @@ export function BuildingPage() {
             qc.invalidateQueries({ queryKey: ["building", pk] });
           }
         }}>↺ 전체 되돌리기</button>
+        </>}
         <span style={{ flex: 1 }} />
         <Segmented size="sm" value={unit} onChange={setUnit}
           options={[{ value: "py", label: "평" }, { value: "m2", label: "㎡" }]} />

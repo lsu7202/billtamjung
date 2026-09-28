@@ -99,7 +99,9 @@
 .ml-row.on { background: var(--signal-bg); box-shadow: inset 3px 0 0 var(--signal); }
 .ml-row .ml-a { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .ml-row .ml-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
-.ml-tag.ad { background: var(--green); } .ml-tag.mine { background: var(--blue); } .ml-tag.normal { background: var(--muted); }
+/* 핀과 같은 뜻(S05) — 내 매물 파랑 · 광고 검정 · 거래완료 회색 */
+.ml-tag.ad { background: #191F28; } .ml-tag.mine { background: #3182F6; } .ml-tag.sold { background: #B0B8C1; } .ml-tag.normal { background: var(--muted); }
+.sel-addr .ml-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
 .ml-row .ml-nums { font-size: 12px; color: var(--ink); text-align: right; white-space: nowrap; font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 700; }
 .ml-row .ml-nums small { color: var(--muted); font-weight: 600; }
 
@@ -253,3 +255,28 @@
 .hid-pill b{color:#191F28}
 .hid-pill:hover{border-color:#3182F6; color:#3182F6}
 .hid-undo{margin-left:5px; padding-left:7px; border-left:1px solid #E5E8EB; color:#3182F6; font-weight:800}
+
+/* ── 검색 탭 · 사이드 판(S05, 2026-09-28) ── */
+.mo-chips2 { display: inline-flex; gap: 4px; }
+.mo-chips2 button { border: 0; background: #F2F4F6; color: #4E5968; border-radius: 999px; padding: 4px 10px;
+  font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; }
+.mo-chips2 button.on { background: #EBF4FF; color: #3182F6; }
+/* ① 광고 카드 */
+.sel-ads { display: flex; flex-direction: column; gap: 6px; margin: 11px 0 0; }
+.sel-ad { background: #FFFFFF; box-shadow: inset 0 0 0 1px #E5E8EB; border-radius: 12px; padding: 10px 12px; }
+.sel-ad.sold { background: #F9FAFB; }
+.sel-ad.sold .ad-top b, .sel-ad.sold .ad-title { color: #8B95A1; }
+.sel-ad .ad-top { display: flex; align-items: center; gap: 6px; }
+.sel-ad .ad-top b { font-size: 15px; font-weight: 800; color: #191F28; }
+.sel-ad .ad-tag { font-size: 10.5px; font-weight: 700; color: #3182F6; background: #EBF4FF; border-radius: 4px; padding: 1px 6px; }
+.sel-ad .ad-tag.red { color: #F04452; background: #FDEBEA; }
+.sel-ad .ad-title { font-size: 12.5px; color: #333D4B; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sel-ad .ad-agent { font-size: 11.5px; color: #8B95A1; margin-top: 3px; }
+/* ③ 크롤링 매물(중개사만) */
+.sel-crawl { margin: 11px 0 0; background: #F9FAFB; border-radius: 12px; padding: 9px 12px; }
+.sel-crawl .sc-h { font-size: 12px; font-weight: 700; color: #4E5968; margin-bottom: 4px; }
+.sel-crawl .sc-h b { color: #191F28; margin-left: 2px; }
+.sel-crawl .sc-row { display: grid; grid-template-columns: 34px 44px 52px 1fr; gap: 6px; font-size: 12px; color: #333D4B; padding: 2px 0; }
+.sel-crawl .sc-row .d { color: #8B95A1; }
+.sel-crawl .sc-row .v { text-align: right; }
+.sel-crawl .sc-more { font-size: 11px; color: #8B95A1; text-align: right; margin-top: 2px; }
