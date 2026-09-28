@@ -1,5 +1,7 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth, useIsBroker } from "../shared/store/auth";
+import { useQuery } from "@tanstack/react-query";
+import { inquiriesApi } from "../shared/api/endpoints";
 import { Logo } from "../shared/ui/Brand";
 import { Icon } from "../shared/ui/Icon";
 
@@ -19,6 +21,8 @@ export function Shell() {
   // 화면은 하나, 기능은 계정 종류로(S05 §1) — 고객에겐 매물관리 · 고객관리 · 일정이 없다.
   // 어시스턴트는 도구가 팀 값을 읽어서 고객용 도구 묶음(④) 전까지 중개사만.
   const broker = useIsBroker();
+  // 미확인 문의 수 — 고객관리 옆 숫자 점(S05). 1분마다 다시 센다
+  const inq = useQuery({ queryKey: ["inq-count"], queryFn: inquiriesApi.count, enabled: broker, refetchInterval: 60_000 });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
@@ -28,7 +32,8 @@ export function Shell() {
           <NavLink to="/search" className={({ isActive }) => (isActive ? "on" : "")}>탐색</NavLink>
           {broker && <>
             <NavLink to="/sales" className={({ isActive }) => (isActive ? "on" : "")}>매물관리</NavLink>
-            <NavLink to="/customers" className={({ isActive }) => (isActive ? "on" : "")}>고객관리</NavLink>
+            <NavLink to="/customers" className={({ isActive }) => (isActive ? "on" : "")}>고객관리
+              {(inq.data?.unread ?? 0) > 0 && <i className="gnb-dot num">{inq.data!.unread}</i>}</NavLink>
             <NavLink to="/schedule" className={({ isActive }) => (isActive ? "on" : "")}>일정</NavLink>
           </>}
           {/* 소식 — 서울 전체의 고시·공고·인허가·보도자료. 건물 상세의 「주변 소식」과 같은 자료를

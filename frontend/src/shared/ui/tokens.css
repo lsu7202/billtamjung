@@ -155,3 +155,6 @@ table.wf { width: 100%; border-collapse: collapse; font-size: 13px; }
 table.wf th { text-align: left; color: var(--muted); font-size: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line-2); }
 table.wf td { padding: 9px 12px; border-bottom: 1px solid var(--line); }
 table.wf .num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+/* 고객관리 옆 미확인 문의 수(S05) */
+.gnb .gnb-dot { font-style: normal; display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px;
+  margin-left: 4px; border-radius: 999px; background: #F04452; color: #FFFFFF; font-size: 10px; font-weight: 800; vertical-align: 2px; }

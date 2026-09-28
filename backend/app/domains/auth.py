@@ -156,10 +156,11 @@ from fastapi import Depends  # noqa: E402
 
 @router.get("/me")
 async def me(user: CurrentUser = Depends(any_user)):
-    row = await pool().fetchrow("SELECT name, email, job_role, gender FROM app.accounts WHERE id=$1", user.account_id)
+    row = await pool().fetchrow("SELECT name, email, job_role, gender, phone FROM app.accounts WHERE id=$1", user.account_id)
     return {"account_id": user.account_id, "team_id": user.team_id, "job_role": row["job_role"] if row else None, "gender": row["gender"] if row else None,
             "role": user.role, "tier": user.tier, "kind": user.kind,
-            "name": row["name"] if row else None, "email": row["email"] if row else None}
+            "name": row["name"] if row else None, "email": row["email"] if row else None,
+            "phone": row["phone"] if row else None}
 
 
 # ── 비밀번호 변경 · 재설정 ───────────────────────────

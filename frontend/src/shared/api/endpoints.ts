@@ -43,7 +43,7 @@ export const authApi = {
     api<{ ok: boolean }>("/auth/password/reset-request", { method: "POST", body: JSON.stringify({ email }) }),
   resetConfirm: (token: string, next: string) =>
     api<{ ok: boolean }>("/auth/password/reset-confirm", { method: "POST", body: JSON.stringify({ token, new: next }) }),
-  me: () => api<{ account_id: number; team_id: number; name: string; email: string; job_role: string | null; gender: string | null; tier: string }>("/auth/me"),
+  me: () => api<{ account_id: number; team_id: number; name: string; email: string; job_role: string | null; gender: string | null; tier: string; phone?: string | null; kind?: string }>("/auth/me"),
   patchProfile: (b: Record<string, string>) =>
     api<{ ok: boolean }>("/auth/profile", { method: "PATCH", body: JSON.stringify(b) }),
 };
@@ -902,6 +902,8 @@ export interface Seller {
   s4_info?: boolean; s5_asset?: boolean; s6_match?: boolean;
   /** 열린 멈춤 — 멈춘 동안은 「연락할 차례」에서 빠진다(S04b §2.3) */
   stop_id?: number | null; stop_stage?: StopStage | null; stop_reason?: string | null;
+  /** 살아 있는 광고(0191) — 노출 · 비노출과 기한 */
+  ad_state?: "노출" | "비노출" | null; ad_expires?: string | null;
   /** 메모창 글을 이어 붙인 것 — 표 검색용 */
   memo_text?: string | null;
   /** 협의 단계 1~4(0127) — 이 매물에 붙은 매수자들 중 가장 앞선 것 */
@@ -1067,4 +1069,48 @@ export const contactsApi = {
     api<PersonEvent[]>(`/sales/person-timeline?kind=${kind}&person_id=${person_id}`),
   /** 기록 삭제 — 지우면 남은 마지막 기록이 만든 단계로 되돌아간다(매수와 같은 규칙) */
   remove: (id: number) => api(`/contacts/${id}`, { method: "DELETE" }),
+};
+
+/* ── 광고(중개사) · 문의 — S05 2묶음(2026-09-28) ── */
+export type UseType = "빌딩" | "상가주택" | "공장·창고" | "숙박" | "기타";
+export interface AdForm {
+  use_type: UseType | null; brokerage: "일반" | "전속"; price: number | null; price_open: boolean;
+  land_area: number | null; total_area: number | null; floors_above: number | null; floors_below: number | null;
+  zoning: string | null; approved_on: string | null; violation: boolean | null;
+  title: string; body: string; contact_phone: string | null; address_open: boolean;
+}
+export interface MyAd extends AdForm {
+  id: number; state: "노출" | "비노출" | "거래완료"; review: string; review_note: string | null;
+  posted_on: string; expires_on: string; closed_on: string | null; expired: boolean; photo_ids: number[] | null;
+}
+export const adsApi = {
+  /** 매물의 광고(없으면 null) + 폼 미리 채움 + 계약됐나 */
+  ofListing: (pk: string) => api<{ ad: MyAd | null; draft: AdForm; contracted: boolean }>(`/listings/${encodeURIComponent(pk)}/ad`),
+  create: (pk: string, b: AdForm & { photo_ids: number[] }) =>
+    api<{ id: number }>(`/listings/${encodeURIComponent(pk)}/ad`, { method: "POST", body: JSON.stringify(b) }),
+  update: (id: number, b: AdForm & { photo_ids: number[] }) =>
+    api(`/ads/${id}`, { method: "PUT", body: JSON.stringify(b) }),
+  state: (id: number, state: "노출" | "비노출" | "거래완료" | "삭제") =>
+    api(`/ads/${id}/state`, { method: "PATCH", body: JSON.stringify({ state }) }),
+  extend: (id: number) => api(`/ads/${id}/extend`, { method: "POST" }),
+};
+export type InquiryKind = "매수 문의" | "매도 문의" | "시세 문의";
+export interface Inquiry {
+  id: number; kind: InquiryKind; body: string | null; name: string; phone: string;
+  status: "미확인" | "상담중" | "고객등록" | "종료"; sell_addr: string | null; created_at: string;
+  buyer_id: number | null; listing_id: number | null; ad_id: number | null; building_pk: string | null;
+  ad_title: string | null; addr: string;
+  intent: string | null; literacy: string | null; purposes: string[] | null; regions: string[] | null;
+  budget_min: number | null; budget_max: number | null; profile_note: string | null;
+}
+export const inquiriesApi = {
+  send: (b: { ad_id: number; kind: InquiryKind; body?: string | null; name: string; phone: string;
+              consent: boolean; sell_addr?: string | null }) =>
+    api<{ id: number }>("/inquiries", { method: "POST", body: JSON.stringify(b) }),
+  list: () => api<Inquiry[]>("/inquiries"),
+  count: () => api<{ unread: number }>("/inquiries/count"),
+  status: (id: number, status: "미확인" | "상담중" | "종료") =>
+    api(`/inquiries/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  register: (id: number, listing_pk?: string) =>
+    api<{ buyer_id?: number; listing_id?: number }>(`/inquiries/${id}/register`, { method: "POST", body: JSON.stringify({ listing_pk: listing_pk ?? null }) }),
 };

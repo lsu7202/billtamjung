@@ -1979,6 +1979,11 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                   vs.cells, ldc.cells AS deal_cells, COALESCE(ng.nego, 0) AS nego,
                   -- 열린 보류 — 「지금은 안 본다」와 그 사유(0090·0140)
                   st.id AS stop_id, st.stage AS stop_stage, st.reason AS stop_reason,
+                  -- 광고(0191) — 살아 있는 광고의 상태 · 기한. 매물 표의 「광고」 표식과 여부 필터
+                  (SELECT a.state FROM app.ads a WHERE a.listing_id = l.id AND a.state IN ('노출','비노출')
+                    ORDER BY a.id DESC LIMIT 1) AS ad_state,
+                  (SELECT a.expires_on FROM app.ads a WHERE a.listing_id = l.id AND a.state IN ('노출','비노출')
+                    ORDER BY a.id DESC LIMIT 1) AS ad_expires,
                   -- 표 검색이 메모 내용까지 찾는다(부기사는 비밀메모까지 찾는다). 메모창과 같은 줄(kind=메모)
                   (SELECT string_agg(m2.note, ' ') FROM app.contacts m2
                     WHERE m2.team_id = l.team_id AND m2.target_type = 'listing'

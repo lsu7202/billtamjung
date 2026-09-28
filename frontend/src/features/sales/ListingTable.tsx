@@ -131,7 +131,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
   const [who, setWho] = useState<number | null>(null);          // 담당 거르기
   const [major, setMajor] = useState<string | null>(null);      // 대분류 거르기
   const [kind, setKind] = useState<string | null>(null);        // 소분류 거르기
-  const [flag, setFlag] = useState<null | "urgent" | "exclusive" | "hold">(null);
+  const [flag, setFlag] = useState<null | "urgent" | "exclusive" | "hold" | "ad">(null);
   const [gu, setGu] = useState<string | null>(null);           // 지역 — 구, 고르면 동이 열린다
   const [dong, setDong] = useState<string | null>(null);
   const [grade, setGrade] = useState<string | null>(null);
@@ -169,7 +169,8 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
       && (kind == null || (r.building_use ?? []).includes(kind))
       && (grade == null || r.grade === grade)
       && (pvm == null || r.price_vs_market === pvm)
-      && (flag == null || (flag === "urgent" ? isUrgent(r) : flag === "hold" ? r.stop_id != null : r.exclusive === true))
+      && (flag == null || (flag === "urgent" ? isUrgent(r) : flag === "hold" ? r.stop_id != null
+        : flag === "ad" ? r.ad_state === "노출" : r.exclusive === true))
       && (chk == null || chkOf(daysSince(r.checked_on)) === chk)
       && inRange(r));
     {
@@ -274,7 +275,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
             </Pop>
           );
           const labOf = (k: string, c: string | null) => (c == null ? null : options(k).find((o) => o.code === c)?.label ?? c);
-          const flagTxt = { urgent: "급매", exclusive: "전속", hold: "보류" } as const;
+          const flagTxt = { urgent: "급매", exclusive: "전속", hold: "보류", ad: "광고 중" } as const;
           const mem = members.data ?? [];
           return <>
             {pp("st", "상태", ST.find(([k]) => k === st)?.[1] ?? null,
@@ -369,6 +370,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
                       {r.is_vacant && <i>나대지</i>}
                       {isUrgent(r) && <i className="red">급매</i>}
                       {r.exclusive && <i className="blue">전속</i>}
+                      {r.ad_state === "노출" && <i className="blue">광고</i>}
                     </span>
                   </td>
                   <td className="c-kind">{kinds.length ? kinds.join(" · ") : <span className="off">—</span>}</td>

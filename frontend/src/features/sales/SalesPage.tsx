@@ -17,6 +17,7 @@ import "./draft/salestab.css";
 import { useEnums } from "../../shared/hooks/useEnums";
 import { shortAddr } from "../../shared/format";
 import { ListingsTab } from "./ListingTable";
+import { InquiryBox } from "./InquiryBox";
 import "./sales.css";
 
 /** S04 업무 — 대시보드(오늘 할 일) · 캘린더 · 매물(소유자 포함) · 매수자.
@@ -82,6 +83,8 @@ export function CustomersPage() {
   const focus = sp.get("buyer") ? Number(sp.get("buyer")) : null;
   return (
     <div className="page sales">
+      {/* 광고를 보고 들어온 문의 — 맨 위(S05). 없으면 칸이 안 선다 */}
+      <InquiryBox onBuyer={(id) => nav(`/customers?buyer=${id}`)} />
       <BuySide focus={focus} onDone={refresh} onGoListing={(pk) => nav(`/sales?listing=${encodeURIComponent(pk)}`)} />
     </div>
   );

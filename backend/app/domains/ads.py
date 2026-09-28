@@ -119,3 +119,186 @@ async def ad_cards(body: CardsIn, user: CurrentUser = Depends(any_user)):
         pks, user.team_id)
     order = {pk: i for i, pk in enumerate(pks)}
     return sorted((dict(r) for r in rows), key=lambda r: order.get(r["building_pk"], 0))
+
+
+# ── 광고 올리기 · 고치기(중개사, S05 §3 · 2묶음) ─────────────────────────────
+# 광고는 매물 모달의 광고 폼으로만 생긴다(자동으로 켜지지 않는다). 값은 복사본이라 매물을 고쳐도 그대로다.
+# 소유자를 못 잡은 매물도 올릴 수 있다(대표 09-28). 매물 하나에 살아 있는(노출 · 비노출) 광고는 하나(0191 인덱스).
+
+USE_TYPES = ("빌딩", "상가주택", "공장·창고", "숙박", "기타")
+_AD_COLS = ("use_type, brokerage, price, price_open, land_area::float, total_area::float, floors_above, floors_below, "
+            "zoning, approved_on, violation, title, body, contact_phone, address_open, state, review, review_note, "
+            "posted_on, expires_on, closed_on")
+
+
+async def _listing_of(pk: str, team_id: int):
+    row = await pool().fetchrow(
+        "SELECT id, sale_price, exclusive, building_major, assignee_account_id, s6.s6 AS done "
+        "FROM app.listings l LEFT JOIN LATERAL (SELECT vs.s6_match AS s6 FROM app.v_listing_stage vs "
+        " WHERE vs.building_pk = l.building_pk AND vs.team_id = l.team_id) s6 ON TRUE "
+        "WHERE l.building_pk = $1 AND l.team_id = $2", pk, team_id)
+    if not row:
+        raise HTTPException(404, "매물관리에 담긴 매물이 아닙니다")
+    return row
+
+
+@router.get("/listings/{building_pk}/ad")
+async def listing_ad(building_pk: str, user: CurrentUser = Depends(current_user)):
+    """광고 탭 — 이 매물의 광고(삭제 뺀 가장 최근 하나)와, 광고 폼을 미리 채울 값."""
+    l = await _listing_of(building_pk, user.team_id)
+    ad = await pool().fetchrow(
+        f"""SELECT id, {_AD_COLS},
+                   (state = '노출' AND expires_on < current_date) AS expired,
+                   (SELECT array_agg(photo_id ORDER BY sort, photo_id) FROM app.ad_photos WHERE ad_id = a.id) AS photo_ids
+              FROM app.ads a WHERE listing_id = $1 AND state <> '삭제'
+             ORDER BY (state IN ('노출','비노출')) DESC, id DESC LIMIT 1""", l["id"])
+    b = await pool().fetchrow(
+        """SELECT b.land_area::float, b.total_area::float, b.floors_above, b.floors_below, b.use_zone,
+                  b.approval_ymd, d.use_kind
+             FROM master.buildings b LEFT JOIN master.building_derived d ON d.building_pk = b.building_pk
+            WHERE b.building_pk = $1""", building_pk)
+    phone = await pool().fetchval("SELECT phone FROM app.accounts WHERE id = $1",
+                                  l["assignee_account_id"] or user.account_id)
+    ap = b["approval_ymd"] if b else None
+    draft = {
+        "use_type": l["building_major"] or (b["use_kind"] if b else None),
+        "brokerage": "전속" if l["exclusive"] else "일반",
+        "price": l["sale_price"], "price_open": True,
+        "land_area": b["land_area"] if b else None, "total_area": b["total_area"] if b else None,
+        "floors_above": b["floors_above"] if b else None, "floors_below": b["floors_below"] if b else None,
+        "zoning": b["use_zone"] if b else None,
+        "approved_on": ap.isoformat() if hasattr(ap, "isoformat") else (
+            f"{ap[:4]}-{ap[4:6]}-{ap[6:8]}" if ap and len(str(ap)) >= 8 and str(ap)[:8].isdigit() else None),
+        "violation": None, "title": "", "body": "", "contact_phone": phone, "address_open": True,
+    }
+    return {"ad": dict(ad) if ad else None, "draft": draft, "contracted": bool(l["done"])}
+
+
+class AdIn(BaseModel):
+    use_type: str
+    brokerage: str = "일반"
+    price: int
+    price_open: bool = True
+    land_area: float | None = None
+    total_area: float | None = None
+    floors_above: int | None = None
+    floors_below: int | None = None
+    zoning: str | None = None
+    approved_on: str | None = None
+    violation: bool | None = None
+    title: str
+    body: str
+    contact_phone: str | None = None
+    address_open: bool = True
+    photo_ids: list[int]
+
+
+def _check_ad(body: AdIn) -> None:
+    if body.use_type not in USE_TYPES:
+        raise HTTPException(422, "매물 유형을 고르세요")
+    if body.brokerage not in ("일반", "전속"):
+        raise HTTPException(422, "중개유형은 일반 · 전속")
+    if not body.title.strip() or not body.body.strip():
+        raise HTTPException(422, "제목과 설명을 적으세요")
+    if body.price is None or body.price <= 0:
+        raise HTTPException(422, "매매가를 적으세요")
+    if len(set(body.photo_ids)) < 3:
+        raise HTTPException(422, "사진은 3장 이상 고르세요")
+
+
+async def _set_photos(con, ad_id: int, pk: str, team_id: int, ids: list[int]) -> None:
+    ok = await con.fetch("SELECT id FROM app.photos WHERE id = ANY($1::bigint[]) AND building_pk = $2 "
+                         "AND team_id = $3 AND deleted_at IS NULL", ids, pk, team_id)
+    have = {r["id"] for r in ok}
+    if len(have) < 3:
+        raise HTTPException(422, "이 매물의 사진을 3장 이상 고르세요")
+    await con.execute("DELETE FROM app.ad_photos WHERE ad_id = $1", ad_id)
+    await con.executemany("INSERT INTO app.ad_photos(ad_id, photo_id, sort) VALUES($1,$2,$3)",
+                          [(ad_id, pid, i) for i, pid in enumerate(dict.fromkeys(ids)) if pid in have])
+
+
+def _date(s: str | None):
+    import datetime as _dt
+    try:
+        return _dt.date.fromisoformat(s[:10]) if s else None
+    except ValueError:
+        raise HTTPException(422, "사용승인일은 YYYY-MM-DD")
+
+
+@router.post("/listings/{building_pk}/ad", status_code=201)
+async def create_ad(building_pk: str, body: AdIn, user: CurrentUser = Depends(current_user)):
+    _check_ad(body)
+    l = await _listing_of(building_pk, user.team_id)
+    from ..core.db import tx
+    async with tx() as con:
+        live = await con.fetchval("SELECT id FROM app.ads WHERE listing_id = $1 AND state IN ('노출','비노출')", l["id"])
+        if live:
+            raise HTTPException(409, "이미 올린 광고가 있습니다")
+        aid = await con.fetchval(
+            """INSERT INTO app.ads(team_id, listing_id, building_pk, use_type, brokerage, price, price_open,
+                   land_area, total_area, floors_above, floors_below, zoning, approved_on, violation,
+                   title, body, contact_account_id, contact_phone, address_open, created_by)
+               VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING id""",
+            user.team_id, l["id"], building_pk, body.use_type, body.brokerage, body.price, body.price_open,
+            body.land_area, body.total_area, body.floors_above, body.floors_below, body.zoning,
+            _date(body.approved_on), body.violation, body.title.strip(), body.body.strip(),
+            l["assignee_account_id"] or user.account_id, body.contact_phone, body.address_open, user.account_id)
+        await _set_photos(con, aid, building_pk, user.team_id, body.photo_ids)
+    return {"id": aid}
+
+
+async def _own_ad(ad_id: int, team_id: int):
+    row = await pool().fetchrow("SELECT id, building_pk, state FROM app.ads WHERE id = $1 AND team_id = $2", ad_id, team_id)
+    if not row:
+        raise HTTPException(404, "광고가 없습니다")
+    return row
+
+
+@router.put("/ads/{ad_id}")
+async def update_ad(ad_id: int, body: AdIn, user: CurrentUser = Depends(current_user)):
+    """고치기 — 폼 전체를 다시 받는다. 거래완료 · 삭제된 광고는 못 고친다(디스코: 거래완료는 되돌리지 않는다)."""
+    _check_ad(body)
+    a = await _own_ad(ad_id, user.team_id)
+    if a["state"] in ("거래완료", "삭제"):
+        raise HTTPException(409, "끝난 광고는 고칠 수 없습니다")
+    from ..core.db import tx
+    async with tx() as con:
+        await con.execute(
+            """UPDATE app.ads SET use_type=$2, brokerage=$3, price=$4, price_open=$5, land_area=$6, total_area=$7,
+                   floors_above=$8, floors_below=$9, zoning=$10, approved_on=$11, violation=$12, title=$13, body=$14,
+                   contact_phone=$15, address_open=$16, updated_at=now() WHERE id=$1""",
+            ad_id, body.use_type, body.brokerage, body.price, body.price_open, body.land_area, body.total_area,
+            body.floors_above, body.floors_below, body.zoning, _date(body.approved_on), body.violation,
+            body.title.strip(), body.body.strip(), body.contact_phone, body.address_open)
+        await _set_photos(con, ad_id, a["building_pk"], user.team_id, body.photo_ids)
+    return {"ok": True}
+
+
+class AdStateIn(BaseModel):
+    state: str   # 노출 · 비노출 · 거래완료 · 삭제
+
+
+@router.patch("/ads/{ad_id}/state")
+async def ad_state(ad_id: int, body: AdStateIn, user: CurrentUser = Depends(current_user)):
+    """노출 ↔ 비노출 · 거래완료(한 방향) · 삭제."""
+    a = await _own_ad(ad_id, user.team_id)
+    if body.state not in ("노출", "비노출", "거래완료", "삭제"):
+        raise HTTPException(422, "상태는 노출 · 비노출 · 거래완료 · 삭제")
+    if a["state"] == "거래완료" and body.state != "삭제":
+        raise HTTPException(409, "거래완료는 되돌리지 않습니다")
+    if a["state"] == "삭제":
+        raise HTTPException(409, "지운 광고입니다")
+    await pool().execute(
+        "UPDATE app.ads SET state=$2, closed_on = CASE WHEN $2 IN ('거래완료','삭제') THEN current_date ELSE closed_on END, "
+        "updated_at=now() WHERE id=$1", ad_id, body.state)
+    return {"ok": True}
+
+
+@router.post("/ads/{ad_id}/extend")
+async def ad_extend(ad_id: int, user: CurrentUser = Depends(current_user)):
+    """연장 — 오늘부터 30일. 기한이 지난 광고도 이걸로 다시 산다(무료 · 손으로 갱신, 대표 09-28)."""
+    a = await _own_ad(ad_id, user.team_id)
+    if a["state"] not in ("노출", "비노출"):
+        raise HTTPException(409, "끝난 광고는 연장할 수 없습니다")
+    await pool().execute("UPDATE app.ads SET expires_on = current_date + 30, updated_at=now() WHERE id=$1", ad_id)
+    return {"ok": True}

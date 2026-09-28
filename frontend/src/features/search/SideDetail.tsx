@@ -7,6 +7,7 @@ import type { MapPin } from "../../shared/map/MapPanel";
 import { TradeCompare } from "../building/TradeCompare";
 import { Icon } from "../../shared/ui/Icon";
 import { transitOf, lineColor } from "../building/LocationPanel";
+import { AdCards } from "./AdCards";
 
 /** 탐색 사이드 판의 상세(S05 · 2026-09-28 대표 승인) — 목록에서 고르면 같은 판이 이것으로 바뀐다.
  *
@@ -38,7 +39,6 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
       return { ...v, land_area: v.area } as Record<string, unknown>;
     },
   });
-  const ads = useQuery({ queryKey: ["bAds", pk], queryFn: () => buildingsApi.ads(pk), enabled: !vacant });
   const crawl = useQuery({ queryKey: ["bCrawl", pk], queryFn: () => buildingsApi.crawl(pk), enabled: broker && !vacant });
   const near = useQuery({ queryKey: ["nearbySales", pk], queryFn: () => marketApi.nearbySales(pk), enabled: !vacant });
   const floors = useQuery({ queryKey: ["floor-info", pk], queryFn: () => rentsApi.info(pk), enabled: !vacant });
@@ -55,7 +55,6 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
   const age = approval && /^\d{4}/.test(approval) ? new Date().getFullYear() - Number(approval.slice(0, 4)) : null;
   const landPy = land ? land / PY : null;
   const totalPy = total ? total / PY : null;
-  const adList = ads.data ?? [];
   const mine = picked.kind === "mine" || picked.col === "mine";
 
   // 고정 탭 — 누르면 그 구획으로 스크롤. 스크롤하면 지금 구획에 불이 들어온다
@@ -101,22 +100,7 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
         {/* 매물 — 광고 · (중개사) 내 매물 · 시장 호가. 비어도 칸은 선다 */}
         <section data-sec="ad">
           <h4>매물</h4>
-          {adList.length > 0 ? (
-            <div className="sel-ads">
-              {adList.map((a) => (
-                <div key={a.id} className={`sel-ad ${a.state === "거래완료" ? "sold" : ""}`}>
-                  <div className="ad-top">
-                    <b className="num">{a.state === "거래완료" ? "거래완료" : a.price != null ? `매매 ${eok(a.price)}` : "가격 문의"}</b>
-                    {a.brokerage === "전속" && <span className="ad-tag">전속</span>}
-                    {a.violation && <span className="ad-tag red">위반건축물</span>}
-                  </div>
-                  <div className="ad-title">{a.title}</div>
-                  <div className="ad-agent">{a.office_name}{a.agent_name ? ` · ${a.agent_name}` : ""}
-                    {a.phone && a.state === "노출" && <span className="num"> · {a.phone}</span>}</div>
-                </div>
-              ))}
-            </div>
-          ) : <div className="sd-none">등록된 매물이 없습니다</div>}
+          <AdCards pk={pk} empty={<div className="sd-none">등록된 매물이 없습니다</div>} />
           {broker && !vacant && (
             <button className="sd-link" onClick={() => nav(`/sales?listing=${encodeURIComponent(pk)}`)}>
               {mine ? "매물관리에서 보기" : "매물관리에 담기"} ›</button>

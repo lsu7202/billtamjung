@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useIsBroker } from "../../shared/store/auth";
+import { AdCards } from "../search/AdCards";
 import {
   buildingsApi, overlaysApi, listingsApi, seriesApi, reportsApi, proposalsApi,
 } from "../../shared/api/endpoints";
@@ -98,6 +99,7 @@ export function BuildingPage() {
   }, [areaEv.data, evYears]);
   // 화면은 하나, 팀 값은 중개사만(S05 §1) — 고객이면 부르지 않는다(API 도 403)
   const broker = useIsBroker();
+  const ads = useQuery({ queryKey: ["bAds", pk], queryFn: () => buildingsApi.ads(pk) });
   const series = useQuery({ queryKey: ["series", pk], queryFn: () => seriesApi.get(pk), enabled: broker });
   const listing = useQuery({ queryKey: ["listing", pk], queryFn: () => listingsApi.get(pk), enabled: broker });
 
@@ -394,6 +396,11 @@ export function BuildingPage() {
           {typeof b.lng === "number" && typeof b.lat === "number" && (
             <PhotoPanel lng={b.lng} lat={b.lat} pk={pk} area={marketArea} onArea={saveArea} comps={comps} events={evPins}
               parcelGeom={selParcel} />
+          )}
+          {/* 광고(S05) — 누구나. 올라온 광고가 있을 때만 선다. 상담요청은 카드 안에 */}
+          {(ads.data ?? []).length > 0 && (
+            <div className="bg-card"><div className="bg-ttl">매물</div>
+              <div style={{ padding: "0 16px 16px" }}><AdCards pk={pk} /></div></div>
           )}
           {broker && <Sidebar pk={pk} />}
         </div>

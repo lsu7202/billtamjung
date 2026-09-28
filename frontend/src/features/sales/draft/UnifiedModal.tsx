@@ -27,12 +27,13 @@ import { PickModal } from "../PickModal";
 import { openDetail } from "../../../shared/map/geo";
 import { UploadTab } from "../../../shared/map/PhotoPanel";
 import { RentLedger } from "./RentLedger";
+import { AdTab } from "./AdTab";
 import { Icon } from "../../../shared/ui/Icon";
 import { SchedCal, SchedCalAdd, calTone } from "./SchedCal";
 import "./draft.css";
 import "./salestab.css";
 
-export type UniTab = "sum" | "owner" | "touch" | "info" | "rent" | "photo" | "deal" | "hold";
+export type UniTab = "sum" | "owner" | "touch" | "info" | "rent" | "photo" | "ad" | "deal" | "hold";
 type Tab = UniTab;
 
 export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
@@ -276,7 +277,7 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
         <div className="um-body">
           <div className="um-main">
             <div className="um-tabs">
-              {([["sum", "요약"], ["owner", "소유자"], ["touch", "접촉"], ["info", "정보"], ["rent", "임대 내역"], ["photo", "사진"],
+              {([["sum", "요약"], ["owner", "소유자"], ["touch", "접촉"], ["info", "정보"], ["rent", "임대 내역"], ["photo", "사진"], ["ad", "광고"],
                  ["deal", "계약"], ["hold", "보류"]] as [Tab, string][]).map(([k, l]) => (
                 <button key={k} className={`${tab === k ? "on" : ""} ${k === "hold" ? "hold" : ""}`}
                   onClick={() => setTab(k)}>
@@ -539,6 +540,8 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
             {tab === "photo" && (
               <div className="um-pane"><div className="tc"><UploadTab pk={pk} /></div></div>
             )}
+            {/* ── 광고 ── 폼을 써야만 올라간다(S05) */}
+            {tab === "ad" && <AdTab pk={pk} onSaved={onSaved} />}
             {/* ── 계약 ── 결정 문장(채택되면 선다) + 호가 줄(마지막 움직임 · 클릭 = 이력) */}
             {tab === "deal" && (
               <div className="um-pane">

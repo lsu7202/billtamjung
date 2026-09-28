@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { searchApi, buildingsApi, listingsApi, buyersApi, type AttrFilters } from "../../shared/api/endpoints";
 import { useIsBroker } from "../../shared/store/auth";
 import { SideDetail } from "./SideDetail";
+import { AuthImg } from "../../shared/ui/AuthImg";
 import { valueLabel } from "../../shared/map/mapCanvasLayer";
 import { openDetail, mergeGeo } from "../../shared/map/geo";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
@@ -169,9 +170,11 @@ export function SearchPage() {
   const saleList = layers.sale ? (salePins.data ?? []).filter((p) => !hideSet.has(p.building_pk)) : [];
   const salePk = new Set(saleList.map((p) => p.building_pk));
   // 한 건물엔 핀 하나 — 매매 > 실거래 > 전체 건물
-  const dealList = layers.deal && near ? (dealPins.data ?? []).filter((p) => !salePk.has(p.building_pk) && !hideSet.has(p.building_pk)) : [];
+  // 「내 매물 · 광고만」으로 좁혔으면 지도도 그것만 — 실거래 · 전체 건물 핀은 잠시 내린다(대표 09-28)
+  const narrow = chip !== "";
+  const dealList = layers.deal && near && !narrow ? (dealPins.data ?? []).filter((p) => !salePk.has(p.building_pk) && !hideSet.has(p.building_pk)) : [];
   const dealPk = new Set(dealList.map((p) => p.building_pk));
-  const allList = layers.all && near ? (allPins.data ?? []).filter((p) => !salePk.has(p.building_pk) && !dealPk.has(p.building_pk) && !hideSet.has(p.building_pk)) : [];
+  const allList = layers.all && near && !narrow ? (allPins.data ?? []).filter((p) => !salePk.has(p.building_pk) && !dealPk.has(p.building_pk) && !hideSet.has(p.building_pk)) : [];
   const mapPinList = [...allList, ...dealList, ...saleList];
   // 핀 값 — 매매: 광고 최저가(비공개면 없음) · 내 매물은 매매가. 실거래: 거래가(lens real). 전체 건물: 추정가
   const mapPinsShown: MapPin[] = [
@@ -401,7 +404,8 @@ export function SearchPage() {
               {/* 보기 — 켜고 끄는 칩(밸류맵). 매매는 목록, 실거래 · 전체 건물은 지도에 겹친다 */}
               <div className="mo-layers">
                 {([["sale", "매매"], ["deal", "실거래"], ["all", "전체 건물"]] as const).map(([k, l]) => (
-                  <span key={k} className={`ly ${layers[k] ? "on" : ""}`}>
+                  <span key={k} className={`ly ${layers[k] ? "on" : ""} ${narrow && k !== "sale" ? "mute" : ""}`}
+                    title={narrow && k !== "sale" ? "내 매물 · 광고만으로 좁힌 동안은 안 보입니다" : undefined}>
                     <button onClick={() => { setLayers((v) => ({ ...v, [k]: !v[k] })); if (k === "deal") setYrOpen(false); }}>{l}
                       {k === "deal" && layers.deal && <small>{saleFrom ? `${saleFrom}~${saleTo ?? ""}` : saleYears ? `${saleYears}년` : "전체"}</small>}</button>
                     {/* 실거래 기간은 실거래 칩 옆 ▾ 에서(밸류맵 「실거래 필터」) — 건물 조건이 아니라 「어느 시기 거래를 견줄까」다 */}
@@ -494,7 +498,7 @@ export function SearchPage() {
                     return (
                       <div key={p.building_pk} className="lc"
                         onClick={() => { setPicked(p); if (p.lng && p.lat) setCenterReq({ lng: p.lng, lat: p.lat }); }}>
-                        <div className="lc-ph">{photo ? <img src={photo} alt="" /> : <Icon name="building" size={18} />}</div>
+                        <div className="lc-ph">{photo ? <AuthImg src={photo} /> : <Icon name="building" size={18} />}</div>
                         <div className="lc-b">
                           <div className="lc-t">
                             {c?.mine && <span className="ml-tag mine">내</span>}
@@ -518,7 +522,7 @@ export function SearchPage() {
                     <div className="sel-empty">조건에 맞는 매물이 없습니다</div>
                   )}
                   {/* 매물 밖 건물 — 전체 건물을 켰을 때만. 추정가 */}
-                  {layers.all && near && (
+                  {layers.all && near && !narrow && (
                     <>
                       <div className="ml-head sub"><span>매물 밖 건물 <b className="num">{allInBox.length}</b>동</span></div>
                       {allInBox.slice(0, 60).map((p) => (

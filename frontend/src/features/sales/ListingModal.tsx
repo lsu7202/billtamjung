@@ -33,11 +33,13 @@ export interface ListingInit {
   owner_age_band?: string | null; owner_gender?: string | null; owner_note?: string | null;
 }
 
-export function ListingModal({ init, preset, onClose, onSaved, stop, lastOn }: {
+export function ListingModal({ init, preset, prefill, onClose, onSaved, stop, lastOn }: {
   /** 있으면 편집(그 매물) · 없으면 담기 */
   init?: ListingInit | null;
   /** 담기인데 건물이 이미 정해져 있다 — 건물 상세 「업무에서 관리」로 넘어온 경우(2026-09-26) */
   preset?: { pk: string } | null;
+  /** 매도 문의를 고객등록할 때(S05) — 팔려는 건물 주소를 검색칸에, 문의한 사람을 소유자로 미리 채운다 */
+  prefill?: { q?: string | null; name?: string | null; phone?: string | null } | null;
   onClose: () => void;
   onSaved: (pk: string) => void;
   /** 소유자 찾기의 열린 멈춤 — 프로필 탭의 [멈춤]이 이걸 편집한다 */
@@ -57,10 +59,10 @@ export function ListingModal({ init, preset, onClose, onSaved, stop, lastOn }: {
     const a = (pre.data as { addr?: string } | undefined)?.addr;
     if (preset && a) setPick({ pk: preset.pk, addr: a });
   }, [pre.data]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(prefill?.q ?? "");
   // 소유자 — 이 매물에 매칭되는 사람
-  const [oName, setOName] = useState(init?.owner_name ?? "");
-  const [oPhone, setOPhone] = useState(init?.phone_masked ? "" : (init?.owner_phone ?? ""));
+  const [oName, setOName] = useState(init?.owner_name ?? prefill?.name ?? "");
+  const [oPhone, setOPhone] = useState(init?.phone_masked ? "" : (init?.owner_phone ?? prefill?.phone ?? ""));
   const [oCorp, setOCorp] = useState(init?.owner_type === "법인");
   const [oRel, setORel] = useState<string | null>(init?.relation ?? null);
   const [oAge, setOAge] = useState<string | null>(init?.owner_age_band ?? null);
