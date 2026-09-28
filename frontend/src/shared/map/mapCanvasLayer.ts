@@ -37,6 +37,17 @@ function ymLabel(ym?: string | null): string {
   return /^\d{6}$/.test(t) ? `${t.slice(2, 4)}.${t.slice(4)}` : "";
 }
 
+/** 값 하나를 총액 · 단가로(2026-09-28 탐색 2) — 매매가 · 추정가 · 실거래가 모두 같은 눈금으로 선다.
+ *  밸류맵이 편한 이유가 이것이다: 매물 값과 실거래를 같은 단위로 눈으로 견준다. */
+export function valueLabel(price: number | null | undefined, v: RealView,
+                           land?: number | null, total?: number | null): string | null {
+  if (price == null) return null;
+  if (v.basis === "total") return priceLabel(price);
+  const area = v.basis === "land" ? land : total;   // ㎡
+  if (!area || area <= 0) return null;               // 분모가 없으면 단가를 못 낸다
+  return unitPrice(v.unit === "py" ? (price * PY) / area : price / area);
+}
+
 /** 핀에 세울 글자. 값이 없으면 null — 핀 대신 회색 점이 선다. */
 function realLabel(p: CanvasPin, v: RealView): { main: string; sub: string } | null {
   const price = p.last_sale_price;
@@ -189,8 +200,9 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
       return;
     }
     const pv = it.p.sale_est ?? it.p.price ?? null;
-    if (pv == null) { it.box = undefined; drawDot(it.cx, it.cy, hover, sel); }
-    else it.box = drawPin(it.cx, it.cy, priceLabel(pv), PIN_COLORS[it.p.kind ?? it.p.col], hover, sel);
+    const lb = valueLabel(pv, view, it.p.land_area, it.p.total_area);
+    if (lb == null) { it.box = undefined; drawDot(it.cx, it.cy, hover, sel); }
+    else it.box = drawPin(it.cx, it.cy, lb, PIN_COLORS[it.p.kind ?? it.p.col], hover, sel);
   }
 
   // 추정가 산정 대상 아님(주거) · 값 없음 → 작은 회색 점(지도 정리 + 상업 매물 부각)

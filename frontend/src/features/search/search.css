@@ -342,3 +342,19 @@
   border-radius: 999px; background: #FFFFFF; color: #8B95A1; cursor: pointer; }
 .lc:hover .ml-hide { display: inline-flex; }
 .lc .ml-hide:hover { color: #3182F6; background: #EBF4FF; }
+/* 보기 칩 안의 실거래 기간 — 켜진 칩에 「3년」이 붙고 ▾ 로 고른다 */
+.mo-layers .ly { flex: 1; display: flex; border-radius: 10px; background: #F2F4F6; overflow: hidden; }
+.mo-layers .ly.on { background: #3182F6; }
+.mo-layers .ly button { flex: 1; background: none; color: #8B95A1; border-radius: 0; }
+.mo-layers .ly.on button { color: #FFFFFF; }
+.mo-layers .ly button small { font-size: 10.5px; font-weight: 600; opacity: .8; margin-left: 4px; }
+.mo-layers .ly .ly-cv { flex: 0 0 24px; font-size: 10px; border-left: 1px solid rgba(255,255,255,.25); }
+.mo-yr { margin: 4px 11px 6px; background: #FFFFFF; box-shadow: 0 4px 16px rgba(0,0,0,.10); border-radius: 12px; padding: 8px; }
+.mo-yr button { border: 0; background: #F2F4F6; color: #4E5968; border-radius: 999px; padding: 4px 10px; font: inherit;
+  font-size: 12px; font-weight: 600; cursor: pointer; }
+.mo-yr button.on { background: #EBF4FF; color: #3182F6; }
+.mo-yr .yr-q { display: flex; gap: 4px; margin-bottom: 6px; }
+.mo-yr .yr-y { display: flex; flex-wrap: wrap; gap: 4px; max-height: 96px; overflow-y: auto; }
+/* 총액 · 단가 — 지도 오른쪽 위 */
+.map-unit { position: absolute; top: 12px; right: 12px; z-index: 6; display: flex; gap: 6px; align-items: center;
+  background: #FFFFFF; border-radius: 12px; padding: 4px; box-shadow: 0 2px 10px rgba(0,0,0,.10); }

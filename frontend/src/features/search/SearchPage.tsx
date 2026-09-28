@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { searchApi, buildingsApi, listingsApi, buyersApi, type AttrFilters } from "../../shared/api/endpoints";
 import { useIsBroker } from "../../shared/store/auth";
 import { SideDetail } from "./SideDetail";
+import { valueLabel } from "../../shared/map/mapCanvasLayer";
 import { openDetail, mergeGeo } from "../../shared/map/geo";
 import { MapPanel, MapPin } from "../../shared/map/MapPanel";
 import { FilterModal, activeCount, conditionChips, type Values, type RegionPick } from "./FilterModal";
@@ -15,8 +16,6 @@ import { Segmented } from "../../shared/ui/Segmented";
 
 /** S01 매물 통합검색 — 자동완성 + 지역(구/동) + 3열 목록 + 지도 뷰(핀·영역 그리기) */
 
-const won = (n: number | null) =>
-  n == null ? "—" : n >= 1e8 ? `${Math.round(n / 1e8)}억` : `${Math.round(n / 1e4).toLocaleString()}만`;
 
 const PY = 3.3058;                                    // ㎡→평
 const pyOf = (m2?: number | null) => (m2 == null ? "—" : `${(m2 / PY).toFixed(m2 / PY < 100 ? 1 : 0)}평`);
@@ -68,7 +67,7 @@ export function SearchPage() {
   const [view, setView] = useState<{ bbox: [number, number, number, number]; zoom: number } | null>(null);
   const [listBox, setListBox] = useState<[number, number, number, number] | null>(null);
   // 실거래를 지도에서 견주는 눈금(밸류맵식). **기본은 대지면적 · 평**이다 — 연면적이 아니다.
-  const [realBasis, setRealBasis] = useState<"total" | "land" | "bldg">((saved.realBasis as any) ?? "land");
+  const [realBasis, setRealBasis] = useState<"total" | "land" | "bldg">((saved.realBasis as any) ?? "total");   // 기본 총액(밸류맵)
   const [realUnit, setRealUnit] = useState<"py" | "m2">((saved.realUnit as any) ?? "py");
   const [saleYears, setSaleYears] = useState<number>((saved.saleYears as number) ?? 3);   // 0 = 전체 · 기본 3년(대표 09-28)
   /** 시작 연도를 직접 고른 경우(밸류맵식). 고르면 `saleYears` 대신 이것이 이긴다.
@@ -191,6 +190,7 @@ export function SearchPage() {
     enabled: listPins.length > 0, placeholderData: (prev) => prev,
   });
   const cardOf = new Map((cardsQ.data ?? []).map((c) => [c.building_pk, c]));
+  const uv = { basis: realBasis, unit: realUnit };   // 총액 · 단가 — 지도와 목록이 같은 값을 본다
 
   const items = suggest.data ?? [];
   const go = (pk: string) => openDetail(pk);   // 리다이렉트=새탭(사이트 규칙)
@@ -314,6 +314,20 @@ export function SearchPage() {
               // 새 영역은 더한다(null = 전부 지우기). 여러 상권을 동시에 보는 게 현장 방식이다.
               onPolygon={(g) => { setPolygons((ps) => (g ? [...ps, g] : [])); setPages({ mine: 1, normal: 1 }); }}
             />
+            {/* 총액 · 단가 — 지도 오른쪽 위(밸류맵 자리). 모든 가격(매물 · 실거래 · 추정 핀과 목록 카드)에 한꺼번에 걸린다 */}
+            <div className="map-unit">
+              <Segmented size="sm" value={realBasis === "total" ? "total" : "unit"}
+                onChange={(v) => setRealBasis(v === "total" ? "total" : "land")}
+                options={[{ value: "total", label: "총액" }, { value: "unit", label: "단가" }]} />
+              {realBasis !== "total" && (
+                <>
+                  <Segmented size="sm" value={realBasis} onChange={setRealBasis}
+                    options={[{ value: "land", label: "토지" }, { value: "bldg", label: "건물" }]} />
+                  <Segmented size="sm" value={realUnit} onChange={setRealUnit}
+                    options={[{ value: "py", label: "평" }, { value: "m2", label: "㎡" }]} />
+                </>
+              )}
+            </div>
           </div>
 
           {/* 떠 있는 패널 — 접으면 지도가 통째로 드러난다 */}
@@ -376,50 +390,37 @@ export function SearchPage() {
               {/* 보기 — 켜고 끄는 칩(밸류맵). 매매는 목록, 실거래 · 전체 건물은 지도에 겹친다 */}
               <div className="mo-layers">
                 {([["sale", "매매"], ["deal", "실거래"], ["all", "전체 건물"]] as const).map(([k, l]) => (
-                  <button key={k} className={layers[k] ? "on" : ""}
-                    onClick={() => { setLayers((v) => ({ ...v, [k]: !v[k] })); }}>{l}</button>
+                  <span key={k} className={`ly ${layers[k] ? "on" : ""}`}>
+                    <button onClick={() => { setLayers((v) => ({ ...v, [k]: !v[k] })); if (k === "deal") setYrOpen(false); }}>{l}
+                      {k === "deal" && layers.deal && <small>{saleFrom ? `${saleFrom}~` : saleYears ? `${saleYears}년` : "전체"}</small>}</button>
+                    {/* 실거래 기간은 실거래 칩 옆 ▾ 에서(밸류맵 「실거래 필터」) — 건물 조건이 아니라 「어느 시기 거래를 견줄까」다 */}
+                    {k === "deal" && layers.deal && (
+                      <button className="ly-cv" title="기간" onClick={() => setYrOpen((v) => !v)}>▾</button>
+                    )}
+                  </span>
                 ))}
               </div>
+              {layers.deal && yrOpen && (
+                <div className="mo-yr">
+                  <div className="yr-q">
+                    {[[0, "전체"], [3, "3년"], [5, "5년"], [10, "10년"]].map(([v, t]) => (
+                      <button key={v as number} className={!saleFrom && saleYears === v ? "on" : ""}
+                        onClick={() => { setSaleFrom(null); setSaleYears(v as number); setYrOpen(false); }}>{t as string}</button>
+                    ))}
+                  </div>
+                  <div className="yr-y">
+                    {Array.from({ length: new Date().getFullYear() - 2005 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                      <button key={y} className={saleFrom === y ? "on" : ""}
+                        onClick={() => { setSaleFrom(y); setSaleYears(0); setYrOpen(false); }}>{y}~</button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {(layers.deal || layers.all) && !near && (
                 <div className="mo-hint">실거래 · 전체 건물은 지도를 더 확대하면 보입니다</div>
               )}
 
               {/* 실거래 견주기 — 총액이냐 단가냐, 단가면 무엇으로 나누고 어느 단위로 낼 것이냐 */}
-              {layers.deal && (
-                <div className="mo-real">
-                  <Segmented value={realBasis === "total" ? "total" : "unit"} size="sm"
-                    onChange={(v) => setRealBasis(v === "total" ? "total" : "land")}
-                    options={[{ value: "total", label: "총액" }, { value: "unit", label: "단가" }]} />
-                  {realBasis !== "total" && (
-                    <>
-                      <Segmented value={realBasis} onChange={setRealBasis} size="sm"
-                        options={[{ value: "land", label: "토지" }, { value: "bldg", label: "건물" }]} />
-                      <Segmented value={realUnit} onChange={setRealUnit} size="sm"
-                        options={[{ value: "py", label: "평" }, { value: "m2", label: "㎡" }]} />
-                    </>
-                  )}
-                  <span className="yr">
-                    {[[0, "전체"], [3, "3년"], [5, "5년"], [10, "10년"]].map(([v, t]) => (
-                      <button key={v as number} className={!saleFrom && saleYears === v ? "on" : ""}
-                        onClick={() => { setSaleFrom(null); setSaleYears(v as number); }}>{t as string}</button>
-                    ))}
-                    {/* 연도 직접 고르기 — 눌러야 열리는 팝오버. 서른일곱 해를 늘 펴 두면
-                        이 줄이 화면을 먹는다. 고른 해부터 지금까지를 본다 */}
-                    <button className={saleFrom ? "on" : ""} onClick={() => setYrOpen((v) => !v)}>
-                      {saleFrom ? `${saleFrom}년~` : "연도"}</button>
-                    {yrOpen && (
-                      <span className="yr-pop">
-                        {Array.from({ length: new Date().getFullYear() - 1989 },
-                          (_, i) => new Date().getFullYear() - i).map((y) => (
-                          <button key={y} className={saleFrom === y ? "on" : ""}
-                            onClick={() => { setSaleFrom(y); setSaleYears(0); setYrOpen(false); }}>{y}</button>
-                        ))}
-                      </span>
-                    )}
-                  </span>
-                </div>
-              )}
-
               {picked ? (
                 <div className="mo-body sd-wrap">
                   <SideDetail picked={picked} broker={broker}
@@ -455,9 +456,13 @@ export function SearchPage() {
                   {listPins.slice(0, 60).map((p) => {
                     const c = cardOf.get(p.building_pk);
                     const ad = c && (c.ad_n ?? 0) > 0;
+                    // 가격은 지도와 같은 눈금(총액 · 토지/건물 단가) — 목록과 핀을 같은 단위로 견준다
+                    const la = c?.land_area ?? p.land_area, ta = c?.total_area ?? p.total_area;
+                    const fmt = (v: number | null | undefined) => valueLabel(v, uv, la, ta) ?? "—";
+                    const unitSuf = realBasis === "total" ? "" : `/${realUnit === "py" ? "평" : "㎡"}`;
                     const price = ad ? (c!.price_min == null ? "가격 문의"
-                        : c!.price_min === c!.price_max ? `매매 ${won(c!.price_min)}` : `매매 ${won(c!.price_min)} ~ ${won(c!.price_max)}`)
-                      : c?.mine ? (c.my_price != null ? `매매 ${won(c.my_price)}` : "매매가 미정") : "";
+                        : c!.price_min === c!.price_max ? `매매 ${fmt(c!.price_min)}${unitSuf}` : `매매 ${fmt(c!.price_min)} ~ ${fmt(c!.price_max)}${unitSuf}`)
+                      : c?.mine ? (c.my_price != null ? `매매 ${fmt(c.my_price)}${unitSuf}` : "매매가 미정") : "";
                     const photo = ad && c!.ad_photo_id ? `/api/ads/${c!.ad_id}/photos/${c!.ad_photo_id}` : null;
                     return (
                       <div key={p.building_pk} className="lc"
@@ -492,7 +497,7 @@ export function SearchPage() {
                       {allInBox.slice(0, 60).map((p) => (
                         <div key={p.building_pk} className="ml-row" onClick={() => setPicked(p)}>
                           <span className="ml-a">{p.addr.replace("서울특별시 ", "").replace("번지", "")}</span>
-                          <span className="ml-nums est">{won(p.sale_est ?? null)}</span>
+                          <span className="ml-nums est">{valueLabel(p.sale_est ?? null, uv, p.land_area, p.total_area) ?? "—"}</span>
                         </div>
                       ))}
                     </>
