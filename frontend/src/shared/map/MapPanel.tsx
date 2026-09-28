@@ -735,7 +735,7 @@ export function MapPanel({
               )}
               <div className="rv-thumbs">
                 <button className={`rv-th rv ${rvIdx === 0 ? "on" : ""}`} onClick={() => setRvIdx(0)}>
-                  <Icon name="roadview" size={20} /><span>거리뷰</span></button>
+                  <Icon name="map" size={20} /><span>거리뷰</span></button>
                 {rvMedia.ids.map((pid, k) => (
                   <button key={pid} className={`rv-th ${rvIdx === k + 1 ? "on" : ""}`} onClick={() => setRvIdx(k + 1)}>
                     <AuthImg src={`/api/ads/${rvMedia.adId}/photos/${pid}`} /></button>
@@ -821,7 +821,7 @@ export function MapPanel({
             const on = street; setStreet(!on);
             if (on) setRoadview(null);
             else { setDrawMode("off"); setMeasure("off"); const c = mapRef.current?.getCenter(); if (c) setRoadview({ lng: c.lng(), lat: c.lat() }); }
-          }}><Icon name="roadview" size={15} />거리뷰</button>
+          }}><Icon name="map" size={15} />거리뷰</button>
         </div>
       )}
     </div>

@@ -331,7 +331,7 @@ function Gallery({ picked, lead, onFull, rvBack }: {
           <button className="adf-nav r" onClick={() => setI((i + 1) % n)}>›</button>
         </>
       )}
-      <span className="adf-cnt num">{i === 0 ? <><Icon name="roadview" size={12} />거리뷰</> : `사진 ${i}`}{n > 1 ? ` · ${i + 1} / ${n}` : ""}</span>
+      <span className="adf-cnt num">{i === 0 ? <><Icon name="map" size={12} />거리뷰</> : `사진 ${i}`}{n > 1 ? ` · ${i + 1} / ${n}` : ""}</span>
       {hasRv && <button className="dc-full" title="전체화면" onClick={full}><Icon name="fullscreen" size={18} /></button>}
     </div>
   );
