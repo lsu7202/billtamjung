@@ -1,8 +1,8 @@
 import { LoadingOverlay } from "../../shared/ui/Spinner";
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { searchApi, buildingsApi, listingsApi, buyersApi, type AttrFilters } from "../../shared/api/endpoints";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { searchApi, buildingsApi, listingsApi, buyersApi, hiddenApi, type AttrFilters, type HiddenRow } from "../../shared/api/endpoints";
 import { useIsBroker } from "../../shared/store/auth";
 import { SideDetail } from "./SideDetail";
 import type { RoadView } from "../../shared/map/Roadview";
@@ -126,9 +126,21 @@ export function SearchPage() {
   const [rvReq, setRvReq] = useState<(RoadView & { n: number }) | null>(null);
   const [rvBack, setRvBack] = useState<(RoadView & { n: number }) | null>(null);
   const [rvMedia, setRvMedia] = useState<{ adId: number; ids: number[] } | null>(null);
-  const [hidden, setHidden] = useState<string[]>(
-    pre ? ((pre as { hidden?: string[] }).hidden ?? []).map(String)
-        : ((saved.hidden as string[]) ?? []).map(String));
+  // 숨기기(0197) — 계정마다 저장. 조건 · 창과 상관없이 계속 안 보이고 「다시 보기」로만 되돌린다
+  const qc = useQueryClient();
+  const hiddenQ = useQuery({ queryKey: ["hidden"], queryFn: hiddenApi.list });
+  const hiddenRows = hiddenQ.data ?? [];
+  const hidden = hiddenRows.map((h) => h.building_pk);
+  const [hidOpen, setHidOpen] = useState(false);
+  const setHid = (f: (v: HiddenRow[]) => HiddenRow[]) => qc.setQueryData<HiddenRow[]>(["hidden"], (v) => f(v ?? []));
+  const hide = (pk: string, addr = "") => {
+    setHid((v) => [{ building_pk: pk, addr, created_at: new Date().toISOString() }, ...v.filter((h) => h.building_pk !== pk)]);
+    hiddenApi.hide(pk).catch(() => qc.invalidateQueries({ queryKey: ["hidden"] }));
+  };
+  const unhide = (pk: string | null) => {
+    setHid((v) => (pk ? v.filter((h) => h.building_pk !== pk) : []));
+    (pk ? hiddenApi.unhide(pk) : hiddenApi.unhideAll()).catch(() => qc.invalidateQueries({ queryKey: ["hidden"] }));
+  };
   /** 화면 낱말(`fValues`)로는 안 보이는데 서버로는 걸려 있는 조건.
    *  옛 매수자 조건이 `filters` 만 들고 있어 검색은 좁혀지는데 화면이 그대로였다(2026-09-05). */
   const shownLabels = new Set(conditionChips(fValues).map((c) => c.label));
@@ -138,8 +150,8 @@ export function SearchPage() {
 
   // 조건 변경 시 스냅샷 저장(전환·새로고침 복원용)
   useEffect(() => {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ q, layers, kinds, realBasis, realUnit, saleYears, saleFrom, saleTo, polygons, sort, filters, fValues, fRegions, pages, hidden }));
-  }, [q, layers, kinds, realBasis, realUnit, saleYears, saleFrom, saleTo, polygons, sort, filters, fValues, fRegions, pages, hidden]);
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ q, layers, kinds, realBasis, realUnit, saleYears, saleFrom, saleTo, polygons, sort, filters, fValues, fRegions, pages }));
+  }, [q, layers, kinds, realBasis, realUnit, saleYears, saleFrom, saleTo, polygons, sort, filters, fValues, fRegions, pages]);
   const bjd = fRegions[0]?.bjd_code ?? "";                       // 단일지역(멀티는 백엔드 확장 예정)
   // 지역·영역이 바뀌어 매물 집합이 바뀌면 핀 레이어가 지도를 맞춘다(mapCanvasLayer.setPins) — 여기서 또 맞추지 않는다
   const filterCount = activeCount(fValues, fRegions);
@@ -304,17 +316,17 @@ export function SearchPage() {
 
       {/* 매수자 조건 편집 중 — 지도·필터·그리기로 다듬고 여기서 되저장한다 */}
       {bc && <BuyerCondBar bc={bc} values={fValues} regions={fRegions} filters={filters}
-        polygon={polygon} hidden={hidden} onDone={() => nav2("/sales")} />}
+        polygon={polygon} onDone={() => nav2("/sales")} />}
 
       {showFilter && (
         <FilterModal
-          initialValues={{ ...fValues, "매물 유형": kinds }} initialRegions={fRegions} initialPolygon={polygon} initialHidden={hidden}
+          initialValues={{ ...fValues, "매물 유형": kinds }} initialRegions={fRegions} initialPolygon={polygon}
           onApply={(r) => {
             // 매물 유형은 사이드 판 칩과 한 값 — 필터 창에서 바꾸면 칩도 따라온다
             const { ["매물 유형"]: mk, ...rest } = r.values as Record<string, unknown>;
             setKinds(Array.isArray(mk) ? (mk as string[]) : []);
             const { kinds: _k, ...rf } = r.filters as AttrFilters; void _k;
-            setFilters(rf); setFValues(rest as Values); setFRegions(r.regions); setPolygons(r.polygon ? [r.polygon] : []); setHidden(r.hidden ?? []); resetPages(); }}
+            setFilters(rf); setFValues(rest as Values); setFRegions(r.regions); setPolygons(r.polygon ? [r.polygon] : []); resetPages(); }}
           onClose={() => setShowFilter(false)}
           onDraw={() => setShowFilter(false)}
         />
@@ -478,7 +490,7 @@ export function SearchPage() {
                     rvBack={rvBack} onMedia={setRvMedia}
                     onBack={() => setPicked(null)}
                     onDetail={() => go(picked!.building_pk)}
-                    onHide={() => { setHidden((v) => [...v, picked!.building_pk]); setPicked(null); }} />
+                    onHide={() => { hide(picked!.building_pk, picked!.addr); setPicked(null); }} />
                 </div>
               ) : (
                 <div className="mo-body">
@@ -494,10 +506,23 @@ export function SearchPage() {
                       </span>
                     )}
                     {hidden.length > 0 && (
-                      <button className="hid-pill" onClick={() => setHidden([])}>
-                        <Icon name="hide" size={12} />숨김 <b>{hidden.length}</b>
-                        <span className="hid-undo">다시 보기</span>
-                      </button>
+                      <span className="hid-wrap">
+                        <button className={`hid-pill ${hidOpen ? "on" : ""}`} onClick={() => setHidOpen(!hidOpen)}>
+                          <Icon name="hide" size={12} />숨김 <b>{hidden.length}</b>
+                        </button>
+                        {/* 숨긴 건물 — 하나씩 또는 전부 다시 보기 */}
+                        {hidOpen && (
+                          <div className="hid-pop" onMouseLeave={() => setHidOpen(false)}>
+                            {hiddenRows.map((h) => (
+                              <div key={h.building_pk} className="hid-row">
+                                <span>{h.addr.replace("서울특별시 ", "").replace("번지", "") || h.building_pk}</span>
+                                <button title="다시 보기" onClick={() => unhide(h.building_pk)}><Icon name="eye" size={14} /></button>
+                              </div>
+                            ))}
+                            <button className="hid-all" onClick={() => { unhide(null); setHidOpen(false); }}>모두 다시 보기</button>
+                          </div>
+                        )}
+                      </span>
                     )}
                   </div>
                   {boxMoved && layers.sale && (
@@ -536,7 +561,7 @@ export function SearchPage() {
                           <div className="lc-ph">{photo ? <AuthImg src={photo} /> : <Icon name="building" size={18} />}</div>
                         </div>
                         <button className="ml-hide" title="숨기기"
-                          onClick={(e) => { e.stopPropagation(); setHidden((v) => [...v, p.building_pk]); }}>
+                          onClick={(e) => { e.stopPropagation(); hide(p.building_pk, p.addr); }}>
                           <Icon name="hide" size={13} /></button>
                       </div>
                     );
@@ -569,9 +594,9 @@ export function SearchPage() {
 }
 
 /* 매수자 조건 저장 바 — 지금 화면의 조건(필터·지역·그린 영역)을 그대로 그 매수자에게 붙인다. */
-function BuyerCondBar({ bc, values, regions, filters, polygon, hidden, onDone }: {
+function BuyerCondBar({ bc, values, regions, filters, polygon, onDone }: {
   bc: BuyerCondNav; values: Values; regions: RegionPick[]; filters: AttrFilters;
-  polygon: object | null; hidden: string[]; onDone: () => void;
+  polygon: object | null; onDone: () => void;
 }) {
   const [name, setName] = useState(bc.name);
   const [saving, setSaving] = useState(false);
@@ -579,7 +604,8 @@ function BuyerCondBar({ bc, values, regions, filters, polygon, hidden, onDone }:
     setSaving(true);
     // 접어둔 건물도 이 사람 조건에 붙는다 — 「이 사람 것은 아니다」라는 판단이라
     // 다른 매수자·다른 조건에서는 그대로 보인다(2026-08-28).
-    const conditions = { values, regions, polygon, filters, hidden };
+    // 숨김은 조건에 싣지 않는다(0197 — 계정마다 따로 저장)
+    const conditions = { values, regions, polygon, filters };
     try {
       if (bc.cond_id) await buyersApi.updateCondition(bc.cond_id, name.trim() || "조건", conditions);
       else await buyersApi.addCondition(bc.buyer_id, name.trim() || "조건", conditions);

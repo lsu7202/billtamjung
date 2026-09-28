@@ -1112,6 +1112,14 @@ export interface Inquiry {
   intent: string | null; literacy: string | null; purposes: string[] | null; regions: string[] | null;
   budget_min: number | null; budget_max: number | null; profile_note: string | null;
 }
+/** 숨기기(0197) — 계정마다 안 보는 건물. 조건과 상관없이 계속 안 보인다 */
+export interface HiddenRow { building_pk: string; addr: string; created_at: string }
+export const hiddenApi = {
+  list: () => api<HiddenRow[]>("/hidden"),
+  hide: (pk: string) => api<{ ok: boolean }>("/hidden", { method: "POST", body: JSON.stringify({ building_pk: pk }) }),
+  unhide: (pk: string) => api<{ ok: boolean }>(`/hidden/${encodeURIComponent(pk)}`, { method: "DELETE" }),
+  unhideAll: () => api<{ ok: boolean }>("/hidden", { method: "DELETE" }),
+};
 export const inquiriesApi = {
   send: (b: { ad_id: number; kind: InquiryKind; body?: string | null; name: string; phone: string;
               consent: boolean; sell_addr?: string | null }) =>
