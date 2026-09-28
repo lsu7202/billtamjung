@@ -11,11 +11,11 @@ import { AuthImg } from "../../../shared/ui/AuthImg";
 /** 매물 모달 「광고」 탭(S05 §3 · 2묶음, 2026-09-28).
  *
  *  광고는 **자동으로 켜지지 않는다** — 광고 폼(모달)을 작성하고 「올리기」를 눌러야 노출된다.
- *  폼은 매물 · 대장 값으로 미리 채운다. 고친 값은 광고에만 남는다(매물은 그대로).
+ *  폼은 매물 유형 · 중개유형 · 매매가 · 제목 · 설명 · 사진 · 연락처뿐이다(0195). 건물 스펙은 광고 카드 옆에
+ *  대장 값이 그대로 뜨므로 싣지 않는다. 「임시저장」은 필수 칸을 다 안 채워도 되고 고객에게 안 보인다.
  *  기한은 올린 날 + 30일, 「연장」으로만 늘어난다(오늘 확인과 상관없다 — 대표 09-28). */
 
 const USE_TYPES: UseType[] = ["빌딩", "상가주택", "공장·창고", "숙박", "기타"];
-const PY = 3.305785;
 const dday = (d: string) => Math.ceil((new Date(`${d}T23:59:59+09:00`).getTime() - Date.now()) / 86400000);
 
 export function AdTab({ pk, onSaved }: { pk: string; onSaved: () => void }) {
@@ -46,12 +46,28 @@ export function AdTab({ pk, onSaved }: { pk: string; onSaved: () => void }) {
             <span className="dim">올린 광고가 없습니다</span>
             <button className="ad-go" onClick={() => setForm("new")}><Icon name="plus" size={14} />광고 올리기</button>
           </div>
+        ) : ad.state === "임시" ? (
+          /* 임시저장한 광고 — 이어 쓰기 · 지우기 */
+          <div className="ad-row">
+            <div className="ad-main">
+              <div className="ad-l1"><span className="ad-st">작성 중인 광고</span>
+                {ad.use_type && <span className="ad-tag">{ad.use_type}</span>}</div>
+              <div className="ad-l2">{ad.title || <span className="dim">제목 없음</span>}</div>
+              <div className="ad-l3 dim">사진 {ad.photo_ids?.length ?? 0}장</div>
+            </div>
+            <div className="ad-acts">
+              <button className="ad-go" onClick={() => setForm("edit")}>이어 쓰기</button>
+              <button className="lx-ic on" title="지우기" onClick={() => {
+                if (confirm("작성 중인 광고를 지웁니다.")) act(() => adsApi.state(ad.id, "삭제"));
+              }}><Icon name="trash" size={14} /></button>
+            </div>
+          </div>
         ) : (
           <div className={`ad-row ${ad.state === "거래완료" || ad.expired ? "done" : ""}`}>
             <div className="ad-main">
               <div className="ad-l1">
-                <b className="num">{ad.price_open ? `매매 ${wonAcc(ad.price ?? 0)}` : "가격 문의"}</b>
-                <span className="ad-tag">{ad.use_type}</span>
+                <b className="num">{ad.price_open ? `매매 ${wonAcc(ad.price ?? 0)}` : "가격 비공개"}</b>
+                {ad.use_type && <span className="ad-tag">{ad.use_type}</span>}
                 {ad.brokerage === "전속" && <span className="ad-tag">전속</span>}
                 <span className={`ad-st ${ad.state === "노출" && !ad.expired ? "on" : ""}`}>
                   {ad.state === "거래완료" ? `거래완료 · ${ad.closed_on}` : ad.expired ? "지난 광고" : ad.state}</span>
@@ -77,7 +93,7 @@ export function AdTab({ pk, onSaved }: { pk: string; onSaved: () => void }) {
             </div>
           </div>
         )}
-        {ad && !live && (
+        {ad && !live && ad.state !== "임시" && (
           <div className="ad-empty" style={{ marginTop: 12 }}>
             <span className="dim">{ad.state === "거래완료" ? "지도에는 거래완료로 남습니다" : ""}</span>
             <button className="ad-go" onClick={() => setForm("new")}><Icon name="plus" size={14} />새로 올리기</button>
@@ -106,14 +122,18 @@ function AdFormModal({ pk, base, ad, onClose, onDone }: {
   const togglePhoto = (id: number) => setPick((v) => (v.includes(id) ? v.filter((x) => x !== id) : [...v, id]));
   const pics = (photos.data ?? []).filter((p) => p.kind === "exterior" || p.kind === "interior" || p.kind === "etc");
 
-  const save = async () => {
+  const live = ad && (ad.state === "노출" || ad.state === "비노출");
+  // publish = 올리기(필수 칸 확인) · false = 임시저장(다 안 채워도 된다)
+  const save = async (publish: boolean) => {
     const price = parseAmount(priceTxt, 1e4);
-    const miss = [!f.use_type && "매물 유형", !price && "매매가", !f.title.trim() && "제목", !f.body.trim() && "설명",
-      pick.length < 3 && "사진 3장"].filter(Boolean);
-    if (miss.length) { setErr(`${miss.join(" · ")}이(가) 필요합니다`); return; }
+    if (publish) {
+      const miss = [!f.use_type && "매물 유형", !price && "매매가", !(f.title ?? "").trim() && "제목",
+        !(f.body ?? "").trim() && "설명", pick.length < 3 && "사진 3장"].filter(Boolean);
+      if (miss.length) { setErr(`${miss.join(" · ")}이(가) 필요합니다`); return; }
+    }
     setBusy(true); setErr(null);
     try {
-      const body = { ...f, price, photo_ids: pick };
+      const body = { ...f, price, photo_ids: pick, publish };
       if (ad) await adsApi.update(ad.id, body); else await adsApi.create(pk, body);
       onDone();
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
@@ -125,38 +145,23 @@ function AdFormModal({ pk, base, ad, onClose, onDone }: {
   const chip = (on: boolean, label: string, onClick: () => void) => (
     <button key={label} type="button" className={`um-chip ${on ? "on" : ""}`} onClick={onClick}>{label}</button>
   );
-  const num = (v: number | null, cb: (n: number | null) => void, unit: string, w = 7) => (
-    <span className="ad-num"><input className="gm-in num" style={{ width: `${w}ch` }} value={v ?? ""}
-      onChange={(e) => { const x = parseFloat(e.target.value); cb(Number.isFinite(x) ? x : null); }} />{unit}</span>
-  );
 
   return createPortal((
     <div className="modal-bg open" onClick={onClose}>
       <div className="gm ad-form" onClick={(e) => e.stopPropagation()}>
-        <div className="gm-title-fix">{ad ? "광고 고치기" : "광고 올리기"}</div>
+        <div className="gm-title-fix">{live ? "광고 고치기" : "광고 올리기"}</div>
         {row("매물 유형", USE_TYPES.map((t) => chip(f.use_type === t, t, () => set({ use_type: t }))))}
         {row("중개유형", (["일반", "전속"] as const).map((t) => chip(f.brokerage === t, t, () => set({ brokerage: t }))))}
         {row("매매가", <>
           <input className="gm-in num" style={{ width: "13ch" }} value={priceTxt} placeholder="예: 9억 5,000만"
             onChange={(e) => setPriceTxt(e.target.value)} />
-          <Segmented size="sm" value={f.price_open ? "공개" : "비공개"} onChange={(v) => set({ price_open: v === "공개" })}
-            options={[{ value: "공개", label: "가격 공개" }, { value: "비공개", label: "비공개" }]} />
+          {/* 가격 비공개 — 체크박스(대표 09-28). 켜면 카드에 「가격 비공개」 */}
+          <label className="ad-chk"><input type="checkbox" checked={!f.price_open}
+            onChange={(e) => set({ price_open: !e.target.checked })} />가격 비공개</label>
         </>)}
-        {row("면적", <>
-          <span className="dim">대지</span>{num(f.land_area != null ? Math.round(f.land_area / PY * 10) / 10 : null, (n) => set({ land_area: n != null ? n * PY : null }), "평")}
-          <span className="dim">연면적</span>{num(f.total_area != null ? Math.round(f.total_area / PY * 10) / 10 : null, (n) => set({ total_area: n != null ? n * PY : null }), "평")}
-        </>)}
-        {row("층", <>
-          <span className="dim">지상</span>{num(f.floors_above, (n) => set({ floors_above: n }), "층", 4)}
-          <span className="dim">지하</span>{num(f.floors_below, (n) => set({ floors_below: n }), "층", 4)}
-        </>)}
-        {row("용도지역", <input className="gm-in" style={{ flex: 1 }} value={f.zoning ?? ""} onChange={(e) => set({ zoning: e.target.value || null })} />)}
-        {row("사용승인", <input className="gm-in num" type="date" value={f.approved_on ?? ""} onChange={(e) => set({ approved_on: e.target.value || null })} />)}
-        {row("위반건축물", ([["있음", true], ["없음", false]] as const).map(([l, v]) =>
-          chip(f.violation === v, l, () => set({ violation: f.violation === v ? null : v }))))}
-        {row("제목", <input className="gm-in" style={{ flex: 1 }} value={f.title} maxLength={60}
+        {row("제목", <input className="gm-in" style={{ flex: 1 }} value={f.title ?? ""} maxLength={60}
           placeholder="예: 역세권 코너 근생 빌딩" onChange={(e) => set({ title: e.target.value })} />)}
-        {row("설명", <textarea className="gm-in ad-body" value={f.body} rows={5}
+        {row("설명", <textarea className="gm-in ad-body" value={f.body ?? ""} rows={5}
           onChange={(e) => set({ body: e.target.value })} />)}
         {row("사진", pics.length === 0
           ? <span className="dim">매물 사진이 없습니다 · 사진 탭에서 올리세요</span>
@@ -171,13 +176,12 @@ function AdFormModal({ pk, base, ad, onClose, onDone }: {
               })}
             </div>)}
         {row("연락처", <input className="gm-in num" value={f.contact_phone ?? ""} onChange={(e) => set({ contact_phone: e.target.value || null })} />)}
-        {row("위치", <Segmented size="sm" value={f.address_open ? "공개" : "비공개"} onChange={(v) => set({ address_open: v === "공개" })}
-          options={[{ value: "공개", label: "지번까지" }, { value: "비공개", label: "동까지만" }]} />)}
         {err && <div className="ad-err">{err}</div>}
         <div className="gm-foot">
+          {!live && <button className="gm-ghost" disabled={busy} onClick={() => save(false)}>임시저장</button>}
           <span className="sp" />
           <button className="gm-ghost quiet" onClick={onClose}>취소</button>
-          <button className="gm-save" disabled={busy} onClick={save}>{busy ? "…" : ad ? "저장" : "올리기"}</button>
+          <button className="gm-save" disabled={busy} onClick={() => save(true)}>{busy ? "…" : live ? "저장" : "올리기"}</button>
         </div>
       </div>
     </div>

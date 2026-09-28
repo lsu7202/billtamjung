@@ -131,10 +131,9 @@ export type SearchTab = "deal" | "ad" | "all";
 
 /** 사이드 판 광고 카드(누구나) — 가격 비공개면 price 는 null */
 export interface AdCard {
-  id: number; state: "노출" | "거래완료"; brokerage: "일반" | "전속";
+  id: number; state: "노출" | "거래완료"; brokerage: "일반" | "전속"; use_type: string | null;
   price: number | null; price_open: boolean;
-  land_area: number | null; total_area: number | null; floors_above: number | null; floors_below: number | null;
-  violation: boolean | null; title: string; posted_on: string; closed_on: string | null;
+  title: string; posted_on: string; closed_on: string | null;
   phone: string | null; agent_name: string | null; office_name: string | null; reg_no: string | null;
   mine: boolean; photo_id: number | null;
 }
@@ -1073,22 +1072,22 @@ export const contactsApi = {
 
 /* ── 광고(중개사) · 문의 — S05 2묶음(2026-09-28) ── */
 export type UseType = "빌딩" | "상가주택" | "공장·창고" | "숙박" | "기타";
+/** 광고 폼(0195) — 건물 스펙 · 위치 공개는 뺐다(카드 옆에 대장 값이 그대로 뜬다) */
 export interface AdForm {
   use_type: UseType | null; brokerage: "일반" | "전속"; price: number | null; price_open: boolean;
-  land_area: number | null; total_area: number | null; floors_above: number | null; floors_below: number | null;
-  zoning: string | null; approved_on: string | null; violation: boolean | null;
-  title: string; body: string; contact_phone: string | null; address_open: boolean;
+  title: string | null; body: string | null; contact_phone: string | null;
 }
 export interface MyAd extends AdForm {
-  id: number; state: "노출" | "비노출" | "거래완료"; review: string; review_note: string | null;
+  id: number; state: "임시" | "노출" | "비노출" | "거래완료"; review: string; review_note: string | null;
   posted_on: string; expires_on: string; closed_on: string | null; expired: boolean; photo_ids: number[] | null;
 }
 export const adsApi = {
   /** 매물의 광고(없으면 null) + 폼 미리 채움 + 계약됐나 */
   ofListing: (pk: string) => api<{ ad: MyAd | null; draft: AdForm; contracted: boolean }>(`/listings/${encodeURIComponent(pk)}/ad`),
-  create: (pk: string, b: AdForm & { photo_ids: number[] }) =>
+  /** publish=false 면 임시저장 */
+  create: (pk: string, b: AdForm & { photo_ids: number[]; publish: boolean }) =>
     api<{ id: number }>(`/listings/${encodeURIComponent(pk)}/ad`, { method: "POST", body: JSON.stringify(b) }),
-  update: (id: number, b: AdForm & { photo_ids: number[] }) =>
+  update: (id: number, b: AdForm & { photo_ids: number[]; publish: boolean }) =>
     api(`/ads/${id}`, { method: "PUT", body: JSON.stringify(b) }),
   state: (id: number, state: "노출" | "비노출" | "거래완료" | "삭제") =>
     api(`/ads/${id}/state`, { method: "PATCH", body: JSON.stringify({ state }) }),

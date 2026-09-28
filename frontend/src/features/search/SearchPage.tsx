@@ -491,7 +491,7 @@ export function SearchPage() {
                     const la = c?.land_area ?? p.land_area, ta = c?.total_area ?? p.total_area;
                     const fmt = (v: number | null | undefined) => valueLabel(v, uv, la, ta) ?? "—";
                     const unitSuf = realBasis === "total" ? "" : `/${realUnit === "py" ? "평" : "㎡"}`;
-                    const price = ad ? (c!.price_min == null ? "가격 문의"
+                    const price = ad ? (c!.price_min == null ? "가격 비공개"
                         : c!.price_min === c!.price_max ? `매매 ${fmt(c!.price_min)}${unitSuf}` : `매매 ${fmt(c!.price_min)} ~ ${fmt(c!.price_max)}${unitSuf}`)
                       : c?.mine ? (c.my_price != null ? `매매 ${fmt(c.my_price)}${unitSuf}` : "매매가 미정") : "";
                     const photo = ad && c!.ad_photo_id ? `/api/ads/${c!.ad_id}/photos/${c!.ad_photo_id}` : null;

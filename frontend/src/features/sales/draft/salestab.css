@@ -443,3 +443,8 @@
 .iq-acts .sp { flex: 1; }
 .iq-link { border: 0; background: none; color: #3182F6; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 0; }
 .iq-reg { border: 0; border-radius: 10px; background: #3182F6; color: #FFFFFF; padding: 6px 12px; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.ad-chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #4E5968; cursor: pointer; margin-left: 6px; }
+.ad-chk input { width: 16px; height: 16px; accent-color: #3182F6; }
+/* 광고 줄의 아이콘은 늘 보인다 — lx-ic 는 표에서 줄에 올릴 때만 보이는 스타일이라 여기선 켜 둔다 */
+.ad-acts .lx-ic { opacity: 1; color: #8B95A1; }
+.ad-acts .lx-ic:hover { color: #333D4B; background: #F2F4F6; }

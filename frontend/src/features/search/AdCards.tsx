@@ -19,9 +19,9 @@ export function AdCards({ pk, empty }: { pk: string; empty?: React.ReactNode }) 
         <div key={a.id} className={`sel-ad ${a.state === "거래완료" ? "sold" : ""}`}>
           {a.photo_id && <AuthImg className="ad-ph" src={`/api/ads/${a.id}/photos/${a.photo_id}`} />}
           <div className="ad-top">
-            <b className="num">{a.state === "거래완료" ? "거래완료" : a.price != null ? `매매 ${wonAcc(a.price)}` : "가격 문의"}</b>
+            <b className="num">{a.state === "거래완료" ? "거래완료" : a.price != null ? `매매 ${wonAcc(a.price)}` : "가격 비공개"}</b>
             {a.brokerage === "전속" && <span className="ad-tag">전속</span>}
-            {a.violation && <span className="ad-tag red">위반건축물</span>}
+            {a.use_type && <span className="ad-tag gray">{a.use_type}</span>}
           </div>
           <div className="ad-title">{a.title}</div>
           <div className="ad-agent">{a.office_name}{a.agent_name ? ` · ${a.agent_name}` : ""}
