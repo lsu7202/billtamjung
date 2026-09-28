@@ -10,7 +10,6 @@ import { Avatar, InquiryModal } from "./AdCards";
 import { AuthImg } from "../../shared/ui/AuthImg";
 import { formatPhone } from "../building/KV";
 import { won } from "../../shared/format";
-import { PhotoViewer } from "./PhotoViewer";
 
 /** 탐색 사이드 판의 상세 — 디스코 결(대표 09-28 「그냥 디스코의 디자인을 카피」).
  *
@@ -25,9 +24,15 @@ const eok = (v: number | null | undefined) =>
 const pyl = (m2: number | null | undefined) => (m2 == null ? null : `${(m2 / PY).toFixed(m2 / PY < 100 ? 1 : 0)}평`);
 const ym = (s: string | null | undefined) => (s && /^\d{6}$/.test(s) ? `${s.slice(2, 4)}.${s.slice(4)}` : "");
 
-export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
+export function SideDetail({ picked, broker, onBack, onDetail, onHide, onFull, rvBack, onMedia }: {
   picked: MapPin; broker: boolean;
   onBack: () => void; onDetail: () => void; onHide: () => void;
+  /** 사진 ⤢ — 지도 툴바 거리뷰를 이 자리 · 방향에서 크게 연다(거리뷰는 하나, 09-28) */
+  onFull: (v: RoadView) => void;
+  /** 크게 본 거리뷰를 닫았을 때 마지막 자리 · 방향 — 사진 자리 거리뷰가 이어받는다 */
+  rvBack: (RoadView & { n: number }) | null;
+  /** 크게 본 거리뷰의 썸네일 줄에 붙일 광고 사진 */
+  onMedia: (m: { adId: number; ids: number[] } | null) => void;
 }) {
   const nav = useNavigate();
   const pk = picked.building_pk;
@@ -50,6 +55,10 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
   const lead: AdCard | null = ads.find((a) => a.state === "노출") ?? ads[0] ?? null;
   const live = lead?.state === "노출";
   const sold = lead?.state === "거래완료";
+  useEffect(() => {
+    onMedia(lead && lead.photo_ids?.length ? { adId: lead.id, ids: lead.photo_ids } : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead?.id, lead?.photo_ids?.join(",")]);
   const n = (k: string) => (b[k] != null && b[k] !== "" ? Number(b[k]) : null);
   const s = (k: string) => (b[k] != null && b[k] !== "" ? String(b[k]) : null);
   const land = n("land_area") ?? picked.land_area ?? null;
@@ -125,7 +134,7 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
         <span className="sp" />
         {copied && <span className="dc-toast">링크를 복사했습니다</span>}
         <button className="dc-ic" title="공유" onClick={share}><Icon name="share" size={19} /></button>
-        <button className="dc-ic" title="접어두기" onClick={onHide}><Icon name="hide" size={19} /></button>
+        <button className="dc-ic" title="숨기기" onClick={onHide}><Icon name="hide" size={19} /></button>
         {broker && !vacant && (
           <div className="dc-more">
             <button className="dc-ic dots" title="더 보기" onClick={() => setMenu(!menu)}>⋮</button>
@@ -140,7 +149,7 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
       </div>
 
       <div className="sd-body dc-body" ref={bodyRef}>
-        <Gallery picked={picked} lead={lead} />
+        <Gallery picked={picked} lead={lead} onFull={onFull} rvBack={rvBack} />
 
         {/* 제목 · 설명 */}
         {lead && (lead.title || lead.body) && (
@@ -292,17 +301,24 @@ function Fold({ title, open = false, children }: { title: string; open?: boolean
 
 
 
-/** 사진 넘김 — 첫 장은 거리뷰, 그다음은 대표 광고에 올린 사진(올린 비율 그대로). ⤢ 로 전체화면.
- *  전체화면에서 옮긴 거리뷰 자리 · 방향을 닫을 때 판이 이어받는다. */
-function Gallery({ picked, lead }: { picked: MapPin; lead: AdCard | null }) {
+/** 사진 넘김 — 첫 장은 거리뷰, 그다음은 대표 광고에 올린 사진(올린 비율 그대로).
+ *  ⤢ 는 지도 툴바 거리뷰를 이 자리 · 방향에서 크게 연다. 닫으면 거기서 옮긴 자리 · 방향을 이어받는다. */
+function Gallery({ picked, lead, onFull, rvBack }: {
+  picked: MapPin; lead: AdCard | null; onFull: (v: RoadView) => void; rvBack: (RoadView & { n: number }) | null;
+}) {
   const photos = lead?.photo_ids ?? [];
   const n = 1 + photos.length;
   const [i, setI] = useState(0);
-  const [full, setFull] = useState(false);
   const view = useRef<RoadView | null>(null);
-  const [gen, setGen] = useState(0);            // 전체화면을 닫으면 판 거리뷰를 이어받은 자리로 다시 세운다
+  const [gen, setGen] = useState(0);            // 이어받은 자리로 판 거리뷰를 다시 세운다
   const hasRv = !!(picked.lng && picked.lat);
   useEffect(() => { setI(0); view.current = null; }, [picked.building_pk]);
+  useEffect(() => {
+    if (!rvBack) return;
+    view.current = { lat: rvBack.lat, lng: rvBack.lng, pan: rvBack.pan, tilt: rvBack.tilt, fov: rvBack.fov };
+    setI(0); setGen((g) => g + 1);
+  }, [rvBack?.n]);
+  const full = () => onFull(view.current ?? { lat: picked.lat, lng: picked.lng, pan: 0, tilt: 0, fov: 100 });
   return (
     <div className="sd-gal dc-gal">
       {i === 0
@@ -315,13 +331,8 @@ function Gallery({ picked, lead }: { picked: MapPin; lead: AdCard | null }) {
           <button className="adf-nav r" onClick={() => setI((i + 1) % n)}>›</button>
         </>
       )}
-      <span className="adf-cnt num">{i === 0 ? "거리뷰" : `사진 ${i}`}{n > 1 ? ` · ${i + 1} / ${n}` : ""}</span>
-      {hasRv && <button className="dc-full" title="전체화면" onClick={() => setFull(true)}><Icon name="fullscreen" size={18} /></button>}
-      {full && (
-        <PhotoViewer lng={picked.lng} lat={picked.lat} adId={lead?.id ?? null} photos={photos} start={i}
-          view={view.current} onView={(v) => { view.current = v; }}
-          onClose={() => { setFull(false); setGen((g) => g + 1); }} />
-      )}
+      <span className="adf-cnt num">{i === 0 ? <><Icon name="roadview" size={12} />거리뷰</> : `사진 ${i}`}{n > 1 ? ` · ${i + 1} / ${n}` : ""}</span>
+      {hasRv && <button className="dc-full" title="전체화면" onClick={full}><Icon name="fullscreen" size={18} /></button>}
     </div>
   );
 }

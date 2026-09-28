@@ -290,3 +290,18 @@ body.map-full .bt-page > .panel { display: none !important }
 .ev-ty.on .n{color:#3182F6}
 .ev-pan.compact .ev-ty{font-size:12px;padding:3px 5px}
 .ev-pan.compact .ev-ty .i{width:20px;height:20px}
+
+/* 크게 본 거리뷰 — 닫기 · 광고 사진 썸네일 줄(탐색 사이드바 ⤢ 와 툴바 거리뷰가 한 화면, 09-28) */
+.rv-x { width: 34px; height: 30px; border: 0; border-radius: 8px; background: rgba(25,31,40,.72); color: #FFFFFF; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+.rv-x:hover { background: rgba(25,31,40,.9); }
+.rv-photo { position: absolute; inset: 0; z-index: 3; background: #0F141B; display: flex; align-items: center; justify-content: center; padding: 48px 16px 96px; }
+.rv-photo img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.rv-thumbs { position: absolute; left: 16px; bottom: 16px; z-index: 6; transform: translateZ(0); display: flex; gap: 8px; max-width: calc(100% - 380px); overflow-x: auto;
+  padding: 6px; border-radius: 12px; background: rgba(15,20,27,.55); }
+.rv-th { flex: 0 0 auto; width: 84px; height: 60px; border: 2px solid transparent; border-radius: 8px; overflow: hidden; padding: 0;
+  background: #333D4B; cursor: pointer; opacity: .7; }
+.rv-th.on { border-color: #3182F6; opacity: 1; }
+.rv-th:hover { opacity: 1; }
+.rv-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rv-th.rv { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #FFFFFF; font-size: 11px; font-weight: 700; }

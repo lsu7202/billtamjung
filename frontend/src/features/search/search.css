@@ -424,7 +424,7 @@
 .dc-gal { margin: 0 !important; }
 .dc-gal .sel-road { height: 260px; }
 .dc-gal .sel-road::after { content: none; }
-.dc-gal .adf-cnt { left: 10px; right: auto; }
+.dc-gal .adf-cnt { left: 10px; right: auto; display: inline-flex; align-items: center; gap: 3px; }
 .dc-full { position: absolute; right: 10px; top: 10px; z-index: 20; width: 34px; height: 34px; border: 0; border-radius: 8px;
   background: rgba(25,31,40,.55); color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .dc-full:hover { background: rgba(25,31,40,.75); }
@@ -501,27 +501,6 @@
 .dc-when { margin-top: 10px; font-size: 12px; color: #8B95A1; text-align: right; }
 .dc .sd-bar { padding: 12px 16px; box-shadow: 0 -4px 12px rgba(15,26,46,.05); }
 
-/* ── 사진 전체화면(09-28) ── */
-.pv { position: fixed; inset: 0; z-index: 1000; background: rgba(10,14,20,.94); display: flex; flex-direction: column; }
-.pv-top { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; color: #FFFFFF; }
-.pv-cnt { font-size: 13px; color: #D1D6DB; }
-.pv-x { width: 40px; height: 40px; border: 0; border-radius: 10px; background: rgba(255,255,255,.1); color: #FFFFFF; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center; }
-.pv-x:hover { background: rgba(255,255,255,.2); }
-.pv-stage { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; padding: 0 64px; }
-.pv-rv { position: absolute !important; inset: 0 64px; border-radius: 6px; overflow: hidden; }
-.pv-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
-.pv-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 5; width: 44px; height: 44px; border: 0; border-radius: 999px;
-  background: rgba(255,255,255,.12); color: #FFFFFF; font-size: 24px; cursor: pointer; }
-.pv-nav:hover { background: rgba(255,255,255,.24); }
-.pv-nav.l { left: 10px; } .pv-nav.r { right: 10px; }
-.pv-thumbs { flex: 0 0 auto; display: flex; gap: 8px; justify-content: center; padding: 14px 16px 18px; overflow-x: auto; }
-.pv-th { flex: 0 0 auto; width: 84px; height: 60px; border: 2px solid transparent; border-radius: 8px; overflow: hidden; padding: 0;
-  background: #333D4B; cursor: pointer; opacity: .6; }
-.pv-th.on { border-color: #3182F6; opacity: 1; }
-.pv-th:hover { opacity: 1; }
-.pv-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.pv-th.rv { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #FFFFFF; font-size: 11px; font-weight: 700; }
 .dc-detail { width: 100%; border: 0; border-radius: 12px; background: #F2F4F6; color: #333D4B; padding: 14px; font: inherit;
   font-size: 15px; font-weight: 700; cursor: pointer; }
 .dc-detail:hover { background: #E5E8EB; }

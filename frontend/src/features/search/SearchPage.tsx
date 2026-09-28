@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { searchApi, buildingsApi, listingsApi, buyersApi, type AttrFilters } from "../../shared/api/endpoints";
 import { useIsBroker } from "../../shared/store/auth";
 import { SideDetail } from "./SideDetail";
+import type { RoadView } from "../../shared/map/Roadview";
 import { Avatar } from "./AdCards";
 import { AuthImg } from "../../shared/ui/AuthImg";
 import { valueLabel } from "../../shared/map/mapCanvasLayer";
@@ -121,6 +122,10 @@ export function SearchPage() {
    *
    *  **거르는 것도 화면이 한다.** 질의 조건으로 두니 접을 때마다 전체를 다시 불러와
    *  지도가 초기화됐다. 이미 받은 목록에서 빼면 그만이다. */
+  // 거리뷰는 하나(09-28) — 사이드바 사진 ⤢ 가 지도 툴바 거리뷰를 크게 열고, 닫으면 사이드바가 그 자리를 이어받는다
+  const [rvReq, setRvReq] = useState<(RoadView & { n: number }) | null>(null);
+  const [rvBack, setRvBack] = useState<(RoadView & { n: number }) | null>(null);
+  const [rvMedia, setRvMedia] = useState<{ adId: number; ids: number[] } | null>(null);
   const [hidden, setHidden] = useState<string[]>(
     pre ? ((pre as { hidden?: string[] }).hidden ?? []).map(String)
         : ((saved.hidden as string[]) ?? []).map(String));
@@ -334,6 +339,8 @@ export function SearchPage() {
               realView={{ basis: realBasis, unit: realUnit }}
               autoFit={false}
               onView={setView}
+              rvReq={rvReq} rvMedia={picked ? rvMedia : null}
+              onRvClose={(v) => { if (v) setRvBack((r) => ({ ...v, n: (r?.n ?? 0) + 1 })); }}
               onParcelClick={(pk) => { if (pk) selectBuilding(pk); }}
               onPick={(pk) => setPicked(mapPinList.find((p) => p.building_pk === pk) ?? null)}
               // 새 영역은 더한다(null = 전부 지우기). 여러 상권을 동시에 보는 게 현장 방식이다.
@@ -467,6 +474,8 @@ export function SearchPage() {
               {picked ? (
                 <div className="mo-body sd-wrap">
                   <SideDetail picked={picked} broker={broker}
+                    onFull={(v) => setRvReq((r) => ({ ...v, n: (r?.n ?? 0) + 1 }))}
+                    rvBack={rvBack} onMedia={setRvMedia}
                     onBack={() => setPicked(null)}
                     onDetail={() => go(picked!.building_pk)}
                     onHide={() => { setHidden((v) => [...v, picked!.building_pk]); setPicked(null); }} />
@@ -486,8 +495,8 @@ export function SearchPage() {
                     )}
                     {hidden.length > 0 && (
                       <button className="hid-pill" onClick={() => setHidden([])}>
-                        <Icon name="hide" size={12} />접어둠 <b>{hidden.length}</b>
-                        <span className="hid-undo">펼치기</span>
+                        <Icon name="hide" size={12} />숨김 <b>{hidden.length}</b>
+                        <span className="hid-undo">다시 보기</span>
                       </button>
                     )}
                   </div>
@@ -526,7 +535,7 @@ export function SearchPage() {
                           </div>
                           <div className="lc-ph">{photo ? <AuthImg src={photo} /> : <Icon name="building" size={18} />}</div>
                         </div>
-                        <button className="ml-hide" title="접어두기"
+                        <button className="ml-hide" title="숨기기"
                           onClick={(e) => { e.stopPropagation(); setHidden((v) => [...v, p.building_pk]); }}>
                           <Icon name="hide" size={13} /></button>
                       </div>

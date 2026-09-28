@@ -8,6 +8,8 @@ import { SourceTag } from "../ui/Notice";
 import { searchApi, newsPinsApi, type NewsPin } from "../api/endpoints";
 import { eventIcon, MAJOR_TYPES } from "./eventIcon";
 import { NewsFilterPanel } from "./NewsFilterPanel";
+import type { RoadView } from "./Roadview";
+import { AuthImg } from "../ui/AuthImg";
 
 /** S01 지도 뷰 — 분류색 핀 · 레이어(일반/위성/지적도) · 영역 그리기(자유곡선/다각형).
  * specs S01 §3.6·3.6a·3.6c, 네이버지도-연동 §1.2·3.1.
@@ -84,7 +86,7 @@ const fmtArea = (a: number) => `${a >= 10000 ? `${(a / 10000).toFixed(2)}ha` : `
 
 export function MapPanel({
   pins, onPick, onPolygon, polygons, polygonActive, selectedPk, selectedCol, onParcelClick, centerReq, priceMode = "fair",
-  realView, fitPadding, autoFit = true, onView,
+  realView, fitPadding, autoFit = true, onView, rvReq, rvMedia, onRvClose,
 }: {
   pins: MapPin[];
   onPick: (pk: string) => void;
@@ -105,6 +107,12 @@ export function MapPanel({
   autoFit?: boolean;
   /** 지도가 멈출 때마다 화면 범위 [서, 남, 동, 북] · 확대 단계 — 탐색 화면이 이만큼만 부른다 */
   onView?: (v: { bbox: [number, number, number, number]; zoom: number }) => void;
+  /** 거리뷰를 이 자리 · 방향에서 크게 연다(탐색 사이드바 사진의 ⤢, 09-28). n 이 바뀔 때마다 */
+  rvReq?: (RoadView & { n: number }) | null;
+  /** 크게 본 거리뷰 아래 썸네일 줄에 붙일 사진(고른 건물의 광고 사진) */
+  rvMedia?: { adId: number; ids: number[] } | null;
+  /** 거리뷰를 닫을 때 마지막 자리 · 방향 — 사이드바 사진 자리가 이어받는다 */
+  onRvClose?: (v: RoadView | null) => void;
 }) {
   const divRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -129,6 +137,8 @@ export function MapPanel({
   const streetRef = useRef<any>(null);                   // StreetLayer(커버리지)
   const rvConeRef = useRef<any>(null);                   // 지도 위 시야(POV) 부채꼴
   const rvKeepRef = useRef<{ pos: any; pov: any } | null>(null);  // 전체화면 전환 시 위치·시점 보존
+  const rvStartRef = useRef<{ pos: any; pov: any } | null>(null); // 밖에서 연 거리뷰의 첫 자리 · 방향(rvReq)
+  const [rvIdx, setRvIdx] = useState(0);                          // 크게 본 화면: 0 = 거리뷰, k = k번째 사진
   const rvLastRef = useRef<{ lng: number; lat: number } | null>(null);  // 직전 roadview(위치 변경 감지)
   const [measure, setMeasure] = useState<"off" | "dist" | "area" | "radius">("off");  // 측정 도구
   const measureRef = useRef<{ pts: any[]; shapes: any[]; labels: any[] }>({ pts: [], shapes: [], labels: [] });
@@ -357,8 +367,9 @@ export function MapPanel({
     // roadview(위치)가 바뀌면 그 좌표로, panoBig(전체화면)만 바뀌면 직전 위치·시점 보존
     const moved = !rvLastRef.current || rvLastRef.current.lng !== roadview.lng || rvLastRef.current.lat !== roadview.lat;
     rvLastRef.current = roadview;
-    const startPos = !moved && rvKeepRef.current ? rvKeepRef.current.pos : new naver.maps.LatLng(roadview.lat, roadview.lng);
-    const startPov = !moved && rvKeepRef.current ? rvKeepRef.current.pov : { pan: 0, tilt: 0, fov: 100 };
+    const req = rvStartRef.current; rvStartRef.current = null;
+    const startPos = req ? req.pos : !moved && rvKeepRef.current ? rvKeepRef.current.pos : new naver.maps.LatLng(roadview.lat, roadview.lng);
+    const startPov = req ? req.pov : !moved && rvKeepRef.current ? rvKeepRef.current.pov : { pan: 0, tilt: 0, fov: 100 };
     const pano = new naver.maps.Panorama(panoDivRef.current, {
       position: startPos, pov: startPov,
       flightSpot: false, aroundControl: false, zoomControl: false,  // 기본 화살표·컨트롤 숨김
@@ -413,6 +424,35 @@ export function MapPanel({
     return () => { el.removeEventListener("dblclick", onDbl); naver.maps.Event.removeListener(idleL); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, roadview, panoBig]);   // panoBig 포함 → 전체화면 전환 시 파노라마 재생성(크기 반영·위치 보존)
+
+  // 밖에서 연 거리뷰(사이드바 ⤢) — 툴바 거리뷰를 켜고 그 자리 · 방향에서 크게. 작은 지도가 그 자리를 가운데 둔다
+  useEffect(() => {
+    if (!ready || !rvReq) return;
+    const naver = window.naver;
+    const at = new naver.maps.LatLng(rvReq.lat, rvReq.lng);
+    mapRef.current.setCenter(at);
+    if ((mapRef.current.getZoom?.() ?? 0) < 17) mapRef.current.setZoom(17);
+    rvStartRef.current = { pos: at, pov: { pan: rvReq.pan, tilt: rvReq.tilt, fov: rvReq.fov } };
+    setDrawMode("off"); setMeasure("off"); setMenu(null);
+    setStreet(true); setRoadview({ lng: rvReq.lng, lat: rvReq.lat }); setPanoBig(true); setRvIdx(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, rvReq?.n]);
+
+  // 거리뷰 닫기 — 마지막 자리 · 방향을 알린다
+  const closeRv = () => {
+    const k = rvKeepRef.current;
+    const v = k ? { lat: k.pos.lat(), lng: k.pos.lng(), pan: k.pov.pan ?? 0, tilt: k.pov.tilt ?? 0, fov: k.pov.fov ?? 100 } : null;
+    setPanoBig(false); setRoadview(null); setStreet(false); setRvIdx(0);
+    onRvClose?.(v);
+  };
+  const closeRvRef = useRef(closeRv); closeRvRef.current = closeRv;
+  useEffect(() => {
+    if (!panoBig) return;
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") closeRvRef.current(); };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [panoBig]);
+  useEffect(() => { setRvIdx(0); }, [rvMedia?.adId]);
 
   // 전체화면 전환 시 지도(PiP)도 컨테이너 크기에 맞게 재배치
   useEffect(() => {
@@ -682,11 +722,28 @@ export function MapPanel({
             ? { position: "absolute", inset: 0, zIndex: 15 }
             : { position: "absolute", right: 12, top: 12, width: 340, height: 230, zIndex: 20, ...pip }),
         }}>
-          <div ref={panoDivRef} style={{ position: "absolute", inset: 0 }} />
-          <div style={{ position: "absolute", top: 8, right: 8, zIndex: 2, display: "flex", gap: 6 }}>
+          <div ref={panoDivRef} style={{ position: "absolute", inset: 0, zIndex: 0, isolation: "isolate" }} />
+          <div style={{ position: "absolute", top: 8, right: 8, zIndex: 5, display: "flex", gap: 6 }}>
             <button className="btn" title={panoBig ? "지도로" : "전체화면"} style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setPanoBig(!panoBig)}>{panoBig ? "⤡" : "⤢"}</button>
+            {panoBig && <button className="rv-x" title="닫기" onClick={closeRv}><Icon name="close" size={20} /></button>}
           </div>
-          {rvOpen && <div style={{ position: "absolute", bottom: 8, left: "50%", transform: "translateX(-50%)", zIndex: 2, background: "rgba(15,26,46,.72)", color: "#fff", fontSize: 11, padding: "4px 10px", borderRadius: 999, whiteSpace: "nowrap" }}>화면을 더블클릭해 이동</div>}
+          {/* 크게 볼 때 — 고른 건물의 광고 사진을 거리뷰와 한 줄로(썸네일). 사진을 고르면 거리뷰 위에 사진이 크게 */}
+          {panoBig && rvMedia && rvMedia.ids.length > 0 && (
+            <>
+              {rvIdx > 0 && (
+                <div className="rv-photo"><AuthImg src={`/api/ads/${rvMedia.adId}/photos/${rvMedia.ids[rvIdx - 1]}`} /></div>
+              )}
+              <div className="rv-thumbs">
+                <button className={`rv-th rv ${rvIdx === 0 ? "on" : ""}`} onClick={() => setRvIdx(0)}>
+                  <Icon name="roadview" size={20} /><span>거리뷰</span></button>
+                {rvMedia.ids.map((pid, k) => (
+                  <button key={pid} className={`rv-th ${rvIdx === k + 1 ? "on" : ""}`} onClick={() => setRvIdx(k + 1)}>
+                    <AuthImg src={`/api/ads/${rvMedia.adId}/photos/${pid}`} /></button>
+                ))}
+              </div>
+            </>
+          )}
+          {rvOpen && !(panoBig && rvMedia && rvMedia.ids.length > 0) && <div style={{ position: "absolute", bottom: 8, left: "50%", transform: "translateX(-50%)", zIndex: 2, background: "rgba(15,26,46,.72)", color: "#fff", fontSize: 11, padding: "4px 10px", borderRadius: 999, whiteSpace: "nowrap" }}>화면을 더블클릭해 이동</div>}
         </div>
 
         {/* 힌트 오버레이 */}
@@ -764,7 +821,7 @@ export function MapPanel({
             const on = street; setStreet(!on);
             if (on) setRoadview(null);
             else { setDrawMode("off"); setMeasure("off"); const c = mapRef.current?.getCenter(); if (c) setRoadview({ lng: c.lng(), lat: c.lat() }); }
-          }}><Icon name="map" size={15} />거리뷰</button>
+          }}><Icon name="roadview" size={15} />거리뷰</button>
         </div>
       )}
     </div>
