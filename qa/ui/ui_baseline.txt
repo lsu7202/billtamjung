@@ -33,3 +33,4 @@ frontend/src/features/search/AdCards.tsx:            {row("전화", <input class
 frontend/src/features/sales/draft/AdTab.tsx:          <input className="gm-in num" style={{ width: "13ch" }} value={priceTxt} placeholder="예: 9억 5,000만"
 frontend/src/features/sales/draft/AdTab.tsx:        {row("연락처", <input className="gm-in num" value={f.contact_phone ?? ""} onChange={(e) => set({ contact_phone: e.target.value || null })} />)}
 frontend/src/features/sales/draft/AdTab.tsx:        {row("제목", <input className="gm-in" style={{ flex: 1 }} value={f.title ?? ""} maxLength={60}
+frontend/src/features/sales/draft/AdTab.tsx:          <span className="ad-num"><input className="gm-in num" style={{ width: "8ch" }} value={priceTxt} placeholder="예: 1.5"

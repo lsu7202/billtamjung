@@ -448,3 +448,5 @@
 /* 광고 줄의 아이콘은 늘 보인다 — lx-ic 는 표에서 줄에 올릴 때만 보이는 스타일이라 여기선 켜 둔다 */
 .ad-acts .lx-ic { opacity: 1; color: #8B95A1; }
 .ad-acts .lx-ic:hover { color: #333D4B; background: #F2F4F6; }
+.ad-read { font-size: 13px; font-weight: 700; color: #3182F6; }
+.ad-read.bad { color: #F04452; font-weight: 600; }

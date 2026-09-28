@@ -4,8 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { adsApi, photosApi, type AdForm, type MyAd, type UseType } from "../../../shared/api/endpoints";
 import { Icon } from "../../../shared/ui/Icon";
 import { Segmented } from "../../../shared/ui/Segmented";
-import { parseAmount } from "../../building/KV";
-import { wonAcc } from "../../../shared/format";
+import { parseAmount, seedAmount } from "../../building/KV";
+import { won, wonAcc } from "../../../shared/format";
 import { AuthImg } from "../../../shared/ui/AuthImg";
 
 /** 매물 모달 「광고」 탭(S05 §3 · 2묶음, 2026-09-28).
@@ -115,7 +115,8 @@ function AdFormModal({ pk, base, ad, onClose, onDone }: {
   const photos = useQuery({ queryKey: ["photos", pk], queryFn: () => photosApi.list(pk) });
   const [f, setF] = useState<AdForm>({ ...base });
   const [pick, setPick] = useState<number[]>(ad?.photo_ids ?? []);
-  const [priceTxt, setPriceTxt] = useState(base.price ? wonAcc(base.price) : "");   // 「9억 5,000만」 · 숫자만이면 만원
+  // 매매가는 억 단위 숫자로 받는다(정보 탭 매매가 칸과 같은 어법) — 1.5 → 1억 5,000만원
+  const [priceTxt, setPriceTxt] = useState(seedAmount(base.price));
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const set = (p: Partial<AdForm>) => setF((v) => ({ ...v, ...p }));
@@ -125,7 +126,7 @@ function AdFormModal({ pk, base, ad, onClose, onDone }: {
   const live = ad && (ad.state === "노출" || ad.state === "비노출");
   // publish = 올리기(필수 칸 확인) · false = 임시저장(다 안 채워도 된다)
   const save = async (publish: boolean) => {
-    const price = parseAmount(priceTxt, 1e4);
+    const price = parseAmount(priceTxt);
     if (publish) {
       const miss = [!f.use_type && "매물 유형", !price && "매매가", !(f.title ?? "").trim() && "제목",
         !(f.body ?? "").trim() && "설명", pick.length < 3 && "사진 3장"].filter(Boolean);
@@ -153,8 +154,13 @@ function AdFormModal({ pk, base, ad, onClose, onDone }: {
         {row("매물 유형", USE_TYPES.map((t) => chip(f.use_type === t, t, () => set({ use_type: t }))))}
         {row("중개유형", (["일반", "전속"] as const).map((t) => chip(f.brokerage === t, t, () => set({ brokerage: t }))))}
         {row("매매가", <>
-          <input className="gm-in num" style={{ width: "13ch" }} value={priceTxt} placeholder="예: 9억 5,000만"
-            onChange={(e) => setPriceTxt(e.target.value)} />
+          <span className="ad-num"><input className="gm-in num" style={{ width: "8ch" }} value={priceTxt} placeholder="예: 1.5"
+            onChange={(e) => setPriceTxt(e.target.value)} />억</span>
+          {/* 읽은 값을 바로 보인다 — 무엇으로 저장되는지 친 사람이 확인하게 */}
+          {priceTxt.trim() && (() => {
+            const v = parseAmount(priceTxt);
+            return v ? <span className="ad-read num">{won(v)}원</span> : <span className="ad-read bad">금액을 읽지 못했습니다</span>;
+          })()}
           {/* 가격 비공개 — 체크박스(대표 09-28). 켜면 카드에 「가격 비공개」 */}
           <label className="ad-chk"><input type="checkbox" checked={!f.price_open}
             onChange={(e) => set({ price_open: !e.target.checked })} />가격 비공개</label>
