@@ -51,7 +51,11 @@ const SCOPES: [Scope, string][] =
 export function BuildingPage() {
   const { pk = "" } = useParams();
   const qc = useQueryClient();
-  const [scope, setScope] = useState<Scope>("bldg");
+  // ?scope=trade 처럼 들어오면 그 탭으로 연다(탐색 사이드바 「기타정보」 줄, 09-28)
+  const [scope, setScope] = useState<Scope>(() => {
+    const q = new URLSearchParams(window.location.search).get("scope");
+    return SCOPES.some(([s]) => s === q) ? (q as Scope) : "bldg";
+  });
   const [selParcel, setSelParcel] = useState<unknown>(null);   // 토지정보에서 고른 필지 폴리곤 — 지도가 따라간다
   // 면적 단위는 사람의 취향이라 화면마다 두지 않고 앱 전체가 같은 값을 본다(useUnit)
   const { unit, setUnit } = useUnit();

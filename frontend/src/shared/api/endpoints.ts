@@ -130,7 +130,7 @@ export type PinKind = "mine" | "ad" | "sold" | "normal";
 export type SearchTab = "deal" | "ad" | "all";
 
 /** 사이드 판 광고 카드(누구나) — 가격 비공개면 price 는 null */
-export interface AdCard {
+export type AdCard = {
   id: number; state: "노출" | "거래완료"; brokerage: "일반" | "전속"; use_type: string | null;
   price: number | null; price_open: boolean;
   title: string; body: string | null; posted_on: string; closed_on: string | null;
@@ -138,6 +138,11 @@ export interface AdCard {
   mine: boolean; photo_id: number | null;
   photo_ids: number[] | null; addr: string | null; updated_on: string | null;
   office_addr: string | null; rep_name: string | null; office_phone: string | null; created_at: string;
+} & AdBasic;
+/** 광고 기본정보(0196) — 대장에 없는, 광고한 중개사만 아는 값. 모르면 null */
+export interface AdBasic {
+  deposit: number | null; monthly_rent: number | null; loan: number | null; loan_open: boolean;
+  move_in: "즉시입주" | "협의" | "날짜" | null; move_in_on: string | null;
 }
 /** 탐색 목록 카드(S05) — 광고 여럿은 한 장(price_min~max), 내 매물이면 mine */
 export interface ListCard {
@@ -1079,6 +1084,8 @@ export type UseType = "빌딩" | "상가주택" | "공장·창고" | "숙박" | 
 export interface AdForm {
   use_type: UseType | null; brokerage: "일반" | "전속"; price: number | null; price_open: boolean;
   title: string | null; body: string | null; contact_phone: string | null;
+  deposit: number | null; monthly_rent: number | null; loan: number | null; loan_open: boolean;
+  move_in: "즉시입주" | "협의" | "날짜" | null; move_in_on: string | null;
 }
 export interface MyAd extends AdForm {
   id: number; state: "임시" | "노출" | "비노출" | "거래완료"; review: string; review_note: string | null;

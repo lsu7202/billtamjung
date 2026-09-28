@@ -117,6 +117,10 @@ function AdFormModal({ pk, base, ad, onClose, onDone }: {
   const [pick, setPick] = useState<number[]>(ad?.photo_ids ?? []);
   // 매매가는 억 단위 숫자로 받는다(정보 탭 매매가 칸과 같은 어법) — 1.5 → 1억 5,000만원
   const [priceTxt, setPriceTxt] = useState(seedAmount(base.price));
+  // 기본정보(0196) — 보증금 · 융자금은 억, 월세는 만원 단위로 받는다. 비우면 null
+  const [depTxt, setDepTxt] = useState(seedAmount(base.deposit));
+  const [rentTxt, setRentTxt] = useState(seedAmount(base.monthly_rent, 1e4));
+  const [loanTxt, setLoanTxt] = useState(seedAmount(base.loan));
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const set = (p: Partial<AdForm>) => setF((v) => ({ ...v, ...p }));
@@ -134,7 +138,9 @@ function AdFormModal({ pk, base, ad, onClose, onDone }: {
     }
     setBusy(true); setErr(null);
     try {
-      const body = { ...f, price, photo_ids: pick, publish };
+      const body = { ...f, price, photo_ids: pick, publish,
+        deposit: parseAmount(depTxt), monthly_rent: parseAmount(rentTxt, 1e4), loan: parseAmount(loanTxt),
+        move_in_on: f.move_in === "날짜" ? f.move_in_on : null };
       if (ad) await adsApi.update(ad.id, body); else await adsApi.create(pk, body);
       onDone();
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
@@ -146,6 +152,17 @@ function AdFormModal({ pk, base, ad, onClose, onDone }: {
   const chip = (on: boolean, label: string, onClick: () => void) => (
     <button key={label} type="button" className={`um-chip ${on ? "on" : ""}`} onClick={onClick}>{label}</button>
   );
+
+  // 금액 칸 하나 — 숫자 + 단위, 옆에 읽은 값
+  const money = (txt: string, setTxt: (v: string) => void, unit: "억" | "만", extra?: React.ReactNode) => (<>
+    <span className="ad-num"><input className="gm-in num" style={{ width: "8ch" }} value={txt}
+      onChange={(e) => setTxt(e.target.value)} />{unit === "억" ? "억" : "만원"}</span>
+    {txt.trim() && (() => {
+      const v = parseAmount(txt, unit === "억" ? 1e8 : 1e4);
+      return v ? <span className="ad-read num">{won(v)}원</span> : <span className="ad-read bad">금액을 읽지 못했습니다</span>;
+    })()}
+    {extra}
+  </>);
 
   return createPortal((
     <div className="modal-bg open" onClick={onClose}>
@@ -181,6 +198,17 @@ function AdFormModal({ pk, base, ad, onClose, onDone }: {
                 );
               })}
             </div>)}
+        {row("현 보증금", money(depTxt, setDepTxt, "억"))}
+        {row("현 월세", money(rentTxt, setRentTxt, "만"))}
+        {row("융자금", money(loanTxt, setLoanTxt, "억",
+          <label className="ad-chk"><input type="checkbox" checked={!f.loan_open}
+            onChange={(e) => set({ loan_open: !e.target.checked })} />표시 안 함</label>))}
+        {row("입주가능일", <>
+          {(["즉시입주", "협의", "날짜"] as const).map((t) =>
+            chip(f.move_in === t, t, () => set({ move_in: f.move_in === t ? null : t })))}
+          {f.move_in === "날짜" && <input type="date" className="gm-in num" value={f.move_in_on ?? ""}
+            onChange={(e) => set({ move_in_on: e.target.value || null })} />}
+        </>)}
         {row("연락처", <input className="gm-in num" value={f.contact_phone ?? ""} placeholder="010-0000-0000"
           onChange={(e) => set({ contact_phone: formatPhone(e.target.value) || null })} />)}
         {err && <div className="ad-err">{err}</div>}

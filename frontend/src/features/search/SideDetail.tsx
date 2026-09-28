@@ -1,29 +1,29 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { buildingsApi, marketApi, rentsApi, type AdCard } from "../../shared/api/endpoints";
-import { RoadviewMini } from "../../shared/map/Roadview";
+import { buildingsApi, rentsApi, type AdCard, type CrawlRow } from "../../shared/api/endpoints";
+import { RoadviewMini, type RoadView } from "../../shared/map/Roadview";
 import type { MapPin } from "../../shared/map/MapPanel";
-import { TradeCompare } from "../building/TradeCompare";
-import { Icon } from "../../shared/ui/Icon";
+import { Icon, type IconName } from "../../shared/ui/Icon";
 import { transitOf, lineColor } from "../building/LocationPanel";
-import { AdCards, Avatar, InquiryModal } from "./AdCards";
+import { Avatar, InquiryModal } from "./AdCards";
 import { AuthImg } from "../../shared/ui/AuthImg";
+import { formatPhone } from "../building/KV";
+import { won } from "../../shared/format";
+import { PhotoViewer } from "./PhotoViewer";
 
-/** 탐색 사이드 판의 상세(S05 · 2026-09-28 대표 승인) — 목록에서 고르면 같은 판이 이것으로 바뀐다.
+/** 탐색 사이드 판의 상세 — 디스코 결(대표 09-28 「그냥 디스코의 디자인을 카피」).
  *
- *  판 하나를 스크롤하고, 머리 아래 고정 탭(매물 · 시세 · 건물 · 임대 · 입지)이 그 구획으로 데려간다.
- *  큰 흐름은 부동산플래닛(가격 먼저 · 비어도 매물 칸이 선다), 칸은 우리가 가진 값으로.
- *  탭 이름은 건물 상세(새 탭)와 맞췄다 — 「상세보기」로 넘어가도 같은 자리를 찾는다. */
+ *  탭 없이 위에서 아래로 한 번에 스크롤한다.
+ *  윗줄(← · 공유 · 저장 · ⋮) → 사진(거리뷰 첫 장 · 전체화면) → 제목 · 설명 → 회색 띠 위 가격 카드 →
+ *  중개사 · 연락처 → 기본/건물정보 · 시세 · 층별 임대 · 교통(접기) → 기타정보 → 중개 등록정보 → 아래 고정 줄.
+ *  모르는 값은 「-」를 찍지 않고 그 줄을 세우지 않는다. 주변 실거래 견주기 막대는 뺐다(대표 09-28). */
 
 const PY = 3.305785;
 const eok = (v: number | null | undefined) =>
   v == null ? "—" : v >= 1e8 ? `${(v / 1e8).toFixed(v >= 1e10 ? 0 : 1).replace(/\.0$/, "")}억` : `${Math.round(v / 1e4).toLocaleString()}만`;
-const pyl = (m2: number | null | undefined) => (m2 == null ? "—" : `${(m2 / PY).toFixed(m2 / PY < 100 ? 1 : 0)}평`);
+const pyl = (m2: number | null | undefined) => (m2 == null ? null : `${(m2 / PY).toFixed(m2 / PY < 100 ? 1 : 0)}평`);
 const ym = (s: string | null | undefined) => (s && /^\d{6}$/.test(s) ? `${s.slice(2, 4)}.${s.slice(4)}` : "");
-
-const TABS = [["ad", "매물"], ["price", "시세"], ["bldg", "건물"], ["rent", "임대"], ["loc", "교통"]] as const;
-type TabKey = typeof TABS[number][0];
 
 export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
   picked: MapPin; broker: boolean;
@@ -41,182 +41,236 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
     },
   });
   const crawl = useQuery({ queryKey: ["bCrawl", pk], queryFn: () => buildingsApi.crawl(pk), enabled: broker && !vacant });
-  const near = useQuery({ queryKey: ["nearbySales", pk], queryFn: () => marketApi.nearbySales(pk), enabled: !vacant });
   const floors = useQuery({ queryKey: ["floor-info", pk], queryFn: () => rentsApi.info(pk), enabled: !vacant });
+  const adsQ = useQuery({ queryKey: ["bAds", pk], queryFn: () => buildingsApi.ads(pk), enabled: !vacant });
 
   const b = bq.data ?? {};
-  const adsQ = useQuery({ queryKey: ["bAds", pk], queryFn: () => buildingsApi.ads(pk), enabled: !vacant });
-  // 대표 광고 — 노출 중인 것 중 가장 최근(서버 순서). 사진 넘김과 아래 고정 줄이 이것을 쓴다
-  const lead: AdCard | null = (adsQ.data ?? []).find((a) => a.state === "노출") ?? null;
-  const [ask, setAsk] = useState(false);
-  const adPrices = (adsQ.data ?? []).filter((a) => a.state === "노출" && a.price != null).map((a) => a.price as number);
-  const salePrice = adPrices.length ? Math.min(...adPrices)
-    : b.sale_price != null && b.sale_price !== "" ? Number(b.sale_price) : null;
+  const ads = adsQ.data ?? [];
+  // 대표 광고 — 노출 중인 것 중 가장 최근(서버 순서). 없으면 거래완료 광고
+  const lead: AdCard | null = ads.find((a) => a.state === "노출") ?? ads[0] ?? null;
+  const live = lead?.state === "노출";
+  const sold = lead?.state === "거래완료";
   const n = (k: string) => (b[k] != null && b[k] !== "" ? Number(b[k]) : null);
+  const s = (k: string) => (b[k] != null && b[k] !== "" ? String(b[k]) : null);
   const land = n("land_area") ?? picked.land_area ?? null;
   const total = n("total_area") ?? picked.total_area ?? null;
   const fa = n("floors_above"), fb = n("floors_below");
   const est = n("sale_est") ?? picked.sale_est ?? null;
   const last = n("last_sale_price") ?? picked.last_sale_price ?? null;
   const lastYm = (b.last_sale_ym as string) ?? picked.last_sale_ym ?? null;
-  const approval = (b.approval_ymd as string) ?? null;
+  const approval = s("approval_ymd");
   const age = approval && /^\d{4}/.test(approval) ? new Date().getFullYear() - Number(approval.slice(0, 4)) : null;
-  const landPy = land ? land / PY : null;
-  const totalPy = total ? total / PY : null;
   const mine = picked.kind === "mine" || picked.col === "mine";
+  // 매매가 — 노출 중인 광고의 값(공개), 광고가 없으면 (중개사) 내 매물의 팀 매매가
+  const salePrice = live && lead!.price != null ? lead!.price : n("sale_price");
+  const perLand = (v: number | null) => (v != null && land ? `대지 평당 ${Math.round(v / (land / PY) / 1e4).toLocaleString()}만` : null);
+  const addr = picked.addr.replace("서울특별시 ", "").replace("번지", "");
 
-  // 고정 탭 — 누르면 그 구획으로 스크롤. 스크롤하면 지금 구획에 불이 들어온다
+  const [ask, setAsk] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const share = async () => {
+    try {
+      await navigator.clipboard.writeText(`${location.origin}/buildings/${pk}`);
+      setCopied(true); setTimeout(() => setCopied(false), 1500);
+    } catch { /* 권한 없음 */ }
+  };
+  const openScope = (scope: string) => window.open(`/buildings/${pk}?scope=${scope}`, "_blank", "noopener");
+
+  // 판이 바뀌면 맨 위로
   const bodyRef = useRef<HTMLDivElement>(null);
-  const [cur, setCur] = useState<TabKey>("ad");
-  const go = (k: TabKey) => {
-    const el = bodyRef.current?.querySelector(`[data-sec="${k}"]`) as HTMLElement | null;
-    if (el && bodyRef.current) bodyRef.current.scrollTo({ top: el.offsetTop - 44, behavior: "smooth" });
-    setCur(k);
-  };
-  const onScroll = () => {
-    const box = bodyRef.current; if (!box) return;
-    let now: TabKey = "ad";
-    for (const [k] of TABS) {
-      const el = box.querySelector(`[data-sec="${k}"]`) as HTMLElement | null;
-      if (el && el.offsetTop - 60 <= box.scrollTop) now = k;
-    }
-    if (now !== cur) setCur(now);
-  };
+  useEffect(() => { bodyRef.current?.scrollTo({ top: 0 }); setMenu(false); }, [pk]);
 
-  const cell = (label: string, value: React.ReactNode) => (
-    <div className="sd-c"><i>{label}</i><b>{value}</b></div>
-  );
+  const row = (label: string, value: React.ReactNode) =>
+    value == null || value === "" ? null : <div key={label} className="dc-row"><span>{label}</span><b>{value}</b></div>;
+
+  // 기본정보(광고에 적은 값, 0196) — 하나도 없으면 머리째 안 선다
+  const basic = lead ? [
+    row("현 보증금", lead.deposit != null ? `${won(lead.deposit)}원` : null),
+    row("현 월세", lead.monthly_rent != null ? `${won(lead.monthly_rent)}원` : null),
+    row("융자금", !lead.loan_open ? "표시 안 함" : lead.loan != null ? `${won(lead.loan)}원` : null),
+    row("입주가능일", lead.move_in === "날짜" ? lead.move_in_on : lead.move_in),
+  ].filter(Boolean) : [];
+  const bcr = n("bcr"), far = n("far");
+  const bldgRows = [
+    row("건물용도", s("main_use_name")),
+    row("용도지역", s("use_zone")),
+    row("건폐율 / 용적률", bcr != null || far != null
+      ? `${bcr != null ? `${bcr.toFixed(2)}%` : "—"} / ${far != null ? `${far.toFixed(2)}%` : "—"}` : null),
+    row("주구조", s("structure")),
+    row("대지면적", pyl(land)),
+    row("건축면적", pyl(n("build_area"))),
+    row("연면적", pyl(total)),
+    row("지상 / 지하", fa != null ? `${fa}층 / ${fb ?? 0}층` : null),
+    row("사용승인일", approval ? `${approval.slice(0, 10).replace(/-/g, ".")}${age != null ? ` (${age}년)` : ""}` : null),
+    row("승강기", n("elevator") != null ? `${n("elevator")}대` : null),
+    row("주차", n("parking") != null ? `${n("parking")}대` : null),
+    row("공시지가", n("gongsi_latest") != null ? `${Math.round(n("gongsi_latest")! * PY / 1e4).toLocaleString()}만원/평` : null),
+  ].filter(Boolean);
 
   const flist = floors.data?.floors ?? [];
+  const t = transitOf(b);
+  const phone = lead && !sold ? (lead.phone ?? lead.office_phone) : null;
+  const agent = lead && (
+    <div className="dc-ag">
+      <Avatar name={lead.agent_name ?? lead.office_name ?? "중"} />
+      <div><b>{lead.agent_name ?? "담당"}</b><span>{lead.office_name ?? ""}</span></div>
+    </div>
+  );
+
   return (
-    <div className="sd">
-      <div className="sd-head">
-        <button className="mo-back" onClick={onBack}>‹ 목록</button>
-        <div className="sd-addr">{picked.addr.replace("서울특별시 ", "").replace("번지", "")}
-          {mine && <span className="ml-tag mine">내</span>}</div>
-        <div className="sd-road">{(b.road_addr as string) ?? ""}</div>
-        <div className="sd-tabs">
-          {TABS.map(([k, l]) => (
-            <button key={k} className={cur === k ? "on" : ""} onClick={() => go(k)}>{l}</button>
-          ))}
+    <div className="sd dc">
+      {/* 윗줄 — ← 목록 · 공유(링크 복사) · 저장(3묶음) · ⋮ */}
+      <div className="dc-top">
+        <button className="dc-ic" title="목록" onClick={onBack}><Icon name="back" size={24} /></button>
+        <span className="sp" />
+        {copied && <span className="dc-toast">링크를 복사했습니다</span>}
+        <button className="dc-ic" title="공유" onClick={share}><Icon name="share" size={19} /></button>
+        <button className="dc-ic" title="저장" disabled><Icon name="star" size={19} /></button>
+        <div className="dc-more">
+          <button className="dc-ic dots" title="더 보기" onClick={() => setMenu(!menu)}>⋮</button>
+          {menu && (
+            <div className="dc-menu" onMouseLeave={() => setMenu(false)}>
+              <button onClick={onDetail}>상세보기</button>
+              {broker && !vacant && (
+                <button onClick={() => nav(`/sales?listing=${encodeURIComponent(pk)}`)}>
+                  {mine ? "매물관리에서 보기" : "매물관리에 담기"}</button>
+              )}
+              <button onClick={onHide}>접어두기</button>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="sd-body" ref={bodyRef} onScroll={onScroll}>
-        {/* 사진 한 자리(대표 09-28) — 거리뷰가 첫 장, 옆으로 넘기면 광고에 올린 사진 */}
+      <div className="sd-body dc-body" ref={bodyRef}>
         <Gallery picked={picked} lead={lead} />
 
-        {/* 매물 — 광고 · (중개사) 내 매물 · 시장 호가. 비어도 칸은 선다 */}
-        <section data-sec="ad">
-          <h4>매물</h4>
-          <AdCards pk={pk} photos={false} ask={false} empty={<div className="sd-none">등록된 매물이 없습니다</div>} />
-          {broker && !vacant && (
-            <button className="sd-link" onClick={() => nav(`/sales?listing=${encodeURIComponent(pk)}`)}>
-              {mine ? "매물관리에서 보기" : "매물관리에 담기"} ›</button>
-          )}
-          {broker && (crawl.data ?? []).length > 0 && (
-            <div className="sel-crawl">
-              <div className="sc-h">시장 호가 <b className="num">{crawl.data!.length}</b></div>
-              {crawl.data!.slice(0, 6).map((c) => (
-                <div key={c.id} className="sc-row num">
-                  <span className="d">{c.deal}</span>
-                  <span className="f">{c.floor ? `${c.floor}층` : "—"}</span>
-                  <span className="a">{pyl(c.contract_area)}</span>
-                  <span className="v">{c.deal === "매매" ? eok(c.price) : `${eok(c.deposit)} / ${eok(c.rent)}`}</span>
-                </div>
-              ))}
-              {crawl.data!.length > 6 && <div className="sc-more">외 {crawl.data!.length - 6}건</div>}
-            </div>
-          )}
-        </section>
-
-        {/* 시세 — 최근 실거래와 빌탐정 추정가를 나란히, 그 아래 주변과 견주기 */}
-        <section data-sec="price">
-          <h4>시세</h4>
-          {/* 매매가 · 최근 실거래 · 추정가 — 매매가는 광고(노출 · 공개)의 값, 광고가 없으면 내 매물의 팀 매매가 */}
-          <div className="sd-price three">
-            <div className="sale"><i>매매가</i><b className="num">{salePrice != null ? eok(salePrice) : "—"}</b></div>
-            <div><i>최근 실거래{ym(lastYm) ? ` · ${ym(lastYm)}` : ""}</i><b className="num">{last != null ? eok(last) : "거래 없음"}</b></div>
-            <div className="est"><i>빌탐정 추정가</i><b className="num">{est != null ? eok(est) : "—"}</b></div>
+        {/* 제목 · 설명 */}
+        {lead && (lead.title || lead.body) && (
+          <div className="dc-intro">
+            {lead.title && <h2>{lead.title}</h2>}
+            {lead.body && <p>{lead.body}</p>}
           </div>
-          {!vacant && (
-            <TradeCompare title="주변 실거래" note="연면적 평당 · 대지 평당 · 총액"
-              near={{ price: near.data?.median_price ?? null, per: near.data?.median_per_area ?? null,
-                      perLand: near.data?.median_price && landPy ? Math.round(near.data.median_price / landPy) : null }}
-              mine={{ price: last, per: last && totalPy ? Math.round(last / totalPy) : null,
-                      perLand: last && landPy ? Math.round(last / landPy) : null }}
-              est={{ price: est, per: est && totalPy ? Math.round(est / totalPy) : null,
-                     perLand: est && landPy ? Math.round(est / landPy) : null }} />
-          )}
-        </section>
+        )}
 
-        {/* 건물 — 대장 값. 건폐 · 용적은 대장이 본값 */}
-        <section data-sec="bldg">
-          <h4>건물</h4>
-          <div className="sd-grid">
-            {cell("대지", pyl(land))}
-            {cell("연면적", pyl(total))}
-            {cell("규모", fa != null ? `${fb ? `B${fb} / ` : ""}${fa}F` : "—")}
-            {cell("주용도", (b.main_use_name as string) || "—")}
-            {cell("사용승인", approval ? `${approval.slice(0, 4)}${age != null ? ` · ${age}년` : ""}` : "—")}
-            {cell("용도지역", (b.use_zone as string) || "—")}
-            {cell("건폐율", n("bcr") != null ? `${n("bcr")!.toFixed(1)}%` : "—")}
-            {cell("용적률", n("far") != null ? `${n("far")!.toFixed(1)}%` : "—")}
-            {cell("공시지가", n("gongsi_latest") != null ? `${Math.round(n("gongsi_latest")! * PY / 1e4).toLocaleString()}만/평` : "—")}
-            {cell("승강기", n("elevator") != null ? `${n("elevator")}대` : "—")}
-          </div>
-        </section>
-
-        {/* 임대 — 층마다 지금 있는 업체(요약). 전체는 상세의 층별 정보 */}
-        <section data-sec="rent">
-          <h4>임대</h4>
-          {flist.length === 0 ? <div className="sd-none">층별 정보가 없습니다</div> : (
-            <div className="sd-floors">
-              {flist.slice(0, 8).map((g) => (
-                <div key={g.floor} className="sd-fl">
-                  <b>{g.floor}</b>
-                  <span>{g.ledger.length ? `${g.ledger[0].name}${g.ledger.length > 1 ? ` 외 ${g.ledger.length - 1}` : ""}`
-                    : <i className="off">{g.uses.length ? g.uses.join(" · ") : "—"}</i>}</span>
-                </div>
-              ))}
-              {flist.length > 8 && <div className="sc-more">외 {flist.length - 8}개 층</div>}
-            </div>
-          )}
-        </section>
-
-        {/* 교통 — 역(호선별 가장 가까운 역)과 버스 정류장. 유동인구 같은 해석 값은 안 싣는다(대표 09-28) */}
-        <section data-sec="loc">
-          <h4>교통</h4>
-          {(() => {
-            const t = transitOf(b);
-            if (!t.subway.length && !t.bus.length) return <div className="sd-none">가까운 역 · 정류장 정보가 없습니다</div>;
-            return (
-              <div className="sd-tr">
-                {t.subway.map(([line, st]) => (
-                  <div key={line} className="sd-trr">
-                    <i className="lb" style={{ background: lineColor(line) }}>{line}</i>
-                    <b>{st.name}</b><span className="num">{st.dist.toLocaleString()}m</span>
-                  </div>
-                ))}
-                {t.bus.map((s2) => (
-                  <div key={s2.name} className="sd-trr">
-                    <i className="lb bus">버스</i><b>{s2.name}</b><span className="num">{s2.dist.toLocaleString()}m</span>
-                  </div>
-                ))}
+        {/* 회색 띠 위 가격 카드 + 세 값 */}
+        <div className="dc-band">
+          <div className="dc-card">
+            {(lead?.use_type || lead?.brokerage === "전속") && (
+              <div className="dc-pills">
+                {lead?.use_type && <span className="dc-pill">{lead.use_type}</span>}
+                {lead?.brokerage === "전속" && <span className="dc-pill blue">전속</span>}
               </div>
-            );
-          })()}
-        </section>
-
-        <div className="sel-acts">
-          <button className="sel-detail" onClick={onDetail}>상세보기 →</button>
-          <button className="sel-hide" title="이 조건에서 접어두기" onClick={onHide}>
-            <Icon name="hide" size={14} />접어두기</button>
+            )}
+            <div className="dc-price">
+              {lead
+                ? sold ? <b className="gray">거래완료</b>
+                  : lead.price != null
+                    ? <><em>매매</em><b className="num">{won(lead.price)}</b>{perLand(lead.price) && <small className="num">({perLand(lead.price)})</small>}</>
+                    : <><em>매매</em><b>가격 비공개</b></>
+                : salePrice != null
+                  ? <><em>매매</em><b className="num">{won(salePrice)}</b>{perLand(salePrice) && <small className="num">({perLand(salePrice)})</small>}</>
+                  : last != null
+                    ? <><em className="gray">실거래</em><b className="num">{won(last)}</b>{ym(lastYm) && <small className="num">({ym(lastYm)})</small>}</>
+                    : <><em className="gray">추정가</em><b className="num">{est != null ? won(est) : "—"}</b></>}
+            </div>
+            <div className="dc-addr">{addr}{mine && <span className="ml-tag mine">내</span>}</div>
+            {s("road_addr") && <div className="dc-road">{s("road_addr")}</div>}
+          </div>
+          <div className="dc-stats">
+            <div><span>연면적</span><b className="num">{pyl(total) ?? "—"}</b></div>
+            <div><span>용도지역</span><b>{(s("use_zone") ?? "—").replace("지역", "")}</b></div>
+            <div><span>용적률</span><b className="num">{far != null ? `${far.toFixed(1)}%` : "—"}</b></div>
+          </div>
         </div>
+
+        {/* 중개사 · 연락처 */}
+        {lead && (
+          <div className="dc-agent">
+            {agent}
+            {phone && (
+              <>
+                <div className="dc-q">이 매물이 궁금하다면?</div>
+                <a className="dc-call" href={`tel:${phone.replace(/\D/g, "")}`}>
+                  <span className="num">{formatPhone(phone)}</span><i><Icon name="phone" size={18} /></i></a>
+              </>
+            )}
+          </div>
+        )}
+
+        <div className="dc-gap" />
+
+        {/* 기본/건물정보 · 시세 · 층별 임대 · 교통 — 접기 */}
+        <Fold title="기본/건물정보" open>
+          {basic.length > 0 && <><h5>기본정보</h5>{basic}<hr /></>}
+          <h5>건물정보</h5>
+          {bldgRows.length ? bldgRows : <div className="dc-none">대장 정보가 없습니다</div>}
+        </Fold>
+        <Fold title="시세" open>
+          {row("매매가", salePrice != null ? won(salePrice) : null)}
+          {row(`최근 실거래${ym(lastYm) ? ` (${ym(lastYm)})` : ""}`, last != null ? won(last) : "거래 없음")}
+          {row("빌탐정 추정가", est != null ? won(est) : null)}
+        </Fold>
+        {!vacant && (
+          <Fold title="층별 임대">
+            {flist.length === 0 ? <div className="dc-none">층별 정보가 없습니다</div> : flist.slice(0, 12).map((g) =>
+              row(g.floor, g.ledger.length ? `${g.ledger[0].name}${g.ledger.length > 1 ? ` 외 ${g.ledger.length - 1}` : ""}`
+                : g.uses.length ? g.uses.join(" · ") : "—"))}
+            {flist.length > 12 && <div className="dc-none">외 {flist.length - 12}개 층</div>}
+          </Fold>
+        )}
+        <Fold title="교통">
+          {!t.subway.length && !t.bus.length ? <div className="dc-none">가까운 역 · 정류장 정보가 없습니다</div> : (
+            <div className="sd-tr">
+              {t.subway.map(([line, st]) => (
+                <div key={line} className="sd-trr">
+                  <i className="lb" style={{ background: lineColor(line) }}>{line}</i>
+                  <b>{st.name}</b><span className="num">{st.dist.toLocaleString()}m</span>
+                </div>
+              ))}
+              {t.bus.map((s2) => (
+                <div key={s2.name} className="sd-trr">
+                  <i className="lb bus">버스</i><b>{s2.name}</b><span className="num">{s2.dist.toLocaleString()}m</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Fold>
+
+        {/* 기타정보 — 건물 상세의 해당 탭으로(새 탭) */}
+        <div className="dc-sec">
+          <h4>기타정보</h4>
+          <Link icon="trend" label="실거래가" onClick={() => openScope("trade")} />
+          {!vacant && <Link icon="building" label="건축물대장" onClick={() => openScope("bldg")} />}
+          <Link icon="parcel" label="토지" onClick={() => openScope("bldg")} />
+          {broker && (crawl.data ?? []).length > 0 && <CrawlLink rows={crawl.data!} />}
+        </div>
+
+        {/* 중개 등록정보 */}
+        {lead && (
+          <>
+            <div className="dc-gap" />
+            <div className="dc-sec">
+              <h4>중개 등록정보</h4>
+              <div className="dc-reg">
+                {agent}
+                {(lead.reg_no || lead.office_addr || lead.rep_name || lead.office_phone) && (
+                  <dl>
+                    {lead.reg_no && <><dt>등록번호</dt><dd className="num">{lead.reg_no}</dd></>}
+                    {lead.office_addr && <><dt>소재지</dt><dd>{lead.office_addr}</dd></>}
+                    {lead.rep_name && <><dt>대표</dt><dd>{lead.rep_name}</dd></>}
+                    {lead.office_phone && <><dt>대표연락처</dt><dd className="num">{formatPhone(lead.office_phone)}</dd></>}
+                  </dl>
+                )}
+              </div>
+              <div className="dc-when">{sold ? `거래완료 ${lead.closed_on ?? ""}` : `올린 날 ${lead.posted_on}`}</div>
+            </div>
+          </>
+        )}
       </div>
-      {/* 아래 고정 줄(디스코식) — 중개사 프로필 + 상담요청. 판을 스크롤해도 늘 보인다.
-          노출 중인 광고가 있고 우리 팀 광고가 아닐 때만 */}
-      {lead && lead.state === "노출" && !lead.mine && (
+
+      {/* 아래 고정 줄 — 중개사 + 상담요청. 노출 중이고 우리 팀 광고가 아닐 때만 */}
+      {lead && live && !lead.mine && (
         <div className="sd-bar">
           <Avatar name={lead.agent_name ?? lead.office_name ?? "중"} />
           <div className="sd-bar-t"><b>{lead.agent_name ?? "담당"}</b><span>{lead.office_name ?? ""}</span></div>
@@ -228,23 +282,76 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
   );
 }
 
-/** 사진 넘김 — 첫 장은 거리뷰(늘 있다), 그다음은 대표 광고에 올린 사진. 사진은 올린 비율 그대로 */
+/** 접는 구획 — 머리 줄을 누르면 펼치고 접는다 */
+function Fold({ title, open = false, children }: { title: string; open?: boolean; children: React.ReactNode }) {
+  const [o, setO] = useState(open);
+  return (
+    <div className={`dc-fold ${o ? "on" : ""}`}>
+      <button className="dc-fh" onClick={() => setO(!o)}><h4>{title}</h4><span className="dc-chev" /></button>
+      {o && <div className="dc-fb">{children}</div>}
+    </div>
+  );
+}
+
+function Link({ icon, label, onClick }: { icon: IconName; label: string; onClick: () => void }) {
+  return (
+    <button className="dc-link" onClick={onClick}>
+      <i><Icon name={icon} size={18} /></i><span>{label}</span><em>›</em>
+    </button>
+  );
+}
+
+/** 시장 호가(중개사만) — 줄을 누르면 펼친다 */
+function CrawlLink({ rows }: { rows: CrawlRow[] }) {
+  const [o, setO] = useState(false);
+  return (
+    <>
+      <button className="dc-link" onClick={() => setO(!o)}>
+        <i><Icon name="value" size={18} /></i><span>시장 호가 <b className="num">{rows.length}</b></span><em>{o ? "‹" : "›"}</em>
+      </button>
+      {o && (
+        <div className="dc-crawl">
+          {rows.map((c) => (
+            <div key={c.id} className="dc-row">
+              <span>{c.deal} · {c.floor ? `${c.floor}층` : "층 미상"}{c.contract_area ? ` · ${pyl(c.contract_area)}` : ""}</span>
+              <b className="num">{c.deal === "매매" ? eok(c.price) : `${eok(c.deposit)} / ${eok(c.rent)}`}</b>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** 사진 넘김 — 첫 장은 거리뷰, 그다음은 대표 광고에 올린 사진(올린 비율 그대로). ⤢ 로 전체화면.
+ *  전체화면에서 옮긴 거리뷰 자리 · 방향을 닫을 때 판이 이어받는다. */
 function Gallery({ picked, lead }: { picked: MapPin; lead: AdCard | null }) {
   const photos = lead?.photo_ids ?? [];
   const n = 1 + photos.length;
   const [i, setI] = useState(0);
+  const [full, setFull] = useState(false);
+  const view = useRef<RoadView | null>(null);
+  const [gen, setGen] = useState(0);            // 전체화면을 닫으면 판 거리뷰를 이어받은 자리로 다시 세운다
   const hasRv = !!(picked.lng && picked.lat);
+  useEffect(() => { setI(0); view.current = null; }, [picked.building_pk]);
   return (
-    <div className="sd-gal">
+    <div className="sd-gal dc-gal">
       {i === 0
-        ? (hasRv ? <RoadviewMini lng={picked.lng} lat={picked.lat} className="sel-road" /> : <div className="sel-road" />)
+        ? (hasRv ? <RoadviewMini key={`${picked.building_pk}-${gen}`} lng={picked.lng} lat={picked.lat} className="sel-road"
+            view={view.current} onView={(v) => { view.current = v; }} /> : <div className="sel-road" />)
         : <AuthImg className="sd-gal-img" src={`/api/ads/${lead!.id}/photos/${photos[i - 1]}`} />}
       {n > 1 && (
         <>
           <button className="adf-nav l" onClick={() => setI((i - 1 + n) % n)}>‹</button>
           <button className="adf-nav r" onClick={() => setI((i + 1) % n)}>›</button>
-          <span className="adf-cnt num">{i === 0 ? "거리뷰" : `사진 ${i}`} · {i + 1} / {n}</span>
         </>
+      )}
+      <span className="adf-cnt num">{i === 0 ? "거리뷰" : `사진 ${i}`}{n > 1 ? ` · ${i + 1} / ${n}` : ""}</span>
+      {hasRv && <button className="dc-full" title="전체화면" onClick={() => setFull(true)}><Icon name="fullscreen" size={18} /></button>}
+      {full && (
+        <PhotoViewer lng={picked.lng} lat={picked.lat} adId={lead?.id ?? null} photos={photos} start={i}
+          view={view.current} onView={(v) => { view.current = v; }}
+          onClose={() => { setFull(false); setGen((g) => g + 1); }} />
       )}
     </div>
   );

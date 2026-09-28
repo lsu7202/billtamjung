@@ -3,6 +3,7 @@
 광고 카드는 **누구나** 본다(any_user). 크롤링 매물은 **중개사만**(current_user) — 광고가 아니라 참고 자료다.
 광고를 올리고 고치는 폼은 2묶음이다. 여기선 읽기만.
 """
+import datetime as dt
 import mimetypes
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -37,7 +38,10 @@ async def building_ads(building_pk: str, user: CurrentUser = Depends(any_user)):
                    (SELECT array_agg(ap.photo_id ORDER BY ap.sort, ap.photo_id) FROM app.ad_photos ap
                      WHERE ap.ad_id = a.id) AS photo_ids,
                    (SELECT b.addr FROM master.buildings b WHERE b.building_pk = a.building_pk) AS addr,
-                   a.updated_at::date AS updated_on
+                   a.updated_at::date AS updated_on,
+                   -- 기본정보(0196) — 대장에 없는, 광고한 중개사만 아는 값. 융자금 「표시 안 함」이면 null
+                   a.deposit, a.monthly_rent, CASE WHEN a.loan_open THEN a.loan END AS loan, a.loan_open,
+                   a.move_in, a.move_in_on
               FROM app.ads a
               JOIN app.teams t ON t.id = a.team_id
               LEFT JOIN app.accounts ac ON ac.id = COALESCE(a.contact_account_id, a.created_by)
@@ -136,12 +140,12 @@ async def ad_cards(body: CardsIn, user: CurrentUser = Depends(any_user)):
 
 USE_TYPES = ("빌딩", "상가주택", "공장·창고", "숙박", "기타")
 _AD_COLS = ("use_type, brokerage, price, price_open, title, body, contact_phone, state, review, review_note, "
-            "posted_on, expires_on, closed_on")
+            "posted_on, expires_on, closed_on, deposit, monthly_rent, loan, loan_open, move_in, move_in_on")
 
 
 async def _listing_of(pk: str, team_id: int):
     row = await pool().fetchrow(
-        "SELECT id, sale_price, exclusive, building_major, assignee_account_id, s6.s6 AS done "
+        "SELECT id, sale_price, exclusive, building_major, assignee_account_id, total_deposit, total_rent, s6.s6 AS done "
         "FROM app.listings l LEFT JOIN LATERAL (SELECT vs.s6_match AS s6 FROM app.v_listing_stage vs "
         " WHERE vs.building_pk = l.building_pk AND vs.team_id = l.team_id) s6 ON TRUE "
         "WHERE l.building_pk = $1 AND l.team_id = $2", pk, team_id)
@@ -165,7 +169,10 @@ async def listing_ad(building_pk: str, user: CurrentUser = Depends(current_user)
                                   l["assignee_account_id"] or user.account_id)
     # 건물 스펙은 광고에 안 싣는다(0195) — 카드 옆에 대장 값이 그대로 뜬다
     draft = {"use_type": l["building_major"] or kind, "brokerage": "전속" if l["exclusive"] else "일반",
-             "price": l["sale_price"], "price_open": True, "title": "", "body": "", "contact_phone": phone}
+             "price": l["sale_price"], "price_open": True, "title": "", "body": "", "contact_phone": phone,
+             # 현 보증금 · 월세는 매물의 총보증금 · 총월세로(0196). 고칠 수 있다
+             "deposit": l["total_deposit"], "monthly_rent": l["total_rent"], "loan": None, "loan_open": True,
+             "move_in": None, "move_in_on": None}
     return {"ad": dict(ad) if ad else None, "draft": draft, "contracted": bool(l["done"])}
 
 
@@ -178,6 +185,12 @@ class AdIn(BaseModel):
     body: str | None = None
     contact_phone: str | None = None
     photo_ids: list[int] = []
+    deposit: int | None = None
+    monthly_rent: int | None = None
+    loan: int | None = None
+    loan_open: bool = True
+    move_in: str | None = None        # 즉시입주 · 협의 · 날짜
+    move_in_on: dt.date | None = None
     publish: bool = True          # False = 임시저장(필수 칸을 다 안 채워도 된다 · 고객에게 안 보인다)
 
 
@@ -206,6 +219,15 @@ async def _set_photos(con, ad_id: int, pk: str, team_id: int, ids: list[int], ne
                           [(ad_id, pid, i) for i, pid in enumerate(dict.fromkeys(ids)) if pid in have])
 
 
+def _basic(body: AdIn) -> tuple:
+    """기본정보(0196) 값 — 날짜가 아니면 move_in_on 은 버린다."""
+    if body.move_in not in (None, "즉시입주", "협의", "날짜"):
+        raise HTTPException(422, "입주가능일은 즉시입주 · 협의 · 날짜")
+    on = body.move_in_on if body.move_in == "날짜" else None
+    return (body.deposit, body.monthly_rent, body.loan, body.loan_open,
+            None if body.move_in == "날짜" and on is None else body.move_in, on)
+
+
 def _loose(body: AdIn) -> None:
     if body.use_type is not None and body.use_type not in USE_TYPES:
         raise HTTPException(422, "매물 유형이 이상합니다")
@@ -230,16 +252,18 @@ async def create_ad(building_pk: str, body: AdIn, user: CurrentUser = Depends(cu
         if draft:
             await con.execute(
                 """UPDATE app.ads SET use_type=$2, brokerage=$3, price=$4, price_open=$5, title=$6, body=$7,
-                       contact_phone=$8, state=$9, posted_on=current_date, expires_on=current_date + 30, updated_at=now()
-                   WHERE id=$1""", draft, *vals, state)
+                       contact_phone=$8, state=$9, posted_on=current_date, expires_on=current_date + 30, updated_at=now(),
+                       deposit=$10, monthly_rent=$11, loan=$12, loan_open=$13, move_in=$14, move_in_on=$15
+                   WHERE id=$1""", draft, *vals, state, *_basic(body))
             aid = draft
         else:
             aid = await con.fetchval(
                 """INSERT INTO app.ads(team_id, listing_id, building_pk, use_type, brokerage, price, price_open,
-                       title, body, contact_phone, state, contact_account_id, created_by)
-                   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id""",
+                       title, body, contact_phone, state, contact_account_id, created_by,
+                       deposit, monthly_rent, loan, loan_open, move_in, move_in_on)
+                   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id""",
                 user.team_id, l["id"], building_pk, *vals, state,
-                l["assignee_account_id"] or user.account_id, user.account_id)
+                l["assignee_account_id"] or user.account_id, user.account_id, *_basic(body))
         await _set_photos(con, aid, building_pk, user.team_id, body.photo_ids, 3 if body.publish else 0)
     return {"id": aid, "state": state}
 
@@ -268,10 +292,12 @@ async def update_ad(ad_id: int, body: AdIn, user: CurrentUser = Depends(current_
                    contact_phone=$8, updated_at=now(),
                    state = CASE WHEN $9 THEN '노출' ELSE state END,
                    posted_on = CASE WHEN $9 THEN current_date ELSE posted_on END,
-                   expires_on = CASE WHEN $9 THEN current_date + 30 ELSE expires_on END
+                   expires_on = CASE WHEN $9 THEN current_date + 30 ELSE expires_on END,
+                   deposit=$10, monthly_rent=$11, loan=$12, loan_open=$13, move_in=$14, move_in_on=$15
                WHERE id=$1""",
             ad_id, body.use_type, body.brokerage, body.price, body.price_open,
-            (body.title or "").strip() or None, (body.body or "").strip() or None, body.contact_phone, go_live)
+            (body.title or "").strip() or None, (body.body or "").strip() or None, body.contact_phone, go_live,
+            *_basic(body))
         await _set_photos(con, ad_id, a["building_pk"], user.team_id, body.photo_ids, 3 if strict else 0)
     return {"ok": True}
 
