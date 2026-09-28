@@ -10,6 +10,8 @@ export interface CanvasPin {
   kind?: "mine" | "ad" | "sold" | "normal";
   /** 이 핀만의 값 보기 — 보기(매매 · 실거래 · 전체 건물)를 겹쳐 켜면 핀마다 값이 다르다. 없으면 레이어 전체 mode */
   lens?: "fair" | "real";
+  /** 값 대신 세울 글자(값이 없을 때) — 매매가가 없는 내 매물은 「미정」. 추정가로 대신 채우지 않는다 */
+  text?: string;
   /** 실거래를 총액·단가로 견주는 재료. 단가 분모는 대지면적이 기본이다 */
   last_sale_ym?: string | null; land_area?: number | null; total_area?: number | null;
 }
@@ -200,7 +202,7 @@ export function makeCanvasPinLayer(naver: any, map: any, onPick: (pk: string) =>
       return;
     }
     const pv = it.p.sale_est ?? it.p.price ?? null;
-    const lb = valueLabel(pv, view, it.p.land_area, it.p.total_area);
+    const lb = valueLabel(pv, view, it.p.land_area, it.p.total_area) ?? it.p.text ?? null;
     if (lb == null) { it.box = undefined; drawDot(it.cx, it.cy, hover, sel); }
     else it.box = drawPin(it.cx, it.cy, lb, PIN_COLORS[it.p.kind ?? it.p.col], hover, sel);
   }

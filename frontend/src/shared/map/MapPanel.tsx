@@ -22,6 +22,7 @@ export interface MapPin {
   kind?: "mine" | "ad" | "sold" | "normal";
   /** 이 핀만의 값 보기(실거래 핀은 real) */
   lens?: "fair" | "real";
+  text?: string;
   ad_n?: number;
   ad_price_min?: number | null;
   price: number | null;
@@ -248,7 +249,7 @@ export function MapPanel({
       // 지역을 골랐을 때 — 그 동의 매물이 다 들어오게. 왼쪽엔 떠 있는 패널(≈350px)이 있어 그만큼 비운다
       const [a, b, c, d] = centerReq.bounds;
       mapRef.current.fitBounds(new naver.maps.LatLngBounds(new naver.maps.LatLng(b, a), new naver.maps.LatLng(d, c)),
-                               fitPadding ?? { top: 40, right: 40, bottom: 60, left: 380 });
+                               fitPadding ?? { top: 40, right: 40, bottom: 60, left: 440 });
       return;
     }
     const at = new naver.maps.LatLng(centerReq.lat, centerReq.lng);

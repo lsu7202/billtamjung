@@ -5,6 +5,12 @@ import { authApi, buildingsApi, inquiriesApi, type AdCard, type InquiryKind } fr
 import { wonAcc } from "../../shared/format";
 import "./adcards.css";
 import { AuthImg } from "../../shared/ui/AuthImg";
+import { formatPhone } from "../building/KV";
+
+function AdBody({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return <div className={`ad-body-t ${open ? "open" : ""}`} onClick={() => setOpen(!open)}>{text}</div>;
+}
 
 /** 광고 카드(S05) — 탐색 사이드 판과 건물 상세가 같은 부품을 쓴다. 누구나 본다.
  *  노출 중이고 우리 팀 광고가 아니면 「상담요청」이 붙는다. 거래완료는 회색으로 남는다(밸류맵). */
@@ -24,6 +30,8 @@ export function AdCards({ pk, empty }: { pk: string; empty?: React.ReactNode }) 
             {a.use_type && <span className="ad-tag gray">{a.use_type}</span>}
           </div>
           <div className="ad-title">{a.title}</div>
+          {/* 매물 설명 — 중개사가 쓴 글. 세 줄로 접고 누르면 편다 */}
+          {a.body && <AdBody text={a.body} />}
           <div className="ad-agent">{a.office_name}{a.agent_name ? ` · ${a.agent_name}` : ""}
             {a.phone && a.state === "노출" && <span className="num"> · {a.phone}</span>}</div>
           {a.state === "노출" && !a.mine && (
@@ -50,7 +58,7 @@ function InquiryModal({ ad, onClose }: { ad: AdCard; onClose: () => void }) {
   const [err, setErr] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const nm = name ?? me.data?.name ?? "";
-  const ph = phone ?? me.data?.phone ?? "";
+  const ph = phone ?? formatPhone(me.data?.phone ?? "");
 
   const send = async () => {
     if (!nm.trim() || !ph.trim()) { setErr("이름과 전화를 적으세요"); return; }
@@ -83,7 +91,7 @@ function InquiryModal({ ad, onClose }: { ad: AdCard; onClose: () => void }) {
             {row("내용", <textarea className="gm-in ad-body" rows={3} maxLength={200} value={body}
               onChange={(e) => setBody(e.target.value)} />)}
             {row("이름", <input className="gm-in" value={nm} onChange={(e) => setName(e.target.value)} />)}
-            {row("전화", <input className="gm-in num" value={ph} onChange={(e) => setPhone(e.target.value)} />)}
+            {row("전화", <input className="gm-in num" value={ph} placeholder="010-0000-0000" onChange={(e) => setPhone(formatPhone(e.target.value))} />)}
             {row("동의", <button type="button" className={`um-chip ${ok ? "on" : ""}`} onClick={() => setOk(!ok)}>
               이름 · 전화를 이 중개사에게 넘기는 데 동의</button>)}
             {err && <div className="ad-err">{err}</div>}

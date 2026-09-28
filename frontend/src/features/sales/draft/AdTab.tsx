@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { adsApi, photosApi, type AdForm, type MyAd, type UseType } from "../../../shared/api/endpoints";
 import { Icon } from "../../../shared/ui/Icon";
 import { Segmented } from "../../../shared/ui/Segmented";
-import { parseAmount, seedAmount } from "../../building/KV";
+import { parseAmount, seedAmount, formatPhone } from "../../building/KV";
 import { won, wonAcc } from "../../../shared/format";
 import { AuthImg } from "../../../shared/ui/AuthImg";
 
@@ -113,7 +113,7 @@ function AdFormModal({ pk, base, ad, onClose, onDone }: {
   pk: string; base: AdForm; ad: MyAd | null; onClose: () => void; onDone: () => void;
 }) {
   const photos = useQuery({ queryKey: ["photos", pk], queryFn: () => photosApi.list(pk) });
-  const [f, setF] = useState<AdForm>({ ...base });
+  const [f, setF] = useState<AdForm>({ ...base, contact_phone: base.contact_phone ? formatPhone(base.contact_phone) : null });
   const [pick, setPick] = useState<number[]>(ad?.photo_ids ?? []);
   // 매매가는 억 단위 숫자로 받는다(정보 탭 매매가 칸과 같은 어법) — 1.5 → 1억 5,000만원
   const [priceTxt, setPriceTxt] = useState(seedAmount(base.price));
@@ -181,7 +181,8 @@ function AdFormModal({ pk, base, ad, onClose, onDone }: {
                 );
               })}
             </div>)}
-        {row("연락처", <input className="gm-in num" value={f.contact_phone ?? ""} onChange={(e) => set({ contact_phone: e.target.value || null })} />)}
+        {row("연락처", <input className="gm-in num" value={f.contact_phone ?? ""} placeholder="010-0000-0000"
+          onChange={(e) => set({ contact_phone: formatPhone(e.target.value) || null })} />)}
         {err && <div className="ad-err">{err}</div>}
         <div className="gm-foot">
           {!live && <button className="gm-ghost" disabled={busy} onClick={() => save(false)}>임시저장</button>}

@@ -25,7 +25,7 @@ async def building_ads(building_pk: str, user: CurrentUser = Depends(any_user)):
     rows = await pool().fetch(
         f"""SELECT a.id, a.state, a.brokerage, a.price_open,
                    CASE WHEN a.price_open THEN a.price END AS price,
-                   a.use_type, a.title, a.posted_on, a.closed_on,
+                   a.use_type, a.title, a.body, a.posted_on, a.closed_on,
                    COALESCE(a.contact_phone, t.phone) AS phone,
                    ac.name AS agent_name, COALESCE(t.office_name, t.name) AS office_name, t.reg_no,
                    (a.team_id = $2) AS mine,

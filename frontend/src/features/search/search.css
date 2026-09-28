@@ -33,7 +33,7 @@
 .map-canvas { position: absolute; inset: 0; }
 
 /* 떠 있는 패널 — 목록과 선택 카드를 번갈아 맡는다 */
-.mo-panel { position: absolute; left: 12px; top: 12px; bottom: 12px; width: 340px; z-index: 7;
+.mo-panel { position: absolute; left: 12px; top: 12px; bottom: 12px; width: 400px; z-index: 7;
   background: rgba(255,255,255,.96); border-radius: 16px; box-shadow: 0 10px 34px rgba(0,19,43,.20);
   backdrop-filter: blur(10px) saturate(1.3); display: flex; flex-direction: column; overflow: hidden; }
 .mo-top { display: flex; align-items: center; gap: 7px; padding: 9px 11px;
@@ -361,3 +361,7 @@
 .mo-kinds button.on { background: #EBF4FF; color: #3182F6; }
 /* 내 매물 · 광고만으로 좁힌 동안 — 실거래 · 전체 건물은 켜져 있어도 흐리게(지도에서 내려감) */
 .mo-layers .ly.mute { opacity: .45; }
+/* 시세 세 칸 — 매매가(검정) · 최근 실거래(회색) · 추정가(연파랑) */
+.sd-price.three { grid-template-columns: 1fr 1fr 1fr; }
+.sd-price.three b { font-size: 15.5px; }
+.sd-price > div.sale { background: #FFFFFF; box-shadow: inset 0 0 0 1.5px #191F28; }

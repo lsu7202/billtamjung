@@ -44,6 +44,10 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
   const floors = useQuery({ queryKey: ["floor-info", pk], queryFn: () => rentsApi.info(pk), enabled: !vacant });
 
   const b = bq.data ?? {};
+  const adsQ = useQuery({ queryKey: ["bAds", pk], queryFn: () => buildingsApi.ads(pk), enabled: !vacant });
+  const adPrices = (adsQ.data ?? []).filter((a) => a.state === "노출" && a.price != null).map((a) => a.price as number);
+  const salePrice = adPrices.length ? Math.min(...adPrices)
+    : b.sale_price != null && b.sale_price !== "" ? Number(b.sale_price) : null;
   const n = (k: string) => (b[k] != null && b[k] !== "" ? Number(b[k]) : null);
   const land = n("land_area") ?? picked.land_area ?? null;
   const total = n("total_area") ?? picked.total_area ?? null;
@@ -124,7 +128,9 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide }: {
         {/* 시세 — 최근 실거래와 빌탐정 추정가를 나란히, 그 아래 주변과 견주기 */}
         <section data-sec="price">
           <h4>시세</h4>
-          <div className="sd-price">
+          {/* 매매가 · 최근 실거래 · 추정가 — 매매가는 광고(노출 · 공개)의 값, 광고가 없으면 내 매물의 팀 매매가 */}
+          <div className="sd-price three">
+            <div className="sale"><i>매매가</i><b className="num">{salePrice != null ? eok(salePrice) : "—"}</b></div>
             <div><i>최근 실거래{ym(lastYm) ? ` · ${ym(lastYm)}` : ""}</i><b className="num">{last != null ? eok(last) : "거래 없음"}</b></div>
             <div className="est"><i>빌탐정 추정가</i><b className="num">{est != null ? eok(est) : "—"}</b></div>
           </div>

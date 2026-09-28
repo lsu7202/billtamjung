@@ -180,7 +180,11 @@ export function SearchPage() {
   const mapPinsShown: MapPin[] = [
     ...allList.map((p) => ({ ...p, kind: "normal" as const, lens: "fair" as const })),
     ...dealList.map((p) => ({ ...p, kind: "normal" as const, lens: "real" as const })),
-    ...saleList.map((p) => ({ ...p, lens: "fair" as const, sale_est: p.kind === "mine" ? p.price : (p.ad_price_min ?? null) })),
+    // 매매 핀은 **매매가만** — 광고의 매매가, 광고가 없는 내 매물은 팀 매매가. 없으면 「미정」(추정가로 대신 안 채운다)
+    ...saleList.map((p) => {
+      const v = p.ad_price_min ?? (p.kind === "mine" && !p.price_is_est ? p.price : null);
+      return { ...p, lens: "fair" as const, sale_est: v, price: v, text: p.kind === "sold" ? "거래완료" : "미정" };
+    }),
   ];
   const inBox = (p: MapPin, bx: [number, number, number, number] | null) =>
     !bx || (p.lng >= bx[0] && p.lng <= bx[2] && p.lat >= bx[1] && p.lat <= bx[3]);

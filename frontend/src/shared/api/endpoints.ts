@@ -133,7 +133,7 @@ export type SearchTab = "deal" | "ad" | "all";
 export interface AdCard {
   id: number; state: "노출" | "거래완료"; brokerage: "일반" | "전속"; use_type: string | null;
   price: number | null; price_open: boolean;
-  title: string; posted_on: string; closed_on: string | null;
+  title: string; body: string | null; posted_on: string; closed_on: string | null;
   phone: string | null; agent_name: string | null; office_name: string | null; reg_no: string | null;
   mine: boolean; photo_id: number | null;
 }
