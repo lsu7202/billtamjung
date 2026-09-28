@@ -18,7 +18,8 @@ frontend/src/features/mypage/MyPage.tsx:            <input className="input" sty
 frontend/src/features/mypage/MyPage.tsx:            <input className="input" type="password" placeholder="새 비밀번호 (8자 이상)" value={next} onChange={(e) => setNext(e.target.value)} minLength={8} />
 frontend/src/features/mypage/MyPage.tsx:            <input className="input" type="password" placeholder="현재 비밀번호" value={cur} onChange={(e) => setCur(e.target.value)} />
 frontend/src/features/mypage/MyPage.tsx:      <input className="input" value={(d as any)[k] ?? ""} placeholder={ph} onChange={set(k)} />
-frontend/src/features/sales/ListingTable.tsx:        <input className="lt-q lx-q" value={q} placeholder="주소 · 소유자 · 매물번호"
+frontend/src/features/sales/ListingTable.tsx:        <input className="lt-q lx-q" value={q} placeholder="주소 · 소유자 · 매물번호 · 담당 · 메모"
+frontend/src/features/sales/ListingTable.tsx:      <input inputMode="decimal" defaultValue={v[1] ?? ""} placeholder="최대"
 frontend/src/features/sales/SalesPage.tsx:        <input className="lt-q" value={q} placeholder="이름 · 연락처"
 frontend/src/features/sales/draft/DocPage.tsx:                <input className="tadd" value={tIn}
 frontend/src/features/sales/draft/DocPage.tsx:    <input className="din vol" placeholder="000000-0000000" maxLength={14} title="저장되지 않습니다"

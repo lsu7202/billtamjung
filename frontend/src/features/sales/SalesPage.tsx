@@ -13,10 +13,7 @@ import { CalendarTab } from "./CalendarTab";
 import { NewPerson } from "./PersonModal";
 import { UnifiedBuyerModal } from "./draft/UnifiedBuyerModal";
 import { SchedCal, calTone } from "./draft/SchedCal";
-import { TodayTab } from "./draft/TodayTab";
 import "./draft/salestab.css";
-import { useTradeCtx } from "./tradeCtx";
-import { TradeBar } from "./TradeBar";
 import { useEnums } from "../../shared/hooks/useEnums";
 import { shortAddr } from "../../shared/format";
 import { ListingsTab } from "./ListingTable";
@@ -46,50 +43,57 @@ function useGradeLabel() {
 
 /* ══════════════════════ 루트 ══════════════════════ */
 
-export function SalesPage() {
+/* 윗메뉴 셋(2026-09-28) — 부기사처럼 매물관리 · 고객관리 · 일정을 나눴다. 아래 줄 탭은 없앴다.
+ * 대시보드(TodayTab)와 하단 대화창(TradeBar)은 화면에서만 뺐다 — 코드는 둔다. */
+
+function useRefresh() {
   const qc = useQueryClient();
-  const [sp] = useSearchParams();
-  const fromUrl = sp.get("buyer") ? Number(sp.get("buyer")) : null;
-  const fromListing = sp.get("listing");                   // 건물상세 → 「업무에서 관리」 리다이렉트
-  const [tab, setTab] = useState<"today" | "cal" | "listings" | "buy">(
-    fromUrl ? "buy" : fromListing ? "listings" : "today");
-  const [focusBuyer, setFocusBuyer] = useState<number | null>(fromUrl);
-  const [focusSeller, setFocusSeller] = useState<string | null>(null);
-  const [focusListing] = useState<string | null>(fromListing);
-  const focusTab = sp.get("tab") === "rent" ? "rent" as const : undefined;   // 건물 상세 「임대 내역 →」
-  const goBuyer = (id: number) => { setFocusBuyer(id); setTab("buy"); };
-  // 매도 탭은 없앴다(2026-08-16) — 소유자는 그 매물의 일부라 매물 화면으로 간다
-  const goSeller = (pk: string) => { setFocusSeller(pk); setTab("listings"); };
-  const setCtx = useTradeCtx((s) => s.setCtx);
-  useEffect(() => { if (tab === "today" || tab === "cal") setCtx(null); }, [tab, setCtx]);
-  const refresh = () => {
+  return () => {
     qc.invalidateQueries({ queryKey: ["buyers"] });
     qc.invalidateQueries({ queryKey: ["proposals"] });
     qc.invalidateQueries({ queryKey: ["sellers"] });
     qc.invalidateQueries({ queryKey: ["sales-today"] });
   };
+}
 
+/** 매물관리 — 매물 표. 건물 상세 → ?listing=pk(&tab=rent) 로 넘어온다 */
+export function SalesPage() {
+  const [sp] = useSearchParams();
+  const nav = useNavigate();
+  const refresh = useRefresh();
+  const buyer = sp.get("buyer");
+  // 옛 주소 — 매수자는 고객관리로 옮겼다
+  useEffect(() => { if (buyer) nav(`/customers?buyer=${buyer}`, { replace: true }); }, [buyer, nav]);
+  const listing = sp.get("listing");
+  const focusTab = sp.get("tab") === "rent" ? "rent" as const : undefined;   // 건물 상세 「임대 내역 →」
   return (
     <div className="page sales">
-      {/* 화면 이동 = 밑줄 탭(GNB 어법). 섹션 이름표는 뺐다 — GNB의 「업무」가 이미 말한다.
-          순서는 하루가 흐르는 대로다(2026-08-28): **오늘 뭘 하지**(대시보드) →
-          **무엇을 파나**(매물) → **누구에게**(매수자). 셋은 한 줄기라 붙여 세운다.
-          캘린더는 「언제」라 갈래가 다르다 — 여백을 하나 두고 떨어뜨렸다.
-          예전엔 대시보드 옆에 캘린더가 끼어 있어서, 매물·매수자로 가는 길이 한 번 끊겼다. */}
-      <div className="subnav">
-        {([["today", "대시보드", "lead"], ["listings", "매물", ""], ["buy", "매수자", ""],
-           ["cal", "캘린더", "apart"]] as const).map(([k, l, mod]) => (
-          <button key={k} className={`${tab === k ? "on" : ""} ${mod}`.trim()} onClick={() => setTab(k)}>{l}</button>
-        ))}
-        <span style={{ flex: 1 }} />
-      </div>
+      <ListingsTab focus={listing} focusTab={focusTab} onDone={refresh}
+        onBuyer={(id) => nav(`/customers?buyer=${id}`)} />
+    </div>
+  );
+}
 
-      <TradeBar />
-      {tab === "today" && <TodayTab onBuyer={goBuyer} onSeller={goSeller} />}
-      {tab === "cal" && <CalendarTab onBuyer={goBuyer} onSeller={goSeller} />}
-      {tab === "listings" && <ListingsTab focus={focusSeller ?? focusListing} focusTab={focusSeller ? undefined : focusTab} onDone={refresh}
-        onBuyer={goBuyer} />}
-      {tab === "buy" && <BuySide focus={focusBuyer} onDone={refresh} onGoListing={goSeller} />}
+/** 고객관리 — 지금은 매수자. 소유자(매도) 등 다른 갈래는 나중에 여기로 */
+export function CustomersPage() {
+  const [sp] = useSearchParams();
+  const nav = useNavigate();
+  const refresh = useRefresh();
+  const focus = sp.get("buyer") ? Number(sp.get("buyer")) : null;
+  return (
+    <div className="page sales">
+      <BuySide focus={focus} onDone={refresh} onGoListing={(pk) => nav(`/sales?listing=${encodeURIComponent(pk)}`)} />
+    </div>
+  );
+}
+
+/** 일정 — 캘린더 */
+export function SchedulePage() {
+  const nav = useNavigate();
+  return (
+    <div className="page sales">
+      <CalendarTab onBuyer={(id) => nav(`/customers?buyer=${id}`)}
+        onSeller={(pk) => nav(`/sales?listing=${encodeURIComponent(pk)}`)} />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 /* 거래 페이지 여백 — 카드가 화면 끝에 물려 오른쪽 테두리가 잘리고, 마지막 줄이 바닥에
    붙어 있었다. 페이지에 한 번만 준다(카드마다 margin을 붙이면 탭마다 어긋난다). */
-.page.sales { padding: 0 18px 36px; }
+.page.sales { padding: 20px 18px 36px; }   /* 아래 줄 탭을 없앤 뒤 머리 여백(2026-09-28) */
 
 /* 누를 수 있는 글자 = 글자여야 한다. 기본 button 껍데기가 남아 있어 회색 상자로 보였다. */
 .sales .lnk { border: 0; background: none; padding: 0; font: inherit; color: inherit;
@@ -909,8 +909,7 @@
   align-items: center; justify-content: center; }
 .tb-go:disabled { opacity: .25; cursor: default; }
 
-/* 바가 마지막 줄을 가리지 않게 — 거래 화면만 바닥을 띄운다 */
-.page.sales { padding-bottom: 104px; }
+/* 하단 대화창을 화면에서 뺐다(2026-09-28) — 그 자리를 비워 두던 여백도 뺀다 */
 
 /* 머리의 「다음 일정 + 상태」 — 상태는 파생값 하나, 다음 움직임은 그 옆에(2026-08-15) */
 .pp-next { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; }

@@ -74,7 +74,7 @@ function BuyersTab({ pk }: { pk: string }) {
             const days = Math.round((Date.now() - new Date(p.updated_at).getTime()) / 86400000);
             return (
               <button key={p.id} className={`btab-row ${p.stop_id || p.dropped_at ? "off" : ""}`}
-                onClick={() => nav(`/sales?buyer=${p.buyer_id}`)} title="거래에서 보기">
+                onClick={() => nav(`/customers?buyer=${p.buyer_id}`)} title="거래에서 보기">
                 <b>{p.buyer_name}</b>
                 {p.buyer_grade && <span className="g">{gradeLabel(p.buyer_grade)}</span>}
                 <span className={`pp-st s-${negoWord(p)}`}>{negoWord(p)}</span>
