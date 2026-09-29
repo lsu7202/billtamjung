@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { contactsApi, listingsApi, proposalsApi, salesApi, savedApi, searchApi, type Seller } from "../../shared/api/endpoints";
-import { condRequest } from "../search/FilterModal";
+import { contactsApi, listingsApi, proposalsApi, salesApi, savedApi, searchApi, statusesApi, type Seller } from "../../shared/api/endpoints";
+import { condRequest, FilterModal, type Values, type RegionPick } from "../search/FilterModal";
 import { md, shortAddr, wonAcc } from "../../shared/format";
 import { Loading } from "../../shared/ui/Spinner";
 import { Icon } from "../../shared/ui/Icon";
@@ -154,10 +154,14 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
   const savedQ = useQuery({ queryKey: ["saved"], queryFn: savedApi.list });
   const [cond, setCond] = useState<{ id: number; name: string } | null>(null);
   const condC = savedQ.data?.find((c) => c.id === cond?.id) ?? null;
+  // 필터(09-29) — 탐색과 같은 필터 창을 열어 그 자리에서 건 조건. 저장한 조건과 같은 길로 거른다(둘 중 하나만)
+  const [adhoc, setAdhoc] = useState<{ values: Values; regions: RegionPick[]; polygon: object | null; filters: Record<string, unknown> } | null>(null);
+  const [showFilter, setShowFilter] = useState(false);
+  const condJson: Record<string, unknown> | null = condC ? condC.conditions_json : adhoc;
   const condPins = useQuery({
-    queryKey: ["condPins", cond?.id],
-    queryFn: () => searchApi.pins({ ...condRequest(condC!.conditions_json, members.data ?? []), tab: "ad", chip: "mine", for_model: true }),
-    enabled: !!condC,
+    queryKey: ["condPins", cond?.id ?? null, adhoc ? JSON.stringify(adhoc) : null],
+    queryFn: () => searchApi.pins({ ...condRequest(condJson!, members.data ?? []), tab: "ad", chip: "mine", for_model: true }),
+    enabled: !!condJson,
   });
   const condSet = useMemo(() => (condPins.data ? new Set(condPins.data.map((p) => p.building_pk)) : null), [condPins.data]);
 
@@ -175,7 +179,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
       return (lo == null || x >= lo * per) && (hi == null || x <= hi * per);
     });
     let out = laneRows.filter((r) =>
-      (cond == null || (condSet != null && condSet.has(r.building_pk)))
+      (condJson == null || (condSet != null && condSet.has(r.building_pk)))
       && (!t || [r.addr, r.owner_name, r.listing_no, nameOf(r.assignee_account_id), r.memo_text]
         .some((x) => (x ?? "").includes(t)))
       && (who == null || r.assignee_account_id === who)
@@ -212,16 +216,16 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
       });
     }
     return out;
-  }, [laneRows, cond, condSet, q, who, gu, dong, major, kind, grade, pvm, flag, chk, ranges, sort, members.data]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [laneRows, condJson, condSet, q, who, gu, dong, major, kind, grade, pvm, flag, chk, ranges, sort, members.data]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // 지역 칩 — 이 갈래에 실제로 있는 구·동만
   const gus = useMemo(() => [...new Set(laneRows.map((r) => regionOf(r.addr)[0]).filter(Boolean) as string[])].sort(ko), [laneRows]);
   const dongs = useMemo(() => gu == null ? [] : [...new Set(laneRows.filter((r) => regionOf(r.addr)[0] === gu)
     .map((r) => regionOf(r.addr)[1]).filter(Boolean) as string[])].sort(ko), [laneRows, gu]);
-  const anyFilter = cond != null || chk != null || st != null || who != null || gu != null || major != null || kind != null || grade != null || pvm != null
+  const anyFilter = cond != null || adhoc != null || chk != null || st != null || who != null || gu != null || major != null || kind != null || grade != null || pvm != null
     || flag != null || Object.values(ranges).some(([a, b]) => a != null || b != null);
   const reset = () => {
-    setCond(null); setChk(null); setSt(null); setWho(null); setGu(null); setDong(null); setMajor(null); setKind(null); setGrade(null); setPvm(null);
+    setCond(null); setAdhoc(null); setChk(null); setSt(null); setWho(null); setGu(null); setDong(null); setMajor(null); setKind(null); setGrade(null); setPvm(null);
     setFlag(null); setRanges({ price: [null, null], land: [null, null], total: [null, null] });
   };
   const cur = list.find((r) => r.building_pk === open?.pk) ?? null;
@@ -246,14 +250,19 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
     rows.refetch();
     qc.invalidateQueries({ queryKey: ["contacts"] });
   };
-  // 이관 — 고른 줄의 담당을 한꺼번에(부기사 「선택 → 담당 변경」)
-  const transfer = async (to: number) => {
+  // 고른 줄을 한꺼번에 고친다(부기사 「선택 → 변경」, 09-29) — 담당 · 상태 · 매물 칸(유형 · 소분류 · 등급 · 입지 · 노후도 · 전속).
+  // 고른 채로 둔다 — 한 번에 여러 칸을 고치는 일이 흔하다. ✕ 로 푼다
+  const [bpop, setBpop] = useState<string | null>(null);
+  const bulk = async (fn: (pk: string) => Promise<unknown>) => {
     setBusy(true);
-    try { await Promise.all([...sel].map((pk) => listingsApi.claim(pk, to))); }
+    try { await Promise.all([...sel].map(fn)); }
     finally { setBusy(false); }
-    setSel(new Set());
+    setBpop(null);
     rows.refetch();
+    qc.invalidateQueries({ queryKey: ["statuses", "listing"] });
   };
+  const transfer = (to: number) => bulk((pk) => listingsApi.claim(pk, to));
+  const bulkField = (field: string, v: string | boolean | null) => bulk((pk) => listingsApi.patchBiz(pk, { [field]: v }));
   const toggleSel = (pk: string) => setSel((s0) => {
     const s1 = new Set(s0);
     if (s1.has(pk)) s1.delete(pk); else s1.add(pk);
@@ -294,9 +303,12 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
           const flagTxt = { urgent: "급매", exclusive: "전속", ad: "광고 중" } as const;
           const mem = members.data ?? [];
           return <>
+            {/* 필터 — 탐색과 같은 필터 창. 건 조건 수가 이름 옆에 선다 */}
+            <button className={`um-chip lx-pn ${adhoc ? "on" : ""}`} onClick={() => setShowFilter(true)}>
+              <Icon name="filter" size={12} />필터{adhoc ? ` ${Object.keys(adhoc.values).length + (adhoc.regions.length ? 1 : 0) + (adhoc.polygon ? 1 : 0)}` : ""}</button>
             {(savedQ.data ?? []).length > 0 && pp("cond", "저장한 조건", cond?.name ?? null,
               (savedQ.data ?? []).map((c) => chip(cond?.id === c.id, c.name,
-                () => setCond(cond?.id === c.id ? null : { id: c.id, name: c.name }))))}
+                () => { setAdhoc(null); setCond(cond?.id === c.id ? null : { id: c.id, name: c.name }); })))}
             {pp("st", "상태", st === "none" ? "미지정" : (statuses.data ?? []).find((x) => x.id === st)?.name ?? null, <>
               {(statuses.data ?? []).map((x) => chip(st === x.id, x.name, () => setSt(st === x.id ? null : x.id),
                 list.filter((r) => r.status_id === x.id).length))}
@@ -341,11 +353,45 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
         <button className="lt-add" title="매물 등록" onClick={() => setAdd(true)}>
           <Icon name="plus" size={14} /></button>
       </div>
+      {showFilter && (
+        <FilterModal initialValues={adhoc?.values} initialRegions={adhoc?.regions} initialPolygon={adhoc?.polygon ?? null}
+          onApply={(r) => {
+            const empty = !Object.keys(r.values).length && !r.regions.length && !r.polygon;
+            setCond(null);
+            setAdhoc(empty ? null : { values: r.values, regions: r.regions, polygon: r.polygon ?? null, filters: r.filters as Record<string, unknown> });
+          }}
+          onClose={() => setShowFilter(false)} />
+      )}
       {sel.size > 0 && (
         <div className="lx-selbar">
-          <b>{sel.size}건</b><span>담당 넘기기</span>
-          {(members.data ?? []).map((m) =>
-            <button key={m.account_id} className="um-chip" disabled={busy} onClick={() => transfer(m.account_id)}>{m.name}</button>)}
+          <b>{sel.size}건</b><span>한꺼번에 바꾸기</span>
+          {(() => {
+            const bp = (key: string, label: string, body: React.ReactNode) => (
+              <Pop key={key} label={label} val={null} open={bpop === key}
+                onToggle={() => setBpop(bpop === key ? null : key)} onClose={() => setBpop((o) => (o === key ? null : o))}>{body}</Pop>
+            );
+            const opt = (field: string, enumKey: string) => options(enumKey).map((o) =>
+              <button key={o.code} className="um-chip" disabled={busy} onClick={() => bulkField(field, o.code)}>{o.label}</button>);
+            return <>
+              {bp("who", "담당", (members.data ?? []).map((m) =>
+                <button key={m.account_id} className="um-chip" disabled={busy} onClick={() => transfer(m.account_id)}>{m.name}</button>))}
+              {bp("st", "상태", <StatusChips kind="listing" value={null}
+                onPick={(id, extra) => bulk((pk) => statusesApi.setListing(pk, { status_id: id, ...(extra ?? {}) }))} />)}
+              {bp("major", "매물 유형", opt("building_major", "building_major"))}
+              {/* 소분류는 여럿 — 고른 것을 **더한다**(이미 있는 소분류는 그대로) */}
+              {bp("kind", "소분류 더하기", options("building_use").map((o) =>
+                <button key={o.code} className="um-chip" disabled={busy} onClick={() => bulk((pk) => {
+                  const cur = list.find((r) => r.building_pk === pk)?.building_use ?? [];
+                  return cur.includes(o.code) ? Promise.resolve() : listingsApi.patchBiz(pk, { building_use: [...cur, o.code] });
+                })}>{o.label}</button>))}
+              {bp("grade", "등급", opt("grade", "grade"))}
+              {bp("ipji", "입지", opt("ipji", "ipji"))}
+              {bp("nohudo", "노후도", opt("nohudo", "nohudo"))}
+              {bp("excl", "전속", <>
+                <button className="um-chip" disabled={busy} onClick={() => bulkField("exclusive", true)}>전속</button>
+                <button className="um-chip" disabled={busy} onClick={() => bulkField("exclusive", false)}>일반</button></>)}
+            </>;
+          })()}
           <span className="sp" />
           <button className="lx-ic on" title="선택 해제" onClick={() => setSel(new Set())}><Icon name="close" size={13} /></button>
         </div>
