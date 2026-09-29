@@ -401,11 +401,8 @@ async def main():
         chk("되살리면 풀린다", None is await db.fetchval(
             "SELECT dropped_at FROM app.proposals WHERE id=$1", pid))
 
-        print("\n[H19b] 재촉의 기준은 매수희망가 — 값을 들었으면 카드가 없다")
+        print("\n[H19b] 매수희망가 — 값 이력이 남는다")
         await c.patch(f"/proposals/{pid}", headers=H, json={"hope_price": 12000000000})
-        chk("희망가가 있으면 「살 건지 물어보기」가 안 뜬다",
-            not any(x.get("kind") == "살건지묻기" and x.get("building_pk") == pk
-                    for x in (await c.get("/sales/today?mine=false", headers=H)).json()["my_turn"]))
         chk("값 이력이 남는다(호가판)", 1 == await db.fetchval(
             "SELECT count(*) FROM app.field_events WHERE team_id=$1 AND target_type='proposal' "
             "AND target_id=$2 AND field='hope_price'", team, str(pid)))

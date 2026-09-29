@@ -788,46 +788,6 @@ export const proposalsApi = {
 /** 「오늘」 — 공이 누구에게 있나(턴). 모든 건은 셋 중 하나:
  *  내 차례(지금 움직일 것) · 기다리는 중(상대 차례) · 시작해볼 곳(아직 아무도 안 움직임).
  *  기다리다 기한이 지나면 그 건은 스스로 내 차례로 올라온다. */
-export interface TodayItem {
-  kind: "살건지묻기" | "브리핑하기" | "재통화" | "첫전화" | "식은매수자" | "검토중" | "매도신호";
-  side: "매수" | "매도";
-  why: string;                        // 한 문장 — 이 건이 왜 여기 있는가
-  days?: number | null;
-  building_pk?: string; addr?: string | null;
-  buyer_id?: number; buyer_name?: string; grade?: string | null;
-  owner_name?: string | null; status?: string; price?: number | null;
-  sell_score?: number; sale_est?: number | null;
-  sell_axes?: Record<string, { pt: number; years?: number; pct?: number; pp?: number; zone?: string }>;
-}
-/** 캘린더에서 온 줄 — 대시보드는 「오늘 뭐 하지」에 캘린더를 열지 않고 답한다 */
-export interface TodaySched {
-  id: number; side: "buy" | "sell"; title: string; on_date: string; state: string;
-  /** 일정 종류(0088) — 계약·중도금·잔금·브리핑·임장·일반. 달력 카드의 색이 여기서 갈린다 */
-  category?: string | null;
-  /** 어디서 · 누가 온다 — 여럿이면 화면이 「외 N」으로 접는다 */
-  place: string | null; people: string[];
-  at_time: string | null;
-  building_pk: string; proposal_id: number | null; buyer_id: number | null;
-  who: string | null; addr: string | null;
-  assignee_account_id: number | null; assignee_name: string | null;
-  in_days: number;                     // 음수 = 지난 약속(밀린 것)
-}
-export interface TodayFeed {
-  stats: { open_props: number; active_sellers: number; buyers: number; week_contacts: number };
-  my_turn: TodayItem[]; waiting: TodayItem[]; starters: TodayItem[];
-  /** 오늘 · 밀린 것 · 앞으로 7일 */
-  today_sched: TodaySched[]; overdue: TodaySched[]; upcoming: TodaySched[];
-  /** 돈의 세 층 — 손에 든 것(계약) · 협의 중 · 들고 있는 것(매물) */
-  money: {
-    contracted: number; contracted_n: number;
-    negotiating: number; negotiating_n: number;
-    listed: number; listed_n: number;
-  };
-  /** 이번 달에 일어난 사건 */
-  month: { signed: number; broken: number };
-  /** 단계별 건수 — 어디가 막혔나 */
-  flow: { sell: Record<string, number>; buy: Record<string, number> };
-}
 
 /** 매도자 — 업무탭(listings)의 같은 행을 사람 관점으로. 수정은 기존 listings.patchBiz 재사용. */
 export interface Seller {
@@ -890,13 +850,6 @@ export interface RejectSummary {
   reasons: { reason: string; n: number; med_price: number | null }[];
 }
 
-/** F-23 1단계 — 명시 프로필. 「시작해볼 곳」의 조준값. */
-export interface BrokerProfile {
-  regions: string[] | null;      // 주 활동 구(시군구코드)
-  style: 1 | 3 | 5 | null;       // 급매·회전 / 중간 / 관계·장기
-  price_min: number | null; price_max: number | null;
-  use_types: string[] | null;
-}
 
 export const salesApi = {
   /** 문장에서 누구(어느 매물) 얘기인지 — 이름·매물번호·주소·전화 뒷자리(목록 조회).
@@ -910,9 +863,6 @@ export const salesApi = {
   /** 이 매물에 맞는 매수자 — 조건 매칭(기존 API 재사용) */
   matchingBuyers: (pk: string) =>
     api<{ id: number; name: string }[]>(`/buildings/${pk}/matching-buyers`),
-  today: (mine = true) => api<TodayFeed>(`/sales/today?mine=${mine}`),
-  profile: () => api<BrokerProfile>("/sales/profile"),
-  putProfile: (b: BrokerProfile) => api("/sales/profile", { method: "PUT", body: JSON.stringify(b) }),
   sellers: (mine = false, owner_id?: number) =>
     api<Seller[]>(`/sales/sellers?mine=${mine}${owner_id ? `&owner_id=${owner_id}` : ""}`),
   /** 매도자 = 사람 하나(0058). 매수(app.buyers)와 같은 모양이라 화면도 같은 부품을 쓴다. */
