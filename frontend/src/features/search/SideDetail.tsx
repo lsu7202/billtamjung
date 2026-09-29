@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { buildingsApi, rentsApi, type AdCard } from "../../shared/api/endpoints";
+import { buildingsApi, customerApi, rentsApi, type AdCard } from "../../shared/api/endpoints";
 import { RoadviewMini, type RoadView } from "../../shared/map/Roadview";
 import type { MapPin } from "../../shared/map/MapPanel";
 import { Icon } from "../../shared/ui/Icon";
@@ -77,6 +78,17 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide, onFull, r
 
   const [ask, setAsk] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [report, setReport] = useState(false);
+  // 저장(S05 §5-2) — 건물 + 대표 광고. 누르면 저장, 다시 누르면 해제. 광고가 내려가도 건물 저장은 남는다
+  const qc = useQueryClient();
+  const savesQ = useQuery({ queryKey: ["savesOf", pk], queryFn: () => customerApi.savesOf(pk), enabled: !vacant });
+  const saved = (savesQ.data ?? []).length > 0;
+  const toggleSave = async () => {
+    if (saved) await Promise.all((savesQ.data ?? []).map((x) => customerApi.unsave(x.id)));
+    else await customerApi.save(pk, lead?.id ?? null);
+    qc.invalidateQueries({ queryKey: ["savesOf", pk] }); qc.invalidateQueries({ queryKey: ["saves"] });
+  };
+  const canReport = !!lead && !lead.mine;
   const [copied, setCopied] = useState(false);
   const share = async () => {
     try {
@@ -128,20 +140,25 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide, onFull, r
 
   return (
     <div className="sd dc">
-      {/* 윗줄 — ← 목록 · 공유(링크 복사) · 접어두기 · ⋮(중개사: 매물관리) */}
+      {/* 윗줄 — ← 목록 · 공유(링크 복사) · 저장 · 숨기기 · ⋮(신고 · 중개사: 매물관리) */}
       <div className="dc-top">
         <button className="dc-ic" title="목록" onClick={onBack}><Icon name="back" size={24} /></button>
         <span className="sp" />
         {copied && <span className="dc-toast">링크를 복사했습니다</span>}
         <button className="dc-ic" title="공유" onClick={share}><Icon name="share" size={19} /></button>
+        {!vacant && <button className={`dc-ic ${saved ? "on" : ""}`} title={saved ? "저장 해제" : "저장"} onClick={toggleSave}>
+          <Icon name="star" size={19} /></button>}
         <button className="dc-ic" title="숨기기" onClick={onHide}><Icon name="hide" size={19} /></button>
-        {broker && !vacant && (
+        {((broker && !vacant) || canReport) && (
           <div className="dc-more">
             <button className="dc-ic dots" title="더 보기" onClick={() => setMenu(!menu)}>⋮</button>
             {menu && (
               <div className="dc-menu" onMouseLeave={() => setMenu(false)}>
-                <button onClick={() => nav(`/sales?listing=${encodeURIComponent(pk)}`)}>
-                  {mine ? "매물관리에서 보기" : "매물관리에 담기"}</button>
+                {broker && !vacant && (
+                  <button onClick={() => nav(`/sales?listing=${encodeURIComponent(pk)}`)}>
+                    {mine ? "매물관리에서 보기" : "매물관리에 담기"}</button>
+                )}
+                {canReport && <button className="bad" onClick={() => { setMenu(false); setReport(true); }}>신고</button>}
               </div>
             )}
           </div>
@@ -284,6 +301,7 @@ export function SideDetail({ picked, broker, onBack, onDetail, onHide, onFull, r
         </div>
       )}
       {ask && lead && <InquiryModal ad={lead} onClose={() => setAsk(false)} />}
+      {report && lead && <ReportModal ad={lead} onClose={() => setReport(false)} />}
     </div>
   );
 }
@@ -335,4 +353,51 @@ function Gallery({ picked, lead, onFull, rvBack }: {
       {hasRv && <button className="dc-full" title="전체화면" onClick={full}><Icon name="fullscreen" size={18} /></button>}
     </div>
   );
+}
+
+/** 신고(S05 §6) — 사유 칩 둘. 표시정보가 다르면 무엇이 다른지 적어야 보낸다. 들어오면 광고가 검수중이 된다 */
+function ReportModal({ ad, onClose }: { ad: AdCard; onClose: () => void }) {
+  const [reason, setReason] = useState<"거래완료" | "표시정보 다름" | null>(null);
+  const [body, setBody] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const send = async () => {
+    if (!reason) { setErr("사유를 고르세요"); return; }
+    if (reason === "표시정보 다름" && !body.trim()) { setErr("무엇이 다른지 적으세요"); return; }
+    setBusy(true); setErr(null);
+    try { await customerApi.report(ad.id, reason, body.trim() || null); setSent(true); }
+    catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  };
+  const row = (label: string, node: React.ReactNode) => (
+    <div className="gm-row lab"><span className="gm-lab">{label}</span><div className="gm-body wrap">{node}</div></div>
+  );
+  return createPortal((
+    <div className="modal-bg open" onClick={onClose}>
+      <div className="gm" onClick={(e) => e.stopPropagation()}>
+        <div className="gm-title-fix">광고 신고</div>
+        {sent ? (
+          <>
+            <div className="iq-done">신고를 받았습니다. 확인하는 동안 이 광고는 검수중으로 표시됩니다.</div>
+            <div className="gm-foot"><span className="sp" /><button className="gm-save" onClick={onClose}>닫기</button></div>
+          </>
+        ) : (
+          <>
+            {row("사유", (["거래완료", "표시정보 다름"] as const).map((k) => (
+              <button key={k} type="button" className={`um-chip ${reason === k ? "on" : ""}`}
+                onClick={() => setReason(reason === k ? null : k)}>{k === "거래완료" ? "거래완료된 매물" : "표시정보가 실제와 다름"}</button>
+            )))}
+            {reason === "표시정보 다름" && row("다른 점", <textarea className="gm-in ad-body" rows={3} maxLength={300} value={body}
+              placeholder="예: 매매가가 광고와 다름" onChange={(e) => setBody(e.target.value)} />)}
+            {err && <div className="ad-err">{err}</div>}
+            <div className="gm-foot">
+              <span className="sp" />
+              <button className="gm-ghost quiet" onClick={onClose}>취소</button>
+              <button className="gm-save" disabled={busy} onClick={send}>{busy ? "…" : "신고"}</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  ), document.body);
 }

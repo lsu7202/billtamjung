@@ -77,7 +77,8 @@ async def fields(_: CurrentUser = Depends(any_user)):
 # ── 저장한 검색조건(폴리곤 포함) ─────────────────────
 class SavedSearchIn(BaseModel):
     name: str
-    conditions: dict
+    conditions: dict      # 화면 값 + request(= /search/pins 몸통, 조건 알림이 그대로 다시 부른다)
+    notify: bool = False  # 알림 받기(S05 §5-3) — 켠 때부터 맞는 새 광고를 알린다
 
 
 @router.post("/saved-searches")
@@ -85,9 +86,9 @@ async def save_search(body: SavedSearchIn, user: CurrentUser = Depends(any_user)
     if not body.name.strip() or not body.conditions:
         raise HTTPException(422, "이름과 조건이 필요합니다")
     sid = await pool().fetchval(
-        """INSERT INTO app.saved_searches(account_id,name,conditions_json)
-           VALUES($1,$2,$3) RETURNING id""",
-        user.account_id, body.name.strip(), json.dumps(body.conditions),
+        """INSERT INTO app.saved_searches(account_id,name,conditions_json,notify,notify_since)
+           VALUES($1,$2,$3,$4,CASE WHEN $4 THEN now() END) RETURNING id""",
+        user.account_id, body.name.strip(), json.dumps(body.conditions), body.notify,
     )
     return {"id": sid}
 
@@ -95,7 +96,8 @@ async def save_search(body: SavedSearchIn, user: CurrentUser = Depends(any_user)
 @router.get("/saved-searches")
 async def list_searches(user: CurrentUser = Depends(any_user)):
     rows = await pool().fetch(
-        "SELECT id,name,conditions_json,created_at FROM app.saved_searches WHERE account_id=$1 ORDER BY created_at DESC",
+        "SELECT id,name,conditions_json,created_at,COALESCE(notify,false) AS notify FROM app.saved_searches "
+        "WHERE account_id=$1 AND closed_at IS NULL ORDER BY created_at DESC",
         user.account_id,
     )
     return [
@@ -107,11 +109,12 @@ class SavedSearchPatch(BaseModel):
     """부분 수정 — 이름만 바꾸거나(rename) 조건만 덮어쓴다(현재 조건으로 갱신)."""
     name: str | None = None
     conditions: dict | None = None
+    notify: bool | None = None
 
 
 @router.patch("/saved-searches/{sid}")
 async def update_search(sid: int, body: SavedSearchPatch, user: CurrentUser = Depends(any_user)):
-    if body.name is None and body.conditions is None:
+    if body.name is None and body.conditions is None and body.notify is None:
         raise HTTPException(422, "바꿀 항목이 없습니다")
     if body.name is not None and not body.name.strip():
         raise HTTPException(422, "이름은 비울 수 없습니다")
@@ -119,11 +122,16 @@ async def update_search(sid: int, body: SavedSearchPatch, user: CurrentUser = De
     n = await pool().execute(
         """UPDATE app.saved_searches
               SET name = COALESCE($3, name),
-                  conditions_json = COALESCE($4, conditions_json)
+                  conditions_json = COALESCE($4, conditions_json),
+                  notify = COALESCE($5, notify),
+                  -- 알림을 새로 켤 때만 「켠 때」를 다시 잡는다
+                  notify_since = CASE WHEN $5 IS TRUE AND NOT COALESCE(notify, false) THEN now()
+                                      WHEN $5 IS FALSE THEN NULL ELSE notify_since END
             WHERE id=$1 AND account_id=$2""",
         sid, user.account_id,
         body.name.strip() if body.name is not None else None,
         json.dumps(body.conditions) if body.conditions is not None else None,
+        body.notify,
     )
     if n.endswith(" 0"):
         raise HTTPException(404, "저장된 조건을 찾을 수 없습니다")

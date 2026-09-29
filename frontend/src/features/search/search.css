@@ -518,3 +518,8 @@
 .hid-row button:hover { background: #EBF4FF; color: #3182F6; }
 .hid-all { width: 100%; margin-top: 4px; border: 0; border-top: 1px solid #F2F4F6; background: none; padding: 9px 8px 5px; font: inherit;
   font-size: 13px; font-weight: 700; color: #3182F6; cursor: pointer; text-align: left; }
+.dc-ic.on { color: #3182F6; }
+.dc-menu button.bad { color: #F04452; }
+.ml-keep { width: 26px; height: 26px; border: 0; border-radius: 8px; background: none; color: #8B95A1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+.ml-keep:hover { background: #EBF4FF; color: #3182F6; }

@@ -131,3 +131,17 @@ async def register(iid: int, body: RegisterIn, user: CurrentUser = Depends(curre
         "UPDATE app.inquiries SET status='고객등록', buyer_id=$3, handled_by=$4, updated_at=now() "
         "WHERE id=$1 AND team_id=$2", iid, user.team_id, bid, user.account_id)
     return {"buyer_id": bid}
+
+
+@router.get("/inquiries/mine")
+async def my_inquiries(user: CurrentUser = Depends(any_user)):
+    """내가 보낸 상담요청(S05 §1 「내 문의 내역」) — 받은 쪽 상태를 그대로 보인다."""
+    rows = await pool().fetch(
+        """SELECT i.id, i.kind, i.body, i.status, i.created_at, a.building_pk, a.title AS ad_title,
+                  COALESCE(t.office_name, t.name) AS office_name, COALESCE(b.addr, '') AS addr
+             FROM app.inquiries i
+             LEFT JOIN app.ads a ON a.id = i.ad_id
+             LEFT JOIN app.teams t ON t.id = i.team_id
+             LEFT JOIN master.buildings b ON b.building_pk = a.building_pk
+            WHERE i.account_id = $1 ORDER BY i.created_at DESC LIMIT 100""", user.account_id)
+    return [dict(r) for r in rows]

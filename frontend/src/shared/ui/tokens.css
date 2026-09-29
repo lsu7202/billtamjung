@@ -155,3 +155,5 @@ body.map-full .srail { display: none !important; }
   .srail-a { width: auto; padding: 6px 6px 4px; }
   .srail-me { width: 30px; height: 30px; font-size: 13px; }
 }
+.srail-me { position: relative; }
+.srail-me .srail-dot { top: -4px; right: -6px; }

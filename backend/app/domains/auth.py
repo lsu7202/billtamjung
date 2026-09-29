@@ -27,6 +27,7 @@ class SignupIn(BaseModel):
     terms_agreed: bool = False                   # 이용약관 동의(필수)
     privacy_agreed: bool = False                 # 개인정보 수집·이용 동의(필수)
     marketing_agreed: bool = False               # 마케팅 수신 동의(선택)
+    kind: str = "중개사"                          # 계정 종류(S05 §1) — 중개사 · 고객. 고객은 팀 없이 가입한다
 
 
 class LoginIn(BaseModel):
@@ -78,21 +79,26 @@ async def signup(body: SignupIn, resp: Response):
         raise HTTPException(403, SIGNUP_CLOSED)
     if not body.terms_agreed or not body.privacy_agreed:
         raise HTTPException(400, "이용약관과 개인정보 수집·이용에 동의해야 가입할 수 있습니다")
+    if body.kind not in ("중개사", "고객"):
+        raise HTTPException(422, "계정 종류는 중개사 · 고객")
     pw = security.hash_password(body.password)
-    async with tx() as conn:  # 원자: account → team → member
+    async with tx() as conn:  # 원자: account → team → member(고객은 account 만)
         exists = await conn.fetchval("SELECT 1 FROM app.accounts WHERE email=$1", body.email)
         if exists:
             raise HTTPException(409, "이미 가입된 이메일입니다")
         acc = await conn.fetchrow(
             """INSERT INTO app.accounts(email,password_hash,name,office_name,phone,
                    job_role,referral_source,interest_region,gender,tier,
-                   trial_started_at,trial_ends_at,terms_agreed_at,privacy_agreed_at,marketing_agreed_at)
+                   trial_started_at,trial_ends_at,terms_agreed_at,privacy_agreed_at,marketing_agreed_at,kind)
                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'trial',now(),now()+interval '1 month',
-                      now(),now(),CASE WHEN $10 THEN now() END)
+                      now(),now(),CASE WHEN $10 THEN now() END,$11)
                RETURNING id, tier""",
             body.email, pw, body.name or body.email.split("@")[0], body.office_name, body.phone,
             body.job_role, body.referral_source, body.interest_region, body.gender, body.marketing_agreed,
+            body.kind,
         )
+        if body.kind == "고객":
+            return await _issue(resp, dict(acc))
         team_name = body.office_name or f"{body.name or body.email.split(chr(64))[0]} 팀"
         team_id = await conn.fetchval(
             "INSERT INTO app.teams(name,owner_account_id) VALUES($1,$2) RETURNING id",

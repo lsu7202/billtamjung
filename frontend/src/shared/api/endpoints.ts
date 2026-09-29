@@ -32,7 +32,7 @@ export interface Report {
 
 export const authApi = {
   publicConfig: () => api<{ signups_open: boolean }>("/auth/public-config"),
-  signup: (b: { email: string; password: string; name: string; office_name?: string; phone?: string; job_role?: string; referral_source?: string; interest_region?: string; gender?: string; terms_agreed: boolean; privacy_agreed: boolean; marketing_agreed?: boolean }) =>
+  signup: (b: { email: string; password: string; name: string; office_name?: string; phone?: string; job_role?: string; referral_source?: string; interest_region?: string; gender?: string; kind?: "중개사" | "고객"; terms_agreed: boolean; privacy_agreed: boolean; marketing_agreed?: boolean }) =>
     api<TokenOut>("/auth/signup", { method: "POST", body: JSON.stringify(b) }),
   login: (b: { email: string; password: string; remember?: boolean }) =>
     api<TokenOut>("/auth/login", { method: "POST", body: JSON.stringify(b) }),
@@ -223,11 +223,12 @@ export const officeApi = {
 };
 
 export const savedApi = {
-  list: () => api<{ id: number; name: string; conditions_json: Record<string, unknown>; created_at: string }[]>("/saved-searches"),
-  save: (name: string, conditions: Record<string, unknown>) =>
-    api<{ id: number }>("/saved-searches", { method: "POST", body: JSON.stringify({ name, conditions }) }),
+  list: () => api<{ id: number; name: string; conditions_json: Record<string, unknown>; created_at: string; notify: boolean }[]>("/saved-searches"),
+  /** notify = 알림 받기(S05 §5-3). 조건에 request(= /search/pins 몸통)를 실어야 서버가 맞춰 본다 */
+  save: (name: string, conditions: Record<string, unknown>, notify = false) =>
+    api<{ id: number }>("/saved-searches", { method: "POST", body: JSON.stringify({ name, conditions, notify }) }),
   /** 부분 수정 — 이름만 바꾸거나 조건만 덮어쓴다(둘 다 보내도 된다). */
-  update: (id: number, patch: { name?: string; conditions?: Record<string, unknown> }) =>
+  update: (id: number, patch: { name?: string; conditions?: Record<string, unknown>; notify?: boolean }) =>
     api(`/saved-searches/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   remove: (id: number) => api(`/saved-searches/${id}`, { method: "DELETE" }),
 };
@@ -1112,6 +1113,39 @@ export interface Inquiry {
   intent: string | null; literacy: string | null; purposes: string[] | null; regions: string[] | null;
   budget_min: number | null; budget_max: number | null; profile_note: string | null;
 }
+/* ── 고객 쪽(S05 §5 · §6, 3묶음 0198) ── */
+export interface CustomerProfile {
+  intent: "A" | "B" | "C" | null; literacy: "처음" | "관심" | "공부해봄" | null;
+  purposes: string[] | null; regions: string[] | null; budget_min: number | null; budget_max: number | null; note: string | null;
+}
+export interface SaveRow {
+  id: number; building_pk: string; ad_id: number | null; memo: string | null; created_at: string; addr: string;
+  ad_title: string | null; ad_state: string | null; ad_price: number | null; live_ads: number;
+}
+export interface AlertRow {
+  kind: "저장한 건물" | "조건"; label: string | null; ad_id: number; at: string; building_pk: string;
+  title: string | null; price: number | null; addr: string; new: boolean;
+}
+export interface MyInquiry {
+  id: number; kind: string; body: string | null; status: string; created_at: string; building_pk: string | null;
+  ad_title: string | null; office_name: string | null; addr: string;
+}
+export const customerApi = {
+  profile: () => api<CustomerProfile>("/customer/profile"),
+  saveProfile: (b: CustomerProfile) => api<{ ok: boolean }>("/customer/profile", { method: "PUT", body: JSON.stringify({ ...b, purposes: b.purposes ?? [], regions: b.regions ?? [] }) }),
+  saves: () => api<SaveRow[]>("/saves"),
+  savesOf: (pk: string) => api<{ id: number; ad_id: number | null }[]>(`/saves/building/${encodeURIComponent(pk)}`),
+  save: (building_pk: string, ad_id: number | null) => api<{ id: number | null }>("/saves", { method: "POST", body: JSON.stringify({ building_pk, ad_id }) }),
+  memo: (id: number, memo: string | null) => api(`/saves/${id}`, { method: "PATCH", body: JSON.stringify({ memo }) }),
+  unsave: (id: number) => api(`/saves/${id}`, { method: "DELETE" }),
+  alerts: () => api<AlertRow[]>("/alerts"),
+  alertCount: () => api<{ unread: number }>("/alerts/count"),
+  seen: () => api("/alerts/seen", { method: "POST" }),
+  report: (adId: number, reason: "거래완료" | "표시정보 다름", body: string | null) =>
+    api<{ id: number }>(`/ads/${adId}/report`, { method: "POST", body: JSON.stringify({ reason, body }) }),
+  myInquiries: () => api<MyInquiry[]>("/inquiries/mine"),
+};
+
 /** 숨기기(0197) — 계정마다 안 보는 건물. 조건과 상관없이 계속 안 보인다 */
 export interface HiddenRow { building_pk: string; addr: string; created_at: string }
 export const hiddenApi = {

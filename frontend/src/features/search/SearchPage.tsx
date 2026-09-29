@@ -1,8 +1,9 @@
 import { LoadingOverlay } from "../../shared/ui/Spinner";
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { searchApi, buildingsApi, listingsApi, buyersApi, hiddenApi, type AttrFilters, type HiddenRow } from "../../shared/api/endpoints";
+import { searchApi, buildingsApi, listingsApi, buyersApi, hiddenApi, savedApi, type AttrFilters, type HiddenRow } from "../../shared/api/endpoints";
 import { useIsBroker } from "../../shared/store/auth";
 import { SideDetail } from "./SideDetail";
 import type { RoadView } from "../../shared/map/Roadview";
@@ -132,6 +133,7 @@ export function SearchPage() {
   const hiddenRows = hiddenQ.data ?? [];
   const hidden = hiddenRows.map((h) => h.building_pk);
   const [hidOpen, setHidOpen] = useState(false);
+  const [keep, setKeep] = useState(false);   // 조건 남기기(S05 §5-3) 창
   const setHid = (f: (v: HiddenRow[]) => HiddenRow[]) => qc.setQueryData<HiddenRow[]>(["hidden"], (v) => f(v ?? []));
   const hide = (pk: string, addr = "") => {
     setHid((v) => [{ building_pk: pk, addr, created_at: new Date().toISOString() }, ...v.filter((h) => h.building_pk !== pk)]);
@@ -317,6 +319,8 @@ export function SearchPage() {
       {/* 매수자 조건 편집 중 — 지도·필터·그리기로 다듬고 여기서 되저장한다 */}
       {bc && <BuyerCondBar bc={bc} values={fValues} regions={fRegions} filters={filters}
         polygon={polygon} onDone={() => nav2("/sales")} />}
+      {keep && <KeepModal onClose={() => setKeep(false)}
+        conditions={{ values: fValues, regions: fRegions, polygon, filters, request: { ...area, filters: filtersK } }} />}
 
       {showFilter && (
         <FilterModal
@@ -505,6 +509,8 @@ export function SearchPage() {
                         ))}
                       </span>
                     )}
+                    {/* 조건 남기기 — 지금 조건을 이름 붙여 저장하고 알림을 켠다 */}
+                    <button className="ml-keep" title="조건 남기기" onClick={() => setKeep(true)}><Icon name="bell" size={15} /></button>
                     {hidden.length > 0 && (
                       <span className="hid-wrap">
                         <button className={`hid-pill ${hidOpen ? "on" : ""}`} onClick={() => setHidOpen(!hidOpen)}>
@@ -594,6 +600,38 @@ export function SearchPage() {
 }
 
 /* 매수자 조건 저장 바 — 지금 화면의 조건(필터·지역·그린 영역)을 그대로 그 매수자에게 붙인다. */
+/** 조건 남기기(S05 §5-3) — 이름 + 알림 받기. 조건에 검색 요청 원문(request)을 실어 서버가 새 광고를 맞춰 본다 */
+function KeepModal({ conditions, onClose }: { conditions: Record<string, unknown>; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState("");
+  const [notify, setNotify] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const save = async () => {
+    if (!name.trim()) { setErr("이름을 적으세요"); return; }
+    setBusy(true); setErr(null);
+    try { await savedApi.save(name.trim(), conditions, notify); qc.invalidateQueries({ queryKey: ["saved"] }); onClose(); }
+    catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  };
+  return createPortal((
+    <div className="modal-bg open" onClick={onClose}>
+      <div className="gm" onClick={(e) => e.stopPropagation()}>
+        <div className="gm-title-fix">조건 남기기</div>
+        <div className="gm-row lab"><span className="gm-lab">이름</span><div className="gm-body wrap">
+          <input className="gm-in" style={{ flex: 1 }} autoFocus value={name} maxLength={40} placeholder="예: 관악 역세권 50억 이하"
+            onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") save(); }} /></div></div>
+        <div className="gm-row lab"><span className="gm-lab">알림</span><div className="gm-body wrap">
+          <label className="ad-chk"><input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+            이 조건에 맞는 새 광고가 오르면 알림 받기</label></div></div>
+        {err && <div className="ad-err">{err}</div>}
+        <div className="gm-foot"><span className="sp" />
+          <button className="gm-ghost quiet" onClick={onClose}>취소</button>
+          <button className="gm-save" disabled={busy} onClick={save}>{busy ? "…" : "남기기"}</button></div>
+      </div>
+    </div>
+  ), document.body);
+}
+
 function BuyerCondBar({ bc, values, regions, filters, polygon, onDone }: {
   bc: BuyerCondNav; values: Values; regions: RegionPick[]; filters: AttrFilters;
   polygon: object | null; onDone: () => void;
