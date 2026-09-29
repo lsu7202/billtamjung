@@ -138,6 +138,8 @@ async def _match_searches(user: CurrentUser) -> None:
         req = (cond or {}).get("request")
         if not isinstance(req, dict):
             continue
+        # 화면의 request 는 bjd_code 를 바깥에 둔다 — 서버 몸통에선 filters 안이다(searchApi.pins 와 같게)
+        req = {**req, "filters": {**(req.get("filters") or {}), **({"bjd_code": req["bjd_code"]} if req.get("bjd_code") else {})}}
         keep = {k: v for k, v in req.items() if k in search_mod.SearchIn.model_fields}
         keep.update(tab="ad", chip="ads", bbox=None)
         try:

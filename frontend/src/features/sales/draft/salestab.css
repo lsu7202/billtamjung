@@ -246,7 +246,7 @@
 .lx{background:#F2F4F6; padding:14px; border-radius:22px; display:flex; flex-direction:column; gap:10px}
 .lx-bar, .lx-filt{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
 .lx-bar .sp{flex:1}
-.lx-q{width:260px; background:#FFFFFF}
+.lx-q{width:220px; background:#FFFFFF}
 .lx-filt .um-chip{background:#FFFFFF; font-size:12.5px; padding:5px 12px}
 .lx-filt .um-chip.on{background:#EBF4FF}
 .lx-bar .um-chip{background:#FFFFFF; font-size:12.5px; padding:5px 12px}

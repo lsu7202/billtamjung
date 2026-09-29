@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { contactsApi, listingsApi, proposalsApi, salesApi, type Seller } from "../../shared/api/endpoints";
+import { contactsApi, listingsApi, proposalsApi, salesApi, savedApi, searchApi, type Seller } from "../../shared/api/endpoints";
+import { condRequest } from "../search/FilterModal";
 import { md, shortAddr, wonAcc } from "../../shared/format";
 import { Loading } from "../../shared/ui/Spinner";
 import { Icon } from "../../shared/ui/Icon";
@@ -145,6 +146,17 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
   const [sort, setSort] = useState<{ k: SortKey; asc: boolean }>({ k: "received_on", asc: false });
   const [sortOpen, setSortOpen] = useState(false);
   const [add, setAdd] = useState(false);
+  // 저장한 조건(대표 09-29) — 탐색에서 저장한 검색 조건을 골라 우리 매물 중 맞는 것만 본다.
+  // 거르기는 탐색과 같은 검색 엔진이 한다(/search/pins · 우리 팀 매물). 표의 다른 필터와 겹쳐 걸린다
+  const savedQ = useQuery({ queryKey: ["saved"], queryFn: savedApi.list });
+  const [cond, setCond] = useState<{ id: number; name: string } | null>(null);
+  const condC = savedQ.data?.find((c) => c.id === cond?.id) ?? null;
+  const condPins = useQuery({
+    queryKey: ["condPins", cond?.id],
+    queryFn: () => searchApi.pins({ ...condRequest(condC!.conditions_json, members.data ?? []), tab: "ad", chip: "mine", for_model: true }),
+    enabled: !!condC,
+  });
+  const condSet = useMemo(() => (condPins.data ? new Set(condPins.data.map((p) => p.building_pk)) : null), [condPins.data]);
 
   const list = rows.data ?? [];
   const nameOf = (id: number | null | undefined) => members.data?.find((m) => m.account_id === id)?.name ?? null;
@@ -160,7 +172,8 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
       return (lo == null || x >= lo * per) && (hi == null || x <= hi * per);
     });
     let out = laneRows.filter((r) =>
-      (!t || [r.addr, r.owner_name, r.listing_no, nameOf(r.assignee_account_id), r.memo_text]
+      (cond == null || (condSet != null && condSet.has(r.building_pk)))
+      && (!t || [r.addr, r.owner_name, r.listing_no, nameOf(r.assignee_account_id), r.memo_text]
         .some((x) => (x ?? "").includes(t)))
       && (who == null || r.assignee_account_id === who)
       && (gu == null || regionOf(r.addr)[0] === gu)
@@ -196,16 +209,16 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
       });
     }
     return out;
-  }, [laneRows, q, who, gu, dong, major, kind, grade, pvm, flag, chk, ranges, sort, members.data]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [laneRows, cond, condSet, q, who, gu, dong, major, kind, grade, pvm, flag, chk, ranges, sort, members.data]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // 지역 칩 — 이 갈래에 실제로 있는 구·동만
   const gus = useMemo(() => [...new Set(laneRows.map((r) => regionOf(r.addr)[0]).filter(Boolean) as string[])].sort(ko), [laneRows]);
   const dongs = useMemo(() => gu == null ? [] : [...new Set(laneRows.filter((r) => regionOf(r.addr)[0] === gu)
     .map((r) => regionOf(r.addr)[1]).filter(Boolean) as string[])].sort(ko), [laneRows, gu]);
-  const anyFilter = chk != null || st != null || who != null || gu != null || major != null || kind != null || grade != null || pvm != null
+  const anyFilter = cond != null || chk != null || st != null || who != null || gu != null || major != null || kind != null || grade != null || pvm != null
     || flag != null || Object.values(ranges).some(([a, b]) => a != null || b != null);
   const reset = () => {
-    setChk(null); setSt(null); setWho(null); setGu(null); setDong(null); setMajor(null); setKind(null); setGrade(null); setPvm(null);
+    setCond(null); setChk(null); setSt(null); setWho(null); setGu(null); setDong(null); setMajor(null); setKind(null); setGrade(null); setPvm(null);
     setFlag(null); setRanges({ price: [null, null], land: [null, null], total: [null, null] });
   };
   const cur = list.find((r) => r.building_pk === open?.pk) ?? null;
@@ -278,6 +291,9 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
           const flagTxt = { urgent: "급매", exclusive: "전속", hold: "보류", ad: "광고 중" } as const;
           const mem = members.data ?? [];
           return <>
+            {(savedQ.data ?? []).length > 0 && pp("cond", "저장한 조건", cond?.name ?? null,
+              (savedQ.data ?? []).map((c) => chip(cond?.id === c.id, c.name,
+                () => setCond(cond?.id === c.id ? null : { id: c.id, name: c.name }))))}
             {pp("st", "상태", ST.find(([k]) => k === st)?.[1] ?? null,
               ST.map(([k, l]) => chip(st === k, l, () => setSt(st === k ? null : k), list.filter((r) => stOf(r) === k).length)))}
             {pp("chk", "확인일", CHK.find(([k]) => k === chk)?.[1] ?? null,

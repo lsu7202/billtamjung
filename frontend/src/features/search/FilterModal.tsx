@@ -306,7 +306,7 @@ function Control({ f, value, onChange, unit }: { f: Field; value: Val | undefine
 // 조건이 통째로 사라졌다 — 0건이 아니라 **전체 결과**가 나오는데 칩은 켜져 있었다.
 // 이제 옵션 목록에 서울 실측값만 두므로 특례가 필요 없다(모두 「…지역」을 붙이면 맞는다).
 const toZone = (z: string) => `${z}지역`;
-function toFilters(v: Values, members: { account_id: number; name: string }[] = []): AttrFilters {
+export function toFilters(v: Values, members: { account_id: number; name: string }[] = []): AttrFilters {
   const sl = (label: string) => (v[label] as SliderVal | undefined) ?? {};
   /** 두 갈래에서 한 갈래만 꺼낸다 — 추정(est)과 팀(team)은 다른 컬럼으로 간다 */
   const pr = (label: string, lane: string): SliderVal =>
@@ -400,6 +400,20 @@ function toFilters(v: Values, members: { account_id: number; name: string }[] = 
     received_from: recv.lo != null ? `${Math.round(recv.lo)}-01-01` : null,
     received_to: recv.hi != null ? `${Math.round(recv.hi)}-12-31` : null,
   };
+}
+
+/** 저장한 조건 → /search/pins 몸통. 새 조건은 request 를 싣고, 옛 조건은 화면 값에서 다시 만든다
+ *  (탐색 화면이 적용할 때와 같은 길: 지역은 첫 구 · 매물 유형은 kinds). 매물관리 「저장한 조건」이 쓴다 */
+export function condRequest(c: Record<string, unknown>, members: { account_id: number; name: string }[] = []):
+  { bjd_code?: string; polygon?: object; filters: AttrFilters } {
+  const req = c.request as { bjd_code?: string; polygon?: object; filters?: AttrFilters } | undefined;
+  if (req) return { ...req, filters: req.filters ?? {} };
+  const values = (c.values ?? {}) as Values;
+  const { ["매물 유형"]: mk, ...rest } = values as Record<string, unknown>;
+  const regions = (c.regions ?? []) as RegionPick[];
+  const filters: AttrFilters = { ...(c.filters as AttrFilters | undefined ?? toFilters(rest as Values, members)) };
+  if (Array.isArray(mk) && mk.length) (filters as Record<string, unknown>).kinds = mk;
+  return { bjd_code: c.polygon ? undefined : regions[0]?.bjd_code, polygon: (c.polygon as object | null) ?? undefined, filters };
 }
 
 export function activeCount(v: Values, regions: RegionPick[]): number {
