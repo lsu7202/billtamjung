@@ -27,11 +27,6 @@
   padding:7px 15px; border-radius:12px; cursor:pointer; transition:all .14s}
 .um-tabs button:hover{background:#E8EBEE; color:#333D4B}
 .um-tabs button.on{background:#EBF4FF; color:#3182F6; font-weight:800}
-.um-tabs button:last-child{margin-left:auto}
-.um-tabs button.hold{color:#F04452; opacity:.75; display:inline-flex; align-items:center; gap:5px}
-.um-tabs button.hold:hover{background:#FDEBEA; color:#F04452; opacity:1}
-.um-tabs button.hold.on{background:#FDEBEA; color:#F04452; opacity:1}
-.um-tabs .hdot{width:6px; height:6px; border-radius:999px; background:#F04452; display:inline-block}
 
 .um-pane{display:flex; flex-direction:column; gap:14px; animation:um-in .2s ease}
 
@@ -143,3 +138,7 @@
 /* 상태 배지(0199) — 모달 머리. 누르면 칩 */
 .um-stx { position: relative; cursor: pointer; margin-left: 4px; }
 .um-stx .stx-pop { position: absolute; left: 0; top: calc(100% + 6px); z-index: 40; min-width: 280px; cursor: default; }
+/* 정보 탭 구획 머리(09-29) — 가격 · 매수자 / 매물 / 확인 / 관리 */
+.um .um-h { font-size: 13px; font-weight: 700; color: #8B95A1; margin: 14px 4px 6px; }
+.um .um-h:first-child { margin-top: 2px; }
+.um .um-scals { margin: 8px 0 0; }

@@ -455,7 +455,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
       {(add || unknown) && (
         <ListingModal preset={unknown ? { pk: unknown } : null}
           onClose={() => { setAdd(false); if (unknown) setOpen(null); }}
-          onSaved={(pk2) => { setAdd(false); refresh(); setOpen({ pk: pk2, tab: "sum" }); }} />
+          onSaved={(pk2) => { setAdd(false); refresh(); setOpen({ pk: pk2, tab: "info" }); }} />
       )}
     </div>
   );
@@ -468,7 +468,7 @@ function ListingHost({ r, tab0, onClose, onDone, onBuyer }: {
   const props = useQuery({ queryKey: ["proposals", "pk", r.building_pk],
     queryFn: () => proposalsApi.list({ building_pk: r.building_pk }) });
   return (
-    <UnifiedModal r={r} buyers={props.data ?? []} tab0={tab0 ?? "sum"}
+    <UnifiedModal r={r} buyers={props.data ?? []} tab0={tab0 ?? "info"}
       onClose={onClose} onBuyer={onBuyer}
       onSaved={() => { props.refetch(); onDone(); }} />
   );
