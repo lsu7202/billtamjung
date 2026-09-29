@@ -22,7 +22,7 @@ PROPOSAL_DROP = ("team_id", "report_id", "note", "created_by", "created_at", "vi
                  "commission_amount", "commission_split", "report_filed_on", "terms", "brief_note",
                  "buyer_nationality", "next_sched_title", "next_sched_on", "next_sched_at",
                  "land_area", "total_area", "use_zone", "price_is_est", "sale_est", "vs_est_pct",
-                 "roi", "photo_id", "d_stage", "deal_cells", "cell_sched", "price_log")
+                 "roi", "photo_id", "cell_sched", "price_log")
 # 매물 보드 줄: 다음 일정·추정가·접수일·점수·사진·보고서 유무·광고/노출/시기 칸·마지막 접촉·사다리 낱말.
 # price 는 list_price 와 같은 값이 두 번 실린 것.
 # 매물 표(2026-09-26)가 다음 일정·접수일·사진·규모·등급·입지·노후도·시기 날짜를 되살려 쓴다.
@@ -112,42 +112,10 @@ async def list_buyers(user: CurrentUser = Depends(current_user)):
         """SELECT b.*,
                   (SELECT count(*) FROM app.proposals p
                     WHERE p.buyer_id = b.id AND p.dropped_at IS NULL) AS active_proposals,
-                  -- 사람 상태는 저장하지 않는다(0087) — 사실에서 파생한다
-                  CASE WHEN EXISTS (SELECT 1 FROM app.proposals p2
-                                     WHERE p2.buyer_id = b.id AND p2.dropped_at IS NULL) THEN '진행중'
-                       WHEN GREATEST(
-                              COALESCE((SELECT max(c.occurred_on) FROM app.contacts c
-                                         WHERE c.team_id=b.team_id AND c.target_type='buyer'
-                                           AND c.target_id=b.id::text), b.created_at::date),
-                              b.created_at::date) >= current_date - 30 THEN '활성'
-                       ELSE '휴면' END AS activity,
-                  -- ②사다리(0092) — 준비도. 합의 단계(nego)와 다른 층이다
-                  vb.stage AS b_stage, vb.b1_buyer, vb.b4_match, vb.b4_open, vb.cells,
-                  -- 대표 쌍의 거래 칸(2026-08-19) — 목록의 점이 레일과 같은 말을 하려면
-                  -- 계약 뒤(잔금·신고)까지 실려야 한다. 대표는 **계약 상대**가 1순위.
-                  ld.d7_pay, ld.d8_file, ld.cells AS deal_cells,
-                  -- 협의 단계(0127) — 담은 매물들 중 가장 앞선 것
-                  COALESCE((SELECT max(app.nego_rank(p5)) FROM app.proposals p5
-                             WHERE p5.buyer_id = b.id), 0) AS nego,
-                  -- 이 사람이 **계약을 마쳤나**(2026-08-20) — 목록을 「매수자 / 계약」으로
-                  -- 가르는 축이고, 추천에서도 빠진다. 판정은 레일과 같다(계약 일정 완료).
-                  EXISTS (SELECT 1 FROM app.proposals pd
-                           JOIN app.schedules sd ON sd.proposal_id = pd.id
-                                                AND sd.category = '계약' AND sd.state = '완료'
-                          WHERE pd.buyer_id = b.id AND pd.picked_at IS NOT NULL
-                            AND pd.dropped_at IS NULL) AS dealt,
-                  st.id AS stop_id, st.stage AS stop_stage, st.reason AS stop_reason
+                  -- 상태는 사람이 고른다(0199) — 사무소가 만든 고객 상태(이름 · 색)
+                  bs.name AS status_name, bs.color AS status_color
            FROM app.buyers b
-           LEFT JOIN app.v_buyer_stage vb ON vb.id = b.id
-           LEFT JOIN LATERAL (
-               SELECT vp.d7_pay, vp.d8_file, vp.cells
-                 FROM app.proposals p3
-                 JOIN app.v_proposal_stage vp ON vp.id = p3.id
-                WHERE p3.buyer_id = b.id AND p3.dropped_at IS NULL
-                ORDER BY (p3.picked_at IS NOT NULL) DESC, p3.id DESC
-                LIMIT 1) ld ON TRUE
-           LEFT JOIN app.stops st ON st.team_id = b.team_id AND st.target_type='buyer'
-                 AND st.target_id = b.id::text AND st.resolved_at IS NULL
+           LEFT JOIN app.statuses bs ON bs.id = b.status_id
            WHERE b.team_id = $1 AND b.deleted_at IS NULL
            ORDER BY b.updated_at DESC""",
         user.team_id)
@@ -350,30 +318,9 @@ async def list_proposals(buyer_id: int | None = None, building_pk: str | None = 
                   l2.total_rent * 12.0 AS annual_rent,
                   p.hope_price, p.deal_price,
                   ph.id AS photo_id,
-                  -- ③사다리(0093) — 준비도. nego_rank(합의~거래종료)와 다른 층이다
-                  vps.stage AS d_stage, vps.cells AS deal_cells,
-                  -- 이 매수자가 **다른 매물에서** 계약을 마쳤나(2026-08-20).
-                  -- 한 사람이 어디선가 사면 남은 후보 자리는 사실상 죽는다 — 화면이 스스로 알아야 한다.
-                  EXISTS (SELECT 1 FROM app.proposals p9
-                           JOIN app.schedules s9 ON s9.proposal_id = p9.id
-                                                AND s9.category = '계약' AND s9.state = '완료'
-                          WHERE p9.buyer_id = p.buyer_id AND p9.id <> p.id
-                            AND p9.picked_at IS NOT NULL)                    AS buyer_dealt,
-                  -- 이 **매물**이 다른 매수자와 계약을 마쳤나 — 그러면 이 쌍은 끝난 자리다
-                  EXISTS (SELECT 1 FROM app.proposals p8
-                           JOIN app.schedules s8 ON s8.proposal_id = p8.id
-                                                AND s8.category = '계약' AND s8.state = '완료'
-                          WHERE p8.building_pk = p.building_pk AND p8.team_id = p.team_id
-                            AND p8.id <> p.id AND p8.picked_at IS NOT NULL)   AS listing_dealt,
-                  vps.d2_brief, vps.d3_visit, vps.d4_nego,
-                  vps.d5_pre, vps.d6_sign, vps.d7_pay, vps.d8_file,
-                  st.id AS stop_id, st.reason AS stop_reason,
-                  -- 합의 단계(0138·0141) — 짝의 상태는 이 하나다. 낱말은 words.ts NEGO
-                  app.nego_rank(p) AS nego
+                  -- 짝의 상태 판정(사다리 · 협의 단계 · 보류)은 0199 에서 걷었다 — 채택 · 안 산다만 사람이 누른다
+                  p.picked_at, p.dropped_at
            FROM app.proposals p
-           LEFT JOIN app.v_proposal_stage vps ON vps.id = p.id
-           LEFT JOIN app.stops st ON st.team_id = p.team_id AND st.target_type='proposal'
-                 AND st.target_id = p.id::text AND st.resolved_at IS NULL
            -- 소프트 삭제된 매수자의 짝은 보드에서 뺀다. 사람은 목록에서 사라졌는데
            -- 그 사람 카드만 보드에 남으면 눌러도 갈 곳이 없다(2026-08-09 QA).
            JOIN app.buyers y ON y.id = p.buyer_id AND y.deleted_at IS NULL
@@ -556,7 +503,7 @@ SELLER_LIVE = """({t}.intent = '원함'
 async def update_proposal(pid: int, body: ProposalPatch, user: CurrentUser = Depends(current_user)):
     """짝의 사실을 고친다 — 값 · 죽음 · 약속 · 메모. **상태를 받지 않는다**(0141).
 
-    상태는 이 칸들에서 파생된다(app.nego_rank). 그래서 「제안했다」를 따로 적을 자리가 없고,
+    (0199 부터 짝의 상태는 파생하지 않는다 — 채택 · 안 산다만 사람이 누른다.) 「제안했다」를 따로 적을 자리가 없고,
     적을 이유도 없다: 브리핑은 brief_how 가, 「사겠다」는 매수희망가가 이미 사실이다.
     """
     prev = await proposal_prices_prev(user.team_id, pid, body.hope_price, body.deal_price)
@@ -760,7 +707,7 @@ async def building_people(building_pk: str | None = None,
              FROM app.listings l JOIN app.owners o ON o.id = l.owner_id AND o.deleted_at IS NULL
             WHERE l.building_pk=$1 AND l.team_id=$2
            UNION ALL
-           SELECT 'buyer', y.id, y.name, app.nego_rank(p)::text
+           SELECT 'buyer', y.id, y.name, (SELECT st.name FROM app.statuses st WHERE st.id = y.status_id)
              FROM app.proposals p JOIN app.buyers y ON y.id = p.buyer_id AND y.deleted_at IS NULL
             WHERE p.building_pk=$1 AND p.team_id=$2 AND p.dropped_at IS NULL
            ORDER BY 1 DESC, 3""", building_pk, user.team_id)
@@ -950,10 +897,6 @@ async def patch_deal(pid: int, body: DealPatch, user: CurrentUser = Depends(curr
             pid, user.team_id)
         if n.endswith(" 0"):
             raise HTTPException(404, "제안을 찾을 수 없습니다")
-        cell_of = {"briefed_on": "brief", "brief_how": "brief", "brief_note": "brief", "visited_on": "visit", "visit_note": "visit",
-                   "pre_contract_on": "sign", "pre_contract_amount": "sign",
-                   "commission_amount": "pay", "commission_split": "pay",
-                   "report_filed_on": "pay", "terms": "nego"}
         return {"ok": True}
     n = await pool().execute(
         """UPDATE app.proposals SET
@@ -1145,7 +1088,7 @@ async def offer_board(building_pk: str, user: CurrentUser = Depends(current_user
             ORDER BY created_at""", user.team_id, building_pk)
     buys = await pool().fetch(
         """SELECT p.id AS proposal_id, y.name AS buyer_name,
-                  app.nego_rank(p)::text AS status,
+                  (SELECT st.name FROM app.statuses st WHERE st.id = y.status_id) AS status,
                   f.id AS event_id, f.field, f.prev, f.value, f.created_at
              FROM app.proposals p
              JOIN app.buyers y ON y.id = p.buyer_id
@@ -1237,9 +1180,6 @@ async def delete_proposal(pid: int, user: CurrentUser = Depends(current_user)):
     캘린더에 유령 약속이 남으면 「이 약속 뭐지」를 아무도 답 못 한다.
     보류도 같다: 없어진 짝의 보류가 남으면 「왜 안 나갔나」 집계가 유령을 센다(0141)."""
     await schedule_retract(user.team_id, proposal_id=pid)
-    await pool().execute(
-        """DELETE FROM app.stops WHERE team_id=$1 AND target_type='proposal' AND target_id=$2""",
-        user.team_id, str(pid))
     await pool().execute("DELETE FROM app.proposals WHERE id=$1 AND team_id=$2", pid, user.team_id)
     return {"ok": True}
 
@@ -1711,16 +1651,8 @@ async def matching_buyers(building_pk: str, user: CurrentUser = Depends(current_
             WHERE team_id=$1 AND building_pk=$2 AND dropped_at IS NULL""",
         user.team_id, building_pk)}
 
-    # 과거에 접은 패턴 — 우리만 가진 재료다. "이 사람은 가격에서 자주 막힌다"가 보이면
-    # 같은 가격대를 또 들이밀지 않는다. 매물 탓이 아닌 '상대사정'은 뺀다(0141: 보류가 정본).
+    # 과거에 접은 패턴은 보류 표(stops)에서 왔다 — 0199 에서 보류 표를 걷어 비어 있다
     rej: dict[int, list] = {}
-    for r in await pool().fetch(
-            """SELECT p.buyer_id, st.reason, count(*) n
-               FROM app.stops st JOIN app.proposals p ON p.id = st.target_id::bigint
-               WHERE st.team_id=$1 AND st.target_type='proposal' AND st.stage='deal'
-                 AND p.team_id=$1 AND st.reason IS NOT NULL AND st.reason <> '상대사정'
-               GROUP BY 1,2 ORDER BY 3 DESC""", user.team_id):
-        rej.setdefault(r["buyer_id"], []).append({"reason": r["reason"], "n": r["n"]})
 
     # 이 매물의 계산값 한 줄(수익률·평단가·여유분 등) — 항목별 충족 판정의 기준
     base, args, outer = S._build_base(S.SearchIn(filters=S.Filters(building_pk=building_pk)), user)
@@ -1778,42 +1710,6 @@ async def matching_buyers(building_pk: str, user: CurrentUser = Depends(current_
     # 조건에 걸린 사람 먼저 · 이미 담은 사람은 뒤로(앞에 오는 건 아직 안 돌린 사람이어야 한다)
     out.sort(key=lambda x: (not x["matched"], x["held"], x["name"]))
     return out
-
-
-# ── 매물 쪽에서 읽는 영업 데이터 ─────────────────────────
-@router.get("/buildings/{building_pk}/reject-summary")
-async def reject_summary(building_pk: str, user: CurrentUser = Depends(current_user)):
-    """이 매물이 왜 안 나갔는지. 매수자에게 보여주면 저절로 쌓이는 답인데 영업 탭 안에만 갇혀 있었다.
-    매물 상세 금액정보 옆에 두면 "호가를 내릴 때가 됐다"가 숫자로 보인다.
-
-    정본은 짝 보류다(app.stops · target_type='proposal' · 0141) — 거절 칸은 없앴다.
-    매수자 사정('상대사정')은 매물 탓이 아니라 집계에서 뺀다.
-    「부른 값」은 그 사람의 매수희망가가 이미 들고 있다 — 따로 적던 거절가는 없앴다."""
-    # 지운 매수자의 짝은 빼고 센다 — 보드에서 사라진 건이 집계에만 남으면 숫자가 안 맞는다.
-    rows = await pool().fetch(
-        """SELECT st.reason, count(*) AS n,
-                  percentile_cont(0.5) WITHIN GROUP (ORDER BY p.hope_price)
-                    FILTER (WHERE p.hope_price IS NOT NULL) AS med_price
-           FROM app.stops st
-           JOIN app.proposals p ON p.id = st.target_id::bigint AND p.team_id = st.team_id
-           JOIN app.buyers y ON y.id = p.buyer_id AND y.deleted_at IS NULL
-           WHERE st.team_id=$1 AND st.target_type='proposal' AND st.stage='deal'
-             AND p.building_pk=$2 AND st.reason IS NOT NULL AND st.reason <> '상대사정'
-           GROUP BY 1 ORDER BY 2 DESC""", user.team_id, building_pk)
-    tot = await pool().fetchrow(
-        """SELECT count(*) FILTER (WHERE COALESCE(array_length(p.brief_how,1),0) > 0) AS proposed,
-                  count(*) FILTER (WHERE EXISTS (
-                    SELECT 1 FROM app.stops st2
-                     WHERE st2.team_id = p.team_id AND st2.target_type='proposal'
-                       AND st2.target_id = p.id::text AND st2.stage='deal')) AS rejected,
-                  percentile_cont(0.5) WITHIN GROUP (ORDER BY p.hope_price)
-                    FILTER (WHERE p.hope_price IS NOT NULL) AS want_price
-           FROM app.proposals p
-           JOIN app.buyers y ON y.id = p.buyer_id AND y.deleted_at IS NULL
-           -- 담아만 둔 것은 뺀다 — 보여준 적 없는 매물이 「안 나갔다」로 세어지면 안 된다
-           WHERE p.team_id=$1 AND p.building_pk=$2""",
-        user.team_id, building_pk)
-    return {**dict(tot), "reasons": [dict(r) for r in rows]}
 
 
 # ── 매도자(소유자) — 영업의 반대쪽 절반 ──────────────────
@@ -1970,15 +1866,9 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                   l.sell_on, l.sell_vague, l.rent_check,
                   fr.rent_n,
                   ob.id AS owner_buyer_id,
-                  c.last_on, c.last_kind, c.last_note, sl.cell_last_on,
-                  -- 사다리 단계는 **파생**이다(0091 뷰) — 목록·상세·대시보드가 같은 계산을 본다
-                  vs.stage, vs.passed, vs.info_filled,
-                  -- 칸별 플래그 — 사다리는 순서 강제가 아니라 지도다. 칸은 **각자 근거로** 판정되고
-                  -- 병렬로 진행된다(의사도 모르는 매물에 광고가 올라가 있는 게 실무다).
-                  vs.s1_owner, vs.s2_touch, vs.s3_intent, vs.s4_info, vs.s5_asset, vs.s6_match, vs.s6_open,
-                  vs.cells, ldc.cells AS deal_cells, COALESCE(ng.nego, 0) AS nego,
-                  -- 열린 보류 — 「지금은 안 본다」와 그 사유(0090·0140)
-                  st.id AS stop_id, st.stage AS stop_stage, st.reason AS stop_reason,
+                  c.last_on, c.last_kind, c.last_note,
+                  -- 상태는 사람이 고른다(0199) — 사무소가 만든 상태(이름 · 색) 하나. 완료면 매각일 · 매각금액
+                  l.status_id, ls.name AS status_name, ls.color AS status_color, l.sold_on, l.sold_price,
                   -- 광고(0191) — 살아 있는 광고의 상태 · 기한. 매물 표의 「광고」 표식과 여부 필터
                   (SELECT a.state FROM app.ads a WHERE a.listing_id = l.id AND a.state IN ('노출','비노출')
                     ORDER BY a.id DESC LIMIT 1) AS ad_state,
@@ -1995,11 +1885,7 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
            LEFT JOIN master.building_score sc ON sc.building_pk = l.building_pk
            LEFT JOIN master.building_sale_est se ON se.building_pk = l.building_pk
            LEFT JOIN master.building_rent_est re ON re.building_pk = l.building_pk
-           LEFT JOIN app.v_listing_stage vs
-                  ON vs.building_pk = l.building_pk AND vs.team_id = l.team_id
-           LEFT JOIN app.stops st
-                  ON st.team_id = l.team_id AND st.target_type='listing'
-                 AND st.target_id = l.building_pk AND st.resolved_at IS NULL
+           LEFT JOIN app.statuses ls ON ls.id = l.status_id
            -- 대표 사진 — 외관 먼저(서류가 표지로 올라오지 않게). 제안 목록과 같은 규칙.
            LEFT JOIN LATERAL (SELECT id FROM app.photos f
                                WHERE f.building_pk = l.building_pk AND f.team_id = l.team_id
@@ -2022,21 +1908,6 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                                  AND p2.picked_at IS NOT NULL
                                ORDER BY (p2.picked_at IS NOT NULL) DESC, p2.updated_at DESC
                                LIMIT 1) dp ON TRUE
-           -- 협의 단계(0127) — 짝들 중 **가장 앞선 것**이 이 매물의 협의 상태다
-           LEFT JOIN LATERAL (SELECT max(app.nego_rank(p5)) AS nego
-                                FROM app.proposals p5
-                               WHERE p5.team_id = l.team_id
-                                 AND p5.building_pk = l.building_pk) ng ON TRUE
-           -- 대표 제안의 **거래 칸**(2026-08-20) — 이게 없으면 목록의 점이 「잔금」에 멈춘 채
-           -- 레일만 초록이 된다(두 화면이 다른 말을 한다). 대표는 계약 상대가 1순위.
-           LEFT JOIN LATERAL (
-               SELECT vp.cells
-                 FROM app.proposals p4
-                 JOIN app.v_proposal_stage vp ON vp.id = p4.id
-                WHERE p4.team_id = l.team_id AND p4.building_pk = l.building_pk
-                  AND p4.dropped_at IS NULL
-                ORDER BY (p4.picked_at IS NOT NULL) DESC, p4.id DESC
-                LIMIT 1) ldc ON TRUE
            -- 「소유자 찾기 시작 전」 표식(2026-08-18) — 손으로 회색에 되돌린 지점.
            -- 움직임(last_on)은 표식 **이후**만 센다(표식 줄 자신은 id> 로 저절로 빠진다)
            -- 임대내역 요약(정보 창 「밖에서 아는 것」) — 정본은 건물 상세의 임대차 표
@@ -2057,34 +1928,6 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                                WHERE m.team_id = l.team_id AND m.target_type='listing'
                                  AND m.target_id = l.building_pk
                                  AND m.note = '소유자 찾기 시작 전') mk ON TRUE
-           -- 칸별 움직임(2026-08-18) — **판정 근거는 한 곳**이다: 목록·레일·창이 같은 값을 본다.
-           -- 칸마다 「그 칸의 줄」만 세고(창의 장부 규칙과 동일), 「시작 전」 표식 이후만 본다.
-           -- 지움·되돌림·표식 줄은 움직임이 아니다(되돌린 게 도로 진행중이 되면 안 된다).
-           LEFT JOIN LATERAL (
-             SELECT jsonb_object_agg(k.cell, k.last_on) AS cell_last_on FROM (
-               SELECT c2.cell,
-                      max(x.occurred_on) FILTER (
-                        WHERE x.id > COALESCE((SELECT max(m.id) FROM app.contacts m
-                                                WHERE m.team_id = l.team_id AND m.target_type='listing'
-                                                  AND m.target_id = l.building_pk
-                                                  AND m.note = c2.cell_ko || ' 시작 전'), 0)
-                          AND x.note NOT LIKE '%지움%' AND x.note NOT LIKE '되돌림%'
-                          AND x.note NOT LIKE '%시작 전'
-                          AND (CASE c2.cell
-                                 WHEN 'owner'  THEN ((NOT x.auto AND x.kind IS NULL)
-                                                     OR (x.auto AND x.note LIKE '소유자%'))
-                                 WHEN 'touch'  THEN (x.kind IN ('통화','접촉')
-                                                     OR (x.auto AND x.note LIKE '접촉%'))
-                                 WHEN 'intent' THEN (x.kind = '의사' OR (x.auto AND x.note LIKE '의사%'))
-                                 WHEN 'info'   THEN (x.kind = '정보' OR (x.auto AND x.note LIKE '정보%'))
-                                 ELSE (x.kind = '매칭' OR (x.auto AND x.note LIKE '매칭%'))
-                               END)) AS last_on
-                 FROM (VALUES ('owner','소유자 찾기'), ('touch','접촉'), ('intent','의사 확인'),
-                              ('info','정보'), ('match','매칭')) AS c2(cell, cell_ko)
-                 LEFT JOIN app.contacts x
-                        ON x.team_id = l.team_id AND x.target_type='listing'
-                       AND x.target_id = l.building_pk
-                GROUP BY c2.cell) k) sl ON TRUE
            LEFT JOIN LATERAL (SELECT max(occurred_on) FILTER (WHERE ct.id > mk.mid) AS last_on,
                                      (array_agg(kind ORDER BY occurred_on DESC, id DESC))[1] AS last_kind,
                                      (array_agg(note ORDER BY occurred_on DESC, id DESC))[1] AS last_note
@@ -2130,16 +1973,9 @@ async def delete_contact(cid: int, user: CurrentUser = Depends(current_user)):
     if row["prev"]:
         await listing_values_restore(user.team_id, row["target_id"], row["prev"], user.account_id)
     if row["target_type"] == "listing":
-        # 거울 거두기(0067) — 사람이 쓴 계약·계약파기를 지웠으면 반대편 짝의 사실도 거짓이 된다.
+        # 계약 · 계약파기 줄을 지우면 그 줄이 완료시킨 일정만 예정으로 되돌린다.
+        # 채택 · 안 산다는 거울이 켜지 않으니(0199) 여기서 풀 것도 없다
         if not row["auto"] and row["status"] in MIRRORED:
-            await pool().execute(
-                """UPDATE app.proposals SET
-                     picked_at  = CASE WHEN $3='계약'     THEN NULL ELSE picked_at  END,
-                     dropped_at = CASE WHEN $3='계약파기' THEN NULL ELSE dropped_at END,
-                     updated_at = now()
-                   WHERE team_id=$1 AND building_pk=$2""",
-                user.team_id, row["target_id"], row["status"])
-            # 이 줄이 완료시킨 일정은 예정으로(직접 낳은 표는 위 retract 가 지웠다)
             await event_unmark(user.team_id, contact_id=cid)
     return {"ok": True}
 
@@ -2590,10 +2426,6 @@ async def sales_today(mine: bool = True, user: CurrentUser = Depends(current_use
            LEFT JOIN app.listings l5 ON l5.building_pk=p.building_pk AND l5.team_id=p.team_id
            WHERE p.team_id=$1 AND p.dropped_at IS NULL AND p.picked_at IS NULL
              AND ($2::bigint IS NULL OR y.assignee_account_id = $2)
-             -- 보류 중인 짝은 재촉하지 않는다 — 공이 아무에게도 없다
-             AND NOT EXISTS (SELECT 1 FROM app.stops st
-                              WHERE st.team_id=p.team_id AND st.target_type='proposal'
-                                AND st.target_id=p.id::text AND st.resolved_at IS NULL)
            ORDER BY 4""", user.team_id, me)
     for r in props:
         d = dict(r); days = d["days"] or 0
@@ -2628,9 +2460,8 @@ async def sales_today(mine: bool = True, user: CurrentUser = Depends(current_use
              AND NOT {SELLER_DONE.format(t="l")} AND {SELLER_LIVE.format(t="l")}
              -- 보류 중이면 재촉이 무의미하다(S04b §2.4) — 사람이 보류를 풀면 다시 뜬다.
              -- 이게 없으면 「26년 봄에 매각예정」인 건에 매일 「연락할 차례」가 뜬다.
-             AND NOT EXISTS (SELECT 1 FROM app.stops st
-                              WHERE st.team_id=l.team_id AND st.target_type='listing'
-                                AND st.target_id=l.building_pk AND st.resolved_at IS NULL)
+             -- (0199) 보류는 이제 사람이 고른 상태 값이다
+             AND NOT EXISTS (SELECT 1 FROM app.statuses ss WHERE ss.id = l.status_id AND ss.name = '보류')
              AND (l.checked_on IS NULL OR l.checked_on <= current_date - $2::int)
              -- 담당 미지정 리드는 팀 공동 — '내 담당'에서도 보인다(안 보이면 아무도 안 챙긴다)
              AND ($3::bigint IS NULL OR l.assignee_account_id = $3 OR l.assignee_account_id IS NULL)
@@ -2660,9 +2491,7 @@ async def sales_today(mine: bool = True, user: CurrentUser = Depends(current_use
                   OR COALESCE(c.last_on, y.created_at::date) >= current_date - 90)
              AND COALESCE(c.last_on, y.created_at::date) <= current_date - $2::int
              AND ($3::bigint IS NULL OR y.assignee_account_id = $3)
-             AND NOT EXISTS (SELECT 1 FROM app.stops st
-                              WHERE st.team_id=y.team_id AND st.target_type='buyer'
-                                AND st.target_id=y.id::text AND st.resolved_at IS NULL)
+             AND NOT EXISTS (SELECT 1 FROM app.statuses ss WHERE ss.id = y.status_id AND ss.name = '보류')
            ORDER BY 4 NULLS FIRST LIMIT 10""", user.team_id, COLD_DAYS, me)
     for r in cold:
         my_turn.append({**dict(r), "kind": "식은매수자", "side": "매수",

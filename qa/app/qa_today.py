@@ -60,7 +60,7 @@ async def main():
             t = (await c.get("/sales/today?mine=false", headers=H)).json()
             out = []
             for lane in ("my_turn", "waiting"):
-                for x in t[lane]:
+                for x in t.get(lane, []):   # waiting 은 09-17 응답에서 뺐다
                     if kind and x["kind"] != kind:
                         continue
                     if pk and x.get("building_pk") != pk:
@@ -115,12 +115,12 @@ async def main():
         await db.execute("DELETE FROM app.contacts WHERE id=$1", memo_id)
 
         print("\n[매도] 빠지는 조건")
-        await c.post("/stops", headers=H, json={
-            "target_type": "listing", "target_id": PK, "stage": "intent", "reason": "안판다"})
-        chk("보류 중이면 재촉하지 않는다",
+        # 보류는 사람이 고른 상태 값이다(0199)
+        hold = next(x["id"] for x in (await c.get("/statuses?kind=listing", headers=H)).json() if x["name"] == "보류")
+        await c.put(f"/listings/{PK}/status", headers=H, json={"status_id": hold})
+        chk("보류 상태면 재촉하지 않는다",
             not await cards(pk=PK), "카드 없음", [x["kind"] for x in await cards(pk=PK)])
-        sid = (await c.get("/stops", headers=H)).json()[0]["id"]
-        await c.delete(f"/stops/{sid}", headers=H)
+        await c.put(f"/listings/{PK}/status", headers=H, json={"status_id": None})
         chk("보류를 풀면 다시 뜬다",
             bool(await cards("재통화", pk=PK)), "재통화 복귀")
 
@@ -161,12 +161,7 @@ async def main():
             not await cards(pid=p), "카드 없음", [x["kind"] for x in await cards(pid=p)])
         await db.execute("UPDATE app.proposals SET hope_price = NULL WHERE id=$1", p)
 
-        print("\n[매수] 빠지는 조건 셋")
-        await c.post("/stops", headers=H, json={
-            "target_type": "proposal", "target_id": str(p), "stage": "deal", "reason": "가격"})
-        chk("짝 보류면 재촉하지 않는다", not await cards(pid=p), "카드 없음")
-        sid = [x for x in (await c.get("/stops", headers=H)).json() if x["target_type"] == "proposal"][0]["id"]
-        await c.delete(f"/stops/{sid}", headers=H)
+        print("\n[매수] 빠지는 조건 둘")
         await c.patch(f"/proposals/{p}", headers=H, json={"dropped": True})
         chk("죽은 짝은 안 뜬다", not await cards(pid=p), "카드 없음")
         await c.patch(f"/proposals/{p}", headers=H, json={"dropped": False})
@@ -188,13 +183,12 @@ async def main():
         await db.execute("UPDATE app.contacts SET occurred_on = current_date - 35 WHERE id=$1", bc)
         chk("35일 전 통화 → 다시 식은매수자",
             bool(await cards("식은매수자", bid=B)), "식은매수자 복귀")
-        await c.post("/stops", headers=H, json={
-            "target_type": "buyer", "target_id": str(B), "stage": "touch", "reason": "연락두절"})
-        chk("매수자 보류면 안 뜬다", not await cards("식은매수자", bid=B), "카드 없음")
+        bhold = next(x["id"] for x in (await c.get("/statuses?kind=buyer", headers=H)).json() if x["name"] == "보류")
+        await c.put(f"/buyers/{B}/status", headers=H, json={"status_id": bhold})
+        chk("매수자 보류 상태면 안 뜬다", not await cards("식은매수자", bid=B), "카드 없음")
 
         # ══════════════════ 정리 ══════════════════
         print("\n[정리]")
-    await db.execute("DELETE FROM app.stops WHERE team_id=$1", team)
     await db.execute("DELETE FROM app.contacts WHERE team_id=$1", team)
     await db.execute("DELETE FROM app.schedules WHERE team_id=$1", team)
     await db.execute("DELETE FROM app.field_events WHERE team_id=$1", team)

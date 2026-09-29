@@ -11,8 +11,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  boardApi, convertApi, dealApi, listingsApi, proposalsApi, schedulesApi, stopsApi,
-  type Proposal, type Seller, type Stop, type StopStage,
+  boardApi, convertApi, dealApi, listingsApi, proposalsApi, schedulesApi,
+  type Proposal, type Seller, 
 } from "../../../shared/api/endpoints";
 import { dongAddr, md, wonAcc } from "../../../shared/format";
 import { MemoLog } from "./MemoLog";
@@ -20,9 +20,8 @@ import { useEnums } from "../../../shared/hooks/useEnums";
 import { Chips } from "../../building/EnumField";
 import { formatPhone, parseAmount, seedAmount } from "../../building/KV";
 import { SchedModal, type SchedFinal } from "../SchedModal";
-import { StopModal } from "../StopModal";
-import { NEGO, dealTail, negoWord } from "../words";
-import { stateWord, isUrgent } from "../listingWord";
+import { isUrgent } from "../listingWord";
+import { StatusBadge, StatusChips, useSetListingStatus } from "../Status";
 import { PickModal } from "../PickModal";
 import { openDetail } from "../../../shared/map/geo";
 import { UploadTab } from "../../../shared/map/PhotoPanel";
@@ -33,7 +32,7 @@ import { SchedCal, SchedCalAdd, calTone } from "./SchedCal";
 import "./draft.css";
 import "./salestab.css";
 
-export type UniTab = "sum" | "owner" | "touch" | "info" | "rent" | "photo" | "ad" | "deal" | "hold";
+export type UniTab = "sum" | "owner" | "touch" | "info" | "rent" | "photo" | "ad" | "deal";
 type Tab = UniTab;
 
 export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
@@ -111,18 +110,17 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
   })();
   const schedOf = (cat: string) => leadScheds.find((s) => s.cat === cat) ?? null;
   const [schedAt, setSchedAt] = useState<null | { id?: number; cat: "계약" | "중도금" | "잔금" | "일반"; title?: string }>(null);
-  /** 매수자의 답은 **매수희망가**가 들고 있다(0141) — 「이 값이면 사겠다」가 곧 답이다.
-   *  안 산다는 답은 짝 보류로 적는다: 사유가 줄로 서고 사람이 풀 수 있다. */
-  const [holdAt, setHoldAt] = useState<null | { pid: number; name: string; cur: Stop | null }>(null);
+  // 상태는 사람이 고른다(0199) — 머리의 배지를 누르면 칩이 뜬다
+  const [stOpen, setStOpen] = useState(false);
+  const setStatus = useSetListingStatus();
   const [pickB, setPickB] = useState(false);
   useEffect(() => { if (tab0) setTab(tab0); }, [tab0]);   // 밖에서 탭을 바꿔 열 때(건물 상세 「임대 내역 →」)
   const team = useQuery({ queryKey: ["team-members"], queryFn: listingsApi.members });
-  /** 답의 낱말 — 사실에서 파생한다(0141).
-   *  보류면 그 사유 · 희망가가 있으면 그 값이 답 · 브리핑만 했으면 답 대기 · 그 전엔 비운다. */
+  /** 답 — 안 산다면 그렇게, 희망가가 있으면 값 줄이 말한다, 브리핑만 했으면 답 대기 */
   const answerWord = (b2: Proposal) => {
-    if (b2.stop_reason) return b2.stop_reason;
-    if (b2.hope_price != null) return null;          // 값 줄이 이미 말한다 — 두 번 안 쓴다
-    return b2.d2_brief ? "답 대기" : null;
+    if (b2.dropped_at) return "안 산다";
+    if (b2.hope_price != null) return null;
+    return (b2.brief_how?.length ?? 0) > 0 ? "답 대기" : null;
   };
   const saveSched = async (sf: SchedFinal) => {
     if (!lead) return;
@@ -169,19 +167,6 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
 
   const openPapers = () => window.open(`/deals/${encodeURIComponent(pk)}/papers`, "_blank");
 
-
-  /* 보류 — 맨 오른쪽 빨간 탭(2026-08-23). 단계별 사유가 줄로 서고, 열린 보류는 대상당 하나 */
-  const STOP_KO: Record<string, string> = { owner: "소유자", touch: "접촉", intent: "접촉", info: "정보", asset: "정보", match: "합의", deal: "합의" };
-  const rs = r as unknown as { stop_id?: number | null; stop_stage?: string | null; stop_reason?: string | null;
-};
-  const curStop: Stop | null = rs.stop_id ? {
-    id: rs.stop_id, target_type: "listing", target_id: pk,
-    stage: (rs.stop_stage ?? "owner") as StopStage, reason: rs.stop_reason ?? null,
-    note: null, created_at: "", held_days: null,
-  } : null;
-
-
-  const nego = NEGO[(r as unknown as { nego?: number }).nego ?? 0] || null;
 
   const editable = (key: string, val: string | null, onDone2: (v: string) => void, ph = "—") =>
     pEdit === key ? (
@@ -267,7 +252,15 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
           {r.listing_no && <span className="um-no num">{r.listing_no}</span>}
           {isUrgent(r) && <span className="um-flag red">급매</span>}
           {r.exclusive && <span className="um-flag blue">전속</span>}
-          <span className={`um-st ${r.stop_id ? "hold" : ""}`}>{stateWord(r)}</span>
+          <span className="um-stx" onClick={() => setStOpen(!stOpen)}>
+            <StatusBadge name={r.status_name} color={r.status_color} />
+            {stOpen && (
+              <span className="lx-rg-pop stx-pop" onClick={(e) => e.stopPropagation()}>
+                <StatusChips kind="listing" value={r.status_id} sold={{ sold_on: r.sold_on, sold_price: r.sold_price }}
+                  onPick={(id, sold) => { setStatus(pk, id, sold).then(onSaved); setStOpen(false); }} />
+              </span>
+            )}
+          </span>
           <span className="sp" />
           <button className="um-x" title="건물 상세" onClick={() => openDetail(pk)}>
             <Icon name="external" size={15} /></button>
@@ -278,25 +271,18 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
           <div className="um-main">
             <div className="um-tabs">
               {([["sum", "요약"], ["owner", "소유자"], ["touch", "접촉"], ["info", "정보"], ["rent", "임대 내역"], ["photo", "사진"], ["ad", "광고"],
-                 ["deal", "계약"], ["hold", "보류"]] as [Tab, string][]).map(([k, l]) => (
-                <button key={k} className={`${tab === k ? "on" : ""} ${k === "hold" ? "hold" : ""}`}
-                  onClick={() => setTab(k)}>
-                  {l}{k === "hold" && curStop ? <i className="hdot" /> : null}</button>
+                 ["deal", "계약"]] as [Tab, string][]).map(([k, l]) => (
+                <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>
               ))}
             </div>
 
             {/* ── 요약 ── 옛 매물 탭 오른쪽 판. 누르는 곳마다 그 값을 고치는 탭으로 간다 */}
             {tab === "sum" && (() => {
-              const dealtOut = (x: Proposal) =>
-                !x.picked_at && !!((x as { buyer_dealt?: boolean }).buyer_dealt
-                  || (x as { listing_dealt?: boolean }).listing_dealt);
               const pairs = [...buyers].sort((a2, x) =>
-                (Number(dealtOut(a2)) - Number(dealtOut(x)))
-                || (Number(!!a2.dropped_at) - Number(!!x.dropped_at))
+                (Number(!!a2.dropped_at) - Number(!!x.dropped_at))
                 || (Number(!!x.picked_at) - Number(!!a2.picked_at)) || (a2.id - x.id));
-              const alive = pairs.filter((x) => !dealtOut(x));
+              const alive = pairs.filter((x) => !x.dropped_at);
               const picked = buyers.find((x) => x.picked_at) ?? null;
-              const nv = (r as unknown as { nego?: number }).nego;
               const rentRow: [string, string | null][] = [
                 ["보증금", r.total_deposit != null ? wonAcc(r.total_deposit) : null],
                 ["월임대", r.total_rent != null ? wonAcc(r.total_rent) : null],
@@ -309,10 +295,10 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
                   <div className="tc">
                     {picked && picked.deal_price != null ? (
                       <div className="um-sent2 num" onClick={() => setTab("deal")}>
-                        <b>{picked.buyer_name}</b>과 <b>{wonAcc(picked.deal_price)}</b>에 {dealTail({ ...picked, nego: nv } as never)}</div>
+                        <b>{picked.buyer_name}</b>과 <b>{wonAcc(picked.deal_price)}</b>에 채택</div>
                     ) : alive.length ? (
                       <div className="um-sent2 num" onClick={() => setTab("deal")}>
-                        매수자 <b>{alive.length}명</b>과 {nego ?? "합의 전"}</div>
+                        매수자 <b>{alive.length}명</b> 담음</div>
                     ) : (
                       <div className="um-sent2 dim" onClick={() => setTab("deal")}>매수자 없음</div>
                     )}
@@ -341,9 +327,9 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
                   <div className="tc um-offer">
                     {pairs.map((x) => (
                       <div key={x.id} className="orow has" onClick={() => setTab("deal")}
-                        style={dealtOut(x) ? { opacity: .45 } : undefined}>
+                        style={x.dropped_at ? { opacity: .45 } : undefined}>
                         <span className="who">{x.buyer_name}</span>
-                        <span className="cap">{dealtOut(x) ? "다른 곳과 계약" : negoWord(x)}</span>
+                        <span className="cap">{x.picked_at ? "채택" : x.dropped_at ? "안 산다" : ""}</span>
                         <span className="ev num">
                           {x.deal_price != null ? wonAcc(x.deal_price) : x.hope_price != null ? wonAcc(x.hope_price) : "—"}</span>
                         <span className="act" onClick={(e) => e.stopPropagation()}>
@@ -614,16 +600,11 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
                           : { picked: true, pick_price: b.hope_price ?? undefined });
                         onSaved();
                       }}>✓</button>,
-                    /* 답 — 낱말은 사실에서 파생(보류 사유 · 답 대기). 적기는 보류 창 */
+                    /* 답 — 안 산다는 사람이 누른다(다시 누르면 되살린다) */
                     <span className="um-answer" onClick={(e) => e.stopPropagation()}>
-                      {answerWord(b) && <i className={b.stop_id ? "" : "wait"}>{answerWord(b)}</i>}
-                      <button className="um-reply" title={b.stop_id ? "보류 고치기" : "안 산다 · 보류"}
-                        onClick={() => setHoldAt({ pid: b.id, name: b.buyer_name ?? "",
-                          cur: b.stop_id
-                            ? ({ id: b.stop_id, target_type: "proposal", target_id: String(b.id),
-                                 stage: "deal", reason: b.stop_reason ?? null, note: null,
-                                 created_at: "", held_days: null } as Stop)
-                            : null })}>
+                      {answerWord(b) && <i className={b.dropped_at ? "" : "wait"}>{answerWord(b)}</i>}
+                      <button className="um-reply" title={b.dropped_at ? "되살리기" : "안 산다"}
+                        onClick={async () => { await proposalsApi.update(b.id, { dropped: !b.dropped_at }); onSaved(); }}>
                         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
                           strokeWidth="2.4" strokeLinecap="round"><path d="M9 5v14M15 5v14" /></svg>
                       </button>
@@ -666,38 +647,6 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
             )}
 
             {/* ── 할일 ── 좌 리스트 / 우 상세 */}
-            {/* ── 보류 ── 단계별 줄: 사유를 고르면 보류, 미지정으로 돌리면 해제. 깨움은 그 아래 줄 */}
-            {tab === "hold" && (
-              <div className="um-pane">
-                <div className="tc um-offer">
-                  {(["owner", "touch", "info", "match"] as StopStage[]).map((st) => {
-                    const on = curStop?.stage === st;
-                    const open = openRow === `hold_${st}`;
-                    return (
-                      <div key={st} className={`eitem ${open ? "open" : ""}`}>
-                        <div className="orow has" onClick={() => setOpenRow(open ? null : `hold_${st}`)}>
-                          <span className="who g">{STOP_KO[st]}</span><span className="cap" />
-                          <span className={`ev ${on ? "bad" : "off"}`}>{on ? (curStop?.reason ?? "보류") : "—"}</span>
-                        </div>
-                        {open && (
-                          <div className="eexp" onClick={(e) => e.stopPropagation()}>
-                            <Chips mode="inline"
-                              opts={[{ code: "미지정", label: "미지정" }, ...options(`stop_reason_${st}`)]}
-                              cur={on ? (curStop?.reason ?? "미지정") : "미지정"}
-                              onSelect={async (v2) => {
-                                if (v2 === "미지정" || (on && v2 === curStop?.reason)) {
-                                  if (on && curStop) await stopsApi.release(curStop.id);
-                                } else await stopsApi.open({ target_type: "listing", target_id: pk, stage: st, reason: v2 });
-                                setOpenRow(null); onSaved();
-                              }} />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* ── 우측: 메모창 — 건물 상세 사이드바와 같은 컴포넌트(MemoLog) ── */}
@@ -707,12 +656,6 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
         {pickB && (
           <PickModal mode="buyer" buildingPk={pk} title={`매수자 담기 — ${dongAddr(r.addr)}`}
             onClose={() => setPickB(false)} onAdded={() => onSaved()} />
-        )}
-        {holdAt && (
-          <StopModal target={{ type: "proposal", id: String(holdAt.pid) }} stage="deal"
-            title={`${holdAt.name} · ${dongAddr(r.addr)}`} cur={holdAt.cur}
-            onClose={() => setHoldAt(null)}
-            onSaved={() => { setHoldAt(null); onSaved(); }} />
         )}
 
         {schedAt && lead && (

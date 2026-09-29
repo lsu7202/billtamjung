@@ -203,25 +203,9 @@ async def patch_biz(body: BizPatch, user: CurrentUser = Depends(current_user)):
                 body.building_pk, user.team_id, oid)
 
 
-        # 확보는 **파생**이다(2026-08-17) — 이름과 전화가 **둘 다** 차는 순간.
-        # 전이 시점을 잡아야 장부 한 줄이 정확히 한 번 선다(수정 때마다 서면 소음).
-        prev = await pool().fetchrow(
-            "SELECT name, phone FROM app.owners WHERE id=$1", oid)
-        was_got = bool(prev and (prev["name"] or "").strip() and (prev["phone"] or "").strip())
         cols = ", ".join(f'"{c}"=${i}' for i, c in enumerate(own, start=2))
         await pool().execute(
             f"UPDATE app.owners SET {cols}, updated_at=now() WHERE id=$1", oid, *own.values())
-        now_ = await pool().fetchrow(
-            "SELECT name, phone FROM app.owners WHERE id=$1", oid)
-        # 값 저장은 장부에 줄을 남기지 않는다(2026-08-18) — 값이 이미 그 사실이다.
-        got_now = (now_["name"] or "").strip() and (now_["phone"] or "").strip()
-        if not was_got and got_now:
-            # 소유자 찾기가 끝났다 — 열린 멈춤은 자동 해제(확보됐는데 멈춤이면 모순)
-            await pool().execute(
-                """UPDATE app.stops SET resolved_at=now()
-                    WHERE team_id=$1 AND target_type='listing' AND target_id=$2
-                      AND stage='owner' AND resolved_at IS NULL""",
-                user.team_id, body.building_pk)
 
     # 가격은 거울 동사로(0173) — 이력(field_events)과 수익률 접기가 거기 있다
     prices = {k: lst.pop(k) for k in ("sale_price", "ask_price") if k in lst}

@@ -17,9 +17,8 @@
   있었는데, 같은 사건이 두 장부에 서면 「어느 쪽이 사실인가」가 생긴다. 장부는 하나다,
   app.contacts. 매도는 target_type='listing', 매수는 'buyer'.
 
-  **상태는 저장하지 않는다**(0141·0142). 매물도 짝도 상태 칸이 없다. 지금 어디까지 왔나는
-  사실에서 판다(v_listing_stage · app.nego_rank). 거울이 옮기는 것은 **사실**이지 낱말이 아니다:
-  계약이면 picked_at, 계약파기면 dropped_at.
+  **상태는 사람이 고른다**(0199). 자동 판정 엔진(사다리 뷰 · nego_rank)은 걷었다.
+  거울은 장부 줄 · 참석자 · 거래가만 옮기고, 채택(picked_at) · 안 산다(dropped_at) · 상태는 켜지 않는다.
 
   · 거울로 태어난 줄은 원본을 기억한다(src_schedule_id·0079) — 기억해야 걷는다.
   · 되돌리기는 반쪽이 없다 — 상태·일정·거울·가격이 함께 돌아온다.
@@ -310,21 +309,7 @@ async def schedule_set_state(team_id: int, sch, actor: int, state: str) -> None:
                 WHERE team_id=$1 AND src_schedule_id=$2 AND auto
                   AND (status IS NOT NULL OR note LIKE '%완료%')
                 RETURNING id, status""", team_id, sch["id"])
-        # 계약 일정을 되돌리면 **상대 확정도 함께 풀린다**(0141) — 예전엔 짝 장부의
-        # status='계약' 을 지워 파생시켰는데, 이제 사실이 picked_at 하나라 직접 푼다.
-        #
-        # 매물 쪽에서 잡은 계약 일정은 proposal_id 가 비어 있다(거울이 짝을 찾아 갔다).
-        # 그때는 **그 매물의 짝 전부**를 되돌린다 — 세운 길과 같은 길로 걷어야 한다.
-        if sch["category"] == "계약":
-            if sch["proposal_id"]:
-                await pool().execute(
-                    """UPDATE app.proposals SET picked_at=NULL, updated_at=now()
-                        WHERE id=$1 AND team_id=$2""", sch["proposal_id"], team_id)
-            elif sch["building_pk"]:
-                await pool().execute(
-                    """UPDATE app.proposals SET picked_at=NULL, updated_at=now()
-                        WHERE team_id=$1 AND building_pk=$2 AND picked_at IS NOT NULL""",
-                    team_id, sch["building_pk"])
+        # 계약 일정을 되돌려도 채택(picked_at)은 건드리지 않는다(0199) — 채택은 사람이 누른다
         if crows:
             # 걷힌 로그가 완료시켰던 표면 예정으로 되돌린다
             await pool().execute(
@@ -339,10 +324,7 @@ async def schedule_set_state(team_id: int, sch, actor: int, state: str) -> None:
             if contract and (sch["proposal_id"] or sch["building_pk"])
             else f"{sch['on_date']:%-m/%-d} {sch['title']} {state}")
     if contract and sch["proposal_id"]:
-        # 계약 체결 = 상대 확정(picked_at). 이게 nego_rank 4 를 세운다(0138·0141).
-        await pool().execute(
-            """UPDATE app.proposals SET picked_at=COALESCE(picked_at, now()), updated_at=now()
-                WHERE id=$1 AND team_id=$2""", sch["proposal_id"], team_id)
+        # 계약 일정 완료는 장부에 줄만 남긴다. 채택 · 상태는 사람이 고른다(0199 — 자동 판정 엔진 삭제)
         await pool().execute(
             """INSERT INTO app.contacts(team_id, target_type, target_id, note,
                                         created_by, auto, src_schedule_id)
@@ -534,18 +516,12 @@ async def mirror_to_proposal(team_id: int, pk: str, status: str, by: int,
            VALUES($1,'buyer',$2,$3,$4,$5,true,$6)""",
         team_id, str(rows[0]["buyer_id"]), line + (f" · {deal // 10**8}억" if deal else ""),
         status, by, evt_sid)
-    # 짝 쪽 사실은 칸 두 개다(0141): 계약이면 상대 확정, 계약파기면 죽음.
+    # 거래가만 옮겨 적는다. 채택(picked_at) · 안 산다(dropped_at)는 사람이 누른다(0199)
     await pool().execute(
-        """UPDATE app.proposals SET
-             picked_at  = CASE WHEN $3='계약' THEN COALESCE(picked_at, now()) ELSE picked_at END,
-             dropped_at = CASE WHEN $3='계약파기' THEN now() ELSE dropped_at END,
-             deal_price = COALESCE($4::bigint, deal_price), updated_at=now()
-           WHERE id=$1 AND team_id=$2""", pid, team_id, status, deal)
+        """UPDATE app.proposals SET deal_price = COALESCE($3::bigint, deal_price), updated_at=now()
+           WHERE id=$1 AND team_id=$2""", pid, team_id, deal)
     if evt_sid:
-        # **그 표는 이 짝의 것이다**(0142). 매물 쪽에서 잡은 계약 일정은 proposal_id 가 비어
-        # 있는데, 그러면 사다리(v_listing_stage.s6_match)도 nego_rank 4(계약완료)도 이 일정을
-        # 못 본다 — 계약이 끝났는데 화면은 「계약예정」에 멈춰 선다.
-        # 어느 짝인지가 방금 하나로 정해졌으니 표에도 그 짝을 박는다.
+        # **그 표는 이 짝의 것이다**(0142). 어느 짝인지가 방금 하나로 정해졌으니 표에도 그 짝을 박는다.
         await pool().execute(
             """UPDATE app.schedules SET proposal_id=$3
                 WHERE id=$1 AND team_id=$2 AND proposal_id IS NULL""",

@@ -38,3 +38,5 @@ frontend/src/features/sales/draft/AdTab.tsx:        {row("연락처", <input cla
 frontend/src/features/search/AdCards.tsx:            {row("전화", <input className="gm-in num" value={ph} placeholder="010-0000-0000" onChange={(e) => setPhone(formatPhone(e.target.value))} />)}
 frontend/src/features/sales/draft/AdTab.tsx:          {f.move_in === "날짜" && <input type="date" className="gm-in num" value={f.move_in_on ?? ""}
 frontend/src/features/sales/draft/AdTab.tsx:    <span className="ad-num"><input className="gm-in num" style={{ width: "8ch" }} value={txt}
+frontend/src/features/sales/Status.tsx:          <input type="date" className="um-in num" value={on} onChange={(e) => setOn(e.target.value)} />
+frontend/src/features/sales/Status.tsx:          <span className="ad-num"><input className="um-in num" style={{ width: "7ch" }} value={price} placeholder="매각금액"

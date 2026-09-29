@@ -145,9 +145,10 @@ _AD_COLS = ("use_type, brokerage, price, price_open, title, body, contact_phone,
 
 async def _listing_of(pk: str, team_id: int):
     row = await pool().fetchrow(
-        "SELECT id, sale_price, exclusive, building_major, assignee_account_id, total_deposit, total_rent, s6.s6 AS done "
-        "FROM app.listings l LEFT JOIN LATERAL (SELECT vs.s6_match AS s6 FROM app.v_listing_stage vs "
-        " WHERE vs.building_pk = l.building_pk AND vs.team_id = l.team_id) s6 ON TRUE "
+        # 계약됐나 = 사람이 「완료」 상태를 골랐나(0199 — 자동 판정 엔진 삭제)
+        "SELECT l.id, l.sale_price, l.exclusive, l.building_major, l.assignee_account_id, l.total_deposit, l.total_rent, "
+        "(st.name = '완료') AS done "
+        "FROM app.listings l LEFT JOIN app.statuses st ON st.id = l.status_id "
         "WHERE l.building_pk = $1 AND l.team_id = $2", pk, team_id)
     if not row:
         raise HTTPException(404, "매물관리에 담긴 매물이 아닙니다")

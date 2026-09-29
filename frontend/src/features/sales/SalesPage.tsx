@@ -5,7 +5,7 @@ import {
   buyersApi, proposalsApi,
   type Buyer, type BuyerCondition, type Proposal,
 } from "../../shared/api/endpoints";
-import { negoWord, dealTail, NEGO } from "./words";
+import { StatusBadge, StatusChips, useStatuses, useSetBuyerStatus } from "./Status";
 import { Loading } from "../../shared/ui/Spinner";
 import { formatPhone } from "../building/KV";
 import { dongAddr, wonAcc } from "../../shared/format";
@@ -127,13 +127,12 @@ function Buyers({ rows, loading, onDone, focus, flipId, add, onGoListing }: {
   useEffect(() => { if (focus != null) setSel(focus); }, [focus]);
   const gradeLabel = useGradeLabel();
   const [q, setQ] = useState("");
-  const [lane, setLane] = useState<"live" | "done">("live");
+  // 상태로 거른다(0199) — 사무소가 만든 고객 상태. null=전체 · "none"=미지정
+  const [lane, setLane] = useState<number | "none" | null>(null);
+  const statuses = useStatuses("buyer");
   if (loading) return <Loading label="불러오는 중" minHeight="40vh" />;
   const all = rows ?? [];
-  // 계약을 마친 사람은 따로 본다(2026-08-20) — 굴릴 사람과 끝난 사람은 하는 일이 다르다
-  const done = all.filter((b) => b.dealt);
-  const live = all.filter((b) => !b.dealt);
-  const list = lane === "live" ? live : done;
+  const list = all.filter((b) => (lane == null ? true : lane === "none" ? b.status_id == null : b.status_id === lane));
   if (!all.length) {
     return <div className="panel sales-empty">등록된 매수자가 없습니다
       <small>「＋」로 시작합니다</small>{add}</div>;
@@ -144,18 +143,14 @@ function Buyers({ rows, loading, onDone, focus, flipId, add, onGoListing }: {
   // 첫 진입엔 **아무도 안 골라 둔다**(2026-08-19) — 매물 탭과 같다.
   // 자동으로 한 명을 펼쳐 두면 그 사람을 「내가 고른 사람」으로 착각한다.
   const cur = sel != null ? (list.find((b) => b.id === sel) ?? null) : null;
-  // 합의 낱말(2026-08-24 확정) — 담은 매물 없음=— · 합의 전 → 합의중 → 계약예정 → 계약완료
-  const buyerWord = (b: Buyer) =>
-    b.stop_id ? "보류"
-      : (b.nego ?? 0) >= 1 && (b.nego ?? 0) < NEGO.length ? NEGO[b.nego!]
-        : b.active_proposals > 0 ? "합의 전" : "—";
   return (
     <div className="lt-split">
       <div className="lt-list">
         <div className="lt-lanes">
-          {([["live", "매수자", live.length], ["done", "계약", done.length]] as ["live" | "done", string, number][]).map(([v, l, n]) => (
-            <button key={v} className={`um-chip ${lane === v ? "on" : ""}`}
-              onClick={() => { setLane(v); setSel(null); }}>{l}<i className="num">{n}</i></button>
+          {[...(statuses.data ?? []).map((x) => [x.id, x.name, all.filter((b) => b.status_id === x.id).length] as const),
+            ["none", "미지정", all.filter((b) => b.status_id == null).length] as const].map(([v, l, n]) => (
+            <button key={String(v)} className={`um-chip ${lane === v ? "on" : ""}`}
+              onClick={() => { setLane(lane === v ? null : v); setSel(null); }}>{l}<i className="num">{n}</i></button>
           ))}
           <span className="sp" />
           {add}
@@ -168,13 +163,9 @@ function Buyers({ rows, loading, onDone, focus, flipId, add, onGoListing }: {
             <span className="cap">
               {[b.is_corp ? "법인" : null,
                 b.grade ? gradeLabel(b.grade) : null,
-                b.active_proposals > 0 ? `매물 ${b.active_proposals}` : null,
-                b.activity === "휴면" ? "휴면" : null]
+                b.active_proposals > 0 ? `매물 ${b.active_proposals}` : null]
                 .filter(Boolean).join(" · ")}</span>
-            <span className={`ev ${b.stop_id ? "bad" : ""}`}
-              title={b.stop_id
-                ? ["보류", b.stop_reason].filter(Boolean).join(" · ")
-                : undefined}>{buyerWord(b)}</span>
+            <span className="ev"><StatusBadge name={b.status_name} color={b.status_color} /></span>
           </button>
         ))}
         {!hit.length && <div className="lt-none">찾는 사람이 없습니다</div>}
@@ -210,21 +201,11 @@ function BuyerProfile({ b, onDone, startFlipped, goListing }: {
     } } });
   };
   const rows = props.data ?? [];
-  const dealtOut = (x: Proposal) =>
-    !x.picked_at && !!((x as { buyer_dealt?: boolean }).buyer_dealt
-      || (x as { listing_dealt?: boolean }).listing_dealt);
-  const alive = rows.filter((p) => !dealtOut(p) && !p.dropped_at);
-  const bLead = rows.find((x) => x.picked_at)
-    ?? alive.reduce<Proposal | null>((a, x) => {
-      const sc = (y: Proposal) => ["d2_brief", "d3_visit", "d4_nego", "d5_pre", "d6_sign", "d7_pay", "d8_file"]
-        .reduce((n, k) => n + ((y as unknown as Record<string, boolean>)[k] ? 1 : 0), 0);
-      return a === null || sc(x) > sc(a) ? x : a;
-    }, null);
-  const pairWord = (p: Proposal) => negoWord(p);
-  // 매수자엔 레일이 없다(2026-08-24 확정) — 상태는 합의 낱말 하나
-  const word = b.stop_id ? "보류"
-    : (b.nego ?? 0) >= 1 && (b.nego ?? 0) < NEGO.length ? NEGO[b.nego!]
-      : rows.length > 0 ? "합의 전" : "—";
+  const alive = rows.filter((p) => !p.dropped_at);
+  const bLead = rows.find((x) => x.picked_at) ?? null;
+  // 상태는 사람이 고른다(0199) — 짝 줄엔 채택만 보인다
+  const pairWord = (p: Proposal) => (p.picked_at ? "채택" : "");
+  const setStatus = useSetBuyerStatus();
 
   return (
     <div className="lt-pane">
@@ -234,16 +215,16 @@ function BuyerProfile({ b, onDone, startFlipped, goListing }: {
           {b.name}{b.is_corp ? " · 법인" : ""}</button>
         {bLead?.picked_at && bLead.deal_price != null ? (
           <div className="sent num" onClick={() => setEditing(true)}>
-            <b>{shortAddr(bLead.addr)}</b>를 <b>{wonAcc(bLead.deal_price)}</b>에{" "}
-            {dealTail({ ...bLead, nego: b.nego })}</div>
+            <b>{shortAddr(bLead.addr)}</b>를 <b>{wonAcc(bLead.deal_price)}</b>에 채택</div>
         ) : alive.length ? (
           <div className="sent num" onClick={() => setEditing(true)}>
-            매물 <b>{alive.length}건</b>과 {word === "—" ? "합의 전" : word}</div>
+            매물 <b>{alive.length}건</b> 담음</div>
         ) : (
           <div className="sent dim" onClick={() => setEditing(true)}>담은 매물 없음</div>
         )}
         <div className="lt-chips">
-          <span className={`um-chip still ${b.stop_id ? "hold" : ""}`}><i>상태</i>{word}</span>
+          <span className="lt-stx" onClick={(e) => e.stopPropagation()}>
+            <StatusChips kind="buyer" value={b.status_id} onPick={(id) => setStatus(b.id, id).then(onDone)} /></span>
           {b.phone && !b.phone_masked && (
             <a className="um-chip still num" style={{ textDecoration: "none" }}
               href={`tel:${b.phone.replace(/\D/g, "")}`}><i>전화</i>{formatPhone(b.phone)}</a>)}
@@ -303,12 +284,12 @@ function BuyerProfile({ b, onDone, startFlipped, goListing }: {
       <section className="tc um-offer">
         {rows.map((p) => (
           <div key={p.id} className="orow has" onClick={() => setEditing(true)}
-            style={dealtOut(p) ? { opacity: .45 } : undefined}>
+>
             {/* 주소를 누르면 그 매물로 간다(2026-08-28) — 줄 전체는 이 매수자의 매물 탭이다.
                 호버 화살표를 찾아 누르는 것보다 주소를 누르는 쪽이 먼저 떠오른다. */}
             <span className="who lnk" onClick={(e) => { e.stopPropagation(); goListing?.(p.building_pk); }}>
               {dongAddr(p.addr) || p.building_pk}</span>
-            <span className="cap">{dealtOut(p) ? "다른 곳과 계약" : pairWord(p)}</span>
+            <span className="cap">{pairWord(p)}</span>
             <span className="ev num">
               {p.deal_price != null ? wonAcc(p.deal_price)
                 : p.hope_price != null ? wonAcc(p.hope_price) : "—"}</span>

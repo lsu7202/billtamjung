@@ -15,7 +15,7 @@ if not _ai_log.handlers:
     _ai_log.addHandler(_h)
 _ai_log.propagate = False
 from .core.config import settings
-from .domains import ai, artifacts, auth, social, search, buildings, overlays, listings, floor_rents, floors, market, reports, extras, photos, series, team, survey, buyers, stops, news, ads, inquiries, hidden, customer
+from .domains import ai, artifacts, auth, social, search, buildings, overlays, listings, floor_rents, floors, market, reports, extras, photos, series, team, survey, buyers, statuses, news, ads, inquiries, hidden, customer
 
 
 @asynccontextmanager
@@ -57,7 +57,7 @@ app.add_middleware(
 
 # 라우터를 맨몸 + /api 프리픽스로 이중 등록 — 로컬(vite가 /api 스트립)과
 # Firebase Hosting(run 리라이트는 경로 그대로 전달) 양쪽 호환.
-for m in (ai, artifacts, auth, social, search, buildings, overlays, listings, floor_rents, floors, market, reports, extras, photos, series, team, survey, buyers, stops, news, ads, inquiries, hidden, customer):
+for m in (ai, artifacts, auth, social, search, buildings, overlays, listings, floor_rents, floors, market, reports, extras, photos, series, team, survey, buyers, statuses, news, ads, inquiries, hidden, customer):
     app.include_router(m.router)
     app.include_router(m.router, prefix="/api")
 

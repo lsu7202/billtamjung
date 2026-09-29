@@ -450,3 +450,7 @@
 .ad-acts .lx-ic:hover { color: #333D4B; background: #F2F4F6; }
 .ad-read { font-size: 13px; font-weight: 700; color: #3182F6; }
 .ad-read.bad { color: #F04452; font-weight: 600; }
+/* 상태 칸(0199) — 누르면 칩이 뜬다 */
+.lx .c-stx { position: relative; cursor: pointer; }
+.lx .c-stx:hover .stx { text-decoration: underline; text-underline-offset: 3px; }
+.lx .stx-pop { z-index: 60; min-width: 280px; max-width: 360px; flex-wrap: wrap; cursor: default; }

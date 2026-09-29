@@ -8,7 +8,8 @@ import { Icon } from "../../shared/ui/Icon";
 import { useEnums } from "../../shared/hooks/useEnums";
 import { openDetail } from "../../shared/map/geo";
 import { useAuth } from "../../shared/store/auth";
-import { stateWord, isUrgent } from "./listingWord";
+import { isUrgent } from "./listingWord";
+import { StatusBadge, StatusChips, useStatuses, useSetListingStatus } from "./Status";
 import { ListingModal } from "./ListingModal";
 import { UnifiedModal, type UniTab } from "./draft/UnifiedModal";
 import { useTradeCtx } from "./tradeCtx";
@@ -24,15 +25,13 @@ import "./draft/salestab.css";
  * 확인일 = 사람이 이 매물에 남긴 마지막 기록의 날(listings.checked_on, 0182).
  * 대시보드 「재통화」와 같은 기준(7일)이라, 넘으면 빨강이다. */
 
-/** 상태(2026-09-27) — 매물·관심·계약 세 갈래를 목록 하나로 합쳤다(부기사처럼). 기본은 계약을 뺀 전부 */
-type St = "unowned" | "active" | "done";
-const ST: [St, string][] = [["unowned", "소유자 미확보"], ["active", "진행"], ["done", "계약"]];
+/** 상태(0199) — 사무소가 만든 상태(부기사). 거르기 값은 상태 id, "none" 은 미지정. 자동 판정은 없다 */
+type St = number | "none";
 /** 확인일 구간(2026-09-28) — 부기사 「수정일 확인」. 색을 늘리지 않고 필터로 찾는다 */
 type Chk = "m1" | "m3" | "m6" | "old" | "none";
 const CHK: [Chk, string][] = [["m1", "1개월 안"], ["m3", "1~3개월"], ["m6", "3~6개월"], ["old", "6개월 넘음"], ["none", "기록 없음"]];
 const chkOf = (d: number | null): Chk =>
   d == null ? "none" : d <= 30 ? "m1" : d <= 90 ? "m3" : d <= 180 ? "m6" : "old";
-const stOf = (r: Seller): St => (r.s6_match ? "done" : r.has_owner ? "active" : "unowned");
 type SortKey = "received_on" | "updated_at" | "listing_no" | "addr" | "size" | "price" | "rent" | "roi" | "checked_on" | "next";
 /** 정렬 pill 의 목록 — 부기사 탭(등록일·수정일·가격·면적·매물번호)에 우리 열(수익률·확인일)을 더했다 */
 const SORTS: [SortKey, string][] = [["received_on", "등록일"], ["updated_at", "수정일"], ["listing_no", "매물번호"],
@@ -132,7 +131,11 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
   const [who, setWho] = useState<number | null>(null);          // 담당 거르기
   const [major, setMajor] = useState<string | null>(null);      // 대분류 거르기
   const [kind, setKind] = useState<string | null>(null);        // 소분류 거르기
-  const [flag, setFlag] = useState<null | "urgent" | "exclusive" | "hold" | "ad">(null);
+  const [flag, setFlag] = useState<null | "urgent" | "exclusive" | "ad">(null);
+  const statuses = useStatuses("listing");
+  const setStatus = useSetListingStatus();
+  // 상태를 고치는 줄 — 표 상자가 가로 스크롤이라 아래 줄에서 칩이 잘린다. 화면 좌표에 띄운다
+  const [stPop, setStPop] = useState<{ pk: string; x: number; y: number } | null>(null);
   const [gu, setGu] = useState<string | null>(null);           // 지역 — 구, 고르면 동이 열린다
   const [dong, setDong] = useState<string | null>(null);
   const [grade, setGrade] = useState<string | null>(null);
@@ -160,7 +163,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
 
   const list = rows.data ?? [];
   const nameOf = (id: number | null | undefined) => members.data?.find((m) => m.account_id === id)?.name ?? null;
-  const laneRows = list.filter((r) => (st == null ? stOf(r) !== "done" : stOf(r) === st));
+  const laneRows = list.filter((r) => (st == null ? true : st === "none" ? r.status_id == null : r.status_id === st));
 
   const shown = useMemo(() => {
     const t = q.trim();
@@ -182,7 +185,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
       && (kind == null || (r.building_use ?? []).includes(kind))
       && (grade == null || r.grade === grade)
       && (pvm == null || r.price_vs_market === pvm)
-      && (flag == null || (flag === "urgent" ? isUrgent(r) : flag === "hold" ? r.stop_id != null
+      && (flag == null || (flag === "urgent" ? isUrgent(r)
         : flag === "ad" ? r.ad_state === "노출" : r.exclusive === true))
       && (chk == null || chkOf(daysSince(r.checked_on)) === chk)
       && inRange(r));
@@ -226,7 +229,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
 
   useEffect(() => {
     // 다른 화면에서 넘어온 매물이 지금 상태 필터에 가려 있으면 풀어 준다
-    if (cur && laneRows.every((r) => r.building_pk !== cur.building_pk)) setSt(cur.s6_match ? "done" : null);
+    if (cur && laneRows.every((r) => r.building_pk !== cur.building_pk)) setSt(null);
   }, [cur?.building_pk, cur?.has_owner]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // 모달을 보는 동안 대화창의 대상 = 이 매물
@@ -288,14 +291,17 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
             </Pop>
           );
           const labOf = (k: string, c: string | null) => (c == null ? null : options(k).find((o) => o.code === c)?.label ?? c);
-          const flagTxt = { urgent: "급매", exclusive: "전속", hold: "보류", ad: "광고 중" } as const;
+          const flagTxt = { urgent: "급매", exclusive: "전속", ad: "광고 중" } as const;
           const mem = members.data ?? [];
           return <>
             {(savedQ.data ?? []).length > 0 && pp("cond", "저장한 조건", cond?.name ?? null,
               (savedQ.data ?? []).map((c) => chip(cond?.id === c.id, c.name,
                 () => setCond(cond?.id === c.id ? null : { id: c.id, name: c.name }))))}
-            {pp("st", "상태", ST.find(([k]) => k === st)?.[1] ?? null,
-              ST.map(([k, l]) => chip(st === k, l, () => setSt(st === k ? null : k), list.filter((r) => stOf(r) === k).length)))}
+            {pp("st", "상태", st === "none" ? "미지정" : (statuses.data ?? []).find((x) => x.id === st)?.name ?? null, <>
+              {(statuses.data ?? []).map((x) => chip(st === x.id, x.name, () => setSt(st === x.id ? null : x.id),
+                list.filter((r) => r.status_id === x.id).length))}
+              {chip(st === "none", "미지정", () => setSt(st === "none" ? null : "none"), list.filter((r) => r.status_id == null).length)}
+            </>)}
             {pp("chk", "확인일", CHK.find(([k]) => k === chk)?.[1] ?? null,
               CHK.map(([k, l]) => chip(chk === k, l, () => setChk(chk === k ? null : k),
                 laneRows.filter((r) => chkOf(daysSince(r.checked_on)) === k).length)))}
@@ -365,9 +371,8 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
           </tr></thead>
           <tbody>
             {shown.map((r) => {
-              const word = stateWord(r);
               const age = daysSince(r.checked_on);
-              const stale = !r.s6_match && age != null && age > RECALL_DAYS;
+              const stale = r.status_name !== "완료" && age != null && age > RECALL_DAYS;
               const kinds = [
                 ...(r.building_major ? [options("building_major").find((o) => o.code === r.building_major)?.label ?? r.building_major] : []),
                 ...(r.building_use ?? []).map((c) => options("building_use").find((o) => o.code === c)?.label ?? c)];
@@ -408,7 +413,21 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
                     <span className="sub">관 {won(r.total_mgmt)}</span>
                   </td>
                   <td className="r num c-roi">{r.roi != null ? `${Number(r.roi).toFixed(2)}%` : <span className="off">—</span>}</td>
-                  <td><span className={`lx-st ${r.stop_id ? "red" : ""}`}>{word}</span></td>
+                  {/* 상태 — 눌러서 바로 고른다(0199). 고른 칩을 다시 누르면 미지정 */}
+                  <td className="c-stx" onClick={(e) => {
+                    e.stopPropagation();
+                    const b = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    setStPop(stPop?.pk === r.building_pk ? null : { pk: r.building_pk, x: b.left, y: b.bottom });
+                  }}>
+                    <StatusBadge name={r.status_name} color={r.status_color} />
+                    {stPop?.pk === r.building_pk && (
+                      <span className="lx-rg-pop stx-pop" style={{ position: "fixed", left: stPop.x, top: stPop.y }}
+                        onClick={(e) => e.stopPropagation()} onMouseLeave={() => setStPop(null)}>
+                        <StatusChips kind="listing" value={r.status_id} sold={{ sold_on: r.sold_on, sold_price: r.sold_price }}
+                          onPick={(id, sold) => { setStatus(r.building_pk, id, sold); setStPop(null); }} />
+                      </span>
+                    )}
+                  </td>
                   <td className="c-own">{r.owner_name ?? <span className="off">—</span>}</td>
                   <td className="c-who">{nameOf(r.assignee_account_id) ?? <span className="off">—</span>}</td>
                   <td className={`c-chk num ${stale ? "red" : ""}`}>{r.checked_on ? md(r.checked_on) : <span className="off">—</span>}</td>

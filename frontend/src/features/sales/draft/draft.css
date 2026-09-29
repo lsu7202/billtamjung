@@ -140,3 +140,6 @@
   opacity:0; transition:opacity .12s}
 .orow:hover .um-reply{opacity:1}
 .um-reply:hover{background:#EBF4FF; color:#3182F6}
+/* 상태 배지(0199) — 모달 머리. 누르면 칩 */
+.um-stx { position: relative; cursor: pointer; margin-left: 4px; }
+.um-stx .stx-pop { position: absolute; left: 0; top: calc(100% + 6px); z-index: 40; min-width: 280px; cursor: default; }

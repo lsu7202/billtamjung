@@ -312,31 +312,21 @@ export const listingsApi = {
   members: () => api<{ account_id: number; name: string; role: string }[]>("/listings/members"),
 };
 
-/** 보류 — 사다리 어느 칸에서든 겹치는 축(S04b §2.3).
- *  철회와 다르다: 철회는 죽은 것이고 보류는 **살아 있는 채로 멈춘 것**이다.
- *  보류 동안은 「연락할 차례」에서 빠지고, 사람이 풀면 다시 뜬다.
- *  깨울 날짜는 두지 않는다(0140) — 다시 볼 일이 정해져 있으면 그건 일정이다. */
-export type StopStage = "owner" | "touch" | "intent" | "info" | "asset" | "match" | "find" | "deal";
-export interface Stop {
-  id: number; target_type: "listing" | "buyer" | "proposal"; target_id: string;
-  stage: StopStage; reason: string | null;
-  note: string | null; created_at: string;
-  held_days: number | null;
-  addr?: string | null; owner_name?: string | null; buyer_name?: string | null;
-  /** target_type='proposal' 일 때만 — 어느 매물·누구의 짝인지 */
-  proposal_pk?: string | null; proposal_buyer_id?: number | null;
-}
-export interface StopIn {
-  target_type: Stop["target_type"]; target_id: string; stage: StopStage;
-  reason?: string | null; note?: string | null;
-}
-export const stopsApi = {
-  /** 한 대상에 열린 보류는 하나뿐 — 다시 부르면 덮어쓴다(사유가 둘이면 어느 쪽이 사실인지 모른다) */
-  open: (body: StopIn) => api<{ id: number }>("/stops",
-    { method: "POST", body: JSON.stringify(body) }),
-  /** 푼다 — 지우지 않고 해제 표시만. 「왜 멈췄었나」가 남아야 같은 판단을 또 안 한다 */
-  release: (id: number) => api(`/stops/${id}`, { method: "DELETE" }),
-  list: (sleeping = false) => api<Stop[]>(`/stops${sleeping ? "?sleeping=true" : ""}`),
+/** 상태(0199) — 사무소가 만들고(이름 · 색 · 순서) 매물 · 고객마다 손으로 고른다(부기사). 자동 판정은 없다 */
+export interface StatusDef { id: number; name: string; color: string; sort: number; n: number }
+export type StatusKind = "listing" | "buyer";
+export const statusesApi = {
+  list: (kind: StatusKind) => api<StatusDef[]>(`/statuses?kind=${kind}`),
+  add: (kind: StatusKind, name: string, color: string) =>
+    api<{ id: number }>("/statuses", { method: "POST", body: JSON.stringify({ kind, name, color }) }),
+  edit: (id: number, p: { name?: string; color?: string }) => api(`/statuses/${id}`, { method: "PATCH", body: JSON.stringify(p) }),
+  order: (kind: StatusKind, ids: number[]) => api("/statuses/order", { method: "PUT", body: JSON.stringify({ kind, ids }) }),
+  /** 지우면 그 상태의 매물 · 고객을 moveTo 로(없으면 미지정) */
+  remove: (id: number, moveTo: number | null) => api(`/statuses/${id}${moveTo != null ? `?move_to=${moveTo}` : ""}`, { method: "DELETE" }),
+  setListing: (pk: string, b: { status_id: number | null; sold_on?: string | null; sold_price?: number | null }) =>
+    api(`/listings/${encodeURIComponent(pk)}/status`, { method: "PUT", body: JSON.stringify(b) }),
+  setBuyer: (id: number, status_id: number | null) =>
+    api(`/buyers/${id}/status`, { method: "PUT", body: JSON.stringify({ status_id }) }),
 };
 
 export interface TeamMember { account_id: number; name: string; email: string; role: "owner" | "member"; is_me: boolean }
@@ -619,10 +609,8 @@ export interface Buyer {
   phone: string | null;
   /** 업무 사다리(0090·0092) — 본인/대리인 · 긴급도 · 통화 결과 */
   is_agent?: boolean; urgency?: string | null; call_result?: string | null;
-  /** ②사다리 파생(v_buyer_stage) — 합의 단계(nego)와 다른 층(준비도) */
-  b_stage?: "have" | "touch" | "cond" | "match" | "done" | null;
-  b1_buyer?: boolean; b4_match?: boolean;
-  stop_id?: number | null; stop_stage?: StopStage | null; stop_reason?: string | null;
+  /** 상태(0199) — 사람이 고른다 */
+  status_id?: number | null; status_name?: string | null; status_color?: string | null;
   /** 담당자 본인·대표가 아니면 연락처가 가려진다(개인정보 — S0M §3.4 경계) */
   phone_masked?: boolean;
   grade: string | null; source: string | null;
@@ -633,24 +621,16 @@ export interface Buyer {
   addr?: string | null; rep_name?: string | null; corp_no?: string | null; nationality?: string | null;
   /** 투자 가정(0133) — 자기자본(원)·대출금리(연 %)·취득 부대비용률(%). 미지정은 null */
   equity_won?: number | null; loan_rate?: number | null; fee_pct?: number | null;
-  /** 사람 상태는 저장 안 한다(0087) — 장부에서 파생: 진행중(살아있는 제안) · 활성(30일 내 기록) · 휴면 */
-  activity?: "진행중" | "활성" | "휴면";
   /** 리스트 칩용 — 이 사람의 제안 중 가장 앞선 관계 상태(파생·2026-08-16) */
   top_status?: string | null;
   conditions: BuyerCondition[];
   assignee_account_id: number | null; active_proposals: number; updated_at: string;
-  /** 계약을 마쳤나(2026-08-20) — 목록을 「매수자 / 계약」으로 가르고, 추천에서도 빠진다 */
-  dealt?: boolean;
-  /** 협의 단계 1~4(0127) — 협의 전·협의중·계약예정·계약완료. 담은 매물 중 가장 앞선 것 */
-  nego?: number | null;
 }
 export interface Proposal {
   terms?: string | null;   /** 조건 협의 — 특약 원문(0097) */
   brief_how?: string[] | null;  /** 브리핑 어디서(0123·복수) */
   brief_note?: string | null;   /** 브리핑 무엇을(0123) */
   picked_at?: string | null;    /** 채택 시각(0113) — 이 사람과 간다. 가격도 같이 확정된다 */
-  buyer_dealt?: boolean;        /** 이 매수자가 **다른 매물에서** 계약을 마쳤다(2026-08-20) */
-  listing_dealt?: boolean;      /** 이 매물이 **다른 매수자와** 계약을 마쳤다(2026-08-20) */
   /** 이 쌍에 걸린 일정(2026-08-19) — 창에서 만든 약속이 창에 보인다 */
   scheds?: { id: number; title: string; cat: string | null; on: string; at: string | null;
              state: string; method?: string | null }[]
@@ -660,10 +640,6 @@ export interface Proposal {
   /** 칸별 약속(2026-08-18) — 거래 칸은 일정이 정본: 잡았나(due_on) · 했나(done_on) */
   cell_sched?: Record<string, { done_on: string | null; due_on: string | null; due_id: number | null }>
     | string | null;
-  /** ③사다리 파생(0093 v_proposal_stage) — 합의 단계(nego)와 다른 층(준비도) */
-  d_stage?: "brief" | "visit" | "nego" | "pre" | "sign" | "pay" | "file" | "done" | "out" | null;
-  d2_brief?: boolean; d3_visit?: boolean; d4_nego?: boolean; d5_pre?: boolean;
-  d6_sign?: boolean; d7_pay?: boolean; d8_file?: boolean;
   briefed_on?: string | null; visited_on?: string | null; visit_note?: string | null;
   pre_contract_on?: string | null; pre_contract_amount?: number | null;
   vat_mode?: string | null;      /** 부가세 조건(0128) — 별도·포함. null=합의 전 */
@@ -674,10 +650,7 @@ export interface Proposal {
   buyer_phone?: string | null;
   commission_amount?: number | null; commission_split?: string | null;
   report_filed_on?: string | null;
-  stop_id?: number | null; stop_reason?: string | null;
   id: number; buyer_id: number; building_pk: string; updated_at: string;
-  /** 합의 단계(app.nego_rank) — 짝의 상태는 이 하나다. 낱말은 words.ts negoWord */
-  nego?: number | null;
   /** 죽은 짝(옛 철회·계약파기). 살아 있으면 null */
   dropped_at?: string | null;
   report_id: number | null; note: string | null;
@@ -865,7 +838,7 @@ export interface Seller {
   owner_addr?: string | null; owner_rep_name?: string | null;
   owner_corp_no?: string | null; owner_nationality?: string | null;
   cooperation: string | null; kindness: string | null; intent: string | null;
-  status: string | null; urgency: string | null;
+  urgency: string | null;
   assignee_account_id: number | null; updated_at: string;
   land_area: number | null; total_area: number | null; price: number | null;
   listing_no: string | null; received_on: string | null;
@@ -893,8 +866,6 @@ export interface Seller {
   rent_check?: string | null;   /** 임대내역 확인 상태(0100) — null=안 받음 · 확인중. 받았다=파생 */
   owner_buyer_id?: number | null;  /** 소유자가 매수자 명단에도 있나(전화 일치) */
   last_on: string | null; last_kind: string | null; last_note: string | null;
-  /** 칸별 최근 움직임 — **색 판정의 유일한 근거**(목록·레일·창이 같은 값을 본다) */
-  cell_last_on?: Record<string, string | null> | string | null;
   /** 이 매물의 다음 예정 약속 — 머리의 「상태 + 다음 일정」(2026-08-15) */
   next_sched_title?: string | null; next_sched_on?: string | null; next_sched_at?: string | null;
   next_sched_cat?: string | null;
@@ -902,20 +873,13 @@ export interface Seller {
   has_owner?: boolean;
   owner_age_band?: string | null; owner_gender?: string | null; owner_note?: string | null;
   call_result?: string | null;   /** 마지막 통화 결과(0090) — 접촉 창·통화 칩이 같이 쓴다 */
-  /** 사다리 단계 — 필드에서 **파생**된다(0091 app.v_listing_stage). 사람이 찍는 칸이 아니다.
-   *  stage = 처음 못 넘은 칸. 여섯 칸을 다 넘으면 'find'(살 사람 찾는 중). */
-  stage?: StopStage | "done" | null; passed?: number | null; info_filled?: number | null;
-  /** 칸별 판정 — 사다리는 순서 강제가 아니라 지도. 칸은 각자 근거로 참이 되고 병렬로 진행된다 */
-  s1_owner?: boolean; s2_touch?: boolean; s3_intent?: boolean;
-  s4_info?: boolean; s5_asset?: boolean; s6_match?: boolean;
-  /** 열린 멈춤 — 멈춘 동안은 「연락할 차례」에서 빠진다(S04b §2.3) */
-  stop_id?: number | null; stop_stage?: StopStage | null; stop_reason?: string | null;
+  /** 상태(0199) — 사람이 고른다. 미지정이면 null. 완료면 매각일 · 매각금액 */
+  status_id?: number | null; status_name?: string | null; status_color?: string | null;
+  sold_on?: string | null; sold_price?: number | null;
   /** 살아 있는 광고(0191) — 노출 · 비노출과 기한 */
   ad_state?: "노출" | "비노출" | null; ad_expires?: string | null;
   /** 메모창 글을 이어 붙인 것 — 표 검색용 */
   memo_text?: string | null;
-  /** 협의 단계 1~4(0127) — 이 매물에 붙은 매수자들 중 가장 앞선 것 */
-  nego?: number | null;
   /** 나대지 매물(2026-08-27) — building_pk 가 'P'+pnu. 건물이 아니라 빈 땅이다 */
   is_vacant?: boolean | null;
 }
@@ -962,7 +926,6 @@ export const salesApi = {
     api(`/owners/${oid}/listings`, { method: "PUT", body: JSON.stringify({ building_pk }) }),
   /** 한 건물의 두 장부(매수 제안·매도 접촉)를 시간순으로 합쳐 본다 — 읽기 전용 */
   timeline: (building_pk: string) => api<TimelineRow[]>(`/sales/timeline?building_pk=${encodeURIComponent(building_pk)}`),
-  rejectSummary: (pk: string) => api<RejectSummary>(`/buildings/${pk}/reject-summary`),
 };
 
 /** 일정(0070·0071) — 커밋에서 파서가 읽은 약속. 날짜가 떨어지는 것만 선다. */
