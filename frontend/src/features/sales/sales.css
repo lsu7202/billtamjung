@@ -890,27 +890,6 @@
 .gm-save:disabled { opacity: .35; cursor: default; }
 
 
-/* ══════════ 하단 대화창 ══════════
-   대화형 AI 가 들어올 자리다(2026-08-29). 도우미 줄·후보 칩·영수증·되비침은 전부
-   규칙 시절의 것이라 같이 걷었다 — 대화가 들어서면 어차피 다시 그린다. */
-.tb { position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 40;
-  width: min(680px, calc(100vw - 32px)); display: grid; gap: 8px; }
-
-/* 입력 pill — 검색바와 같은 pill 어법. 포커스에서만 또렷해진다 */
-.tb-pill { background: var(--panel); border: 1px solid var(--line-2); border-radius: 22px;
-  padding: 7px 8px 7px 14px; box-shadow: var(--shadow-lg); transition: border-color .15s; }
-.tb-pill.on { border-color: var(--signal); }
-.tb-line { display: flex; align-items: center; gap: 8px; }
-.tb-in { flex: 1; min-width: 0; border: 0; background: none; outline: none;
-  font: inherit; font-size: 13.5px; color: var(--ink); }
-.tb-in::placeholder { color: var(--line-2); }
-.tb-go { flex: 0 0 auto; width: 30px; height: 30px; border: 0; border-radius: 50%;
-  background: var(--ink); color: #fff; cursor: pointer; display: inline-flex;
-  align-items: center; justify-content: center; }
-.tb-go:disabled { opacity: .25; cursor: default; }
-
-/* 하단 대화창을 화면에서 뺐다(2026-09-28) — 그 자리를 비워 두던 여백도 뺀다 */
-
 /* 머리의 「다음 일정 + 상태」 — 상태는 파생값 하나, 다음 움직임은 그 옆에(2026-08-15) */
 .pp-next { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 

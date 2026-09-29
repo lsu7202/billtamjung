@@ -1,5 +1,5 @@
 /* 시그니처 컴포넌트 — specs/02-screens/_mockups/wireframe.css 이식(정본).
-   tokens.css에 이미 있는 .panel/.btn/.input/.tag/.wf/.kv/.sec-head/.appbar는 제외.
+   tokens.css에 이미 있는 .panel/.btn/.input/.tag/.wf/.kv/.sec-head는 제외.
    화면 JSX 리팩터(Phase 1~3)가 이 클래스들을 사용한다. */
 
 .toolbar{display:flex; gap:9px; align-items:center; flex-wrap:wrap}
@@ -214,7 +214,6 @@
    stacking context 라 z 로는 안 덮인다. 그리는 동안만 걷어내고, 나오면 되돌아온다. */
 /* .bt-page 의 직계 .panel 은 머리줄과 하단 바 둘뿐이다 — 본문 카드는 .bt-cols 안에 있다 */
 /* 머리줄·하단 바는 인라인 style 로 display 를 잡고 있어 !important 로만 덮인다 */
-body.map-full .appbar,
 body.map-full .bt-page > .panel { display: none !important }
 
 

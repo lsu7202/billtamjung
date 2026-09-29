@@ -45,7 +45,7 @@ function useGradeLabel() {
 /* ══════════════════════ 루트 ══════════════════════ */
 
 /* 윗메뉴 셋(2026-09-28) — 부기사처럼 매물관리 · 고객관리 · 일정을 나눴다. 아래 줄 탭은 없앴다.
- * 대시보드(TodayTab)와 하단 대화창(TradeBar)은 화면에서만 뺐다 — 코드는 둔다. */
+ * 대시보드(TodayTab)와 하단 대화창(TradeBar)은 뺐다(09-28 화면에서 · 09-29 코드까지). */
 
 function useRefresh() {
   const qc = useQueryClient();
