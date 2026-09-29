@@ -1858,7 +1858,7 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                   ob.id AS owner_buyer_id,
                   c.last_on, c.last_kind, c.last_note,
                   -- 상태는 사람이 고른다(0199) — 사무소가 만든 상태(이름 · 색) 하나. 완료면 매각일 · 매각금액
-                  l.status_id, ls.name AS status_name, ls.color AS status_color, l.sold_on, l.sold_price,
+                  l.status_id, ls.name AS status_name, ls.color AS status_color, l.sold_on, l.sold_price, l.hold_reason,
                   -- 광고(0191) — 살아 있는 광고의 상태 · 기한. 매물 표의 「광고」 표식과 여부 필터
                   (SELECT a.state FROM app.ads a WHERE a.listing_id = l.id AND a.state IN ('노출','비노출')
                     ORDER BY a.id DESC LIMIT 1) AS ad_state,

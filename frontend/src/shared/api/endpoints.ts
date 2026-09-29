@@ -323,10 +323,10 @@ export const statusesApi = {
   order: (kind: StatusKind, ids: number[]) => api("/statuses/order", { method: "PUT", body: JSON.stringify({ kind, ids }) }),
   /** 지우면 그 상태의 매물 · 고객을 moveTo 로(없으면 미지정) */
   remove: (id: number, moveTo: number | null) => api(`/statuses/${id}${moveTo != null ? `?move_to=${moveTo}` : ""}`, { method: "DELETE" }),
-  setListing: (pk: string, b: { status_id: number | null; sold_on?: string | null; sold_price?: number | null }) =>
+  setListing: (pk: string, b: { status_id: number | null; sold_on?: string | null; sold_price?: number | null; hold_reason?: string | null }) =>
     api(`/listings/${encodeURIComponent(pk)}/status`, { method: "PUT", body: JSON.stringify(b) }),
-  setBuyer: (id: number, status_id: number | null) =>
-    api(`/buyers/${id}/status`, { method: "PUT", body: JSON.stringify({ status_id }) }),
+  setBuyer: (id: number, status_id: number | null, hold_reason?: string | null) =>
+    api(`/buyers/${id}/status`, { method: "PUT", body: JSON.stringify({ status_id, hold_reason: hold_reason ?? null }) }),
 };
 
 export interface TeamMember { account_id: number; name: string; email: string; role: "owner" | "member"; is_me: boolean }
@@ -609,8 +609,8 @@ export interface Buyer {
   phone: string | null;
   /** 업무 사다리(0090·0092) — 본인/대리인 · 긴급도 · 통화 결과 */
   is_agent?: boolean; urgency?: string | null; call_result?: string | null;
-  /** 상태(0199) — 사람이 고른다 */
-  status_id?: number | null; status_name?: string | null; status_color?: string | null;
+  /** 상태(0199) — 사람이 고른다. 보류면 사유(0201) */
+  status_id?: number | null; status_name?: string | null; status_color?: string | null; hold_reason?: string | null;
   /** 담당자 본인·대표가 아니면 연락처가 가려진다(개인정보 — S0M §3.4 경계) */
   phone_masked?: boolean;
   grade: string | null; source: string | null;
@@ -836,6 +836,7 @@ export interface Seller {
   /** 상태(0199) — 사람이 고른다. 미지정이면 null. 완료면 매각일 · 매각금액 */
   status_id?: number | null; status_name?: string | null; status_color?: string | null;
   sold_on?: string | null; sold_price?: number | null;
+  hold_reason?: string | null;   /** 보류 사유(0201) — 보류일 때만 */
   /** 살아 있는 광고(0191) — 노출 · 비노출과 기한 */
   ad_state?: "노출" | "비노출" | null; ad_expires?: string | null;
   /** 메모창 글을 이어 붙인 것 — 표 검색용 */

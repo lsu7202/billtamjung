@@ -173,11 +173,11 @@ export function UnifiedBuyerModal({ b, tab0, onClose, onSaved, onGoListing, onEd
         <div className="um-head">
           <b>{b.name}</b>
           <span className="um-stx" onClick={() => setStOpen(!stOpen)}>
-            <StatusBadge name={b.status_name} color={b.status_color} />
+            <StatusBadge name={b.status_name} color={b.status_color} reason={b.hold_reason} />
             {stOpen && (
               <span className="lx-rg-pop stx-pop" onClick={(e) => e.stopPropagation()}>
-                <StatusChips kind="buyer" value={b.status_id}
-                  onPick={(id) => { setStatus(b.id, id).then(onSaved); setStOpen(false); }} />
+                <StatusChips kind="buyer" value={b.status_id} reason={b.hold_reason}
+                  onPick={(id, extra) => { setStatus(b.id, id, extra).then(onSaved); setStOpen(false); }} />
               </span>
             )}
           </span>

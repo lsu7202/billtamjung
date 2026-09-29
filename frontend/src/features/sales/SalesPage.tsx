@@ -165,7 +165,7 @@ function Buyers({ rows, loading, onDone, focus, flipId, add, onGoListing }: {
                 b.grade ? gradeLabel(b.grade) : null,
                 b.active_proposals > 0 ? `매물 ${b.active_proposals}` : null]
                 .filter(Boolean).join(" · ")}</span>
-            <span className="ev"><StatusBadge name={b.status_name} color={b.status_color} /></span>
+            <span className="ev"><StatusBadge name={b.status_name} color={b.status_color} reason={b.hold_reason} /></span>
           </button>
         ))}
         {!hit.length && <div className="lt-none">찾는 사람이 없습니다</div>}
@@ -224,7 +224,7 @@ function BuyerProfile({ b, onDone, startFlipped, goListing }: {
         )}
         <div className="lt-chips">
           <span className="lt-stx" onClick={(e) => e.stopPropagation()}>
-            <StatusChips kind="buyer" value={b.status_id} onPick={(id) => setStatus(b.id, id).then(onDone)} /></span>
+            <StatusChips kind="buyer" value={b.status_id} reason={b.hold_reason} onPick={(id, extra) => setStatus(b.id, id, extra).then(onDone)} /></span>
           {b.phone && !b.phone_masked && (
             <a className="um-chip still num" style={{ textDecoration: "none" }}
               href={`tel:${b.phone.replace(/\D/g, "")}`}><i>전화</i>{formatPhone(b.phone)}</a>)}

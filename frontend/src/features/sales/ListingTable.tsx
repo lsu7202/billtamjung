@@ -419,12 +419,12 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
                     const b = (e.currentTarget as HTMLElement).getBoundingClientRect();
                     setStPop(stPop?.pk === r.building_pk ? null : { pk: r.building_pk, x: b.left, y: b.bottom });
                   }}>
-                    <StatusBadge name={r.status_name} color={r.status_color} />
+                    <StatusBadge name={r.status_name} color={r.status_color} reason={r.hold_reason} />
                     {stPop?.pk === r.building_pk && (
                       <span className="lx-rg-pop stx-pop" style={{ position: "fixed", left: stPop.x, top: stPop.y }}
                         onClick={(e) => e.stopPropagation()} onMouseLeave={() => setStPop(null)}>
-                        <StatusChips kind="listing" value={r.status_id} sold={{ sold_on: r.sold_on, sold_price: r.sold_price }}
-                          onPick={(id, sold) => { setStatus(r.building_pk, id, sold); setStPop(null); }} />
+                        <StatusChips kind="listing" value={r.status_id} reason={r.hold_reason} sold={{ sold_on: r.sold_on, sold_price: r.sold_price }}
+                          onPick={(id, extra) => { setStatus(r.building_pk, id, extra); setStPop(null); }} />
                       </span>
                     )}
                   </td>

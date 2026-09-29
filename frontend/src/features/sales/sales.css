@@ -1525,3 +1525,10 @@
 .stx-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .stx-chip { display: inline-flex; align-items: center; gap: 6px; }
 .stx-sold { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+/* 보류 사유 드롭다운(0201) — 칩 대신 세로 목록. 길어지지 않게 */
+.stx-menu { display: flex; flex-direction: column; min-width: 150px; max-height: 260px; overflow-y: auto; background: #FFFFFF;
+  border-radius: 10px; padding: 4px; box-shadow: 0 8px 24px rgba(15,26,46,.14), 0 0 0 1px #E5E8EB; flex-basis: 100%; max-width: 200px; }
+.stx-menu button { border: 0; background: none; text-align: left; font: inherit; font-size: 13px; color: #333D4B; padding: 7px 10px; border-radius: 7px; cursor: pointer; }
+.stx-menu button:hover { background: #F2F4F6; }
+.stx-menu button.on { color: #F04452; font-weight: 700; background: #FDEBEA; }
+.stx-menu button.dim { color: #8B95A1; }

@@ -107,7 +107,8 @@ async def del_status(sid: int, move_to: int | None = None, user: CurrentUser = D
             raise HTTPException(422, "옮길 상태가 이상합니다")
     async with tx() as con:
         tbl = "app.listings" if row["kind"] == "listing" else "app.buyers"
-        await con.execute(f"UPDATE {tbl} SET status_id=$2 WHERE status_id=$1", sid, move_to)
+        # 옮겨 가면 보류 사유는 새 상태에서 의미가 없다 — 비운다
+        await con.execute(f"UPDATE {tbl} SET status_id=$2, hold_reason=NULL WHERE status_id=$1", sid, move_to)
         await con.execute("DELETE FROM app.statuses WHERE id=$1", sid)
     return {"ok": True}
 
@@ -126,18 +127,31 @@ class ListingStatusIn(BaseModel):
     status_id: int | None = None
     sold_on: dt.date | None = None     # 완료일 때 — 매각일 · 매각금액(부기사 「매물상태변경」)
     sold_price: int | None = None
+    hold_reason: str | None = None     # 보류일 때 — 사유 하나(0201, hold_reason_listing 사전)
+
+
+async def _reason(kind: str, name: str | None, reason: str | None) -> str | None:
+    """보류일 때만 사유를 둔다. 사전(ref.enums hold_reason_*)에 없는 값은 422."""
+    if name != "보류" or not reason:
+        return None
+    ok = await pool().fetchval("SELECT 1 FROM ref.enums WHERE enum_key=$1 AND code=$2 AND active",
+                               f"hold_reason_{kind}", reason)
+    if not ok:
+        raise HTTPException(422, "보류 사유가 이상합니다")
+    return reason
 
 
 @router.put("/listings/{building_pk}/status")
 async def set_listing_status(building_pk: str, body: ListingStatusIn, user: CurrentUser = Depends(current_user)):
-    """상태를 고른다. 비우면 미지정. 완료가 아니면 매각일 · 매각금액은 지운다."""
+    """상태를 고른다. 비우면 미지정. 완료가 아니면 매각일 · 매각금액, 보류가 아니면 사유를 지운다."""
     name = await _own(body.status_id, user.team_id, "listing")
     done = name == "완료"
+    reason = await _reason("listing", name, body.hold_reason)
     n = await pool().execute(
-        """UPDATE app.listings SET status_id=$3, sold_on=$4, sold_price=$5, updated_at=now()
+        """UPDATE app.listings SET status_id=$3, sold_on=$4, sold_price=$5, hold_reason=$6, updated_at=now()
             WHERE building_pk=$1 AND team_id=$2""",
         building_pk, user.team_id, body.status_id,
-        body.sold_on if done else None, body.sold_price if done else None)
+        body.sold_on if done else None, body.sold_price if done else None, reason)
     if n.endswith(" 0"):
         raise HTTPException(404, "매물관리에 담긴 매물이 아닙니다")
     return {"ok": True}
@@ -145,14 +159,16 @@ async def set_listing_status(building_pk: str, body: ListingStatusIn, user: Curr
 
 class BuyerStatusIn(BaseModel):
     status_id: int | None = None
+    hold_reason: str | None = None     # 보류일 때 — hold_reason_buyer 사전
 
 
 @router.put("/buyers/{bid}/status")
 async def set_buyer_status(bid: int, body: BuyerStatusIn, user: CurrentUser = Depends(current_user)):
-    await _own(body.status_id, user.team_id, "buyer")
+    name = await _own(body.status_id, user.team_id, "buyer")
+    reason = await _reason("buyer", name, body.hold_reason)
     n = await pool().execute(
-        "UPDATE app.buyers SET status_id=$3, updated_at=now() WHERE id=$1 AND team_id=$2 AND deleted_at IS NULL",
-        bid, user.team_id, body.status_id)
+        "UPDATE app.buyers SET status_id=$3, hold_reason=$4, updated_at=now() WHERE id=$1 AND team_id=$2 AND deleted_at IS NULL",
+        bid, user.team_id, body.status_id, reason)
     if n.endswith(" 0"):
         raise HTTPException(404, "고객이 없습니다")
     return {"ok": True}

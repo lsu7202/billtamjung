@@ -76,7 +76,7 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
   const [openRow, setOpenRow] = useState<string | null>(null);
 
   /* 속성 줄 — 값만 보이고, 클릭하면 칩이 펼쳐지고, 고르면 접힌다 */
-  const erow = (key: string, label: string, curLabel: string | null | undefined, chips: ReactNode) => {
+  const erow = (key: string, label: string, curLabel: ReactNode, chips: ReactNode) => {
     const open = openRow === key;
     return (
       <div key={key} className={`eitem ${open ? "open" : ""}`}>
@@ -254,11 +254,11 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
           {isUrgent(r) && <span className="um-flag red">급매</span>}
           {r.exclusive && <span className="um-flag blue">전속</span>}
           <span className="um-stx" onClick={() => setStOpen(!stOpen)}>
-            <StatusBadge name={r.status_name} color={r.status_color} />
+            <StatusBadge name={r.status_name} color={r.status_color} reason={r.hold_reason} />
             {stOpen && (
               <span className="lx-rg-pop stx-pop" onClick={(e) => e.stopPropagation()}>
-                <StatusChips kind="listing" value={r.status_id} sold={{ sold_on: r.sold_on, sold_price: r.sold_price }}
-                  onPick={(id, sold) => { setStatus(pk, id, sold).then(onSaved); setStOpen(false); }} />
+                <StatusChips kind="listing" value={r.status_id} reason={r.hold_reason} sold={{ sold_on: r.sold_on, sold_price: r.sold_price }}
+                  onPick={(id, extra) => { setStatus(pk, id, extra).then(onSaved); setStOpen(false); }} />
               </span>
             )}
           </span>
@@ -352,6 +352,13 @@ export function UnifiedModal({ r, buyers, tab0, onClose, onSaved, onBuyer }: {
             {/* ── 정보 ── 가격 · 매수자(옛 계약 탭) → 매물 → 확인 → 관리(09-29). 요약 탭은 없앴다 */}
             {tab === "info" && (
               <div className="um-pane">
+                {/* 상태 — 누르면 칩. 보류는 사유 목록이 이어서 뜬다(0201) */}
+                <div className="tc um-offer">
+                  {erow("status", "상태",
+                    r.status_name ? <StatusBadge name={r.status_name} color={r.status_color} reason={r.hold_reason} /> : null,
+                    <StatusChips kind="listing" value={r.status_id} reason={r.hold_reason} sold={{ sold_on: r.sold_on, sold_price: r.sold_price }}
+                      onPick={(id, extra) => { setStatus(pk, id, extra).then(onSaved); setOpenRow(null); }} />)}
+                </div>
                 <div className="um-h">가격 · 매수자</div>
                 {lead?.picked_at && (
                   <div className="tc">
