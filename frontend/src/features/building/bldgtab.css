@@ -476,3 +476,16 @@
 /* 층별 정보(2026-09-27) — 업체 줄 오른쪽 업종 나무 · 업체 아래 대장 값 */
 .fl2-ti .cat{grid-column:3; justify-self:end; font-style:normal; font-size:12px; font-weight:500; color:#8B95A1; white-space:nowrap}
 .fl2-spec{margin-top:14px; padding-top:12px; border-top:1px solid #F2F4F6}
+
+/* 시장 호가 — 크롤링 매물(S05 §7). 층별 정보 · 임대 내역 카드 맨 아래, 접혀 있다 */
+.mk{margin:6px 20px 16px; border-top:1px solid #F0F2F4; padding-top:10px}
+.mk-h{border:0; background:#F2F4F6; border-radius:999px; padding:5px 12px; font:inherit; font-size:12.5px;
+  font-weight:600; color:#4E5968; cursor:pointer; display:inline-flex; align-items:center; gap:5px}
+.mk-h b{color:#191F28}
+.mk-h i{font-style:normal; color:#B0B8C1; transition:transform .15s}
+.mk-h.on i{transform:rotate(90deg)}
+.mk-t{margin-top:8px; font-size:12.5px}
+.mk-r{display:grid; grid-template-columns:40px 52px 72px 1fr 1fr 84px; gap:8px; padding:5px 2px; color:#333D4B;
+  border-bottom:1px solid #F7F8FA}
+.mk-r.hd{font-size:11.5px; color:#8B95A1; font-weight:600}
+.mk-r .d{color:#8B95A1}

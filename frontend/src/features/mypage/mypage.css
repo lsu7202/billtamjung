@@ -121,3 +121,18 @@
 .pw-go { height: 44px; border: 0; border-radius: 12px; background: #3182F6; color: #fff;
   font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; margin-top: 4px; }
 .pw-go:disabled { background: #E5E8EB; color: #B0B8C1; cursor: default; }
+
+/* 고객 쪽(09-29) — 칩 줄 · 새 알림 점 · 메모 */
+.mp .mp-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; padding: 10px 0; max-width: 72%; }
+.mp .orow.mp-open { min-height: 54px; height: auto; }
+.mp .mp-new { width: 7px; height: 7px; border-radius: 999px; background: #F04452; flex: 0 0 auto; margin-right: -4px; }
+.mp .mp-memo { font-style: normal; color: #4E5968; }
+.mp .mp-st { font-size: 13px; }
+.mp .mp-ctl.on { color: #3182F6; background: #EBF4FF; }
+/* 상태 판(0199) */
+.mp .mp-dot { width: 14px; height: 14px; border-radius: 999px; border: 0; cursor: pointer; flex: 0 0 auto; }
+.mp .mp-pal { display: flex; gap: 8px; padding: 4px 14px 12px 40px; }
+.mp .mp-pal button { width: 22px; height: 22px; border-radius: 999px; border: 2px solid #FFFFFF; box-shadow: 0 0 0 1px #E5E8EB; cursor: pointer; }
+.mp .mp-pal button.on { box-shadow: 0 0 0 2px #191F28; }
+.mp .mp-del { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px 14px 12px 40px; font-size: 13px; }
+.mp .mp-ctl[title="위로"] svg { transform: rotate(90deg); }

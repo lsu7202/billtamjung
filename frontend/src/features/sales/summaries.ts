@@ -23,7 +23,6 @@ export function buyerSummary(b: Buyer): { text: string; thin: boolean } {
   const ki = b.kindness === "친절" ? "응대가 부드럽습니다" : b.kindness === "불친절" ? "응대가 까다로운 편입니다" : "";
   if (co || ki) p.push([co, ki].filter(Boolean).join(" ") || co.replace(/이고$/, "적입니다"));
   let text = p[0] + (p.length > 1 ? " — " + p.slice(1).join(". ") : "") + ".";
-  if (b.activity === "휴면") text = "(휴면 — 오래 조용합니다) " + text;
   const thin = !age && !src && !b.grade && !b.cooperation && !b.kindness;
   return { text, thin };
 }

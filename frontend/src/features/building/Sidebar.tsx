@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listingsApi, buildingsApi, proposalsApi, schedulesApi } from "../../shared/api/endpoints";
-import { negoWord } from "../sales/words";
 import { MemoLog } from "../sales/draft/MemoLog";
 import { PickModal } from "../sales/PickModal";
 import { Loading } from "../../shared/ui/Spinner";
@@ -73,14 +72,13 @@ function BuyersTab({ pk }: { pk: string }) {
           {list.map((p) => {
             const days = Math.round((Date.now() - new Date(p.updated_at).getTime()) / 86400000);
             return (
-              <button key={p.id} className={`btab-row ${p.stop_id || p.dropped_at ? "off" : ""}`}
-                onClick={() => nav(`/sales?buyer=${p.buyer_id}`)} title="거래에서 보기">
+              <button key={p.id} className={`btab-row ${p.dropped_at ? "off" : ""}`}
+                onClick={() => nav(`/customers?buyer=${p.buyer_id}`)} title="거래에서 보기">
                 <b>{p.buyer_name}</b>
                 {p.buyer_grade && <span className="g">{gradeLabel(p.buyer_grade)}</span>}
-                <span className={`pp-st s-${negoWord(p)}`}>{negoWord(p)}</span>
+                {p.picked_at && <span className="pp-st">채택</span>}
                 {p.hope_price != null && <span className="dim2 num" style={{ fontSize: 11 }}>희망 {Math.round(p.hope_price / 1e8)}억</span>}
                 <span className="sp" />
-                {p.stop_reason && <span className="rj">{p.stop_reason}</span>}
                 <span className="d">{days === 0 ? "오늘" : `${days}일 전`}</span>
               </button>
             );
@@ -115,13 +113,8 @@ function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unkno
   // 나대지(P+pnu)는 건물 상세가 없다 — 부르면 404 를 조용히 삼키고 「—」만 섰다(감사 2026-09-17)
   const building = useQuery({ queryKey: ["building", pk], queryFn: () => buildingsApi.get(pk), enabled: !pk.startsWith("P") });
   const props = useQuery({ queryKey: ["proposals", "pk", pk], queryFn: () => proposalsApi.list({ building_pk: pk }) });
-  // 이 매물의 지금 = 살아 있는 짝들 중 **가장 앞선 합의 단계**(0142·업무탭 매물 줄과 같은 규칙)
-  const topWord = (() => {
-    const alive = (props.data ?? []).filter((p) => !p.dropped_at);
-    if (!alive.length) return null;
-    const top = alive.reduce((a, x) => ((x.nego ?? 0) > (a.nego ?? 0) ? x : a));
-    return negoWord(top);
-  })();
+  // 이 매물의 지금 = 사람이 고른 상태(0199 — 자동 판정 엔진 삭제)
+  const topWord = (listing?.status_name as string | null | undefined) ?? null;
   // 다음 일정 — 「내일 만나기로 했나?」를 보려고 업무로 나가야 했다(2026-08-26).
   // 일정 조회에 매물 필터가 없어 앞으로 두 달치를 받아 여기서 거른다(캘린더와 같은 캐시를 탄다).
   const today = new Date().toISOString().slice(0, 10);
@@ -183,7 +176,7 @@ function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unkno
         <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--signal-bg)", display: "grid", placeItems: "center" }}><Icon name="building" size={24} /></div>
         <div style={{ fontWeight: 700, fontSize: 15 }}>아직 거래에 담지 않은 매물입니다</div>
         <p style={{ color: "var(--muted)", fontSize: 12.5, lineHeight: 1.6, margin: 0, maxWidth: 240 }}>
-          업무 탭에서 등록하면 담당자로 지정되고 소유자·매수자 관리가 열립니다.</p>
+          매물관리에서 등록하면 담당자로 지정되고 소유자·매수자 관리가 열립니다.</p>
         <button className="btn primary" style={{ padding: "9px 20px", fontSize: 14 }} onClick={goTrade}>
           거래에서 등록 →</button>
       </div>
@@ -212,7 +205,7 @@ function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unkno
 
       <div className="sb-g">
         {nextSched && (
-          <button className="sb-r act" onClick={goTrade} title="업무에서 이 일정을 엽니다">
+          <button className="sb-r act" onClick={goTrade} title="매물관리에서 이 일정을 엽니다">
             <span className="l">다음 일정</span>
             {/* 제목에서 주소를 뗀다 — 「계약 — 삼성동 147-4」의 뒷부분은 이 화면이 이미 아는 것이라
                 그대로 두면 줄이 접힌다. 앞의 낱말(계약·현장·통화)만 있으면 무슨 약속인지 안다. */}
@@ -291,7 +284,7 @@ function SellerTab({ pk, listing }: { pk: string; listing?: Record<string, unkno
       {/* 최근 기록 한 줄은 메모 탭이 받는다 — 같은 장부(contacts)를 두 탭에서 두 번 보일 이유가 없다 */}
 
       {/* 고치는 문은 맨 아래 하나 — 값들을 다 읽고 나서 여는 문이라 읽는 흐름의 끝이 제자리다 */}
-      <button className="sb-go" onClick={goTrade}>업무에서 관리 →</button>
+      <button className="sb-go" onClick={goTrade}>매물관리에서 보기 →</button>
     </div>
   );
 }

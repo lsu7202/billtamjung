@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { authApi } from "../../shared/api/endpoints";
 import { useAuth } from "../../shared/store/auth";
 import { TermsModal } from "./Terms";
+import { Segmented } from "../../shared/ui/Segmented";
 
 /** S00 로그인/가입 — C3 확정안(2026-08-05): 좌 테라코타 시그니처 패널(마크·폼) · 우 호버 필지 도면.
  * 가입=이름(실명)·성별·이메일·비번·동의 3종 → /welcome 온보딩. 소셜 버튼은 비즈앱 심사 전 숨김. */
@@ -34,6 +35,8 @@ export function LoginPage() {
   const [tab, setTab] = useState<"login" | "signup">("login");
   const [form, setForm] = useState({ email: "", password: "", name: "" });
   const [gender, setGender] = useState("");
+  // 계정 종류(S05 §1) — 중개사는 매물관리 시스템까지, 고객은 탐색 · 문의 · 관심(대표 09-29 3묶음)
+  const [kind, setKind] = useState<"중개사" | "고객">("중개사");
   const [agree, setAgree] = useState({ terms: false, privacy: false, marketing: false });
   const [remember, setRemember] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -72,13 +75,14 @@ export function LoginPage() {
         ? await authApi.login({ email: form.email, password: form.password, remember })
         : await authApi.signup({
             email: form.email, password: form.password, name: form.name,
-            gender: gender || undefined,
+            gender: gender || undefined, kind,
             terms_agreed: agree.terms, privacy_agreed: agree.privacy, marketing_agreed: agree.marketing,
           });
       setAuth(res.access_token, res.tier);
-      if (tab === "signup") { nav("/welcome", { replace: true }); return; }   // 가입 → 온보딩(질문 수집)
+      // 고객은 중개사 온보딩(직군 · 사무소 질문)을 건너뛰고 마이페이지 프로필로 — 의사 · 이해도를 적게
+      if (tab === "signup") { nav(kind === "고객" ? "/mypage" : "/welcome", { replace: true }); return; }
       const me = await authApi.me().catch(() => null);
-      nav(me && !me.job_role ? "/welcome" : dest, { replace: true });          // 미완 프로필 → 온보딩
+      nav(me && me.kind !== "고객" && !me.job_role ? "/welcome" : dest, { replace: true });   // 미완 프로필 → 온보딩
     } catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -115,6 +119,10 @@ export function LoginPage() {
           </div>}
 
           <div style={{ display: "grid", gap: 9 }}>
+            {tab === "signup" && (
+              <Segmented value={kind} onChange={setKind} style={{ width: "100%" }}
+                options={[{ value: "중개사", label: "중개사" }, { value: "고객", label: "고객" }]} />
+            )}
             {tab === "signup" && (
               <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 8 }}>
                 <input className="input" style={inp} placeholder="이름 (실명)" value={form.name} onChange={on("name")} required />

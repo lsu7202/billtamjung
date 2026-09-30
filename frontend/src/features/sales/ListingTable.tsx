@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { listingsApi, proposalsApi, salesApi, type Seller } from "../../shared/api/endpoints";
+import { contactsApi, listingsApi, proposalsApi, salesApi, savedApi, searchApi, statusesApi, type Seller } from "../../shared/api/endpoints";
+import { condRequest, FilterModal, type Values, type RegionPick } from "../search/FilterModal";
 import { md, shortAddr, wonAcc } from "../../shared/format";
 import { Loading } from "../../shared/ui/Spinner";
 import { Icon } from "../../shared/ui/Icon";
 import { useEnums } from "../../shared/hooks/useEnums";
 import { openDetail } from "../../shared/map/geo";
 import { useAuth } from "../../shared/store/auth";
-import { stateWord, isUrgent } from "./listingWord";
+import { isUrgent } from "./listingWord";
+import { StatusBadge, StatusChips, useStatuses, useSetListingStatus } from "./Status";
 import { ListingModal } from "./ListingModal";
 import { UnifiedModal, type UniTab } from "./draft/UnifiedModal";
 import { useTradeCtx } from "./tradeCtx";
@@ -23,8 +25,31 @@ import "./draft/salestab.css";
  * 확인일 = 사람이 이 매물에 남긴 마지막 기록의 날(listings.checked_on, 0182).
  * 대시보드 「재통화」와 같은 기준(7일)이라, 넘으면 빨강이다. */
 
-type Lane = "own" | "watch" | "done";
-type SortKey = "listing_no" | "addr" | "size" | "price" | "rent" | "roi" | "checked_on" | "next";
+/** 상태(0199) — 사무소가 만든 상태(부기사). 거르기 값은 상태 id, "none" 은 미지정. 자동 판정은 없다 */
+type St = number | "none";
+/** 확인일 구간(2026-09-28) — 부기사 「수정일 확인」. 색을 늘리지 않고 필터로 찾는다 */
+type Chk = "m1" | "m3" | "m6" | "old" | "none";
+const CHK: [Chk, string][] = [["m1", "1개월 안"], ["m3", "1~3개월"], ["m6", "3~6개월"], ["old", "6개월 넘음"], ["none", "기록 없음"]];
+const chkOf = (d: number | null): Chk =>
+  d == null ? "none" : d <= 30 ? "m1" : d <= 90 ? "m3" : d <= 180 ? "m6" : "old";
+type SortKey = "received_on" | "updated_at" | "listing_no" | "addr" | "size" | "price" | "rent" | "roi" | "checked_on" | "next";
+/** 정렬 pill 의 목록 — 부기사 탭(등록일·수정일·가격·면적·매물번호)에 우리 열(수익률·확인일)을 더했다 */
+const SORTS: [SortKey, string][] = [["received_on", "등록일"], ["updated_at", "수정일"], ["listing_no", "매물번호"],
+  ["price", "금액"], ["size", "면적"], ["roi", "수익률"], ["checked_on", "확인일"]];
+type RangeKey = "price" | "land" | "total";
+type Range = [number | null, number | null];
+/** 범위 거르기 — 입력 단위(억·평)와 저장 단위(원·㎡) 사이 환산 */
+const RANGES: { k: RangeKey; label: string; unit: string; of: (r: Seller) => number | null | undefined; per: number }[] = [
+  { k: "price", label: "금액", unit: "억", of: (r) => r.list_price, per: 1e8 },
+  { k: "land", label: "대지", unit: "평", of: (r) => r.land_area, per: 3.305785 },
+  { k: "total", label: "연면적", unit: "평", of: (r) => r.total_area, per: 3.305785 },
+];
+/** 주소 「서울특별시 강남구 삼성동 158-19번지」 → [구, 동] */
+const regionOf = (addr: string | null | undefined): [string | null, string | null] => {
+  const p = (addr ?? "").split(" ");
+  return [p[1] || null, p[2] || null];
+};
+const ko = (a: string, b: string) => a.localeCompare(b, "ko");
 const RECALL_DAYS = 7;          // backend buyers.RECALL_DAYS 와 같은 값
 
 const daysSince = (d: string | null | undefined) =>
@@ -37,6 +62,43 @@ const floorsOf = (r: Seller) => {
   if (!a && !b) return null;
   return `${b ? `B${b}~` : ""}${a}F`;
 };
+
+/** 필터 이름 pill — 누르면 아래에 선택지가 펼쳐지고, 밖을 누르면 닫힌다(2026-09-27 대표).
+ *  고른 값이 있으면 이름 옆에 그 값을 적고 파랑으로 선다 */
+function Pop({ label, val, open, onToggle, onClose, children }: {
+  label: string; val: string | null; open: boolean;
+  onToggle: () => void; onClose: () => void; children: React.ReactNode;
+}) {
+  return (
+    <span className="lx-rg" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) onClose(); }}>
+      <button className={`um-chip lx-pn ${val ? "on" : ""} ${open ? "open" : ""}`} onClick={onToggle}>
+        {label}{val && <b>{val}</b>}<i>▾</i></button>
+      {open && (
+        <span className="lx-rg-pop lx-pop" tabIndex={-1}
+          onKeyDown={(e) => { if (e.key === "Escape" || (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT")) onClose(); }}>
+          {children}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** 범위 입력 — 빈 칸은 한쪽이 열린 범위 */
+function RangeBody({ unit, v, onChange }: { unit: string; v: Range; onChange: (v: Range) => void }) {
+  const num = (t: string) => { const x = parseFloat(t.replace(/,/g, "")); return Number.isFinite(x) ? x : null; };
+  return (
+    <span className="lx-rgin">
+      <input autoFocus inputMode="decimal" defaultValue={v[0] ?? ""} placeholder="최소"
+        onChange={(e) => onChange([num(e.target.value), v[1]])} />
+      <span>~</span>
+      <input inputMode="decimal" defaultValue={v[1] ?? ""} placeholder="최대"
+        onChange={(e) => onChange([v[0], num(e.target.value)])} />
+      <span>{unit}</span>
+    </span>
+  );
+}
+const rangeTxt = (v: Range, unit: string) =>
+  v[0] == null && v[1] == null ? null : `${v[0]?.toLocaleString() ?? ""}~${v[1]?.toLocaleString() ?? ""}${unit}`;
 
 /** 표 썸네일 — 사진은 인증을 거쳐 받는다(blob). 목록이 준 대표 사진 id 하나만 */
 function Thumb({ pk, id }: { pk: string; id: number | null | undefined }) {
@@ -65,32 +127,77 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
   useEffect(() => { if (focus) setOpen({ pk: focus, tab: focusTab }); }, [focus, focusTab]);
   useEffect(() => { touchPk(open?.pk ?? null); }, [open?.pk]);
   const [q, setQ] = useState("");
-  const [lane, setLane] = useState<Lane>("own");
+  const [st, setSt] = useState<St | null>(null);
   const [who, setWho] = useState<number | null>(null);          // 담당 거르기
   const [major, setMajor] = useState<string | null>(null);      // 대분류 거르기
   const [kind, setKind] = useState<string | null>(null);        // 소분류 거르기
-  const [flag, setFlag] = useState<null | "urgent" | "exclusive">(null);
-  const [sort, setSort] = useState<{ k: SortKey; asc: boolean } | null>(null);
+  const [flag, setFlag] = useState<null | "urgent" | "exclusive" | "ad">(null);
+  const statuses = useStatuses("listing");
+  const setStatus = useSetListingStatus();
+  // 상태를 고치는 줄 — 표 상자가 가로 스크롤이라 아래 줄에서 칩이 잘린다. 화면 좌표에 띄운다
+  const [stPop, setStPop] = useState<{ pk: string; x: number; y: number } | null>(null);
+  const [gu, setGu] = useState<string | null>(null);           // 지역 — 구, 고르면 동이 열린다
+  const [dong, setDong] = useState<string | null>(null);
+  const [grade, setGrade] = useState<string | null>(null);
+  const [pvm, setPvm] = useState<string | null>(null);         // 시세대비
+  const [ranges, setRanges] = useState<Record<RangeKey, Range>>({ price: [null, null], land: [null, null], total: [null, null] });
+  const [pop, setPop] = useState<string | null>(null);
+  const [chk, setChk] = useState<Chk | null>(null);            // 확인일 구간
+  const [sel, setSel] = useState<Set<string>>(new Set());      // 이관할 줄
+  const [busy, setBusy] = useState(false);         // 펼친 필터 하나
+  // 기본 정렬 = 등록일 최신(부기사 기본). 열 머리와 정렬 pill 이 같은 값을 바꾼다
+  const [sort, setSort] = useState<{ k: SortKey; asc: boolean }>({ k: "received_on", asc: false });
+  const [sortOpen, setSortOpen] = useState(false);
   const [add, setAdd] = useState(false);
+  // 저장한 조건(대표 09-29) — 탐색에서 저장한 검색 조건을 골라 우리 매물 중 맞는 것만 본다.
+  // 거르기는 탐색과 같은 검색 엔진이 한다(/search/pins · 우리 팀 매물). 표의 다른 필터와 겹쳐 걸린다
+  const savedQ = useQuery({ queryKey: ["saved"], queryFn: savedApi.list });
+  const [cond, setCond] = useState<{ id: number; name: string } | null>(null);
+  const condC = savedQ.data?.find((c) => c.id === cond?.id) ?? null;
+  // 필터(09-29) — 탐색과 같은 필터 창을 열어 그 자리에서 건 조건. 저장한 조건과 같은 길로 거른다(둘 중 하나만)
+  const [adhoc, setAdhoc] = useState<{ values: Values; regions: RegionPick[]; polygon: object | null; filters: Record<string, unknown> } | null>(null);
+  const [showFilter, setShowFilter] = useState(false);
+  const condJson: Record<string, unknown> | null = condC ? condC.conditions_json : adhoc;
+  const condPins = useQuery({
+    queryKey: ["condPins", cond?.id ?? null, adhoc ? JSON.stringify(adhoc) : null],
+    queryFn: () => searchApi.pins({ ...condRequest(condJson!, members.data ?? []), tab: "ad", chip: "mine", for_model: true }),
+    enabled: !!condJson,
+  });
+  const condSet = useMemo(() => (condPins.data ? new Set(condPins.data.map((p) => p.building_pk)) : null), [condPins.data]);
 
   const list = rows.data ?? [];
   const nameOf = (id: number | null | undefined) => members.data?.find((m) => m.account_id === id)?.name ?? null;
-  const sold = list.filter((r) => r.s6_match);
-  const owned = list.filter((r) => r.has_owner && !r.s6_match);
-  const watched = list.filter((r) => !r.has_owner && !r.s6_match);
-  const laneRows = lane === "own" ? owned : lane === "watch" ? watched : sold;
+  const laneRows = list.filter((r) => (st == null ? true : st === "none" ? r.status_id == null : r.status_id === st));
 
   const shown = useMemo(() => {
     const t = q.trim();
+    const inRange = (r: Seller) => RANGES.every(({ k, of, per }) => {
+      const [lo, hi] = ranges[k];
+      if (lo == null && hi == null) return true;
+      const x = of(r);
+      if (x == null) return false;              // 모르는 값은 범위를 걸면 빠진다
+      return (lo == null || x >= lo * per) && (hi == null || x <= hi * per);
+    });
     let out = laneRows.filter((r) =>
-      (!t || (r.addr ?? "").includes(t) || (r.owner_name ?? "").includes(t) || (r.listing_no ?? "").includes(t))
+      (condJson == null || (condSet != null && condSet.has(r.building_pk)))
+      && (!t || [r.addr, r.owner_name, r.listing_no, nameOf(r.assignee_account_id), r.memo_text]
+        .some((x) => (x ?? "").includes(t)))
       && (who == null || r.assignee_account_id === who)
+      && (gu == null || regionOf(r.addr)[0] === gu)
+      && (dong == null || regionOf(r.addr)[1] === dong)
       && (major == null || r.building_major === major)
       && (kind == null || (r.building_use ?? []).includes(kind))
-      && (flag == null || (flag === "urgent" ? isUrgent(r) : r.exclusive === true)));
-    if (sort) {
+      && (grade == null || r.grade === grade)
+      && (pvm == null || r.price_vs_market === pvm)
+      && (flag == null || (flag === "urgent" ? isUrgent(r)
+        : flag === "ad" ? r.ad_state === "노출" : r.exclusive === true))
+      && (chk == null || chkOf(daysSince(r.checked_on)) === chk)
+      && inRange(r));
+    {
       const v = (r: Seller): string | number | null =>
-        sort.k === "listing_no" ? r.listing_no
+        sort.k === "received_on" ? r.received_on
+        : sort.k === "updated_at" ? r.updated_at
+        : sort.k === "listing_no" ? r.listing_no
           : sort.k === "addr" ? r.addr
             : sort.k === "size" ? r.total_area ?? r.land_area
               : sort.k === "price" ? r.list_price ?? null
@@ -109,14 +216,24 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
       });
     }
     return out;
-  }, [laneRows, q, who, major, kind, flag, sort]);
+  }, [laneRows, condJson, condSet, q, who, gu, dong, major, kind, grade, pvm, flag, chk, ranges, sort, members.data]);   // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 지역 칩 — 이 갈래에 실제로 있는 구·동만
+  const gus = useMemo(() => [...new Set(laneRows.map((r) => regionOf(r.addr)[0]).filter(Boolean) as string[])].sort(ko), [laneRows]);
+  const dongs = useMemo(() => gu == null ? [] : [...new Set(laneRows.filter((r) => regionOf(r.addr)[0] === gu)
+    .map((r) => regionOf(r.addr)[1]).filter(Boolean) as string[])].sort(ko), [laneRows, gu]);
+  const anyFilter = cond != null || adhoc != null || chk != null || st != null || who != null || gu != null || major != null || kind != null || grade != null || pvm != null
+    || flag != null || Object.values(ranges).some(([a, b]) => a != null || b != null);
+  const reset = () => {
+    setCond(null); setAdhoc(null); setChk(null); setSt(null); setWho(null); setGu(null); setDong(null); setMajor(null); setKind(null); setGrade(null); setPvm(null);
+    setFlag(null); setRanges({ price: [null, null], land: [null, null], total: [null, null] });
+  };
   const cur = list.find((r) => r.building_pk === open?.pk) ?? null;
   const unknown = open && !rows.isLoading && !cur ? open.pk : null;   // 아직 안 담은 건물로 넘어왔다
 
-  // 다른 화면에서 넘어온 건물이 반대 갈래에 있으면 그 갈래로 옮겨 준다
   useEffect(() => {
-    if (cur) setLane(cur.s6_match ? "done" : cur.has_owner ? "own" : "watch");
+    // 다른 화면에서 넘어온 매물이 지금 상태 필터에 가려 있으면 풀어 준다
+    if (cur && laneRows.every((r) => r.building_pk !== cur.building_pk)) setSt(null);
   }, [cur?.building_pk, cur?.has_owner]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // 모달을 보는 동안 대화창의 대상 = 이 매물
@@ -127,6 +244,30 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
       building_pk: cur.building_pk, addr: cur.addr });
   }, [cur?.building_pk, cur?.owner_id, setCtx]);   // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 오늘 확인 — 장부에 「확인」 한 줄. 확인일은 그 줄에서 저절로 선다(0182 트리거)
+  const markChecked = async (pk: string) => {
+    await contactsApi.create({ target_type: "listing", target_id: pk, kind: "확인", note: "확인" });
+    rows.refetch();
+    qc.invalidateQueries({ queryKey: ["contacts"] });
+  };
+  // 고른 줄을 한꺼번에 고친다(부기사 「선택 → 변경」, 09-29) — 담당 · 상태 · 매물 칸(유형 · 소분류 · 등급 · 입지 · 노후도 · 전속).
+  // 고른 채로 둔다 — 한 번에 여러 칸을 고치는 일이 흔하다. ✕ 로 푼다
+  const [bpop, setBpop] = useState<string | null>(null);
+  const bulk = async (fn: (pk: string) => Promise<unknown>) => {
+    setBusy(true);
+    try { await Promise.all([...sel].map(fn)); }
+    finally { setBusy(false); }
+    setBpop(null);
+    rows.refetch();
+    qc.invalidateQueries({ queryKey: ["statuses", "listing"] });
+  };
+  const transfer = (to: number) => bulk((pk) => listingsApi.claim(pk, to));
+  const bulkField = (field: string, v: string | boolean | null) => bulk((pk) => listingsApi.patchBiz(pk, { [field]: v }));
+  const toggleSel = (pk: string) => setSel((s0) => {
+    const s1 = new Set(s0);
+    if (s1.has(pk)) s1.delete(pk); else s1.add(pk);
+    return s1;
+  });
   const refresh = () => {
     rows.refetch();
     qc.invalidateQueries({ queryKey: ["contacts"] });
@@ -135,9 +276,9 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
   };
 
   const th = (k: SortKey | null, label: string, cls = "") => (
-    <th className={`${cls} ${k ? "s" : ""} ${sort?.k === k ? "on" : ""}`}
-      onClick={k ? () => setSort((s) => (s?.k === k ? (s.asc ? { k, asc: false } : null) : { k, asc: true })) : undefined}>
-      {label}{k && sort?.k === k && <i>{sort.asc ? "↑" : "↓"}</i>}
+    <th className={`${cls} ${k ? "s" : ""} ${sort.k === k ? "on" : ""}`}
+      onClick={k ? () => setSort((s) => (s.k === k ? { k, asc: !s.asc } : { k, asc: true })) : undefined}>
+      {label}{k && sort.k === k && <i>{sort.asc ? "↑" : "↓"}</i>}
     </th>
   );
   const chip = (on: boolean, label: string, onClick: () => void, n?: number) => (
@@ -149,32 +290,116 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
   return (
     <div className="lx">
       <div className="lx-bar">
-        {chip(lane === "own", "매물", () => setLane("own"), owned.length)}
-        {chip(lane === "watch", "관심", () => setLane("watch"), watched.length)}
-        {chip(lane === "done", "계약", () => setLane("done"), sold.length)}
-        <input className="lt-q lx-q" value={q} placeholder="주소 · 소유자 · 매물번호"
+        <input className="lt-q lx-q" value={q} placeholder="주소 · 소유자 · 매물번호 · 담당 · 메모"
           onChange={(e) => setQ(e.target.value)} />
+        {(() => {
+          const pp = (key: string, label: string, val: string | null, body: React.ReactNode) => (
+            <Pop key={key} label={label} val={val} open={pop === key}
+              onToggle={() => setPop(pop === key ? null : key)} onClose={() => setPop((o) => (o === key ? null : o))}>
+              {body}
+            </Pop>
+          );
+          const labOf = (k: string, c: string | null) => (c == null ? null : options(k).find((o) => o.code === c)?.label ?? c);
+          const flagTxt = { urgent: "급매", exclusive: "전속", ad: "광고 중" } as const;
+          const mem = members.data ?? [];
+          return <>
+            {/* 필터 — 탐색과 같은 필터 창. 건 조건 수가 이름 옆에 선다 */}
+            <button className={`um-chip lx-pn ${adhoc ? "on" : ""}`} onClick={() => setShowFilter(true)}>
+              <Icon name="filter" size={12} />필터{adhoc ? ` ${Object.keys(adhoc.values).length + (adhoc.regions.length ? 1 : 0) + (adhoc.polygon ? 1 : 0)}` : ""}</button>
+            {(savedQ.data ?? []).length > 0 && pp("cond", "저장한 조건", cond?.name ?? null,
+              (savedQ.data ?? []).map((c) => chip(cond?.id === c.id, c.name,
+                () => { setAdhoc(null); setCond(cond?.id === c.id ? null : { id: c.id, name: c.name }); })))}
+            {pp("st", "상태", st === "none" ? "미지정" : (statuses.data ?? []).find((x) => x.id === st)?.name ?? null, <>
+              {(statuses.data ?? []).map((x) => chip(st === x.id, x.name, () => setSt(st === x.id ? null : x.id),
+                list.filter((r) => r.status_id === x.id).length))}
+              {chip(st === "none", "미지정", () => setSt(st === "none" ? null : "none"), list.filter((r) => r.status_id == null).length)}
+            </>)}
+            {pp("chk", "확인일", CHK.find(([k]) => k === chk)?.[1] ?? null,
+              CHK.map(([k, l]) => chip(chk === k, l, () => setChk(chk === k ? null : k),
+                laneRows.filter((r) => chkOf(daysSince(r.checked_on)) === k).length)))}
+            {mem.length > 1 && pp("who", "담당", nameOf(who),
+              mem.map((m) => chip(who === m.account_id, m.name, () => setWho(who === m.account_id ? null : m.account_id))))}
+            {gus.length > 0 && pp("region", "지역", gu ? `${gu}${dong ? ` ${dong}` : ""}` : null, <>
+              <span className="lx-pr">{gus.map((g) => chip(gu === g, g, () => { setGu(gu === g ? null : g); setDong(null); }))}</span>
+              {dongs.length > 0 && <span className="lx-pr">{dongs.map((d) => chip(dong === d, d, () => setDong(dong === d ? null : d)))}</span>}
+            </>)}
+            {pp("major", "매물 유형", labOf("building_major", major),
+              options("building_major").map((o) => chip(major === o.code, o.label, () => setMajor(major === o.code ? null : o.code))))}
+            {pp("kind", "소분류", labOf("building_use", kind),
+              options("building_use").map((o) => chip(kind === o.code, o.label, () => setKind(kind === o.code ? null : o.code))))}
+            {pp("flag", "여부", flag ? flagTxt[flag] : null,
+              (Object.keys(flagTxt) as (keyof typeof flagTxt)[]).map((f) => chip(flag === f, flagTxt[f], () => setFlag(flag === f ? null : f))))}
+            {pp("grade", "등급", labOf("grade", grade),
+              options("grade").map((o) => chip(grade === o.code, o.label, () => setGrade(grade === o.code ? null : o.code))))}
+            {pp("pvm", "시세대비", labOf("price_vs_market", pvm),
+              options("price_vs_market").map((o) => chip(pvm === o.code, o.label, () => setPvm(pvm === o.code ? null : o.code))))}
+            {RANGES.map(({ k, label, unit }) => pp(k, label, rangeTxt(ranges[k], unit),
+              <RangeBody unit={unit} v={ranges[k]} onChange={(v) => setRanges((m) => ({ ...m, [k]: v }))} />))}
+            {anyFilter && <button className="lx-ic lx-reset" title="거르기 지움" onClick={reset}><Icon name="reset" size={13} /></button>}
+          </>;
+        })()}
         <span className="sp" />
+        <span className="lx-rg" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setSortOpen(false); }}>
+          <button className="lx-sort" onClick={() => setSortOpen(!sortOpen)}>
+            {SORTS.find(([k]) => k === sort.k)?.[1] ?? { addr: "주소", rent: "임대", next: "다음 일정" }[sort.k as string]}
+            <i>{sort.asc ? "↑" : "↓"}</i></button>
+          {sortOpen && (
+            <span className="lx-rg-pop lx-sort-pop">
+              {SORTS.map(([k, l]) => chip(sort.k === k, sort.k === k ? `${l} ${sort.asc ? "↑" : "↓"}` : l,
+                () => setSort((s) => (s.k === k ? { k, asc: !s.asc } : { k, asc: k === "listing_no" }))))}
+            </span>
+          )}
+        </span>
         <button className="lt-add" title="매물 등록" onClick={() => setAdd(true)}>
           <Icon name="plus" size={14} /></button>
       </div>
-      <div className="lx-filt">
-        {(members.data ?? []).length > 1 && (members.data ?? []).map((m) =>
-          chip(who === m.account_id, m.name, () => setWho(who === m.account_id ? null : m.account_id)))}
-        {(members.data ?? []).length > 1 && <span className="lx-div" />}
-        {options("building_major").map((o) =>
-          chip(major === o.code, o.label, () => setMajor(major === o.code ? null : o.code)))}
-        <span className="lx-div" />
-        {options("building_use").map((o) =>
-          chip(kind === o.code, o.label, () => setKind(kind === o.code ? null : o.code)))}
-        <span className="lx-div" />
-        {chip(flag === "urgent", "급매", () => setFlag(flag === "urgent" ? null : "urgent"))}
-        {chip(flag === "exclusive", "전속", () => setFlag(flag === "exclusive" ? null : "exclusive"))}
-      </div>
-
-      <div className="lx-wrap">
+      {showFilter && (
+        <FilterModal initialValues={adhoc?.values} initialRegions={adhoc?.regions} initialPolygon={adhoc?.polygon ?? null}
+          onApply={(r) => {
+            const empty = !Object.keys(r.values).length && !r.regions.length && !r.polygon;
+            setCond(null);
+            setAdhoc(empty ? null : { values: r.values, regions: r.regions, polygon: r.polygon ?? null, filters: r.filters as Record<string, unknown> });
+          }}
+          onClose={() => setShowFilter(false)} />
+      )}
+      {sel.size > 0 && (
+        <div className="lx-selbar">
+          <b>{sel.size}건</b><span>한꺼번에 바꾸기</span>
+          {(() => {
+            const bp = (key: string, label: string, body: React.ReactNode) => (
+              <Pop key={key} label={label} val={null} open={bpop === key}
+                onToggle={() => setBpop(bpop === key ? null : key)} onClose={() => setBpop((o) => (o === key ? null : o))}>{body}</Pop>
+            );
+            const opt = (field: string, enumKey: string) => options(enumKey).map((o) =>
+              <button key={o.code} className="um-chip" disabled={busy} onClick={() => bulkField(field, o.code)}>{o.label}</button>);
+            return <>
+              {bp("who", "담당", (members.data ?? []).map((m) =>
+                <button key={m.account_id} className="um-chip" disabled={busy} onClick={() => transfer(m.account_id)}>{m.name}</button>))}
+              {bp("st", "상태", <StatusChips kind="listing" value={null}
+                onPick={(id, extra) => bulk((pk) => statusesApi.setListing(pk, { status_id: id, ...(extra ?? {}) }))} />)}
+              {bp("major", "매물 유형", opt("building_major", "building_major"))}
+              {/* 소분류는 여럿 — 고른 것을 **더한다**(이미 있는 소분류는 그대로) */}
+              {bp("kind", "소분류 더하기", options("building_use").map((o) =>
+                <button key={o.code} className="um-chip" disabled={busy} onClick={() => bulk((pk) => {
+                  const cur = list.find((r) => r.building_pk === pk)?.building_use ?? [];
+                  return cur.includes(o.code) ? Promise.resolve() : listingsApi.patchBiz(pk, { building_use: [...cur, o.code] });
+                })}>{o.label}</button>))}
+              {bp("grade", "등급", opt("grade", "grade"))}
+              {bp("ipji", "입지", opt("ipji", "ipji"))}
+              {bp("nohudo", "노후도", opt("nohudo", "nohudo"))}
+              {bp("excl", "전속", <>
+                <button className="um-chip" disabled={busy} onClick={() => bulkField("exclusive", true)}>전속</button>
+                <button className="um-chip" disabled={busy} onClick={() => bulkField("exclusive", false)}>일반</button></>)}
+            </>;
+          })()}
+          <span className="sp" />
+          <button className="lx-ic on" title="선택 해제" onClick={() => setSel(new Set())}><Icon name="close" size={13} /></button>
+        </div>
+      )}
+      <div className={`lx-wrap ${sel.size ? "selecting" : ""}`}>
         <table className="lx-t">
           <thead><tr>
+            {th(null, "", "c-sel")}
             {th(null, "", "c-ph")}
             {th("listing_no", "매물번호", "c-no")}
             {th("addr", "주소")}
@@ -192,15 +417,18 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
           </tr></thead>
           <tbody>
             {shown.map((r) => {
-              const word = stateWord(r);
               const age = daysSince(r.checked_on);
-              const stale = !r.s6_match && age != null && age > RECALL_DAYS;
+              const stale = r.status_name !== "완료" && age != null && age > RECALL_DAYS;
               const kinds = [
                 ...(r.building_major ? [options("building_major").find((o) => o.code === r.building_major)?.label ?? r.building_major] : []),
                 ...(r.building_use ?? []).map((c) => options("building_use").find((o) => o.code === c)?.label ?? c)];
               return (
                 <tr key={r.building_pk} className={open?.pk === r.building_pk ? "on" : ""}
                   onClick={() => setOpen({ pk: r.building_pk })}>
+                  <td className="c-sel" onClick={(e) => { e.stopPropagation(); toggleSel(r.building_pk); }}>
+                    <button className={`lx-ck ${sel.has(r.building_pk) ? "on" : ""}`} title="고르기">
+                      <Icon name="check" size={11} /></button>
+                  </td>
                   <td className="c-ph"><Thumb pk={r.building_pk} id={r.photo_id} /></td>
                   <td className="c-no num">{r.listing_no ?? "—"}</td>
                   <td className="c-addr">
@@ -209,6 +437,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
                       {r.is_vacant && <i>나대지</i>}
                       {isUrgent(r) && <i className="red">급매</i>}
                       {r.exclusive && <i className="blue">전속</i>}
+                      {r.ad_state === "노출" && <i className="blue">광고</i>}
                     </span>
                   </td>
                   <td className="c-kind">{kinds.length ? kinds.join(" · ") : <span className="off">—</span>}</td>
@@ -230,7 +459,21 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
                     <span className="sub">관 {won(r.total_mgmt)}</span>
                   </td>
                   <td className="r num c-roi">{r.roi != null ? `${Number(r.roi).toFixed(2)}%` : <span className="off">—</span>}</td>
-                  <td><span className={`lx-st ${r.stop_id ? "red" : ""}`}>{word}</span></td>
+                  {/* 상태 — 눌러서 바로 고른다(0199). 고른 칩을 다시 누르면 미지정 */}
+                  <td className="c-stx" onClick={(e) => {
+                    e.stopPropagation();
+                    const b = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    setStPop(stPop?.pk === r.building_pk ? null : { pk: r.building_pk, x: b.left, y: b.bottom });
+                  }}>
+                    <StatusBadge name={r.status_name} color={r.status_color} reason={r.hold_reason} />
+                    {stPop?.pk === r.building_pk && (
+                      <span className="lx-rg-pop stx-pop" style={{ position: "fixed", left: stPop.x, top: stPop.y }}
+                        onClick={(e) => e.stopPropagation()} onMouseLeave={() => setStPop(null)}>
+                        <StatusChips kind="listing" value={r.status_id} reason={r.hold_reason} sold={{ sold_on: r.sold_on, sold_price: r.sold_price }}
+                          onPick={(id, extra) => { setStatus(r.building_pk, id, extra); setStPop(null); }} />
+                      </span>
+                    )}
+                  </td>
                   <td className="c-own">{r.owner_name ?? <span className="off">—</span>}</td>
                   <td className="c-who">{nameOf(r.assignee_account_id) ?? <span className="off">—</span>}</td>
                   <td className={`c-chk num ${stale ? "red" : ""}`}>{r.checked_on ? md(r.checked_on) : <span className="off">—</span>}</td>
@@ -238,6 +481,8 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
                     ? <>{md(r.next_sched_on)} <span className="sub">{r.next_sched_cat ?? r.next_sched_title ?? ""}</span></>
                     : <span className="off">—</span>}</td>
                   <td className="c-act" onClick={(e) => e.stopPropagation()}>
+                    <button className="lx-ic" title="오늘 확인" onClick={() => markChecked(r.building_pk)}>
+                      <Icon name="check" size={14} /></button>
                     <button className="lx-ic" title="건물 상세" onClick={() => openDetail(r.building_pk)}>
                       <Icon name="external" size={14} /></button>
                   </td>
@@ -246,7 +491,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
             })}
           </tbody>
         </table>
-        {!shown.length && <div className="lt-none">{laneRows.length ? "맞는 매물이 없습니다" : "담은 매물이 없습니다"}</div>}
+        {!shown.length && <div className="lt-none">{list.length ? "맞는 매물이 없습니다" : "담은 매물이 없습니다"}</div>}
       </div>
 
       {cur && (
@@ -256,7 +501,7 @@ export function ListingsTab({ focus, focusTab, onDone, onBuyer }: {
       {(add || unknown) && (
         <ListingModal preset={unknown ? { pk: unknown } : null}
           onClose={() => { setAdd(false); if (unknown) setOpen(null); }}
-          onSaved={(pk2) => { setAdd(false); refresh(); setOpen({ pk: pk2, tab: "sum" }); }} />
+          onSaved={(pk2) => { setAdd(false); refresh(); setOpen({ pk: pk2, tab: "info" }); }} />
       )}
     </div>
   );
@@ -269,7 +514,7 @@ function ListingHost({ r, tab0, onClose, onDone, onBuyer }: {
   const props = useQuery({ queryKey: ["proposals", "pk", r.building_pk],
     queryFn: () => proposalsApi.list({ building_pk: r.building_pk }) });
   return (
-    <UnifiedModal r={r} buyers={props.data ?? []} tab0={tab0 ?? "sum"}
+    <UnifiedModal r={r} buyers={props.data ?? []} tab0={tab0 ?? "info"}
       onClose={onClose} onBuyer={onBuyer}
       onSaved={() => { props.refetch(); onDone(); }} />
   );

@@ -2,7 +2,7 @@
 
 /* 거래 페이지 여백 — 카드가 화면 끝에 물려 오른쪽 테두리가 잘리고, 마지막 줄이 바닥에
    붙어 있었다. 페이지에 한 번만 준다(카드마다 margin을 붙이면 탭마다 어긋난다). */
-.page.sales { padding: 0 18px 36px; }
+.page.sales { padding: 20px 18px 36px; }   /* 아래 줄 탭을 없앤 뒤 머리 여백(2026-09-28) */
 
 /* 누를 수 있는 글자 = 글자여야 한다. 기본 button 껍데기가 남아 있어 회색 상자로 보였다. */
 .sales .lnk { border: 0; background: none; padding: 0; font: inherit; color: inherit;
@@ -890,28 +890,6 @@
 .gm-save:disabled { opacity: .35; cursor: default; }
 
 
-/* ══════════ 하단 대화창 ══════════
-   대화형 AI 가 들어올 자리다(2026-08-29). 도우미 줄·후보 칩·영수증·되비침은 전부
-   규칙 시절의 것이라 같이 걷었다 — 대화가 들어서면 어차피 다시 그린다. */
-.tb { position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 40;
-  width: min(680px, calc(100vw - 32px)); display: grid; gap: 8px; }
-
-/* 입력 pill — 검색바와 같은 pill 어법. 포커스에서만 또렷해진다 */
-.tb-pill { background: var(--panel); border: 1px solid var(--line-2); border-radius: 22px;
-  padding: 7px 8px 7px 14px; box-shadow: var(--shadow-lg); transition: border-color .15s; }
-.tb-pill.on { border-color: var(--signal); }
-.tb-line { display: flex; align-items: center; gap: 8px; }
-.tb-in { flex: 1; min-width: 0; border: 0; background: none; outline: none;
-  font: inherit; font-size: 13.5px; color: var(--ink); }
-.tb-in::placeholder { color: var(--line-2); }
-.tb-go { flex: 0 0 auto; width: 30px; height: 30px; border: 0; border-radius: 50%;
-  background: var(--ink); color: #fff; cursor: pointer; display: inline-flex;
-  align-items: center; justify-content: center; }
-.tb-go:disabled { opacity: .25; cursor: default; }
-
-/* 바가 마지막 줄을 가리지 않게 — 거래 화면만 바닥을 띄운다 */
-.page.sales { padding-bottom: 104px; }
-
 /* 머리의 「다음 일정 + 상태」 — 상태는 파생값 하나, 다음 움직임은 그 옆에(2026-08-15) */
 .pp-next { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 
@@ -1539,3 +1517,18 @@
 /* 담은 매물 줄의 주소 — 눌러 그 매물로 간다. 줄 전체(모달)와 다른 자리라 밑줄로 갈라 준다(2026-08-28) */
 .orow .who.lnk { cursor: pointer; }
 .orow .who.lnk:hover { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }
+
+/* 상태(0199) — 색 점 + 이름. 사무소가 고른 색이 점과 고른 칩의 글자에 선다 */
+.stx { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: #333D4B; white-space: nowrap; }
+.stx.off { color: #B0B8C1; font-weight: 500; }
+.stx i, .stx-chip i { width: 7px; height: 7px; border-radius: 999px; flex: 0 0 auto; display: inline-block; }
+.stx-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.stx-chip { display: inline-flex; align-items: center; gap: 6px; }
+.stx-sold { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+/* 보류 사유 드롭다운(0201) — 칩 대신 세로 목록. 길어지지 않게 */
+.stx-menu { display: flex; flex-direction: column; min-width: 150px; max-height: 260px; overflow-y: auto; background: #FFFFFF;
+  border-radius: 10px; padding: 4px; box-shadow: 0 8px 24px rgba(15,26,46,.14), 0 0 0 1px #E5E8EB; flex-basis: 100%; max-width: 200px; }
+.stx-menu button { border: 0; background: none; text-align: left; font: inherit; font-size: 13px; color: #333D4B; padding: 7px 10px; border-radius: 7px; cursor: pointer; }
+.stx-menu button:hover { background: #F2F4F6; }
+.stx-menu button.on { color: #F04452; font-weight: 700; background: #FDEBEA; }
+.stx-menu button.dim { color: #8B95A1; }

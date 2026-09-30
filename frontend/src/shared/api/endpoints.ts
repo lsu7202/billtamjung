@@ -32,7 +32,7 @@ export interface Report {
 
 export const authApi = {
   publicConfig: () => api<{ signups_open: boolean }>("/auth/public-config"),
-  signup: (b: { email: string; password: string; name: string; office_name?: string; phone?: string; job_role?: string; referral_source?: string; interest_region?: string; gender?: string; terms_agreed: boolean; privacy_agreed: boolean; marketing_agreed?: boolean }) =>
+  signup: (b: { email: string; password: string; name: string; office_name?: string; phone?: string; job_role?: string; referral_source?: string; interest_region?: string; gender?: string; kind?: "중개사" | "고객"; terms_agreed: boolean; privacy_agreed: boolean; marketing_agreed?: boolean }) =>
     api<TokenOut>("/auth/signup", { method: "POST", body: JSON.stringify(b) }),
   login: (b: { email: string; password: string; remember?: boolean }) =>
     api<TokenOut>("/auth/login", { method: "POST", body: JSON.stringify(b) }),
@@ -43,12 +43,14 @@ export const authApi = {
     api<{ ok: boolean }>("/auth/password/reset-request", { method: "POST", body: JSON.stringify({ email }) }),
   resetConfirm: (token: string, next: string) =>
     api<{ ok: boolean }>("/auth/password/reset-confirm", { method: "POST", body: JSON.stringify({ token, new: next }) }),
-  me: () => api<{ account_id: number; team_id: number; name: string; email: string; job_role: string | null; gender: string | null; tier: string }>("/auth/me"),
+  me: () => api<{ account_id: number; team_id: number; name: string; email: string; job_role: string | null; gender: string | null; tier: string; phone?: string | null; kind?: string }>("/auth/me"),
   patchProfile: (b: Record<string, string>) =>
     api<{ ok: boolean }>("/auth/profile", { method: "PATCH", body: JSON.stringify(b) }),
 };
 
 export interface AttrFilters {
+  /** 매물 유형(0193) — 빌딩 · 상가주택 · 공장·창고 · 숙박 · 기타 */
+  kinds?: string[] | null;
   /** 값의 출처가 갈리는 항목(0134) — 접두 없는 것이 팀 값, _est/_team 이 갈래 */
   sale_est_min?: number | null; sale_est_max?: number | null;
   roi_est_min?: number | null; roi_est_max?: number | null;
@@ -120,6 +122,44 @@ export interface MapPinDTO {
   roi: number | null; last_sale_price: number | null;
   /** 지도에서 실거래를 총액·단가로 견주는 재료(밸류맵식). 단가 기본 분모는 대지면적이다 */
   last_sale_ym?: string | null; land_area?: number | null; total_area?: number | null;
+  /** 핀 종류(S05) — 내 매물 · 광고 · 거래완료 · 일반. 색이 이걸로 갈린다 */
+  kind?: PinKind; ad_n?: number; ad_price_min?: number | null;
+}
+export type PinKind = "mine" | "ad" | "sold" | "normal";
+/** 검색 탭(S05 §2) — 실거래 · 매매 · 전체. 화면은 하나고 탭만 바뀐다 */
+export type SearchTab = "deal" | "ad" | "all";
+
+/** 사이드 판 광고 카드(누구나) — 가격 비공개면 price 는 null */
+export type AdCard = {
+  id: number; state: "노출" | "거래완료"; brokerage: "일반" | "전속"; use_type: string | null;
+  price: number | null; price_open: boolean;
+  title: string; body: string | null; posted_on: string; closed_on: string | null;
+  phone: string | null; agent_name: string | null; office_name: string | null; reg_no: string | null;
+  mine: boolean; photo_id: number | null;
+  photo_ids: number[] | null; addr: string | null; updated_on: string | null;
+  office_addr: string | null; rep_name: string | null; office_phone: string | null; created_at: string;
+} & AdBasic;
+/** 광고 기본정보(0196) — 대장에 없는, 광고한 중개사만 아는 값. 모르면 null */
+export interface AdBasic {
+  deposit: number | null; monthly_rent: number | null; loan: number | null; loan_open: boolean;
+  move_in: "즉시입주" | "협의" | "날짜" | null; move_in_on: string | null;
+}
+/** 탐색 목록 카드(S05) — 광고 여럿은 한 장(price_min~max), 내 매물이면 mine */
+export interface ListCard {
+  building_pk: string; addr: string; land_area: number | null; total_area: number | null;
+  floors_above: number | null; floors_below: number | null; main_use_name: string | null; lng: number; lat: number;
+  ad_n: number | null; price_min: number | null; price_max: number | null; sold: boolean;
+  ad_id: number | null; title: string | null; brokerage: string | null; posted_on: string | null;
+  office_name: string | null; agent_name: string | null; ad_photo_id: number | null;
+  mine: boolean; my_price: number | null; received_on: string | null; my_photo_id: number | null;
+  ad_created_at: string | null; use_type: string | null; assignee_name: string | null; my_office: string | null;
+}
+/** 크롤링 매물(중개사만) — 광고가 아니라 참고 자료. 날짜 · 게시자를 모르면 null */
+export interface CrawlRow {
+  id: number; deal: "매매" | "임대";
+  price: number | null; deposit: number | null; rent: number | null; mgmt: number | null;
+  floor: string | null; contract_area: number | null; excl_area: number | null;
+  office_name: string | null; agent_name: string | null; phone: string | null; last_seen: string | null;
 }
 
 export const searchApi = {
@@ -142,7 +182,10 @@ export const searchApi = {
         page_mine: p.page_mine ?? 1, page_normal: p.page_normal ?? 1,
       }),
     }),
-  pins: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string; mine_only?: boolean }) =>
+  pins: (p: { bjd_code?: string; polygon?: object; filters?: AttrFilters; sort?: string; mine_only?: boolean;
+              tab?: SearchTab; chip?: "" | "mine" | "ads"; sale_years?: number;
+              sale_from?: number | null; sale_to?: number | null;
+              bbox?: [number, number, number, number]; for_model?: boolean }) =>
     api<MapPinDTO[]>("/search/pins", {                // 지도 핀: 페이징 없이 전체 매물(경량)
       method: "POST",
       body: JSON.stringify({
@@ -150,6 +193,8 @@ export const searchApi = {
         mine_only: p.mine_only ?? false,
         filters: { bjd_code: p.bjd_code ?? null, ...(p.filters ?? {}) },
         sort: p.sort ?? "price",
+        tab: p.tab ?? "all", chip: p.chip ?? "", sale_years: p.sale_years ?? 3, bbox: p.bbox ?? null,
+        sale_from: p.sale_from ?? null, sale_to: p.sale_to ?? null, for_model: p.for_model ?? false,
       }),
     }),
   snap: (polygon: object) =>                          // 자석 스냅(후처리): 그린 영역 → 필지 합집합 폴리곤
@@ -178,11 +223,12 @@ export const officeApi = {
 };
 
 export const savedApi = {
-  list: () => api<{ id: number; name: string; conditions_json: Record<string, unknown>; created_at: string }[]>("/saved-searches"),
-  save: (name: string, conditions: Record<string, unknown>) =>
-    api<{ id: number }>("/saved-searches", { method: "POST", body: JSON.stringify({ name, conditions }) }),
+  list: () => api<{ id: number; name: string; conditions_json: Record<string, unknown>; created_at: string; notify: boolean }[]>("/saved-searches"),
+  /** notify = 알림 받기(S05 §5-3). 조건에 request(= /search/pins 몸통)를 실어야 서버가 맞춰 본다 */
+  save: (name: string, conditions: Record<string, unknown>, notify = false) =>
+    api<{ id: number }>("/saved-searches", { method: "POST", body: JSON.stringify({ name, conditions, notify }) }),
   /** 부분 수정 — 이름만 바꾸거나 조건만 덮어쓴다(둘 다 보내도 된다). */
-  update: (id: number, patch: { name?: string; conditions?: Record<string, unknown> }) =>
+  update: (id: number, patch: { name?: string; conditions?: Record<string, unknown>; notify?: boolean }) =>
     api(`/saved-searches/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   remove: (id: number) => api(`/saved-searches/${id}`, { method: "DELETE" }),
 };
@@ -207,6 +253,11 @@ export const buildingsApi = {
   // 응답 모양은 건물용과 같게 맞췄다 — 같은 컴포넌트가 그린다.
   vacant: (pnu: string) => api<Record<string, unknown>>(`/buildings/parcels/${pnu}`),
   vacantPop: (pnu: string) => api<BuildingPop>(`/buildings/parcels/${pnu}/pop`),
+  /** 광고 카드(누구나) · 크롤링 매물(중개사만) — S05 */
+  ads: (pk: string) => api<AdCard[]>(`/buildings/${pk}/ads`),
+  /** 탐색 목록 카드 — 건물마다 한 장(광고 묶음 · 내 매물) */
+  cards: (pks: string[]) => api<ListCard[]>("/ads/cards", { method: "POST", body: JSON.stringify({ pks }) }),
+  crawl: (pk: string) => api<CrawlRow[]>(`/buildings/${pk}/crawl`),
   vacantScene: (pnu: string) => api<{
     roads: { rn: string; road_bt: number | null; geojson: unknown }[];
     /** 법정 건폐/용적(%) 목록. 값이 하나면 [55], 걸쳐서 병기되면 [50,60] (0153). */
@@ -261,31 +312,21 @@ export const listingsApi = {
   members: () => api<{ account_id: number; name: string; role: string }[]>("/listings/members"),
 };
 
-/** 보류 — 사다리 어느 칸에서든 겹치는 축(S04b §2.3).
- *  철회와 다르다: 철회는 죽은 것이고 보류는 **살아 있는 채로 멈춘 것**이다.
- *  보류 동안은 「연락할 차례」에서 빠지고, 사람이 풀면 다시 뜬다.
- *  깨울 날짜는 두지 않는다(0140) — 다시 볼 일이 정해져 있으면 그건 일정이다. */
-export type StopStage = "owner" | "touch" | "intent" | "info" | "asset" | "match" | "find" | "deal";
-export interface Stop {
-  id: number; target_type: "listing" | "buyer" | "proposal"; target_id: string;
-  stage: StopStage; reason: string | null;
-  note: string | null; created_at: string;
-  held_days: number | null;
-  addr?: string | null; owner_name?: string | null; buyer_name?: string | null;
-  /** target_type='proposal' 일 때만 — 어느 매물·누구의 짝인지 */
-  proposal_pk?: string | null; proposal_buyer_id?: number | null;
-}
-export interface StopIn {
-  target_type: Stop["target_type"]; target_id: string; stage: StopStage;
-  reason?: string | null; note?: string | null;
-}
-export const stopsApi = {
-  /** 한 대상에 열린 보류는 하나뿐 — 다시 부르면 덮어쓴다(사유가 둘이면 어느 쪽이 사실인지 모른다) */
-  open: (body: StopIn) => api<{ id: number }>("/stops",
-    { method: "POST", body: JSON.stringify(body) }),
-  /** 푼다 — 지우지 않고 해제 표시만. 「왜 멈췄었나」가 남아야 같은 판단을 또 안 한다 */
-  release: (id: number) => api(`/stops/${id}`, { method: "DELETE" }),
-  list: (sleeping = false) => api<Stop[]>(`/stops${sleeping ? "?sleeping=true" : ""}`),
+/** 상태(0199) — 사무소가 만들고(이름 · 색 · 순서) 매물 · 고객마다 손으로 고른다(부기사). 자동 판정은 없다 */
+export interface StatusDef { id: number; name: string; color: string; sort: number; n: number }
+export type StatusKind = "listing" | "buyer";
+export const statusesApi = {
+  list: (kind: StatusKind) => api<StatusDef[]>(`/statuses?kind=${kind}`),
+  add: (kind: StatusKind, name: string, color: string) =>
+    api<{ id: number }>("/statuses", { method: "POST", body: JSON.stringify({ kind, name, color }) }),
+  edit: (id: number, p: { name?: string; color?: string }) => api(`/statuses/${id}`, { method: "PATCH", body: JSON.stringify(p) }),
+  order: (kind: StatusKind, ids: number[]) => api("/statuses/order", { method: "PUT", body: JSON.stringify({ kind, ids }) }),
+  /** 지우면 그 상태의 매물 · 고객을 moveTo 로(없으면 미지정) */
+  remove: (id: number, moveTo: number | null) => api(`/statuses/${id}${moveTo != null ? `?move_to=${moveTo}` : ""}`, { method: "DELETE" }),
+  setListing: (pk: string, b: { status_id: number | null; sold_on?: string | null; sold_price?: number | null; hold_reason?: string | null }) =>
+    api(`/listings/${encodeURIComponent(pk)}/status`, { method: "PUT", body: JSON.stringify(b) }),
+  setBuyer: (id: number, status_id: number | null, hold_reason?: string | null) =>
+    api(`/buyers/${id}/status`, { method: "PUT", body: JSON.stringify({ status_id, hold_reason: hold_reason ?? null }) }),
 };
 
 export interface TeamMember { account_id: number; name: string; email: string; role: "owner" | "member"; is_me: boolean }
@@ -568,10 +609,8 @@ export interface Buyer {
   phone: string | null;
   /** 업무 사다리(0090·0092) — 본인/대리인 · 긴급도 · 통화 결과 */
   is_agent?: boolean; urgency?: string | null; call_result?: string | null;
-  /** ②사다리 파생(v_buyer_stage) — 합의 단계(nego)와 다른 층(준비도) */
-  b_stage?: "have" | "touch" | "cond" | "match" | "done" | null;
-  b1_buyer?: boolean; b4_match?: boolean;
-  stop_id?: number | null; stop_stage?: StopStage | null; stop_reason?: string | null;
+  /** 상태(0199) — 사람이 고른다. 보류면 사유(0201) */
+  status_id?: number | null; status_name?: string | null; status_color?: string | null; hold_reason?: string | null;
   /** 담당자 본인·대표가 아니면 연락처가 가려진다(개인정보 — S0M §3.4 경계) */
   phone_masked?: boolean;
   grade: string | null; source: string | null;
@@ -582,24 +621,16 @@ export interface Buyer {
   addr?: string | null; rep_name?: string | null; corp_no?: string | null; nationality?: string | null;
   /** 투자 가정(0133) — 자기자본(원)·대출금리(연 %)·취득 부대비용률(%). 미지정은 null */
   equity_won?: number | null; loan_rate?: number | null; fee_pct?: number | null;
-  /** 사람 상태는 저장 안 한다(0087) — 장부에서 파생: 진행중(살아있는 제안) · 활성(30일 내 기록) · 휴면 */
-  activity?: "진행중" | "활성" | "휴면";
   /** 리스트 칩용 — 이 사람의 제안 중 가장 앞선 관계 상태(파생·2026-08-16) */
   top_status?: string | null;
   conditions: BuyerCondition[];
   assignee_account_id: number | null; active_proposals: number; updated_at: string;
-  /** 계약을 마쳤나(2026-08-20) — 목록을 「매수자 / 계약」으로 가르고, 추천에서도 빠진다 */
-  dealt?: boolean;
-  /** 협의 단계 1~4(0127) — 협의 전·협의중·계약예정·계약완료. 담은 매물 중 가장 앞선 것 */
-  nego?: number | null;
 }
 export interface Proposal {
   terms?: string | null;   /** 조건 협의 — 특약 원문(0097) */
   brief_how?: string[] | null;  /** 브리핑 어디서(0123·복수) */
   brief_note?: string | null;   /** 브리핑 무엇을(0123) */
   picked_at?: string | null;    /** 채택 시각(0113) — 이 사람과 간다. 가격도 같이 확정된다 */
-  buyer_dealt?: boolean;        /** 이 매수자가 **다른 매물에서** 계약을 마쳤다(2026-08-20) */
-  listing_dealt?: boolean;      /** 이 매물이 **다른 매수자와** 계약을 마쳤다(2026-08-20) */
   /** 이 쌍에 걸린 일정(2026-08-19) — 창에서 만든 약속이 창에 보인다 */
   scheds?: { id: number; title: string; cat: string | null; on: string; at: string | null;
              state: string; method?: string | null }[]
@@ -609,10 +640,6 @@ export interface Proposal {
   /** 칸별 약속(2026-08-18) — 거래 칸은 일정이 정본: 잡았나(due_on) · 했나(done_on) */
   cell_sched?: Record<string, { done_on: string | null; due_on: string | null; due_id: number | null }>
     | string | null;
-  /** ③사다리 파생(0093 v_proposal_stage) — 합의 단계(nego)와 다른 층(준비도) */
-  d_stage?: "brief" | "visit" | "nego" | "pre" | "sign" | "pay" | "file" | "done" | "out" | null;
-  d2_brief?: boolean; d3_visit?: boolean; d4_nego?: boolean; d5_pre?: boolean;
-  d6_sign?: boolean; d7_pay?: boolean; d8_file?: boolean;
   briefed_on?: string | null; visited_on?: string | null; visit_note?: string | null;
   pre_contract_on?: string | null; pre_contract_amount?: number | null;
   vat_mode?: string | null;      /** 부가세 조건(0128) — 별도·포함. null=합의 전 */
@@ -623,10 +650,7 @@ export interface Proposal {
   buyer_phone?: string | null;
   commission_amount?: number | null; commission_split?: string | null;
   report_filed_on?: string | null;
-  stop_id?: number | null; stop_reason?: string | null;
   id: number; buyer_id: number; building_pk: string; updated_at: string;
-  /** 합의 단계(app.nego_rank) — 짝의 상태는 이 하나다. 낱말은 words.ts negoWord */
-  nego?: number | null;
   /** 죽은 짝(옛 철회·계약파기). 살아 있으면 null */
   dropped_at?: string | null;
   report_id: number | null; note: string | null;
@@ -764,46 +788,6 @@ export const proposalsApi = {
 /** 「오늘」 — 공이 누구에게 있나(턴). 모든 건은 셋 중 하나:
  *  내 차례(지금 움직일 것) · 기다리는 중(상대 차례) · 시작해볼 곳(아직 아무도 안 움직임).
  *  기다리다 기한이 지나면 그 건은 스스로 내 차례로 올라온다. */
-export interface TodayItem {
-  kind: "살건지묻기" | "브리핑하기" | "재통화" | "첫전화" | "식은매수자" | "검토중" | "매도신호";
-  side: "매수" | "매도";
-  why: string;                        // 한 문장 — 이 건이 왜 여기 있는가
-  days?: number | null;
-  building_pk?: string; addr?: string | null;
-  buyer_id?: number; buyer_name?: string; grade?: string | null;
-  owner_name?: string | null; status?: string; price?: number | null;
-  sell_score?: number; sale_est?: number | null;
-  sell_axes?: Record<string, { pt: number; years?: number; pct?: number; pp?: number; zone?: string }>;
-}
-/** 캘린더에서 온 줄 — 대시보드는 「오늘 뭐 하지」에 캘린더를 열지 않고 답한다 */
-export interface TodaySched {
-  id: number; side: "buy" | "sell"; title: string; on_date: string; state: string;
-  /** 일정 종류(0088) — 계약·중도금·잔금·브리핑·임장·일반. 달력 카드의 색이 여기서 갈린다 */
-  category?: string | null;
-  /** 어디서 · 누가 온다 — 여럿이면 화면이 「외 N」으로 접는다 */
-  place: string | null; people: string[];
-  at_time: string | null;
-  building_pk: string; proposal_id: number | null; buyer_id: number | null;
-  who: string | null; addr: string | null;
-  assignee_account_id: number | null; assignee_name: string | null;
-  in_days: number;                     // 음수 = 지난 약속(밀린 것)
-}
-export interface TodayFeed {
-  stats: { open_props: number; active_sellers: number; buyers: number; week_contacts: number };
-  my_turn: TodayItem[]; waiting: TodayItem[]; starters: TodayItem[];
-  /** 오늘 · 밀린 것 · 앞으로 7일 */
-  today_sched: TodaySched[]; overdue: TodaySched[]; upcoming: TodaySched[];
-  /** 돈의 세 층 — 손에 든 것(계약) · 협의 중 · 들고 있는 것(매물) */
-  money: {
-    contracted: number; contracted_n: number;
-    negotiating: number; negotiating_n: number;
-    listed: number; listed_n: number;
-  };
-  /** 이번 달에 일어난 사건 */
-  month: { signed: number; broken: number };
-  /** 단계별 건수 — 어디가 막혔나 */
-  flow: { sell: Record<string, number>; buy: Record<string, number> };
-}
 
 /** 매도자 — 업무탭(listings)의 같은 행을 사람 관점으로. 수정은 기존 listings.patchBiz 재사용. */
 export interface Seller {
@@ -814,7 +798,7 @@ export interface Seller {
   owner_addr?: string | null; owner_rep_name?: string | null;
   owner_corp_no?: string | null; owner_nationality?: string | null;
   cooperation: string | null; kindness: string | null; intent: string | null;
-  status: string | null; urgency: string | null;
+  urgency: string | null;
   assignee_account_id: number | null; updated_at: string;
   land_area: number | null; total_area: number | null; price: number | null;
   listing_no: string | null; received_on: string | null;
@@ -829,7 +813,6 @@ export interface Seller {
   has_briefing?: boolean;   /** 브리핑자료 — 생성 폐지 상태(kind=analysis만)라 당분간 false */
   meongdo?: string | null; use_change?: string | null; myeolsil?: string | null;
   nohudo?: string | null; ipji?: string | null;
-  ad_status?: string | null; ad_off?: string | null;
   /** 매물 표(0182) — 분류(여럿)·등급·전속·확인일(사람이 쓴 마지막 기록일)·층수 */
   building_major?: string | null;
   price_vs_market?: string | null;   /** 시세대비(0187) — 저렴·적정·비쌈 */
@@ -843,8 +826,6 @@ export interface Seller {
   rent_check?: string | null;   /** 임대내역 확인 상태(0100) — null=안 받음 · 확인중. 받았다=파생 */
   owner_buyer_id?: number | null;  /** 소유자가 매수자 명단에도 있나(전화 일치) */
   last_on: string | null; last_kind: string | null; last_note: string | null;
-  /** 칸별 최근 움직임 — **색 판정의 유일한 근거**(목록·레일·창이 같은 값을 본다) */
-  cell_last_on?: Record<string, string | null> | string | null;
   /** 이 매물의 다음 예정 약속 — 머리의 「상태 + 다음 일정」(2026-08-15) */
   next_sched_title?: string | null; next_sched_on?: string | null; next_sched_at?: string | null;
   next_sched_cat?: string | null;
@@ -852,16 +833,14 @@ export interface Seller {
   has_owner?: boolean;
   owner_age_band?: string | null; owner_gender?: string | null; owner_note?: string | null;
   call_result?: string | null;   /** 마지막 통화 결과(0090) — 접촉 창·통화 칩이 같이 쓴다 */
-  /** 사다리 단계 — 필드에서 **파생**된다(0091 app.v_listing_stage). 사람이 찍는 칸이 아니다.
-   *  stage = 처음 못 넘은 칸. 여섯 칸을 다 넘으면 'find'(살 사람 찾는 중). */
-  stage?: StopStage | "done" | null; passed?: number | null; info_filled?: number | null;
-  /** 칸별 판정 — 사다리는 순서 강제가 아니라 지도. 칸은 각자 근거로 참이 되고 병렬로 진행된다 */
-  s1_owner?: boolean; s2_touch?: boolean; s3_intent?: boolean;
-  s4_info?: boolean; s5_asset?: boolean; s6_match?: boolean;
-  /** 열린 멈춤 — 멈춘 동안은 「연락할 차례」에서 빠진다(S04b §2.3) */
-  stop_id?: number | null; stop_stage?: StopStage | null; stop_reason?: string | null;
-  /** 협의 단계 1~4(0127) — 이 매물에 붙은 매수자들 중 가장 앞선 것 */
-  nego?: number | null;
+  /** 상태(0199) — 사람이 고른다. 미지정이면 null. 완료면 매각일 · 매각금액 */
+  status_id?: number | null; status_name?: string | null; status_color?: string | null;
+  sold_on?: string | null; sold_price?: number | null;
+  hold_reason?: string | null;   /** 보류 사유(0201) — 보류일 때만 */
+  /** 살아 있는 광고(0191) — 노출 · 비노출과 기한 */
+  ad_state?: "노출" | "비노출" | null; ad_expires?: string | null;
+  /** 메모창 글을 이어 붙인 것 — 표 검색용 */
+  memo_text?: string | null;
   /** 나대지 매물(2026-08-27) — building_pk 가 'P'+pnu. 건물이 아니라 빈 땅이다 */
   is_vacant?: boolean | null;
 }
@@ -872,13 +851,6 @@ export interface RejectSummary {
   reasons: { reason: string; n: number; med_price: number | null }[];
 }
 
-/** F-23 1단계 — 명시 프로필. 「시작해볼 곳」의 조준값. */
-export interface BrokerProfile {
-  regions: string[] | null;      // 주 활동 구(시군구코드)
-  style: 1 | 3 | 5 | null;       // 급매·회전 / 중간 / 관계·장기
-  price_min: number | null; price_max: number | null;
-  use_types: string[] | null;
-}
 
 export const salesApi = {
   /** 문장에서 누구(어느 매물) 얘기인지 — 이름·매물번호·주소·전화 뒷자리(목록 조회).
@@ -892,9 +864,6 @@ export const salesApi = {
   /** 이 매물에 맞는 매수자 — 조건 매칭(기존 API 재사용) */
   matchingBuyers: (pk: string) =>
     api<{ id: number; name: string }[]>(`/buildings/${pk}/matching-buyers`),
-  today: (mine = true) => api<TodayFeed>(`/sales/today?mine=${mine}`),
-  profile: () => api<BrokerProfile>("/sales/profile"),
-  putProfile: (b: BrokerProfile) => api("/sales/profile", { method: "PUT", body: JSON.stringify(b) }),
   sellers: (mine = false, owner_id?: number) =>
     api<Seller[]>(`/sales/sellers?mine=${mine}${owner_id ? `&owner_id=${owner_id}` : ""}`),
   /** 매도자 = 사람 하나(0058). 매수(app.buyers)와 같은 모양이라 화면도 같은 부품을 쓴다. */
@@ -908,7 +877,6 @@ export const salesApi = {
     api(`/owners/${oid}/listings`, { method: "PUT", body: JSON.stringify({ building_pk }) }),
   /** 한 건물의 두 장부(매수 제안·매도 접촉)를 시간순으로 합쳐 본다 — 읽기 전용 */
   timeline: (building_pk: string) => api<TimelineRow[]>(`/sales/timeline?building_pk=${encodeURIComponent(building_pk)}`),
-  rejectSummary: (pk: string) => api<RejectSummary>(`/buildings/${pk}/reject-summary`),
 };
 
 /** 일정(0070·0071) — 커밋에서 파서가 읽은 약속. 날짜가 떨어지는 것만 선다. */
@@ -1023,4 +991,91 @@ export const contactsApi = {
     api<PersonEvent[]>(`/sales/person-timeline?kind=${kind}&person_id=${person_id}`),
   /** 기록 삭제 — 지우면 남은 마지막 기록이 만든 단계로 되돌아간다(매수와 같은 규칙) */
   remove: (id: number) => api(`/contacts/${id}`, { method: "DELETE" }),
+};
+
+/* ── 광고(중개사) · 문의 — S05 2묶음(2026-09-28) ── */
+export type UseType = "빌딩" | "상가주택" | "공장·창고" | "숙박" | "기타";
+/** 광고 폼(0195) — 건물 스펙 · 위치 공개는 뺐다(카드 옆에 대장 값이 그대로 뜬다) */
+export interface AdForm {
+  use_type: UseType | null; brokerage: "일반" | "전속"; price: number | null; price_open: boolean;
+  title: string | null; body: string | null; contact_phone: string | null;
+  deposit: number | null; monthly_rent: number | null; loan: number | null; loan_open: boolean;
+  move_in: "즉시입주" | "협의" | "날짜" | null; move_in_on: string | null;
+}
+export interface MyAd extends AdForm {
+  id: number; state: "임시" | "노출" | "비노출" | "거래완료"; review: string; review_note: string | null;
+  posted_on: string; expires_on: string; closed_on: string | null; expired: boolean; photo_ids: number[] | null;
+}
+export const adsApi = {
+  /** 매물의 광고(없으면 null) + 폼 미리 채움 + 계약됐나 */
+  ofListing: (pk: string) => api<{ ad: MyAd | null; draft: AdForm; contracted: boolean }>(`/listings/${encodeURIComponent(pk)}/ad`),
+  /** publish=false 면 임시저장 */
+  create: (pk: string, b: AdForm & { photo_ids: number[]; publish: boolean }) =>
+    api<{ id: number }>(`/listings/${encodeURIComponent(pk)}/ad`, { method: "POST", body: JSON.stringify(b) }),
+  update: (id: number, b: AdForm & { photo_ids: number[]; publish: boolean }) =>
+    api(`/ads/${id}`, { method: "PUT", body: JSON.stringify(b) }),
+  state: (id: number, state: "노출" | "비노출" | "거래완료" | "삭제") =>
+    api(`/ads/${id}/state`, { method: "PATCH", body: JSON.stringify({ state }) }),
+  extend: (id: number) => api(`/ads/${id}/extend`, { method: "POST" }),
+};
+export type InquiryKind = "매수 문의" | "매도 문의" | "시세 문의";
+export interface Inquiry {
+  id: number; kind: InquiryKind; body: string | null; name: string; phone: string;
+  status: "미확인" | "상담중" | "고객등록" | "종료"; sell_addr: string | null; created_at: string;
+  buyer_id: number | null; listing_id: number | null; ad_id: number | null; building_pk: string | null;
+  ad_title: string | null; addr: string;
+  intent: string | null; literacy: string | null; purposes: string[] | null; regions: string[] | null;
+  budget_min: number | null; budget_max: number | null; profile_note: string | null;
+}
+/* ── 고객 쪽(S05 §5 · §6, 3묶음 0198) ── */
+export interface CustomerProfile {
+  intent: "A" | "B" | "C" | null; literacy: "처음" | "관심" | "공부해봄" | null;
+  purposes: string[] | null; regions: string[] | null; budget_min: number | null; budget_max: number | null; note: string | null;
+}
+export interface SaveRow {
+  id: number; building_pk: string; ad_id: number | null; memo: string | null; created_at: string; addr: string;
+  ad_title: string | null; ad_state: string | null; ad_price: number | null; live_ads: number;
+}
+export interface AlertRow {
+  kind: "저장한 건물" | "조건"; label: string | null; ad_id: number; at: string; building_pk: string;
+  title: string | null; price: number | null; addr: string; new: boolean;
+}
+export interface MyInquiry {
+  id: number; kind: string; body: string | null; status: string; created_at: string; building_pk: string | null;
+  ad_title: string | null; office_name: string | null; addr: string;
+}
+export const customerApi = {
+  profile: () => api<CustomerProfile>("/customer/profile"),
+  saveProfile: (b: CustomerProfile) => api<{ ok: boolean }>("/customer/profile", { method: "PUT", body: JSON.stringify({ ...b, purposes: b.purposes ?? [], regions: b.regions ?? [] }) }),
+  saves: () => api<SaveRow[]>("/saves"),
+  savesOf: (pk: string) => api<{ id: number; ad_id: number | null }[]>(`/saves/building/${encodeURIComponent(pk)}`),
+  save: (building_pk: string, ad_id: number | null) => api<{ id: number | null }>("/saves", { method: "POST", body: JSON.stringify({ building_pk, ad_id }) }),
+  memo: (id: number, memo: string | null) => api(`/saves/${id}`, { method: "PATCH", body: JSON.stringify({ memo }) }),
+  unsave: (id: number) => api(`/saves/${id}`, { method: "DELETE" }),
+  alerts: () => api<AlertRow[]>("/alerts"),
+  alertCount: () => api<{ unread: number }>("/alerts/count"),
+  seen: () => api("/alerts/seen", { method: "POST" }),
+  report: (adId: number, reason: "거래완료" | "표시정보 다름", body: string | null) =>
+    api<{ id: number }>(`/ads/${adId}/report`, { method: "POST", body: JSON.stringify({ reason, body }) }),
+  myInquiries: () => api<MyInquiry[]>("/inquiries/mine"),
+};
+
+/** 숨기기(0197) — 계정마다 안 보는 건물. 조건과 상관없이 계속 안 보인다 */
+export interface HiddenRow { building_pk: string; addr: string; created_at: string }
+export const hiddenApi = {
+  list: () => api<HiddenRow[]>("/hidden"),
+  hide: (pk: string) => api<{ ok: boolean }>("/hidden", { method: "POST", body: JSON.stringify({ building_pk: pk }) }),
+  unhide: (pk: string) => api<{ ok: boolean }>(`/hidden/${encodeURIComponent(pk)}`, { method: "DELETE" }),
+  unhideAll: () => api<{ ok: boolean }>("/hidden", { method: "DELETE" }),
+};
+export const inquiriesApi = {
+  send: (b: { ad_id: number; kind: InquiryKind; body?: string | null; name: string; phone: string;
+              consent: boolean; sell_addr?: string | null }) =>
+    api<{ id: number }>("/inquiries", { method: "POST", body: JSON.stringify(b) }),
+  list: () => api<Inquiry[]>("/inquiries"),
+  count: () => api<{ unread: number }>("/inquiries/count"),
+  status: (id: number, status: "미확인" | "상담중" | "종료") =>
+    api(`/inquiries/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  register: (id: number, listing_pk?: string) =>
+    api<{ buyer_id?: number; listing_id?: number }>(`/inquiries/${id}/register`, { method: "POST", body: JSON.stringify({ listing_pk: listing_pk ?? null }) }),
 };

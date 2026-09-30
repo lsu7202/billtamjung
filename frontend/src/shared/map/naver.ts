@@ -39,14 +39,20 @@ export async function geocode(query: string): Promise<{ lng: number; lat: number
 }
 
 /** 분류색(전 화면 통일 — 네이버지도-연동 §2) */
-/* S01 매물 카테고리 핀 색 = 리스트 헤더 토큰과 동일해야 함(지도↔리스트 일관). 광고 --green · 내 --blue · 일반 --purple · 본매물 --ink */
+/* 핀 색(S05, 2026-09-28 · 토스 결) — 뜻 하나씩. 내 매물 파랑 · 광고 검정 · 거래완료 · 일반(추정) 회색.
+   보라(일반)는 색 체계 확정(08-24) 때 폐지됐는데 핀에 남아 있었다 */
 export const PIN_COLORS: Record<string, string> = {
-  mine: "#2B5AA8",   // --blue
-  normal: "#6E56E8", // --purple
-  self: "#262320",   // --ink
+  mine: "#3182F6",   // 파랑 — 내 매물
+  ad: "#191F28",     // 검정 — 광고
+  sold: "#B0B8C1",   // 회색 — 거래완료 광고
+  normal: "#8B95A1", // 회색 — 추정 · 실거래
+  self: "#191F28",
 };
 
 export function priceLabel(price: number | null): string {
   if (price == null) return "—";
-  return price >= 1e8 ? `${Math.round(price / 1e8)}억` : `${Math.round(price / 1e4)}만`;
+  // 100억 아래는 소수 한 자리(9.5억 · 13.5억) — 정수로 반올림하면 9.5억 매물이 「10억」으로 선다(2026-09-28)
+  if (price >= 1e10) return `${Math.round(price / 1e8)}억`;
+  if (price >= 1e8) return `${String(Math.round(price / 1e7) / 10).replace(/\.0$/, "")}억`;
+  return `${Math.round(price / 1e4).toLocaleString()}만`;
 }

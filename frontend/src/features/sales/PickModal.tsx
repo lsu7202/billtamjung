@@ -104,7 +104,7 @@ export function PickModal({ mode, buyerId, buildingPk, title, onClose, onAdded }
     const seen = new Set(reco_.map((r) => r.key));
     const mine = (sellers.data ?? [])
       // 팔린 매물은 담기 목록에도 안 선다(2026-08-20) — 추천에서 뺐으면 여기서도 빼야 한다
-      .filter((x) => !seen.has(x.building_pk) && !x.s6_match)
+      .filter((x) => !seen.has(x.building_pk) && x.status_name !== "완료")
       .map((x) => ({ key: x.building_pk, label: dongAddr(x.addr) || x.building_pk,
         sub: [x.owner_name, x.list_price ? wonShort(x.list_price) : null].filter(Boolean).join(" · "),
         mine: true, taken: taken.has(x.building_pk) }));

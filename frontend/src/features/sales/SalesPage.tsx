@@ -5,7 +5,7 @@ import {
   buyersApi, proposalsApi,
   type Buyer, type BuyerCondition, type Proposal,
 } from "../../shared/api/endpoints";
-import { negoWord, dealTail, NEGO } from "./words";
+import { StatusBadge, StatusChips, useStatuses, useSetBuyerStatus } from "./Status";
 import { Loading } from "../../shared/ui/Spinner";
 import { formatPhone } from "../building/KV";
 import { dongAddr, wonAcc } from "../../shared/format";
@@ -13,13 +13,11 @@ import { CalendarTab } from "./CalendarTab";
 import { NewPerson } from "./PersonModal";
 import { UnifiedBuyerModal } from "./draft/UnifiedBuyerModal";
 import { SchedCal, calTone } from "./draft/SchedCal";
-import { TodayTab } from "./draft/TodayTab";
 import "./draft/salestab.css";
-import { useTradeCtx } from "./tradeCtx";
-import { TradeBar } from "./TradeBar";
 import { useEnums } from "../../shared/hooks/useEnums";
 import { shortAddr } from "../../shared/format";
 import { ListingsTab } from "./ListingTable";
+import { InquiryBox } from "./InquiryBox";
 import "./sales.css";
 
 /** S04 업무 — 대시보드(오늘 할 일) · 캘린더 · 매물(소유자 포함) · 매수자.
@@ -46,50 +44,59 @@ function useGradeLabel() {
 
 /* ══════════════════════ 루트 ══════════════════════ */
 
-export function SalesPage() {
+/* 윗메뉴 셋(2026-09-28) — 부기사처럼 매물관리 · 고객관리 · 일정을 나눴다. 아래 줄 탭은 없앴다.
+ * 대시보드(TodayTab)와 하단 대화창(TradeBar)은 뺐다(09-28 화면에서 · 09-29 코드까지). */
+
+function useRefresh() {
   const qc = useQueryClient();
-  const [sp] = useSearchParams();
-  const fromUrl = sp.get("buyer") ? Number(sp.get("buyer")) : null;
-  const fromListing = sp.get("listing");                   // 건물상세 → 「업무에서 관리」 리다이렉트
-  const [tab, setTab] = useState<"today" | "cal" | "listings" | "buy">(
-    fromUrl ? "buy" : fromListing ? "listings" : "today");
-  const [focusBuyer, setFocusBuyer] = useState<number | null>(fromUrl);
-  const [focusSeller, setFocusSeller] = useState<string | null>(null);
-  const [focusListing] = useState<string | null>(fromListing);
-  const focusTab = sp.get("tab") === "rent" ? "rent" as const : undefined;   // 건물 상세 「임대 내역 →」
-  const goBuyer = (id: number) => { setFocusBuyer(id); setTab("buy"); };
-  // 매도 탭은 없앴다(2026-08-16) — 소유자는 그 매물의 일부라 매물 화면으로 간다
-  const goSeller = (pk: string) => { setFocusSeller(pk); setTab("listings"); };
-  const setCtx = useTradeCtx((s) => s.setCtx);
-  useEffect(() => { if (tab === "today" || tab === "cal") setCtx(null); }, [tab, setCtx]);
-  const refresh = () => {
+  return () => {
     qc.invalidateQueries({ queryKey: ["buyers"] });
     qc.invalidateQueries({ queryKey: ["proposals"] });
     qc.invalidateQueries({ queryKey: ["sellers"] });
     qc.invalidateQueries({ queryKey: ["sales-today"] });
   };
+}
 
+/** 매물관리 — 매물 표. 건물 상세 → ?listing=pk(&tab=rent) 로 넘어온다 */
+export function SalesPage() {
+  const [sp] = useSearchParams();
+  const nav = useNavigate();
+  const refresh = useRefresh();
+  const buyer = sp.get("buyer");
+  // 옛 주소 — 매수자는 고객관리로 옮겼다
+  useEffect(() => { if (buyer) nav(`/customers?buyer=${buyer}`, { replace: true }); }, [buyer, nav]);
+  const listing = sp.get("listing");
+  const focusTab = sp.get("tab") === "rent" ? "rent" as const : undefined;   // 건물 상세 「임대 내역 →」
   return (
     <div className="page sales">
-      {/* 화면 이동 = 밑줄 탭(GNB 어법). 섹션 이름표는 뺐다 — GNB의 「업무」가 이미 말한다.
-          순서는 하루가 흐르는 대로다(2026-08-28): **오늘 뭘 하지**(대시보드) →
-          **무엇을 파나**(매물) → **누구에게**(매수자). 셋은 한 줄기라 붙여 세운다.
-          캘린더는 「언제」라 갈래가 다르다 — 여백을 하나 두고 떨어뜨렸다.
-          예전엔 대시보드 옆에 캘린더가 끼어 있어서, 매물·매수자로 가는 길이 한 번 끊겼다. */}
-      <div className="subnav">
-        {([["today", "대시보드", "lead"], ["listings", "매물", ""], ["buy", "매수자", ""],
-           ["cal", "캘린더", "apart"]] as const).map(([k, l, mod]) => (
-          <button key={k} className={`${tab === k ? "on" : ""} ${mod}`.trim()} onClick={() => setTab(k)}>{l}</button>
-        ))}
-        <span style={{ flex: 1 }} />
-      </div>
+      <ListingsTab focus={listing} focusTab={focusTab} onDone={refresh}
+        onBuyer={(id) => nav(`/customers?buyer=${id}`)} />
+    </div>
+  );
+}
 
-      <TradeBar />
-      {tab === "today" && <TodayTab onBuyer={goBuyer} onSeller={goSeller} />}
-      {tab === "cal" && <CalendarTab onBuyer={goBuyer} onSeller={goSeller} />}
-      {tab === "listings" && <ListingsTab focus={focusSeller ?? focusListing} focusTab={focusSeller ? undefined : focusTab} onDone={refresh}
-        onBuyer={goBuyer} />}
-      {tab === "buy" && <BuySide focus={focusBuyer} onDone={refresh} onGoListing={goSeller} />}
+/** 고객관리 — 지금은 매수자. 소유자(매도) 등 다른 갈래는 나중에 여기로 */
+export function CustomersPage() {
+  const [sp] = useSearchParams();
+  const nav = useNavigate();
+  const refresh = useRefresh();
+  const focus = sp.get("buyer") ? Number(sp.get("buyer")) : null;
+  return (
+    <div className="page sales">
+      {/* 광고를 보고 들어온 문의 — 맨 위(S05). 없으면 칸이 안 선다 */}
+      <InquiryBox onBuyer={(id) => nav(`/customers?buyer=${id}`)} />
+      <BuySide focus={focus} onDone={refresh} onGoListing={(pk) => nav(`/sales?listing=${encodeURIComponent(pk)}`)} />
+    </div>
+  );
+}
+
+/** 일정 — 캘린더 */
+export function SchedulePage() {
+  const nav = useNavigate();
+  return (
+    <div className="page sales">
+      <CalendarTab onBuyer={(id) => nav(`/customers?buyer=${id}`)}
+        onSeller={(pk) => nav(`/sales?listing=${encodeURIComponent(pk)}`)} />
     </div>
   );
 }
@@ -120,13 +127,12 @@ function Buyers({ rows, loading, onDone, focus, flipId, add, onGoListing }: {
   useEffect(() => { if (focus != null) setSel(focus); }, [focus]);
   const gradeLabel = useGradeLabel();
   const [q, setQ] = useState("");
-  const [lane, setLane] = useState<"live" | "done">("live");
+  // 상태로 거른다(0199) — 사무소가 만든 고객 상태. null=전체 · "none"=미지정
+  const [lane, setLane] = useState<number | "none" | null>(null);
+  const statuses = useStatuses("buyer");
   if (loading) return <Loading label="불러오는 중" minHeight="40vh" />;
   const all = rows ?? [];
-  // 계약을 마친 사람은 따로 본다(2026-08-20) — 굴릴 사람과 끝난 사람은 하는 일이 다르다
-  const done = all.filter((b) => b.dealt);
-  const live = all.filter((b) => !b.dealt);
-  const list = lane === "live" ? live : done;
+  const list = all.filter((b) => (lane == null ? true : lane === "none" ? b.status_id == null : b.status_id === lane));
   if (!all.length) {
     return <div className="panel sales-empty">등록된 매수자가 없습니다
       <small>「＋」로 시작합니다</small>{add}</div>;
@@ -137,18 +143,14 @@ function Buyers({ rows, loading, onDone, focus, flipId, add, onGoListing }: {
   // 첫 진입엔 **아무도 안 골라 둔다**(2026-08-19) — 매물 탭과 같다.
   // 자동으로 한 명을 펼쳐 두면 그 사람을 「내가 고른 사람」으로 착각한다.
   const cur = sel != null ? (list.find((b) => b.id === sel) ?? null) : null;
-  // 합의 낱말(2026-08-24 확정) — 담은 매물 없음=— · 합의 전 → 합의중 → 계약예정 → 계약완료
-  const buyerWord = (b: Buyer) =>
-    b.stop_id ? "보류"
-      : (b.nego ?? 0) >= 1 && (b.nego ?? 0) < NEGO.length ? NEGO[b.nego!]
-        : b.active_proposals > 0 ? "합의 전" : "—";
   return (
     <div className="lt-split">
       <div className="lt-list">
         <div className="lt-lanes">
-          {([["live", "매수자", live.length], ["done", "계약", done.length]] as ["live" | "done", string, number][]).map(([v, l, n]) => (
-            <button key={v} className={`um-chip ${lane === v ? "on" : ""}`}
-              onClick={() => { setLane(v); setSel(null); }}>{l}<i className="num">{n}</i></button>
+          {[...(statuses.data ?? []).map((x) => [x.id, x.name, all.filter((b) => b.status_id === x.id).length] as const),
+            ["none", "미지정", all.filter((b) => b.status_id == null).length] as const].map(([v, l, n]) => (
+            <button key={String(v)} className={`um-chip ${lane === v ? "on" : ""}`}
+              onClick={() => { setLane(lane === v ? null : v); setSel(null); }}>{l}<i className="num">{n}</i></button>
           ))}
           <span className="sp" />
           {add}
@@ -161,13 +163,9 @@ function Buyers({ rows, loading, onDone, focus, flipId, add, onGoListing }: {
             <span className="cap">
               {[b.is_corp ? "법인" : null,
                 b.grade ? gradeLabel(b.grade) : null,
-                b.active_proposals > 0 ? `매물 ${b.active_proposals}` : null,
-                b.activity === "휴면" ? "휴면" : null]
+                b.active_proposals > 0 ? `매물 ${b.active_proposals}` : null]
                 .filter(Boolean).join(" · ")}</span>
-            <span className={`ev ${b.stop_id ? "bad" : ""}`}
-              title={b.stop_id
-                ? ["보류", b.stop_reason].filter(Boolean).join(" · ")
-                : undefined}>{buyerWord(b)}</span>
+            <span className="ev"><StatusBadge name={b.status_name} color={b.status_color} reason={b.hold_reason} /></span>
           </button>
         ))}
         {!hit.length && <div className="lt-none">찾는 사람이 없습니다</div>}
@@ -203,21 +201,11 @@ function BuyerProfile({ b, onDone, startFlipped, goListing }: {
     } } });
   };
   const rows = props.data ?? [];
-  const dealtOut = (x: Proposal) =>
-    !x.picked_at && !!((x as { buyer_dealt?: boolean }).buyer_dealt
-      || (x as { listing_dealt?: boolean }).listing_dealt);
-  const alive = rows.filter((p) => !dealtOut(p) && !p.dropped_at);
-  const bLead = rows.find((x) => x.picked_at)
-    ?? alive.reduce<Proposal | null>((a, x) => {
-      const sc = (y: Proposal) => ["d2_brief", "d3_visit", "d4_nego", "d5_pre", "d6_sign", "d7_pay", "d8_file"]
-        .reduce((n, k) => n + ((y as unknown as Record<string, boolean>)[k] ? 1 : 0), 0);
-      return a === null || sc(x) > sc(a) ? x : a;
-    }, null);
-  const pairWord = (p: Proposal) => negoWord(p);
-  // 매수자엔 레일이 없다(2026-08-24 확정) — 상태는 합의 낱말 하나
-  const word = b.stop_id ? "보류"
-    : (b.nego ?? 0) >= 1 && (b.nego ?? 0) < NEGO.length ? NEGO[b.nego!]
-      : rows.length > 0 ? "합의 전" : "—";
+  const alive = rows.filter((p) => !p.dropped_at);
+  const bLead = rows.find((x) => x.picked_at) ?? null;
+  // 상태는 사람이 고른다(0199) — 짝 줄엔 채택만 보인다
+  const pairWord = (p: Proposal) => (p.picked_at ? "채택" : "");
+  const setStatus = useSetBuyerStatus();
 
   return (
     <div className="lt-pane">
@@ -227,16 +215,16 @@ function BuyerProfile({ b, onDone, startFlipped, goListing }: {
           {b.name}{b.is_corp ? " · 법인" : ""}</button>
         {bLead?.picked_at && bLead.deal_price != null ? (
           <div className="sent num" onClick={() => setEditing(true)}>
-            <b>{shortAddr(bLead.addr)}</b>를 <b>{wonAcc(bLead.deal_price)}</b>에{" "}
-            {dealTail({ ...bLead, nego: b.nego })}</div>
+            <b>{shortAddr(bLead.addr)}</b>를 <b>{wonAcc(bLead.deal_price)}</b>에 채택</div>
         ) : alive.length ? (
           <div className="sent num" onClick={() => setEditing(true)}>
-            매물 <b>{alive.length}건</b>과 {word === "—" ? "합의 전" : word}</div>
+            매물 <b>{alive.length}건</b> 담음</div>
         ) : (
           <div className="sent dim" onClick={() => setEditing(true)}>담은 매물 없음</div>
         )}
         <div className="lt-chips">
-          <span className={`um-chip still ${b.stop_id ? "hold" : ""}`}><i>상태</i>{word}</span>
+          <span className="lt-stx" onClick={(e) => e.stopPropagation()}>
+            <StatusChips kind="buyer" value={b.status_id} reason={b.hold_reason} onPick={(id, extra) => setStatus(b.id, id, extra).then(onDone)} /></span>
           {b.phone && !b.phone_masked && (
             <a className="um-chip still num" style={{ textDecoration: "none" }}
               href={`tel:${b.phone.replace(/\D/g, "")}`}><i>전화</i>{formatPhone(b.phone)}</a>)}
@@ -296,12 +284,12 @@ function BuyerProfile({ b, onDone, startFlipped, goListing }: {
       <section className="tc um-offer">
         {rows.map((p) => (
           <div key={p.id} className="orow has" onClick={() => setEditing(true)}
-            style={dealtOut(p) ? { opacity: .45 } : undefined}>
+>
             {/* 주소를 누르면 그 매물로 간다(2026-08-28) — 줄 전체는 이 매수자의 매물 탭이다.
                 호버 화살표를 찾아 누르는 것보다 주소를 누르는 쪽이 먼저 떠오른다. */}
             <span className="who lnk" onClick={(e) => { e.stopPropagation(); goListing?.(p.building_pk); }}>
               {dongAddr(p.addr) || p.building_pk}</span>
-            <span className="cap">{dealtOut(p) ? "다른 곳과 계약" : pairWord(p)}</span>
+            <span className="cap">{pairWord(p)}</span>
             <span className="ev num">
               {p.deal_price != null ? wonAcc(p.deal_price)
                 : p.hope_price != null ? wonAcc(p.hope_price) : "—"}</span>

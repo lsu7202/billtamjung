@@ -21,7 +21,7 @@ import { ReportPage } from "../features/building/ReportPage";
 import { BriefingPage } from "../features/building/BriefingPage";
 import { ReportStory } from "../features/building/ReportStory";
 import { MyPage } from "../features/mypage/MyPage";
-import { SalesPage } from "../features/sales/SalesPage";
+import { SalesPage, CustomersPage, SchedulePage } from "../features/sales/SalesPage";
 import { IconSprite } from "../shared/ui/Icon";
 import { ErrorBoundary } from "../shared/ui/ErrorBoundary";
 
@@ -54,6 +54,8 @@ export function App() {
             {/* 나대지 — 건물이 없는 필지. building_pk 가 없어 pnu 로 가리킨다(2026-08-27) */}
             <Route path="/parcels/:pnu" element={<ErrorBoundary><ParcelPage /></ErrorBoundary>} />
             <Route path="/sales" element={<ErrorBoundary><SalesPage /></ErrorBoundary>} />
+            <Route path="/customers" element={<ErrorBoundary><CustomersPage /></ErrorBoundary>} />
+            <Route path="/schedule" element={<ErrorBoundary><SchedulePage /></ErrorBoundary>} />
             <Route path="/mypage" element={<ErrorBoundary><MyPage /></ErrorBoundary>} />
           </Route>
           {/* 보고서 = 헤더 없는 전체화면(새 탭으로 여는 독립 뷰) */}

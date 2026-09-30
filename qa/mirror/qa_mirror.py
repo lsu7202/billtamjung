@@ -68,7 +68,7 @@ async def cleanup(db, team):
 async def main():
     db = await asyncpg.connect(DSN)
     async with httpx.AsyncClient(base_url=BASE, timeout=60) as c:
-        r = await c.post("/auth/login", json={"email": os.environ.get("BT_QA_EMAIL", "phototest@t.com"), "password": os.environ.get("BT_QA_PW", "test1234")})
+        r = await c.post("/auth/login", json={"email": os.environ.get("BT_QA_EMAIL", "qa-screen@qa.example.com"), "password": os.environ.get("BT_QA_PW", "qascreen12345")})
         H = {"Authorization": f"Bearer {r.json()['access_token']}"}
         me = (await c.get("/auth/me", headers=H)).json()
         team = me["team_id"]
@@ -162,7 +162,7 @@ async def main():
         await c.delete(f"/contacts/{cid}", headers=H)
         chk("커밋 삭제 → 표 0 (H7)", 0 == await db.fetchval(
             "SELECT count(*) FROM app.schedules WHERE team_id=$1 AND contact_id=$2", team, cid))
-        chk("매물 쪽도 되감김 — 계약 상대가 없다(0142)", 0 == await db.fetchval(
+        chk("계약 기록은 채택을 켜지 않는다(0199)", 0 == await db.fetchval(
             "SELECT count(*) FROM app.proposals WHERE team_id=$1 AND building_pk=$2 "
             "  AND picked_at IS NOT NULL", team, pk))
 
@@ -292,8 +292,6 @@ async def main():
                 AND target_type='buyer' AND proposal_id=$2 ORDER BY id DESC LIMIT 1""", team, pid)
         chk("문장은 그 매수자 장부에 서되 단계가 없다(메모)",
             ev is not None and ev["status"] is None, f"={dict(ev) if ev else None}")
-        chk("짝은 아직 합의 전·합의중 사이(값도 상대도 없다)", 1 == await db.fetchval(
-            "SELECT app.nego_rank(p) FROM app.proposals p WHERE id=$1", pid))
         sid = await db.fetchval(
             "SELECT id FROM app.schedules WHERE team_id=$1 AND proposal_id=$2", team, pid)
         chk("일정이 짝에 매달려 섰다", sid is not None)
@@ -324,7 +322,7 @@ async def main():
         await c.delete(f"/proposals/{pid}", headers=H)
         await db.execute("DELETE FROM app.listings WHERE team_id=$1 AND building_pk=$2", team, pk)
 
-        print("\n[H16] 계약일정 ✓ = 계약 체결 — 상태·거울·승격이 한 번에, 해제하면 되감김")
+        print("\n[H16] 계약일정 ✓ — 거울 · 승격은 서고, 채택 · 상태는 사람이 고른다(0199)")
         pid = (await c.post("/proposals", headers=H, json={
             "buyer_id": bid_a, "building_pk": pk, "note": MARK})).json()["id"]
         cid = (await c.post("/contacts", headers=H, json={
@@ -332,17 +330,13 @@ async def main():
             "schedule": {"title": "계약일", "on": tomorrow, "at": "11:00"}})).json()["id"]
         sid = await db.fetchval("SELECT id FROM app.schedules WHERE contact_id=$1", cid)
         await c.patch(f"/schedules/{sid}", json={"state": "완료"}, headers=H)
-        chk("매물 사다리도 계약칸 done(파생·0142)", True is await db.fetchval(
-            "SELECT s6_match FROM app.v_listing_stage WHERE team_id=$1 AND building_pk=$2", team, pk))
-        chk("매수 쪽도 상대 확정(거울)", None is not await db.fetchval(
+        chk("✓ 는 채택을 켜지 않는다", None is await db.fetchval(
             "SELECT picked_at FROM app.proposals WHERE id=$1", pid))
+        chk("✓ 는 매물 상태를 바꾸지 않는다", None is await db.fetchval(
+            "SELECT status_id FROM app.listings WHERE team_id=$1 AND building_pk=$2", team, pk))
         chk("그 ✓ 가 낳은 계약 기록이 표에 걸린다", None is not await db.fetchval(
             "SELECT promoted_by_contact_id FROM app.schedules WHERE id=$1", sid))
         await c.patch(f"/schedules/{sid}", json={"state": "예정"}, headers=H)
-        chk("해제 → 매물 사다리도 되감김", False is await db.fetchval(
-            "SELECT s6_match FROM app.v_listing_stage WHERE team_id=$1 AND building_pk=$2", team, pk))
-        chk("해제 → 매수 쪽 상대 확정도 풀림", None is await db.fetchval(
-            "SELECT picked_at FROM app.proposals WHERE id=$1", pid))
         chk("해제 → 표는 약속으로", "약속" == await db.fetchval(
             "SELECT kind FROM app.schedules WHERE id=$1", sid))
         await c.delete(f"/contacts/{cid}", headers=H)
@@ -360,7 +354,7 @@ async def main():
         chk("종류 저장", "계약" == await db.fetchval(
             "SELECT category FROM app.schedules WHERE id=$1", sid))
         await c.patch(f"/schedules/{sid}", json={"state": "완료"}, headers=H)
-        chk("이름 무관 ✓=계약 체결(상대 확정)", None is not await db.fetchval(
+        chk("계약 종류 ✓ 도 채택을 켜지 않는다(0199)", None is await db.fetchval(
             "SELECT picked_at FROM app.proposals WHERE id=$1", pid))
         await c.patch(f"/schedules/{sid}", json={"state": "예정"}, headers=H)
         # 반대: 제목은 「계약일」인데 사람이 일반으로 지정 — ✓는 그냥 완료 로그
@@ -395,35 +389,20 @@ async def main():
             await c.delete(f"/proposals/{r['id']}", headers=H)
         await db.execute("DELETE FROM app.listings WHERE team_id=$1 AND building_pk IN ($2,$3)", team, pk, pk2)
 
-        print("\n[H19] 안 산다는 답은 **보류**다(0141) — 관계는 살고, 풀 수 있다")
+        print("\n[H19] 안 산다 = 사람이 누른다(dropped_at) · 되살릴 수 있다(0199)")
         pid = (await c.post("/proposals", headers=H, json={
             "buyer_id": bid_a, "building_pk": pk, "note": MARK})).json()["id"]
         await c.patch(f"/proposals/{pid}/deal", headers=H, json={"brief_how": ["전화"]})
-        chk("브리핑만 하면 합의중(2)", 2 == await db.fetchval(
-            "SELECT app.nego_rank(p) FROM app.proposals p WHERE id=$1", pid))
-        r = await c.post("/stops", headers=H, json={
-            "target_type": "proposal", "target_id": str(pid), "stage": "deal",
-            "reason": "가격", "note": f"{MARK} 비싸다고 함"})
-        chk("짝 보류 저장 200", r.status_code == 200, f"={r.status_code} {r.text[:80]}")
-        got = next(x for x in (await c.get(f"/proposals?buyer_id={bid_a}", headers=H)).json()
-                   if x["id"] == pid)
-        chk("목록에 보류 사유가 실린다", got.get("stop_reason") == "가격", f"={got.get('stop_reason')}")
-        chk("보류해도 짝은 산다(단계 그대로)", got.get("nego") == 2, f"={got.get('nego')}")
-        chk("보류 중엔 재촉하지 않는다",
-            not any(x.get("building_pk") == pk and x.get("buyer_id") == bid_a
-                    for x in (await c.get("/sales/today?mine=false", headers=H)).json()["my_turn"]))
-        await c.delete(f"/stops/{got['stop_id']}", headers=H)
-        got = next(x for x in (await c.get(f"/proposals?buyer_id={bid_a}", headers=H)).json()
-                   if x["id"] == pid)
-        chk("풀면 보류가 사라진다", got.get("stop_id") is None, f"={got.get('stop_id')}")
+        r = await c.patch(f"/proposals/{pid}", headers=H, json={"dropped": True})
+        chk("안 산다 저장 200", r.status_code == 200, f"={r.status_code} {r.text[:80]}")
+        chk("짝에 안 산다가 선다", None is not await db.fetchval(
+            "SELECT dropped_at FROM app.proposals WHERE id=$1", pid))
+        await c.patch(f"/proposals/{pid}", headers=H, json={"dropped": False})
+        chk("되살리면 풀린다", None is await db.fetchval(
+            "SELECT dropped_at FROM app.proposals WHERE id=$1", pid))
 
-        print("\n[H19b] 재촉의 기준은 매수희망가 — 값을 들었으면 카드가 없다")
+        print("\n[H19b] 매수희망가 — 값 이력이 남는다")
         await c.patch(f"/proposals/{pid}", headers=H, json={"hope_price": 12000000000})
-        chk("값을 부르면 합의중 유지(2)", 2 == await db.fetchval(
-            "SELECT app.nego_rank(p) FROM app.proposals p WHERE id=$1", pid))
-        chk("희망가가 있으면 「살 건지 물어보기」가 안 뜬다",
-            not any(x.get("kind") == "살건지묻기" and x.get("building_pk") == pk
-                    for x in (await c.get("/sales/today?mine=false", headers=H)).json()["my_turn"]))
         chk("값 이력이 남는다(호가판)", 1 == await db.fetchval(
             "SELECT count(*) FROM app.field_events WHERE team_id=$1 AND target_type='proposal' "
             "AND target_id=$2 AND field='hope_price'", team, str(pid)))
@@ -445,8 +424,6 @@ async def main():
         await c.patch(f"/schedules/{sid}", headers=H, json={"state": "완료"})
         chk("중도금 ✓ 는 상대 확정이 아니다", None is await db.fetchval(
             "SELECT picked_at FROM app.proposals WHERE id=$1", pid))
-        chk("상대가 없으면 중도금 완료여도 5로 안 선다", 1 == await db.fetchval(
-            "SELECT app.nego_rank(p) FROM app.proposals p WHERE id=$1", pid))
         await c.delete(f"/contacts/{cid}", headers=H)
         await c.delete(f"/proposals/{pid}", headers=H)
         await db.execute("DELETE FROM app.listings WHERE team_id=$1 AND building_pk=$2", team, pk)
@@ -463,9 +440,6 @@ async def main():
             "유령 일정(커밋 없음)":
                 "SELECT count(*) FROM app.schedules s WHERE s.team_id=$1 AND s.contact_id IS NOT NULL "
                 "AND NOT EXISTS (SELECT 1 FROM app.contacts c WHERE c.id=s.contact_id)",
-            "유령 보류(짝 없음)":
-                "SELECT count(*) FROM app.stops st WHERE st.team_id=$1 AND st.target_type='proposal' "
-                "AND NOT EXISTS (SELECT 1 FROM app.proposals p WHERE p.id=st.target_id::bigint)",
             "예정인데 완료 로그":
                 "SELECT count(*) FROM app.schedules s JOIN app.contacts c ON c.src_schedule_id=s.id "
                 "AND c.auto AND c.note LIKE '%완료' WHERE s.team_id=$1 AND s.state='예정'",

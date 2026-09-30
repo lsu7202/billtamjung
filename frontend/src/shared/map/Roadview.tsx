@@ -3,8 +3,17 @@ import { loadNaver } from "./naver";
 
 /** 네이버 파노라마(로드뷰) 미니 뷰어. 사이드바 sel-card용. 좌표 최근접 파노라마 로드.
  * 커버리지 없으면 안내. specs 네이버지도-연동(로드뷰). */
-export function RoadviewMini({ lng, lat, className, onExpand, onNone }: {
+/** 거리뷰가 지금 서 있는 자리와 보는 방향 — 판 ↔ 전체화면이 이어받는다(09-28) */
+export interface RoadView { lat: number; lng: number; pan: number; tilt: number; fov: number }
+
+export function RoadviewMini({ lng, lat, className, onExpand, onNone, view, onView, controls }: {
   lng: number; lat: number; className?: string; onExpand?: () => void;
+  /** 처음 설 자리 · 방향(없으면 좌표 최근접 파노라마에서 건물을 바라본다) */
+  view?: RoadView | null;
+  /** 옮겨 다니거나 둘러볼 때마다 지금 자리 · 방향을 알린다 */
+  onView?: (v: RoadView) => void;
+  /** 확대 · 주변 보기 조작(전체화면) */
+  controls?: boolean;
   /** 이 자리에 로드뷰가 없다고 부르는 쪽에 알린다 — 회색 네모를 답 가운데 세우지 않으려고(2026-09-09) */
   onNone?: (none: boolean) => void;
 }) {
@@ -14,6 +23,8 @@ export function RoadviewMini({ lng, lat, className, onExpand, onNone }: {
   const orientedFor = useRef("");             // 이미 시야 보정한 좌표키
   const [none, setNone] = useState(false);
   tgtRef.current = { lng, lat };
+  const onViewRef = useRef(onView);
+  onViewRef.current = onView;
 
   useEffect(() => {
     let dead = false;
@@ -30,12 +41,20 @@ export function RoadviewMini({ lng, lat, className, onExpand, onNone }: {
     };
     loadNaver().then((naver) => {
       if (dead || !divRef.current) return;
-      const pos = new naver.maps.LatLng(lat, lng);
+      const pos = view ? new naver.maps.LatLng(view.lat, view.lng) : new naver.maps.LatLng(lat, lng);
       if (!panoRef.current) {
+        // 이어받은 자리면 방위 보정을 건너뛴다(보던 방향 그대로)
+        if (view) orientedFor.current = `${lng},${lat}`;
         panoRef.current = new naver.maps.Panorama(divRef.current, {
-          position: pos, pov: { pan: 0, tilt: 0, fov: 100 },   // fov 100 = 네이버 최대 광각(가장 축소)
-          flightSpot: false, aroundControl: false, zoomControl: false,
+          position: pos, pov: view ? { pan: view.pan, tilt: view.tilt, fov: view.fov } : { pan: 0, tilt: 0, fov: 100 },   // fov 100 = 네이버 최대 광각(가장 축소)
+          flightSpot: false, aroundControl: !!controls, zoomControl: !!controls,
         });
+        const tell = () => {
+          const p = panoRef.current?.getPosition?.(), v = panoRef.current?.getPov?.();
+          if (p && v) onViewRef.current?.({ lat: p.lat(), lng: p.lng(), pan: v.pan, tilt: v.tilt, fov: v.fov });
+        };
+        naver.maps.Event.addListener(panoRef.current, "pano_changed", tell);
+        naver.maps.Event.addListener(panoRef.current, "pov_changed", tell);
         naver.maps.Event.addListener(panoRef.current, "pano_status", (s: any) => {
           const bad = String(s) !== "OK"; setNone(bad); onNone?.(bad);
         });

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "../../shared/ui/Icon";
 import { useQuery } from "@tanstack/react-query";
+import { useIsBroker } from "../store/auth";
 import { loadNaver } from "./naver";
 import { photosApi, searchApi, PHOTO_KINDS, type Photo, type PhotoKind } from "../api/endpoints";
 import { PhotoFitEditor, fitStyle, DEFAULT_FIT, type Fit } from "../ui/PhotoFit";
@@ -49,6 +50,7 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGe
   // 지도/업로드 탭은 폐지했다(2026-08-27) — 지도는 늘 지도다. 우측 400px 칸에서
   // 사진·서류 여섯 슬롯을 관리하는 건 무리라, 보는 건 지도 아래 스트립·관리는 모달로 갈랐다.
   const [photoOpen, setPhotoOpen] = useState(false);
+  const broker = useIsBroker();
   const mapDiv = useRef<HTMLDivElement>(null);
   const roadDiv = useRef<HTMLDivElement>(null);
   const mapObj = useRef<any>(null);
@@ -488,7 +490,8 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGe
       </div>
 
       {/* 사진 스트립 — 보는 건 여기, 관리는 모달. 좁은 칸에는 보는 것만 둔다(2026-08-27) */}
-      {pk && !defining && <PhotoStrip pk={pk} onOpen={() => setPhotoOpen(true)} />}
+      {/* 사진 · 서류는 팀 것이라 중개사만(S05 §1) */}
+      {pk && !defining && broker && <PhotoStrip pk={pk} onOpen={() => setPhotoOpen(true)} />}
       {/* 포털로 body 에 그린다(2026-08-27) — 이 판이 사는 .bt-side 가 sticky 라 stacking
           context 를 만들어, 안에서 z 를 아무리 올려도 밖의 머리줄(z 20)을 못 넘었다.
           모달은 문서 맨 끝에서 떠야 화면의 모든 상주 요소 위에 선다. */}

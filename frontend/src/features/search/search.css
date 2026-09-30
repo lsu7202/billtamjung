@@ -33,9 +33,10 @@
 .map-canvas { position: absolute; inset: 0; }
 
 /* 떠 있는 패널 — 목록과 선택 카드를 번갈아 맡는다 */
-.mo-panel { position: absolute; left: 12px; top: 12px; bottom: 12px; width: 340px; z-index: 7;
-  background: rgba(255,255,255,.96); border-radius: 16px; box-shadow: 0 10px 34px rgba(0,19,43,.20);
-  backdrop-filter: blur(10px) saturate(1.3); display: flex; flex-direction: column; overflow: hidden; }
+/* 판은 레일 바로 옆에 위아래 끝까지 붙는다(2026-09-28, 디스코 결) — 띄운 카드 · 그림자 없이 선 하나 */
+.mo-panel { position: absolute; left: 0; top: 0; bottom: 0; width: 400px; z-index: 7;
+  background: #FFFFFF; border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; overflow: hidden; }
 .mo-top { display: flex; align-items: center; gap: 7px; padding: 9px 11px;
   border-bottom: 1px solid var(--line); flex: 0 0 auto; }
 .mo-top .sp { margin-left: auto; }
@@ -99,7 +100,9 @@
 .ml-row.on { background: var(--signal-bg); box-shadow: inset 3px 0 0 var(--signal); }
 .ml-row .ml-a { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .ml-row .ml-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
-.ml-tag.ad { background: var(--green); } .ml-tag.mine { background: var(--blue); } .ml-tag.normal { background: var(--muted); }
+/* 핀과 같은 뜻(S05) — 내 매물 파랑 · 광고 검정 · 거래완료 회색 */
+.ml-tag.ad { background: #191F28; } .ml-tag.mine { background: #3182F6; } .ml-tag.sold { background: #B0B8C1; } .ml-tag.normal { background: var(--muted); }
+.sel-addr .ml-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
 .ml-row .ml-nums { font-size: 12px; color: var(--ink); text-align: right; white-space: nowrap; font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 700; }
 .ml-row .ml-nums small { color: var(--muted); font-weight: 600; }
 
@@ -253,3 +256,270 @@
 .hid-pill b{color:#191F28}
 .hid-pill:hover{border-color:#3182F6; color:#3182F6}
 .hid-undo{margin-left:5px; padding-left:7px; border-left:1px solid #E5E8EB; color:#3182F6; font-weight:800}
+
+/* ── 검색 탭 · 사이드 판(S05, 2026-09-28) ── */
+.mo-chips2 { display: inline-flex; gap: 4px; }
+.mo-chips2 button { border: 0; background: #F2F4F6; color: #4E5968; border-radius: 999px; padding: 4px 10px;
+  font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; }
+.mo-chips2 button.on { background: #EBF4FF; color: #3182F6; }
+/* ③ 크롤링 매물(중개사만) */
+.sel-crawl { margin: 11px 0 0; background: #F9FAFB; border-radius: 12px; padding: 9px 12px; }
+.sel-crawl .sc-h { font-size: 12px; font-weight: 700; color: #4E5968; margin-bottom: 4px; }
+.sel-crawl .sc-h b { color: #191F28; margin-left: 2px; }
+.sel-crawl .sc-row { display: grid; grid-template-columns: 34px 44px 52px 1fr; gap: 6px; font-size: 12px; color: #333D4B; padding: 2px 0; }
+.sel-crawl .sc-row .d { color: #8B95A1; }
+.sel-crawl .sc-row .v { text-align: right; }
+.sel-crawl .sc-more { font-size: 11px; color: #8B95A1; text-align: right; margin-top: 2px; }
+
+/* ── 탐색 판(S05 · 2026-09-28, 밸류맵 결) ── */
+/* 보기 — 켜고 끄는 칩 셋(여러 개 같이) */
+.mo-layers { display: flex; gap: 6px; padding: 10px 11px 4px; }
+.mo-layers button { flex: 1; border: 0; border-radius: 10px; padding: 8px 0; font: inherit; font-size: 13px; font-weight: 700;
+  background: #F2F4F6; color: #8B95A1; cursor: pointer; }
+.mo-layers button.on { background: #3182F6; color: #FFFFFF; }
+.mo-hint { font-size: 11.5px; color: #8B95A1; padding: 2px 13px 6px; }
+.mo-here { display: flex; align-items: center; gap: 5px; margin: 6px auto 4px; border: 0; background: #191F28; color: #FFFFFF;
+  border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.mo-here b { color: #FFFFFF; }
+.ml-head.sub { margin-top: 10px; border-top: 6px solid #F2F4F6; }
+/* 목록 카드 — 사진 · 가격 · 용도·주소 · 대지·연·층 · 중개사 */
+.lc { position: relative; display: flex; gap: 10px; padding: 11px 13px; border-bottom: 1px solid #F2F4F6; cursor: pointer; }
+.lc:hover { background: #F9FAFB; }
+.lc-ph { flex: 0 0 76px; height: 64px; border-radius: 10px; background: #F2F4F6; color: #B0B8C1;
+  display: grid; place-items: center; overflow: hidden; }
+.lc-ph img { width: 100%; height: 100%; object-fit: cover; }
+.lc-b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lc-t { display: flex; align-items: center; gap: 5px; }
+.lc-t b { font-size: 15px; font-weight: 800; color: #191F28; }
+.lc-t .ml-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
+.lc-a { font-size: 12.5px; color: #333D4B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc-s { font-size: 11.5px; color: #8B95A1; }
+.lc-g { font-size: 11.5px; color: #4E5968; }
+.lc .ml-hide { position: absolute; right: 8px; top: 8px; }
+/* 상세 — 머리 고정 + 탭 고정, 본문 스크롤 */
+.mo-body.sd-wrap { overflow: hidden; display: flex; flex-direction: column; }
+.sd { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.sd-head { padding: 4px 13px 0; border-bottom: 1px solid #F2F4F6; }
+.sd-addr { font-size: 16px; font-weight: 800; color: #191F28; display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.sd-addr .ml-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
+.sd-road { font-size: 12px; color: #8B95A1; margin-top: 2px; min-height: 16px; }
+.sd-tabs { display: flex; margin-top: 8px; }
+.sd-tabs button { flex: 1; border: 0; background: none; font: inherit; font-size: 13px; font-weight: 700; color: #8B95A1;
+  padding: 8px 0 9px; border-bottom: 2px solid transparent; cursor: pointer; }
+.sd-tabs button.on { color: #191F28; border-bottom-color: #191F28; }
+.sd-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 13px 16px; position: relative; }
+.sd-body section { padding-top: 16px; }
+.sd-body h4 { margin: 0 0 8px; font-size: 14px; font-weight: 800; color: #191F28; }
+.sd-none { font-size: 12.5px; color: #8B95A1; background: #F9FAFB; border-radius: 10px; padding: 14px; text-align: center; }
+.sd-link { margin-top: 8px; border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 700; color: #3182F6; cursor: pointer; padding: 0; }
+.sd-price { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+.sd-price > div { background: #F2F4F6; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; }
+.sd-price > div.est { background: #EBF4FF; }
+.sd-price i { font-style: normal; font-size: 11.5px; color: #8B95A1; }
+.sd-price b { font-size: 17px; font-weight: 800; color: #191F28; }
+.sd-price .est b { color: #3182F6; }
+.sd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #F2F4F6; border-radius: 12px; overflow: hidden; }
+.sd-c { background: #FFFFFF; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.sd-c i { font-style: normal; font-size: 11px; color: #8B95A1; }
+.sd-c b { font-size: 13px; font-weight: 700; color: #191F28; }
+.sd-floors { display: flex; flex-direction: column; }
+.sd-fl { display: flex; gap: 10px; font-size: 12.5px; padding: 5px 2px; border-bottom: 1px solid #F7F8FA; }
+.sd-fl b { flex: 0 0 48px; color: #191F28; }
+.sd-fl span { color: #333D4B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd-fl .off { font-style: normal; color: #B0B8C1; }
+/* 목록 카드의 접어두기 — 줄에 올렸을 때만(목록 줄과 같은 어법) */
+.lc .ml-hide { width: 26px; height: 26px; display: none; align-items: center; justify-content: center; border: 0;
+  border-radius: 999px; background: #FFFFFF; color: #8B95A1; cursor: pointer; }
+.lc:hover .ml-hide { display: inline-flex; }
+.lc .ml-hide:hover { color: #3182F6; background: #EBF4FF; }
+/* 보기 칩 안의 실거래 기간 — 켜진 칩에 「3년」이 붙고 ▾ 로 고른다 */
+.mo-layers .ly { flex: 1; display: flex; border-radius: 10px; background: #F2F4F6; overflow: hidden; }
+.mo-layers .ly.on { background: #3182F6; }
+.mo-layers .ly button { flex: 1; background: none; color: #8B95A1; border-radius: 0; }
+.mo-layers .ly.on button { color: #FFFFFF; }
+.mo-layers .ly button small { font-size: 10.5px; font-weight: 600; opacity: .8; margin-left: 4px; }
+.mo-layers .ly .ly-cv { flex: 0 0 24px; font-size: 10px; border-left: 1px solid rgba(255,255,255,.25); }
+.mo-yr { margin: 4px 11px 6px; background: #FFFFFF; box-shadow: 0 4px 16px rgba(0,0,0,.10); border-radius: 12px; padding: 8px; }
+.mo-yr button { border: 0; background: #F2F4F6; color: #4E5968; border-radius: 999px; padding: 4px 10px; font: inherit;
+  font-size: 12px; font-weight: 600; cursor: pointer; }
+.mo-yr button.on { background: #EBF4FF; color: #3182F6; }
+.mo-yr .yr-q { display: flex; gap: 4px; margin-bottom: 6px; }
+.mo-yr .yr-y { display: flex; flex-wrap: wrap; gap: 4px; max-height: 96px; overflow-y: auto; }
+/* 총액 · 단가 — 지도 오른쪽 위 */
+.map-unit { position: absolute; top: 12px; right: 12px; z-index: 6; display: flex; gap: 6px; align-items: center;
+  background: #FFFFFF; border-radius: 12px; padding: 4px; box-shadow: 0 2px 10px rgba(0,0,0,.10); }
+/* 교통 — 호선 알약 · 역 · 거리 */
+.sd-tr { display: flex; flex-direction: column; gap: 6px; }
+.sd-trr { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.sd-trr .lb { font-style: normal; font-size: 10.5px; font-weight: 700; color: #FFFFFF; border-radius: 999px; padding: 2px 8px; flex: 0 0 auto; }
+.sd-trr .lb.bus { background: #8B95A1; }
+.sd-trr b { color: #191F28; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd-trr .num { margin-left: auto; color: #8B95A1; }
+/* 매물 유형 — 보기 칩 아래 한 줄(여러 개 같이) */
+.mo-kinds { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 11px 6px; }
+.mo-kinds button { border: 0; background: #F2F4F6; color: #8B95A1; border-radius: 999px; padding: 4px 10px;
+  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.mo-kinds button.on { background: #EBF4FF; color: #3182F6; }
+/* 내 매물 · 광고만으로 좁힌 동안 — 실거래 · 전체 건물은 켜져 있어도 흐리게(지도에서 내려감) */
+.mo-layers .ly.mute { opacity: .45; }
+/* 시세 세 칸 — 매매가(검정) · 최근 실거래(회색) · 추정가(연파랑) */
+.sd-price.three { grid-template-columns: 1fr 1fr 1fr; }
+.sd-price.three b { font-size: 15.5px; }
+.sd-price > div.sale { background: #FFFFFF; box-shadow: inset 0 0 0 1.5px #191F28; }
+/* 상세를 열면 판 전체를 상세가 쓴다 */
+.mo-panel.detail .mo-search, .mo-panel.detail .mo-chips, .mo-panel.detail .mo-layers,
+.mo-panel.detail .mo-kinds, .mo-panel.detail .mo-hint, .mo-panel.detail .mo-yr { display: none; }
+.mo-panel.detail .sd-head { padding-top: 10px; }
+/* 사진 넘김 — 거리뷰가 첫 장 */
+.sd-gal { position: relative; margin: 0 -13px; background: #F2F4F6; }
+.sd-gal .sel-road { height: 240px; }
+.sd-gal .sd-gal-img { display: block; width: 100%; height: auto; max-height: 420px; object-fit: contain; }
+.sd-gal .adf-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; border: 0; border-radius: 999px;
+  background: rgba(25,31,40,.55); color: #FFFFFF; font-size: 16px; cursor: pointer; z-index: 3; }
+.sd-gal .adf-nav.l { left: 8px; } .sd-gal .adf-nav.r { right: 8px; }
+.sd-gal .adf-cnt { position: absolute; right: 8px; bottom: 8px; background: rgba(25,31,40,.6); color: #FFFFFF; font-size: 11px;
+  border-radius: 999px; padding: 2px 8px; z-index: 3; }
+/* 아래 고정 줄 — 중개사 + 상담요청 */
+.sd-bar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 10px 13px; border-top: 1px solid #F2F4F6; background: #FFFFFF; }
+.sd-bar-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sd-bar-t b { font-size: 14px; color: #191F28; }
+.sd-bar-t span { font-size: 12px; color: #4E5968; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd-bar-ask { border: 0; border-radius: 10px; background: #EBF4FF; color: #3182F6; padding: 9px 16px; font: inherit; font-size: 13.5px;
+  font-weight: 700; cursor: pointer; }
+/* 목록 카드(디스코식, 09-28) — 윗줄 중개사 · 아래 글(유형 · 주소 · 매매가 · 규모) + 오른쪽 정사각 썸네일 */
+.lc { flex-direction: column; gap: 8px; padding: 12px 14px; }
+.lc-top { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid #F2F4F6; }
+.lc-top .adf-av { width: 28px; height: 28px; font-size: 12px; }
+.lc-top b { font-size: 13px; color: #191F28; }
+.lc-top .lc-off { font-size: 12px; color: #8B95A1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.lc-top .lc-ago { margin-left: auto; font-size: 11.5px; color: #8B95A1; flex: 0 0 auto; padding-right: 26px; }
+.lc-main { display: flex; gap: 12px; align-items: flex-start; }
+.lc-main .lc-b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.lc-tag { font-size: 12px; color: #8B95A1; min-height: 14px; }
+.lc-t { display: flex; align-items: baseline; gap: 6px; }
+.lc-t em { font-style: normal; font-size: 16px; font-weight: 800; color: #3182F6; }
+.lc-t b { font-size: 17px; font-weight: 800; color: #191F28; }
+.lc-main .lc-ph { flex: 0 0 84px; height: 84px; border-radius: 10px; }
+.lc-main .lc-ph img { width: 100%; height: 100%; object-fit: cover; }
+.sd-gal .adf-nav, .sd-gal .adf-cnt { z-index: 20; }
+.sd-gal .sel-road::after { display: none; }   /* 「로드뷰」 표시는 넘김 숫자(「거리뷰 · 1 / 4」)가 대신한다 */
+
+/* ── 사이드 상세 · 디스코 결(대표 09-28) ─────────────────────────────
+   탭 없이 한 판 스크롤. 네모 상자는 회색 띠 위 흰 카드 둘(가격 · 중개 등록정보)만 — 나머지는 줄. */
+.dc-top { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; padding: 8px 8px 6px; background: #FFFFFF; position: relative; }
+.dc-top .sp { flex: 1; }
+.dc-ic { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: none;
+  color: #191F28; border-radius: 10px; cursor: pointer; font-size: 20px; line-height: 1; }
+.dc-ic:hover:not(:disabled) { background: #F2F4F6; }
+.dc-ic:disabled { color: #B0B8C1; cursor: default; }
+.dc-ic.dots { font-weight: 800; }
+.dc-toast { font-size: 12px; color: #3182F6; font-weight: 700; margin-right: 4px; }
+.dc-more { position: relative; }
+.dc-menu { position: absolute; right: 0; top: 38px; z-index: 30; background: #FFFFFF; border-radius: 12px; min-width: 150px; padding: 6px;
+  box-shadow: 0 8px 24px rgba(15,26,46,.14), 0 0 0 1px #E5E8EB; display: flex; flex-direction: column; }
+.dc-menu button { border: 0; background: none; text-align: left; font: inherit; font-size: 13.5px; color: #333D4B; padding: 9px 10px; border-radius: 8px; cursor: pointer; }
+.dc-menu button:hover { background: #F2F4F6; }
+.dc-body { padding: 0 !important; }
+.dc-body section { padding-top: 0; }
+
+.dc-gal { margin: 0 !important; }
+.dc-gal .sel-road { height: 260px; }
+.dc-gal .sel-road::after { content: none; }
+.dc-gal .adf-cnt { left: 10px; right: auto; display: inline-flex; align-items: center; gap: 3px; }
+.dc-full { position: absolute; right: 10px; top: 10px; z-index: 20; width: 34px; height: 34px; border: 0; border-radius: 8px;
+  background: rgba(25,31,40,.55); color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.dc-full:hover { background: rgba(25,31,40,.75); }
+
+.dc-intro { padding: 22px 20px 20px; }
+.dc-intro h2 { margin: 0 0 12px; font-size: 18px; font-weight: 800; color: #191F28; letter-spacing: -.02em; text-wrap: balance; }
+.dc-intro p { margin: 0; font-size: 14.5px; line-height: 1.75; color: #333D4B; white-space: pre-wrap; word-break: keep-all; }
+
+.dc-band { background: #F2F4F6; padding: 16px 20px 18px; }
+.dc-card { background: #FFFFFF; border-radius: 12px; padding: 16px 16px 14px; }
+.dc-pills { display: flex; gap: 6px; margin-bottom: 8px; }
+.dc-pill { font-size: 12px; color: #4E5968; border: 1px solid #B0B8C1; border-radius: 999px; padding: 2px 10px; }
+.dc-pill.blue { color: #3182F6; border-color: #3182F6; }
+.dc-price { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.dc-price em { font-style: normal; font-size: 20px; font-weight: 800; color: #3182F6; }
+.dc-price em.gray { color: #4E5968; font-size: 16px; }
+.dc-price b { font-size: 24px; font-weight: 800; color: #191F28; letter-spacing: -.02em; }
+.dc-price b.gray { color: #8B95A1; font-size: 20px; }
+.dc-price small { font-size: 12.5px; color: #4E5968; }
+.dc-addr { margin-top: 6px; font-size: 14px; color: #4E5968; display: flex; align-items: center; gap: 6px; }
+.dc-addr .ml-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
+.dc-road { font-size: 12px; color: #8B95A1; margin-top: 2px; }
+.dc-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 14px; padding: 0 4px; }
+.dc-stats div { display: flex; flex-direction: column; gap: 6px; }
+.dc-stats div:nth-child(2) { align-items: center; }
+.dc-stats div:nth-child(3) { align-items: flex-end; }
+.dc-stats span { font-size: 13px; color: #4E5968; }
+.dc-stats b { font-size: 17px; font-weight: 800; color: #3182F6; }
+
+.dc-agent { padding: 18px 20px 20px; }
+.dc-ag { display: flex; align-items: center; gap: 12px; }
+.dc-ag .adf-av { width: 44px; height: 44px; font-size: 17px; }
+.dc-ag div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dc-ag b { font-size: 15.5px; font-weight: 700; color: #191F28; }
+.dc-ag span { font-size: 13px; color: #3182F6; }
+.dc-q { margin-top: 16px; padding-top: 14px; border-top: 1px solid #F2F4F6; font-size: 15px; font-weight: 700; color: #191F28; }
+.dc-call { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; background: #EBF4FF; border-radius: 10px;
+  padding: 8px 8px 8px 16px; text-decoration: none; }
+.dc-call span { font-size: 18px; font-weight: 700; color: #3182F6; letter-spacing: .02em; }
+.dc-call i { width: 36px; height: 36px; border-radius: 8px; background: #3182F6; color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; }
+
+.dc-gap { height: 10px; background: #F2F4F6; }
+.dc-fold { border-bottom: 1px solid #F2F4F6; padding: 0 20px; }
+.dc-fh { width: 100%; display: flex; align-items: center; justify-content: space-between; border: 0; background: none; padding: 18px 0; cursor: pointer; font: inherit; }
+.dc-fh h4, .dc-sec h4 { margin: 0; font-size: 16px; font-weight: 800; color: #191F28; }
+.dc-chev { width: 9px; height: 9px; border-right: 2px solid #4E5968; border-bottom: 2px solid #4E5968; transform: rotate(45deg); margin: -4px 4px 0 0; transition: transform .15s; }
+.dc-fold.on .dc-chev { transform: rotate(-135deg); margin-top: 4px; }
+.dc-fb { padding-bottom: 16px; }
+.dc-fb h5 { margin: 4px 0 8px; font-size: 14.5px; font-weight: 800; color: #191F28; }
+.dc-fb hr { border: 0; border-top: 1px solid #F2F4F6; margin: 12px 0; }
+.dc-row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 6px 0; font-size: 14px; }
+.dc-row span { color: #4E5968; flex: 0 0 auto; }
+.dc-row b { font-weight: 500; color: #191F28; text-align: right; }
+.dc-none { font-size: 13px; color: #8B95A1; padding: 4px 0; }
+.dc-fb .sd-tr { margin: 0; }
+
+.dc-sec { padding: 18px 20px 14px; }
+.dc-sec h4 { margin-bottom: 8px; }
+.dc-link { width: 100%; display: flex; align-items: center; gap: 12px; border: 0; background: none; font: inherit; padding: 12px 0;
+  border-bottom: 1px solid #F2F4F6; cursor: pointer; text-align: left; }
+.dc-link:last-of-type { border-bottom: 0; }
+.dc-link i { width: 32px; height: 32px; border-radius: 8px; background: #F2F4F6; color: #4E5968; display: inline-flex; align-items: center; justify-content: center; }
+.dc-link span { flex: 1; font-size: 15px; color: #191F28; }
+.dc-link span b { color: #3182F6; margin-left: 2px; }
+.dc-link em { font-style: normal; font-size: 20px; color: #4E5968; }
+.dc-crawl { padding: 0 0 8px 44px; }
+.dc-crawl .dc-row { font-size: 13px; padding: 4px 0; }
+
+.dc-sec:has(.dc-reg) { background: #F2F4F6; padding-bottom: 20px; }
+.dc-reg { background: #FFFFFF; border-radius: 12px; padding: 16px; }
+.dc-reg dl { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid #F2F4F6; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 13.5px; }
+.dc-reg dt { color: #8B95A1; }
+.dc-reg dd { margin: 0; text-align: right; color: #333D4B; }
+.dc-when { margin-top: 10px; font-size: 12px; color: #8B95A1; text-align: right; }
+.dc .sd-bar { padding: 12px 16px; box-shadow: 0 -4px 12px rgba(15,26,46,.05); }
+
+.dc-detail { width: 100%; border: 0; border-radius: 12px; background: #F2F4F6; color: #333D4B; padding: 14px; font: inherit;
+  font-size: 15px; font-weight: 700; cursor: pointer; }
+.dc-detail:hover { background: #E5E8EB; }
+/* 숨김 목록(0197) — 하나씩 또는 전부 다시 보기 */
+.hid-wrap { position: relative; display: inline-flex; }
+.hid-pill.on { border-color: #3182F6; color: #3182F6; }
+.hid-pop { position: absolute; right: 0; top: 30px; z-index: 30; width: 260px; max-height: 320px; overflow-y: auto; background: #FFFFFF;
+  border-radius: 12px; padding: 6px; box-shadow: 0 8px 24px rgba(15,26,46,.14), 0 0 0 1px #E5E8EB; }
+.hid-row { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; font-size: 13px; color: #333D4B; }
+.hid-row:hover { background: #F9FAFB; }
+.hid-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hid-row button { width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: #8B95A1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+.hid-row button:hover { background: #EBF4FF; color: #3182F6; }
+.hid-all { width: 100%; margin-top: 4px; border: 0; border-top: 1px solid #F2F4F6; background: none; padding: 9px 8px 5px; font: inherit;
+  font-size: 13px; font-weight: 700; color: #3182F6; cursor: pointer; text-align: left; }
+.dc-ic.on { color: #3182F6; }
+.dc-menu button.bad { color: #F04452; }
+.ml-keep { width: 26px; height: 26px; border: 0; border-radius: 8px; background: none; color: #8B95A1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+.ml-keep:hover { background: #EBF4FF; color: #3182F6; }

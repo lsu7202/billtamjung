@@ -16,11 +16,9 @@ LISTING_FIELDS = {
     "urgency", "grade", "ipji", "intent",
     "meongdo", "use_change", "myeolsil", "nohudo", "building_use",
     "price_vs_market",  # 시세대비(0187) — 저렴·적정·비쌈. 사람이 매긴다
-    "building_major",   # 대분류(0184) — 통사옥·상가주택·기타 하나. 소분류(building_use)는 여럿   # S02 업무탭·S01b 필터
+    "building_major",   # 매물 유형(0184 · 0193) — 빌딩·상가주택·공장·창고·숙박·기타 하나. 소분류(building_use)는 여럿   # S02 업무탭·S01b 필터
     # 업무 사다리(0090·S04b) — 접촉 창이 없어 통화 결과는 커밋 칩이 여기로 쓴다.
-    # 광고 상태는 우리가 광고를 올리지 않아도 필요하다 — 광고 중이면 경쟁이 있고,
-    # 광고가 없으면 나만 아는 물건이다(S04b §3.5).
-    "call_result", "ad_status", "ad_off",
+    "call_result",
     "exclusive",    # 전속(0182) — 참·거짓·null(모름)
     "sell_on", "sell_vague",   # 매도 시기(0099) — 의사 창. 정지의 깨움과 다르다(원함인 채의 정보)
     "rent_check",              # 임대내역 확인 상태(0100) — null=안 받음 · 확인중. 받았다=파생
@@ -205,25 +203,9 @@ async def patch_biz(body: BizPatch, user: CurrentUser = Depends(current_user)):
                 body.building_pk, user.team_id, oid)
 
 
-        # 확보는 **파생**이다(2026-08-17) — 이름과 전화가 **둘 다** 차는 순간.
-        # 전이 시점을 잡아야 장부 한 줄이 정확히 한 번 선다(수정 때마다 서면 소음).
-        prev = await pool().fetchrow(
-            "SELECT name, phone FROM app.owners WHERE id=$1", oid)
-        was_got = bool(prev and (prev["name"] or "").strip() and (prev["phone"] or "").strip())
         cols = ", ".join(f'"{c}"=${i}' for i, c in enumerate(own, start=2))
         await pool().execute(
             f"UPDATE app.owners SET {cols}, updated_at=now() WHERE id=$1", oid, *own.values())
-        now_ = await pool().fetchrow(
-            "SELECT name, phone FROM app.owners WHERE id=$1", oid)
-        # 값 저장은 장부에 줄을 남기지 않는다(2026-08-18) — 값이 이미 그 사실이다.
-        got_now = (now_["name"] or "").strip() and (now_["phone"] or "").strip()
-        if not was_got and got_now:
-            # 소유자 찾기가 끝났다 — 열린 멈춤은 자동 해제(확보됐는데 멈춤이면 모순)
-            await pool().execute(
-                """UPDATE app.stops SET resolved_at=now()
-                    WHERE team_id=$1 AND target_type='listing' AND target_id=$2
-                      AND stage='owner' AND resolved_at IS NULL""",
-                user.team_id, body.building_pk)
 
     # 가격은 거울 동사로(0173) — 이력(field_events)과 수익률 접기가 거기 있다
     prices = {k: lst.pop(k) for k in ("sale_price", "ask_price") if k in lst}

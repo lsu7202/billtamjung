@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { rentsApi, listingsApi } from "../../shared/api/endpoints";
+import { useIsBroker } from "../../shared/store/auth";
 
 /** 임대 총계의 **정본**(0134) — 수익률의 분자는 여기서만 나온다.
  *
@@ -13,8 +14,10 @@ import { rentsApi, listingsApi } from "../../shared/api/endpoints";
  *  추정 임대는 임대 탭에서 「추정」 배지를 달고 따로 선다. 섞이지 않는다.
  */
 export function useRentTotals(pk: string) {
-  const rents = useQuery({ queryKey: ["rents", pk], queryFn: () => rentsApi.list(pk) });
-  const listing = useQuery({ queryKey: ["listing", pk], queryFn: () => listingsApi.get(pk) });
+  // 팀 값이라 중개사만 부른다(S05) — 고객은 API 가 403 이다. 안 부르면 총계는 null(모름)
+  const broker = useIsBroker();
+  const rents = useQuery({ queryKey: ["rents", pk], queryFn: () => rentsApi.list(pk), enabled: broker });
+  const listing = useQuery({ queryKey: ["listing", pk], queryFn: () => listingsApi.get(pk), enabled: broker });
   const l = (listing.data ?? {}) as Record<string, unknown>;
   // 매물 줄의 총액이 정본이다(0173) — 호실 줄에 돈이 적혀 있으면 서버가 이미 그 합으로 접어 둔다.
   // 원장에서 복사한 업체 줄(0185)은 돈 칸이 비어 있어 「층별에서 왔다」로 세지 않는다

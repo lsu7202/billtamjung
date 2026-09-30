@@ -64,45 +64,10 @@ body {
   *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0s !important; }
 }
 
-/* 공통 GNB */
-/* 헤더 — 흰 바 + hairline(2026-08-28 개편).
-   검은 바에 금색 밑줄이었는데, 아래가 전부 회색 바탕 위 흰 카드라 머리만 따로 놀았다.
-   금색은 로고에만 남긴다 — 선택 표시는 어디서나 파랑 하나다. */
-.appbar {
-  background: #fff; color: var(--ink); display: flex; align-items: center;
-  gap: 22px; padding: 0 max(18px, calc(50vw - 652px)); height: 58px;
-  border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; z-index: 50;
-}
-.appbar .sp { flex: 1; }
 /* 브랜드 로고(ㅂ 심볼 + 워드마크) */
 .bt-logo { display: inline-flex; align-items: center; gap: 8px; }
 .bt-wordmark { font-family: "Pretendard", sans-serif; font-weight: 800; letter-spacing: -.035em; color: var(--ink); line-height: 1; font-size: 19px; }
 .bt-dot { color: var(--gold); }
-.appbar .bt-wordmark { font-size: 18px; }
-/* 왼쪽은 일(검색·업무), 오른쪽은 나(마이페이지·나가기) */
-.appbar .gnb { display: flex; gap: 2px; }
-.appbar .gnb a { color: var(--muted); text-decoration: none; font-weight: 700; font-size: 14.5px;
-  letter-spacing: -.02em; padding: 19px 13px 17px; border-bottom: 2px solid transparent; }
-.appbar .gnb a:hover { color: var(--ink-2); }
-.appbar .gnb a.on { color: #191F28; border-bottom-color: #3182F6; }
-.appbar .gnb.me a { font-size: 13.5px; }
-/* 폰(2026-09-08). 「건물 검색」이 세로로 한 글자씩 쌓였다 — 조작 글자는 줄이 바뀌면
-   조작이 아니다. 글자를 안 접고, 좁으면 메뉴 줄이 가로로 밀린다.
-   앱 전체 폰 대응은 따로 잡는다(10-AI-어시스턴트 §20 딸린 일감). 여기선 머리만 세운다. */
-.appbar .gnb a { white-space: nowrap; }
-@media (max-width: 720px) {
-  .appbar { gap: 10px; padding: 0 12px; }
-  .appbar .bt-wordmark { display: none; }
-  .appbar .gnb { overflow-x: auto; scrollbar-width: none; }
-  .appbar .gnb::-webkit-scrollbar { display: none; }
-  .appbar .gnb a { font-size: 13.5px; padding: 19px 9px 17px; }
-    .appbar .sp { flex: 0 0 auto; }
-}
-.appbar .gnb-out { width: 32px; height: 32px; margin-left: 2px; border: 0; border-radius: 9px;
-  background: none; color: #B0B8C1; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center; }
-.appbar .gnb-out:hover { background: #F2F4F6; color: #4E5968; }
 
 /* 패널·버튼·입력 */
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }   /* 플랫: 그림자 없음, hairline 경계만 */
@@ -155,3 +120,40 @@ table.wf { width: 100%; border-collapse: collapse; font-size: 13px; }
 table.wf th { text-align: left; color: var(--muted); font-size: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line-2); }
 table.wf td { padding: 9px 12px; border-bottom: 1px solid var(--line); }
 table.wf .num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* 공통 셸 — 왼쪽 고정 레일(2026-09-28). 위 머리를 대신한다.
+   흰 바탕 + 오른쪽 hairline. 고른 메뉴 = 연파랑 둥근 바탕 + 파랑(선택은 어디서나 파랑 하나). */
+.shell { display: flex; height: 100vh; }
+.shell-main { flex: 1; min-width: 0; min-height: 0; overflow: auto; position: relative; }
+.srail { flex: 0 0 72px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 0 16px;
+  background: #fff; border-right: 1px solid var(--line); z-index: 50; }
+.srail .sp { flex: 1; }
+.srail-logo { display: inline-flex; margin-bottom: 14px; }
+.srail-nav { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.srail-a { width: 62px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 0 7px; border-radius: 12px;
+  color: #4E5968; text-decoration: none; }
+.srail-a i { position: relative; display: inline-flex; font-style: normal; }
+.srail-a span { font-size: 11px; font-weight: 600; letter-spacing: -.03em; white-space: nowrap; }
+.srail-a:hover { background: #F2F4F6; color: #191F28; }
+.srail-a.on { background: #EBF4FF; color: #3182F6; }
+.srail-a.on span { font-weight: 700; }
+.srail-dot { position: absolute; top: -5px; right: -9px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: #F04452;
+  color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; font-style: normal; box-shadow: 0 0 0 2px #fff; }
+.srail-out { width: 40px; height: 40px; border: 0; border-radius: 10px; background: none; color: #8B95A1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; margin-bottom: 6px; }
+.srail-out:hover { background: #F2F4F6; color: #4E5968; }
+.srail-me { width: 38px; height: 38px; border-radius: 999px; background: #3182F6; color: #fff; font-size: 15px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.srail-me.on { box-shadow: 0 0 0 3px #EBF4FF, 0 0 0 4px #3182F6; }
+body.map-full .srail { display: none !important; }
+/* 폰 — 레일이 아래 탭 줄로 눕는다 */
+@media (max-width: 720px) {
+  .shell { flex-direction: column-reverse; }
+  .srail { flex: 0 0 auto; flex-direction: row; padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px)); border-right: 0; border-top: 1px solid var(--line); }
+  .srail-logo, .srail .sp, .srail-out { display: none; }
+  .srail-nav { flex-direction: row; flex: 1; justify-content: space-around; gap: 0; }
+  .srail-a { width: auto; padding: 6px 6px 4px; }
+  .srail-me { width: 30px; height: 30px; font-size: 13px; }
+}
+.srail-me { position: relative; }
+.srail-me .srail-dot { top: -4px; right: -6px; }

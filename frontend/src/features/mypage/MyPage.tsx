@@ -1,7 +1,10 @@
 import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { authApi, officeApi, reportsApi, savedApi, teamApi, type Office, type TokenOut } from "../../shared/api/endpoints";
+import { authApi, customerApi, officeApi, reportsApi, savedApi, statusesApi, teamApi, type CustomerProfile, type Office, type StatusKind, type TokenOut } from "../../shared/api/endpoints";
+import { parseAmount } from "../building/KV";
+import { won } from "../../shared/format";
+import { useIsBroker } from "../../shared/store/auth";
 import { useAuth } from "../../shared/store/auth";
 import { Loading } from "../../shared/ui/Spinner";
 import { openDetail } from "../../shared/map/geo";
@@ -35,9 +38,11 @@ function Ctl({ icon, title, tone, onClick, disabled }: {
 
 /** 값 한 줄 — 라벨 왼쪽, 현재 값 오른쪽. 값을 누르면 그 자리가 입력칸이 되고 벗어나면 닫힌다.
  *  통합 매물 모달의 줄 문법과 같다(shared/ui/row.css). */
-function ValueRow({ label, value, unit, placeholder, onSave }: {
+function ValueRow({ label, value, unit, placeholder, onSave, lead, tail }: {
   label: string; value: string | null | undefined; unit?: string; placeholder?: string;
   onSave: (v: string) => void;
+  /** 줄 앞 · 뒤에 붙는 것(상태 줄의 색 점 · 조작 아이콘) */
+  lead?: React.ReactNode; tail?: React.ReactNode;
 }) {
   const [ed, setEd] = useState(false);
   const [val, setVal] = useState("");
@@ -60,8 +65,10 @@ function ValueRow({ label, value, unit, placeholder, onSave }: {
 
   return (
     <div className="orow has" onClick={() => { setVal(value ?? ""); setEd(true); }}>
-      <span className="who g">{label}</span><span className="cap" />
-      <span className={`ev${empty ? " off" : ""}`}>{empty ? "—" : value}{!empty && unit ? ` ${unit}` : ""}</span>
+      {lead}
+      {label ? <><span className="who g">{label}</span><span className="cap" /></> : null}
+      <span className={`ev${empty ? " off" : ""}`} style={label ? undefined : { flex: 1, textAlign: "left" }}>{empty ? "—" : value}{!empty && unit ? ` ${unit}` : ""}</span>
+      {tail}
     </div>
   );
 }
@@ -128,6 +135,10 @@ function SavedPanel() {
     mutationFn: (id: number) => savedApi.remove(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["saved"] }),
   });
+  const notify = useMutation({
+    mutationFn: ({ id, on }: { id: number; on: boolean }) => savedApi.update(id, { notify: on }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["saved"] }),
+  });
   const rows = saved.data ?? [];
 
   return (
@@ -139,7 +150,11 @@ function SavedPanel() {
           <div key={s.id} className="orow has"
             onClick={() => nav("/search", { state: { applyCond: s.conditions_json } })}>
             <span className="who">{s.name}</span><span className="cap" />
-            <span className="mp-ctls">
+            {s.notify && <span className="ev">알림 받는 중</span>}
+            <span className="mp-ctls always">
+              {/* 알림 받기(S05 §5-3) — 켠 때부터 이 조건에 맞는 새 광고를 알린다 */}
+              <Ctl icon="bell" title={s.notify ? "알림 끄기" : "알림 받기"} tone={s.notify ? "on" : undefined}
+                onClick={() => notify.mutate({ id: s.id, on: !s.notify })} />
               <Ctl icon="trash" title="삭제" tone="bad" onClick={() => del.mutate(s.id)} />
             </span>
           </div>
@@ -379,23 +394,255 @@ function PlansPanel() {
   );
 }
 
+/* ══════════════════════ 상태(0199, 부기사) ══════════════════════ */
+
+const PALETTE = ["#3182F6", "#191F28", "#F04452", "#8B95A1", "#B0B8C1", "#00B386", "#FF9F0A", "#8A63D2"];
+
+/** 매물 · 고객 상태 — 사무소가 만든다. 색 점을 누르면 팔레트, 이름을 누르면 고친다,
+ *  ↑ 로 순서를 올린다. 지울 때 그 상태의 매물 · 고객을 옮길 상태를 고른다(부기사 「삭제 시 이동될 분류」) */
+function StatusPanel({ kind, title }: { kind: StatusKind; title: string }) {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["statuses", kind], queryFn: () => statusesApi.list(kind) });
+  const rows = q.data ?? [];
+  const reload = () => { qc.invalidateQueries({ queryKey: ["statuses", kind] }); qc.invalidateQueries({ queryKey: [kind === "listing" ? "sellers" : "buyers"] }); };
+  const err = (e: unknown) => alert(String((e as Error)?.message ?? e));
+  const [color, setColor] = useState<number | null>(null);     // 팔레트가 열린 줄
+  const [del, setDel] = useState<number | null>(null);         // 옮길 곳을 고르는 줄
+  const [adding, setAdding] = useState(false);
+  const up = (i: number) => {
+    if (i === 0) return;
+    const ids = rows.map((r) => r.id); [ids[i - 1], ids[i]] = [ids[i], ids[i - 1]];
+    statusesApi.order(kind, ids).then(reload, err);
+  };
+  return (
+    <div className="panel">
+      <div className="sec-head"><span className="lead"><span>{title}</span></span></div>
+      <div className="mp-body pad0">
+        {rows.map((r, i) => (
+          <div key={r.id}>
+            <ValueRow label="" value={r.name} onSave={(v) => v && statusesApi.edit(r.id, { name: v }).then(reload, err)}
+              lead={<button className="mp-dot" style={{ background: r.color }} title="색"
+                onClick={(e) => { e.stopPropagation(); setColor(color === r.id ? null : r.id); }} />}
+              tail={<span className="mp-ctls" onClick={(e) => e.stopPropagation()}>
+                <span className="dim num" style={{ fontSize: 12 }}>{r.n}</span>
+                <Ctl icon="back" title="위로" onClick={() => up(i)} disabled={i === 0} />
+                <Ctl icon="trash" title="삭제" tone="bad" onClick={() => setDel(del === r.id ? null : r.id)} />
+              </span>} />
+            {color === r.id && (
+              <div className="mp-pal">{PALETTE.map((c) => (
+                <button key={c} className={c === r.color ? "on" : ""} style={{ background: c }}
+                  onClick={() => { statusesApi.edit(r.id, { color: c }).then(reload, err); setColor(null); }} />))}</div>
+            )}
+            {del === r.id && (
+              <div className="mp-del">
+                <span className="dim">{r.n ? `이 상태의 ${r.n}건을` : "지우면"}</span>
+                {rows.filter((x) => x.id !== r.id).map((x) => (
+                  <button key={x.id} className="um-chip" onClick={() => { statusesApi.remove(r.id, x.id).then(reload, err); setDel(null); }}>
+                    {x.name}로 옮기고 삭제</button>))}
+                <button className="um-chip" onClick={() => { statusesApi.remove(r.id, null).then(reload, err); setDel(null); }}>미지정으로 두고 삭제</button>
+              </div>
+            )}
+          </div>
+        ))}
+        {adding ? (
+          <div className="orow">
+            <input className="um-in" autoFocus placeholder="상태 이름(12자)" maxLength={12} style={{ flex: 1 }}
+              onBlur={(e) => { setAdding(false); const v = e.target.value.trim(); if (v) statusesApi.add(kind, v, PALETTE[rows.length % PALETTE.length]).then(reload, err); }}
+              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setAdding(false); }} />
+          </div>
+        ) : (
+          <div className="orow has" onClick={() => setAdding(true)}>
+            <span className="who g"><Icon name="plus" size={13} /> 상태 추가</span><span className="cap" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════ 고객 쪽(S05 §5, 3묶음 09-29) ══════════════════════ */
+
+const GU = ["강남구", "강동구", "강북구", "강서구", "관악구", "광진구", "구로구", "금천구", "노원구", "도봉구", "동대문구",
+  "동작구", "마포구", "서대문구", "서초구", "성동구", "성북구", "송파구", "양천구", "영등포구", "용산구", "은평구",
+  "종로구", "중구", "중랑구"];
+const INTENT: [NonNullable<CustomerProfile["intent"]>, string][] = [["A", "확실"], ["B", "보통"], ["C", "관망"]];
+
+/** 칩 한 줄 — 줄엔 라벨 · 현재 값만, 누르면 칩이 펼쳐진다. 고른 칩을 다시 누르면 미지정(단일) */
+function ChipRow({ label, options, value, multi, onChange }: {
+  label: string; options: [string, string][]; value: string[]; multi?: boolean; onChange: (v: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const shown = value.map((v) => options.find(([k]) => k === v)?.[1] ?? v).join(" · ");
+  return (
+    <div className={`orow has${open ? " mp-open" : ""}`} onClick={() => setOpen(!open)}>
+      <span className="who g">{label}</span><span className="cap" />
+      {open ? (
+        <span className="mp-chips" onClick={(e) => e.stopPropagation()}>
+          {options.map(([k, l]) => {
+            const on = value.includes(k);
+            return <button key={k} type="button" className={`um-chip ${on ? "on" : ""}`}
+              onClick={() => onChange(multi ? (on ? value.filter((x) => x !== k) : [...value, k]) : on ? [] : [k])}>{l}</button>;
+          })}
+        </span>
+      ) : <span className={`ev${shown ? "" : " off"}`}>{shown || "—"}</span>}
+    </div>
+  );
+}
+
+/** 프로필 — 의사 · 이해도 · 목적 · 지역 · 예산 · 메모. 전부 고객이 적는다. 상담요청을 받은 중개사가 같이 본다 */
+function ProfilePanel() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["cprofile"], queryFn: customerApi.profile });
+  const save = useMutation({
+    mutationFn: (p: Partial<CustomerProfile>) => customerApi.saveProfile({ ...(q.data as CustomerProfile), ...p }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["cprofile"] }),
+  });
+  const d = q.data;
+  if (!d) return <div className="panel"><Loading label="프로필 불러오는 중" minHeight={120} /></div>;
+  return (
+    <div className="panel">
+      <div className="sec-head"><span className="lead"><span>프로필</span></span></div>
+      <div className="mp-body pad0">
+        <ChipRow label="의사" options={INTENT} value={d.intent ? [d.intent] : []}
+          onChange={(v) => save.mutate({ intent: (v[0] as CustomerProfile["intent"]) ?? null })} />
+        <ChipRow label="이해도" options={[["처음", "처음"], ["관심", "관심"], ["공부해봄", "공부해봄"]]}
+          value={d.literacy ? [d.literacy] : []} onChange={(v) => save.mutate({ literacy: (v[0] as CustomerProfile["literacy"]) ?? null })} />
+        <ChipRow label="목적" multi options={[["실사용", "실사용"], ["투자용", "투자"], ["신축용", "신축"]]}
+          value={d.purposes ?? []} onChange={(v) => save.mutate({ purposes: v })} />
+        <ChipRow label="지역" multi options={GU.map((g) => [g, g] as [string, string])}
+          value={d.regions ?? []} onChange={(v) => save.mutate({ regions: v })} />
+        <ValueRow label="예산 최소" value={d.budget_min != null ? won(d.budget_min) : null}
+          onSave={(v) => save.mutate({ budget_min: v ? parseAmount(v) : null })} placeholder="억 단위 · 예: 30" />
+        <ValueRow label="예산 최대" value={d.budget_max != null ? won(d.budget_max) : null}
+          onSave={(v) => save.mutate({ budget_max: v ? parseAmount(v) : null })} placeholder="억 단위 · 예: 50" />
+        <ValueRow label="메모" value={d.note} onSave={(v) => save.mutate({ note: v || null })} />
+      </div>
+    </div>
+  );
+}
+
+/** 관심 — 저장한 건물 · 광고. 누르면 건물 상세(새 탭). 메모 한 줄 */
+function SavesPanel() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["saves"], queryFn: customerApi.saves });
+  const del = useMutation({ mutationFn: (id: number) => customerApi.unsave(id), onSuccess: () => qc.invalidateQueries({ queryKey: ["saves"] }) });
+  const memo = useMutation({ mutationFn: ({ id, m }: { id: number; m: string | null }) => customerApi.memo(id, m),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["saves"] }) });
+  const rows = q.data ?? [];
+  const [ed, setEd] = useState<number | null>(null);   // 메모를 고치는 줄(클릭-편집)
+  return (
+    <div className="panel">
+      <div className="sec-head"><span className="lead"><span>저장한 매물</span>
+        {rows.length > 0 && <span className="sub">{rows.length}개</span>}</span></div>
+      <div className="mp-body pad0">
+        {rows.map((s) => (
+          <div key={s.id} className="orow has mp-save" onClick={() => openDetail(s.building_pk)}>
+            <span className="who">{s.addr.replace("서울특별시 ", "").replace("번지", "") || s.building_pk}</span>
+            {ed === s.id ? (
+              <input className="um-in" autoFocus defaultValue={s.memo ?? ""} placeholder="메모 한 줄" style={{ flex: 1 }}
+                onClick={(e) => e.stopPropagation()}
+                onBlur={(e) => { setEd(null); const m = e.target.value.trim() || null; if (m !== s.memo) memo.mutate({ id: s.id, m }); }}
+                onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEd(null); }} />
+            ) : (
+              <span className="cap">
+                {s.ad_title ? `${s.ad_title}${s.ad_state && s.ad_state !== "노출" ? ` · ${s.ad_state}` : ""}${s.ad_price != null ? ` · 매매 ${won(s.ad_price)}` : ""}` : "건물"}
+                {s.memo && <i className="mp-memo"> · {s.memo}</i>}
+              </span>
+            )}
+            <span className="mp-ctls">
+              <Ctl icon="edit" title="메모" onClick={() => setEd(s.id)} />
+              <Ctl icon="trash" title="저장 해제" tone="bad" onClick={() => del.mutate(s.id)} />
+            </span>
+          </div>
+        ))}
+        {rows.length === 0 && <p className="mp-empty">저장한 매물이 없습니다</p>}
+      </div>
+    </div>
+  );
+}
+
+/** 알림 — 저장한 건물에 새 광고 · 알림을 켠 조건에 맞는 새 광고. 열면 「새 것」 표시를 지운다 */
+function AlertsPanel() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["alerts"], queryFn: customerApi.alerts });
+  const [marked, setMarked] = useState(false);
+  if (q.data && !marked) {
+    setMarked(true);
+    customerApi.seen().then(() => qc.invalidateQueries({ queryKey: ["alert-count"] }));
+  }
+  const rows = q.data ?? [];
+  return (
+    <div className="panel">
+      <div className="sec-head"><span className="lead"><span>알림</span>
+        {rows.length > 0 && <span className="sub">{rows.length}개</span>}</span></div>
+      <div className="mp-body pad0">
+        {rows.map((a) => (
+          <div key={`${a.kind}-${a.label}-${a.ad_id}`} className="orow has" onClick={() => openDetail(a.building_pk)}>
+            {a.new && <i className="mp-new" />}
+            <span className="who">{a.addr.replace("서울특별시 ", "").replace("번지", "")}</span>
+            <span className="cap">{a.kind === "조건" ? `「${a.label}」 조건` : "저장한 건물"} · 새 광고{a.title ? ` 「${a.title}」` : ""}</span>
+            <span className="ev">{a.price != null ? `매매 ${won(a.price)}` : ""}</span>
+          </div>
+        ))}
+        {rows.length === 0 && <p className="mp-empty">알림이 없습니다</p>}
+      </div>
+    </div>
+  );
+}
+
+/** 내 문의 — 보낸 상담요청과 중개사 쪽 상태 */
+function MyInquiriesPanel() {
+  const q = useQuery({ queryKey: ["my-inq"], queryFn: customerApi.myInquiries });
+  const rows = q.data ?? [];
+  return (
+    <div className="panel">
+      <div className="sec-head"><span className="lead"><span>보낸 문의</span>
+        {rows.length > 0 && <span className="sub">{rows.length}개</span>}</span></div>
+      <div className="mp-body pad0">
+        {rows.map((i) => (
+          <div key={i.id} className="orow has" onClick={() => i.building_pk && openDetail(i.building_pk)}>
+            <span className="who">{i.addr.replace("서울특별시 ", "").replace("번지", "") || i.ad_title}</span>
+            <span className="cap">{i.kind} · {i.office_name ?? ""} · {i.created_at.slice(0, 10)}</span>
+            <span className={`ev mp-st ${i.status === "미확인" ? "off" : ""}`}>{i.status}</span>
+          </div>
+        ))}
+        {rows.length === 0 && <p className="mp-empty">보낸 문의가 없습니다</p>}
+      </div>
+    </div>
+  );
+}
+
 /* ══════════════════════ 화면 ══════════════════════ */
 
-type Tab = "reports" | "office" | "account";
+type Tab = "profile" | "reports" | "saves" | "alerts" | "inq" | "office" | "account";
 
 export function MyPage() {
-  const [tab, setTab] = useState<Tab>("reports");
+  // 고객은 프로필 · 관심 · 알림 · 문의 · 계정, 중개사는 리포트 · 관심 · 알림 · 사무소 · 계정(S05 §5, 09-29)
+  const broker = useIsBroker();
+  const tabs: [Tab, string][] = broker
+    ? [["reports", "리포트"], ["saves", "관심"], ["alerts", "알림"], ["office", "사무소"], ["account", "계정"]]
+    : [["profile", "프로필"], ["saves", "관심"], ["alerts", "알림"], ["inq", "문의"], ["account", "계정"]];
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = new URLSearchParams(window.location.search).get("tab") as Tab | null;
+    return t && tabs.some(([k]) => k === t) ? t : tabs[0][0];
+  });
   return (
     <div className="page mp">
       <div className="subnav">
-        {([["reports", "리포트"], ["office", "사무소"], ["account", "계정"]] as [Tab, string][]).map(([k, l]) => (
+        {tabs.map(([k, l]) => (
           <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>
         ))}
         <span style={{ flex: 1 }} />
       </div>
 
-      {tab === "reports" && <div className="mp-two"><ReportsPanel /><SavedPanel /></div>}
+      {tab === "profile" && <div className="mp-two"><ProfilePanel /><div /></div>}
+      {tab === "reports" && <div className="mp-two"><ReportsPanel /><div /></div>}
+      {tab === "saves" && <div className="mp-two"><SavesPanel /><SavedPanel /></div>}
+      {tab === "alerts" && <div className="mp-two"><AlertsPanel /><div /></div>}
+      {tab === "inq" && <div className="mp-two"><MyInquiriesPanel /><div /></div>}
       {tab === "office" && <div className="mp-two"><OfficePanel /><TeamPanel /></div>}
+      {tab === "office" && <div className="mp-two" style={{ marginTop: 12 }}>
+        <StatusPanel kind="listing" title="매물 상태" /><StatusPanel kind="buyer" title="고객 상태" /></div>}
       {tab === "account" && <div className="mp-cols"><AccountPanel /><PlansPanel /></div>}
     </div>
   );

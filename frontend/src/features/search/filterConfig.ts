@@ -83,6 +83,10 @@ const 형상 = ["정방형", "가로장방", "세로장방", "사다리형", "�
 const 주용도주 = ["단독주택", "다가구주택", "공동주택", "제1종근린생활시설", "제2종근린생활시설", "판매시설", "의료시설", "교육연구시설", "노유자시설", "운동시설", "업무시설", "숙박시설", "위락시설", "공장", "창고시설", "자동차관련시설"];
 const 주용도부 = ["문화및집회시설", "종교시설", "운수시설", "수련시설", "위험물저장및처리시설", "동물및식물관련시설", "자원순환관련시설", "교정및군사시설", "국방,군사시설", "방송통신시설", "발전시설", "묘지관련시설", "관광휴게시설", "장례시설", "야영장시설", "분뇨.쓰레기처리시설", "가설건축물", "근린생활시설", "판매및영업시설", "교육연구및복지시설", "공공용시설"];
 
+/** 매물 유형 — 빌딩 · 상가주택 · 공장·창고 · 숙박 · 기타(대표 09-28). 기본은 기타만 끈다 */
+export const KINDS = ["빌딩", "상가주택", "공장·창고", "숙박", "기타"] as const;
+export const DEFAULT_KINDS: string[] = ["빌딩", "상가주택", "공장·창고", "숙박"];
+
 export const GROUPS: Group[] = [
   { t: "입지",
     reps: [S("역과의거리", { min: 0, max: 1000, unit: "m", inf: true, handle: "right", ticks: "0,500", le: "이내", chips: [["도보5분↓", 0, 350], ["도보10분↓", 0, 700]] })],
@@ -91,6 +95,8 @@ export const GROUPS: Group[] = [
       chips: [["번화가", 3000, ""], ["한적", "", 500]] })] },
   { t: "건물",
     reps: [
+      // 매물 유형(0193) — 사이드 판 유형 칩과 같은 값. 광고 · 매물관리 대분류와 같은 낱말
+      M("매물 유형", [...KINDS]),
       S("대지면적", { min: 0, max: 300, unit: "평", inf: true, ticks: "0,100,200" }),
       S("연면적", { min: 0, max: 500, unit: "평", inf: true, ticks: "0,150,300" }),
       S("건축면적", { min: 0, max: 200, unit: "평", inf: true, ticks: "0,50,100" }),
@@ -215,7 +221,7 @@ export const GROUPS: Group[] = [
  *  그래서 **되살릴 때만** 모르는 칸을 떨군다. 새로 거는 조건은 그대로 서버로 보내 422 로
  *  드러나게 둔다 — 오타를 잡아내던 그물은 남긴다. */
 const SERVER_FILTER_KEYS = new Set([
-  "bjd_code", "building_pk", "use_zones", "jimoks", "road_frontages", "shapes", "slopes",
+  "bjd_code", "building_pk", "use_zones", "jimoks", "road_frontages", "shapes", "slopes", "kinds",
   "land_uses", "main_uses", "etc_use", "biz", "biz_min", "land_area_min", "land_area_max", "total_area_min",
   "total_area_max", "build_area_min", "build_area_max", "floors_above_min", "floors_above_max",
   "floors_below_min", "floors_below_max", "bcr_min", "bcr_max", "far_min", "far_max",
