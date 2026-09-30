@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { loadNaver, PIN_COLORS } from "./naver";
 import { makeCanvasPinLayer, type CanvasLayer, type CanvasPin, type RealView } from "./mapCanvasLayer";
 import { meters, areaM2, geoToPaths, circleToGeoJSON, conePath } from "./geo";
@@ -114,6 +115,7 @@ export function MapPanel({
   /** 거리뷰를 닫을 때 마지막 자리 · 방향 — 사이드바 사진 자리가 이어받는다 */
   onRvClose?: (v: RoadView | null) => void;
 }) {
+  const nav = useNavigate();
   const divRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const pinLayerRef = useRef<CanvasLayer | null>(null);
@@ -700,7 +702,7 @@ export function MapPanel({
           <div style={{ position: "absolute", right: 60, bottom: 12, zIndex: 5 }}>   {/* 세로 도구 줄 왼쪽에 */}
             {newsOpen && (
               <div style={{ position: "absolute", right: 0, bottom: 38 }}>
-                <NewsFilterPanel years={newsYears} onYears={setNewsYears} types={newsTypes} onTypes={setNewsTypes}
+                <NewsFilterPanel years={newsYears} onYears={setNewsYears} types={newsTypes} onTypes={setNewsTypes} onAll={() => nav("/news")}
                   counts={newsPins.reduce((m, p) => { const k = eventIcon({ kind: p.kind, name: p.name, source: p.source }).icon; m[k] = (m[k] ?? 0) + 1; return m; }, {} as Partial<Record<IconName, number>>)} />
               </div>
             )}

@@ -25,3 +25,5 @@ export function kindOf(access: string | null): "중개사" | "고객" {
   } catch { return "중개사"; }
 }
 export const useIsBroker = () => useAuth((s) => kindOf(s.access) === "중개사");
+/** 첫 화면(2026-09-30) — 빌탐정(AI 어시스턴트)이 첫 화면이다. 어시스턴트는 아직 중개사만이라 고객은 탐색 */
+export const homeOf = (access: string | null) => (kindOf(access) === "중개사" ? "/assistant" : "/search");

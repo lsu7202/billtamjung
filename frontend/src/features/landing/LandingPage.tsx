@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../shared/store/auth";
+import { useAuth, homeOf } from "../../shared/store/auth";
 import { authApi } from "../../shared/api/endpoints";
 import { CityCanvas } from "./CityCanvas";
 import "../auth/login.css";
@@ -12,7 +12,8 @@ import "./landing.css";
  * 관문일 뿐이었다. 화면은 이동 직전 잠깐만 보이므로 스캔 플래시는 그대로 둔다. */
 export function LandingPage() {
   const nav = useNavigate();
-  const authed = useAuth((s) => Boolean(s.access));
+  const access = useAuth((s) => s.access);
+  const authed = Boolean(access);
   const [leaving, setLeaving] = useState(false);
   const [signupsOpen, setSignupsOpen] = useState(true);   // 베타 개시 전에는 신규 가입을 닫는다
 
@@ -20,13 +21,13 @@ export function LandingPage() {
     authApi.publicConfig().then((c) => setSignupsOpen(c.signups_open)).catch(() => {});
   }, []);
 
-  // 진입 즉시 이동. 세션 있으면 건물 검색, 없으면 로그인.
+  // 진입 즉시 이동. 세션 있으면 첫 화면(빌탐정 · 고객은 탐색), 없으면 로그인.
   useEffect(() => {
     setLeaving(true);
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const t = setTimeout(() => nav(authed ? "/search" : "/login", { replace: true }), reduced ? 0 : 560);
+    const t = setTimeout(() => nav(authed ? homeOf(access) : "/login", { replace: true }), reduced ? 0 : 560);
     return () => clearTimeout(t);
-  }, [authed, nav]);
+  }, [authed, access, nav]);
 
   return (
     <div className="s00">

@@ -128,7 +128,6 @@ table.wf .num { text-align: right; font-family: var(--mono); font-variant-numeri
 .srail { flex: 0 0 72px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 0 16px;
   background: #fff; border-right: 1px solid var(--line); z-index: 50; }
 .srail .sp { flex: 1; }
-.srail-logo { display: inline-flex; margin-bottom: 14px; }
 .srail-nav { display: flex; flex-direction: column; gap: 4px; align-items: center; }
 .srail-a { width: 62px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 0 7px; border-radius: 12px;
   color: #4E5968; text-decoration: none; }
@@ -139,21 +138,50 @@ table.wf .num { text-align: right; font-family: var(--mono); font-variant-numeri
 .srail-a.on span { font-weight: 700; }
 .srail-dot { position: absolute; top: -5px; right: -9px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: #F04452;
   color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; font-style: normal; box-shadow: 0 0 0 2px #fff; }
-.srail-out { width: 40px; height: 40px; border: 0; border-radius: 10px; background: none; color: #8B95A1; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center; margin-bottom: 6px; }
-.srail-out:hover { background: #F2F4F6; color: #4E5968; }
-.srail-me { width: 38px; height: 38px; border-radius: 999px; background: #3182F6; color: #fff; font-size: 15px; font-weight: 700;
-  display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
-.srail-me.on { box-shadow: 0 0 0 3px #EBF4FF, 0 0 0 4px #3182F6; }
 body.map-full .srail { display: none !important; }
 /* 폰 — 레일이 아래 탭 줄로 눕는다 */
 @media (max-width: 720px) {
   .shell { flex-direction: column-reverse; }
   .srail { flex: 0 0 auto; flex-direction: row; padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px)); border-right: 0; border-top: 1px solid var(--line); }
-  .srail-logo, .srail .sp, .srail-out { display: none; }
+  .srail .sp { display: none; }
+  /* 폰에도 ☰ 는 남긴다 — 최근 대화 · 로그아웃은 펼친 판에만 있다(2026-09-30 검토) */
+  .srail-menu { margin: 0; height: 44px; flex: 0 0 auto; }
   .srail-nav { flex-direction: row; flex: 1; justify-content: space-around; gap: 0; }
   .srail-a { width: auto; padding: 6px 6px 4px; }
-  .srail-me { width: 30px; height: 30px; font-size: 13px; }
+  .srail-me { width: 24px; height: 24px; font-size: 12px; }
 }
-.srail-me { position: relative; }
-.srail-me .srail-dot { top: -4px; right: -6px; }
+
+/* 레일 개편(2026-09-30, 유튜브 결) — ☰ · 빌탐정 · 탐색 / 아래 매물관리 · 고객관리 · 일정 · 프로필 */
+.srail-menu { width: 44px; height: 40px; border: 0; border-radius: 10px; background: none; color: #333D4B; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+.srail-menu:hover { background: #F2F4F6; }
+.srail-brand i { height: 21px; align-items: center; }
+.srail-me { width: 24px; height: 24px; border-radius: 999px; background: #3182F6; color: #fff; font-size: 12px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; font-style: normal; }
+.srail-me.sm { width: 22px; height: 22px; font-size: 11px; }
+/* 펼친 판 — 화면 위에 덮는다 */
+.sdraw-bg { position: fixed; inset: 0; z-index: 200; background: rgba(15,20,27,.32); }
+.sdraw { position: absolute; left: 0; top: 0; bottom: 0; width: 248px; background: #fff; display: flex; flex-direction: column;
+  padding: 14px 12px 16px; box-shadow: 8px 0 24px rgba(15,26,46,.12); overflow-y: auto; }
+.sdraw .sp { flex: 1; }
+.sdraw-top { display: flex; align-items: center; gap: 6px; margin: 0 0 10px -2px; }
+.sdraw-top .srail-menu { margin: 0; }
+.sdraw-logo { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: #191F28; }
+.sdraw-logo b { font-size: 17px; font-weight: 800; letter-spacing: -.03em; }
+.sdraw-grp { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.sdraw-grp.last { border-bottom: 0; border-top: 1px solid var(--line); }
+.sdraw-a { display: flex; align-items: center; gap: 14px; padding: 10px 12px; border-radius: 10px; color: #333D4B; text-decoration: none;
+  font: inherit; font-size: 14px; font-weight: 600; border: 0; background: none; cursor: pointer; text-align: left; width: 100%; }
+.sdraw-a i { position: relative; display: inline-flex; width: 22px; justify-content: center; font-style: normal; }
+.sdraw-a:hover { background: #F2F4F6; }
+.sdraw-a.on { background: #EBF4FF; color: #3182F6; }
+.sdraw-h { font-size: 12px; font-weight: 700; color: #8B95A1; padding: 6px 12px 4px; }
+.sdraw-c { display: flex; align-items: center; gap: 6px; padding: 7px 8px 7px 48px; border-radius: 10px; font-size: 13px; color: #4E5968; cursor: pointer; }
+.sdraw-c span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sdraw-c:hover { background: #F2F4F6; color: #191F28; }
+.sdraw-c.on { background: #EBF4FF; color: #3182F6; font-weight: 700; }
+.sdraw-c button { width: 22px; height: 22px; border: 0; border-radius: 999px; background: none; color: #8B95A1; cursor: pointer;
+  display: none; align-items: center; justify-content: center; flex: 0 0 auto; }
+.sdraw-c:hover button { display: inline-flex; }
+.sdraw-c button:hover { background: #FDEBEA; color: #F04452; }
+body.map-full .sdraw-bg { display: none !important; }

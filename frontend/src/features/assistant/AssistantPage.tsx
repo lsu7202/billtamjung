@@ -1,20 +1,21 @@
 /** AI 어시스턴트 — 2단계(도구). 정본 specs/07-architecture/10-AI-어시스턴트.md
+ *  (2026-09-30) 빌탐정의 첫 화면. 대화 목록은 레일의 펼친 판으로 옮겼다.
  *
  *  1단계는 도구 없이 그냥 대화였다. 2단계에서 답 안에 **우리 부품**이 선다 —
  *  건물 카드는 누르면 건물 상세로, 찾은 목록은 검색 화면과 같은 줄로. 이게 없으면
  *  앱 안에 챗지피티 창을 붙인 것뿐이다(§13). 되물음은 칩으로 뜨고 고르면 그 글자가 다음 말이 된다.
  *
- *  왼쪽은 대화 목록, 오른쪽은 한 대화. 대화는 **개인**이라 팀원 것은 안 보인다.
+ *  대화는 **개인**이라 팀원 것은 안 보인다.
  *  입력은 pill 한 줄이고 조작은 아이콘이다(줄마다 네모버튼을 나열하지 않는다). */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { MapPanel, type MapPin } from "../../shared/map/MapPanel";
 import { Icon } from "../../shared/ui/Icon";
 import { Loading } from "../../shared/ui/Spinner";
 import { AskBox } from "./AskBox";
-import { chats, send, type AskItem, type Chat, type Ev, type Msg, type Piece, type Pin, type ToolLog } from "./api";
+import { chats, send, type AskItem, type Ev, type Msg, type Piece, type Pin, type ToolLog } from "./api";
 import { Pieces, Tools } from "./Message";
 import "./assistant.css";
 
@@ -30,46 +31,16 @@ const SEEDS = [
 interface Err { code: string; title: string; body: string | null; action: string | null }
 
 export function AssistantPage() {
-  const qc = useQueryClient();
-  const [cur, setCur] = useState<number | null>(null);
-  const [side, setSide] = useState(true);            // 왼쪽 목록을 접었다 편다(2026-09-21 대표)
-  const list = useQuery({ queryKey: ["ai-chats"], queryFn: chats.list });
-  const drop = useMutation({
-    mutationFn: chats.remove,
-    onSuccess: (_d, id) => { qc.invalidateQueries({ queryKey: ["ai-chats"] }); if (cur === id) setCur(null); },
-  });
-
+  // 대화 목록은 레일의 펼친 판(☰)으로 옮겼다(2026-09-30) — 이 화면은 대화 하나만 넓게.
+  // ?chat=id 면 그 대화, 없으면 새 대화. 새로 만들어지면 주소에 그 번호를 붙인다(목록이 그 대화를 짚게)
+  const [sp, setSp] = useSearchParams();
+  const [cur, setCur] = useState<number | null>(() => (sp.get("chat") ? Number(sp.get("chat")) : null));
+  useEffect(() => { const c = sp.get("chat"); setCur(c ? Number(c) : null); }, [sp]);
   return (
-    <div className={`as${side ? "" : " side-off"}`}>
-      <aside className="as-l">
-        <div className="as-lh">
-          <button className="as-side" title="목록 접기" onClick={() => setSide(false)}><Icon name="back" size={14} /></button>
-          <span>대화</span>
-          <button className="as-new" title="새 대화" onClick={() => setCur(null)}><Icon name="plus" size={14} /></button>
-        </div>
-        {list.isLoading && <Loading label="불러오는 중" minHeight="20vh" />}
-        {(list.data ?? []).map((c) => (
-          <Row key={c.id} c={c} on={cur === c.id} pick={() => setCur(c.id)}
-            drop={() => { if (confirm("이 대화를 지울까요?")) drop.mutate(c.id); }} />
-        ))}
-      </aside>
+    <div className="as one">
       <section className="as-r">
-        {!side && (
-          <button className="as-side float" title="목록 펴기" onClick={() => setSide(true)}><Icon name="back" size={14} /></button>
-        )}
-        <Pane chatId={cur} onCreated={setCur} />
+        <Pane chatId={cur} onCreated={(id) => { setCur(id); setSp({ chat: String(id) }, { replace: true }); }} />
       </section>
-    </div>
-  );
-}
-
-function Row({ c, on, pick, drop }: { c: Chat; on: boolean; pick: () => void; drop: () => void }) {
-  return (
-    <div className={`as-i ${on ? "on" : ""}`} onClick={pick}>
-      <span className="tx">{c.title ?? <i className="off">새 대화</i>}</span>
-      <button className="as-x" title="지움" onClick={(e) => { e.stopPropagation(); drop(); }}>
-        <Icon name="trash" size={12} />
-      </button>
     </div>
   );
 }
@@ -98,6 +69,10 @@ function Pane({ chatId, onCreated }: { chatId: number | null; onCreated: (id: nu
   const [err, setErr] = useState<Err | null>(null);
   const [note, setNote] = useState<string | null>(null);     // 가린 것이 있으면 화면이 말한다(§15)
   const abort = useRef<AbortController | null>(null);
+  /** 대화를 바꿀 때마다 1씩 오른다. 보내는 중인 답은 시작할 때의 값을 쥐고 있다가, 값이 달라졌으면
+   *  (사람이 다른 대화로 옮겼으면) 흘러오는 것을 버린다 — 옛 답이 새 판에 서거나, 늦게 만들어진
+   *  대화가 사람을 도로 끌고 가지 않게(2026-09-30 검토) */
+  const gen = useRef(0);
   const foot = useRef<HTMLDivElement>(null);
   const busy = live != null;
   const nav = useNavigate();
@@ -136,6 +111,8 @@ function Pane({ chatId, onCreated }: { chatId: number | null; onCreated: (id: nu
   useEffect(() => { foot.current?.scrollIntoView({ block: "end" }); }, [q.data, live]);
   useEffect(() => {
     if (chatId === id) return;
+    gen.current += 1;
+    abort.current?.abort(); abort.current = null;
     setId(chatId); setLive(null); setErr(null); setNote(null); setDraft("");
   }, [chatId]);
 
@@ -143,11 +120,14 @@ function Pane({ chatId, onCreated }: { chatId: number | null; onCreated: (id: nu
     const t = text.trim();
     if (!t || busy) return;
     setDraft(""); setErr(null); setNote(null); setLive(EMPTY);
+    const my = gen.current;
+    const gone = () => gen.current !== my;       // 그사이 다른 대화로 옮겼나
     let cid = id;
     if (cid == null) {
       const c = await chats.create();
-      cid = c.id; setId(c.id);
       qc.invalidateQueries({ queryKey: ["ai-chats"] });
+      if (gone()) return;                          // 옮겼으면 새 대화로 끌고 가지 않는다
+      cid = c.id; setId(c.id);
       onCreated(c.id);
     }
     // 내가 친 것은 곧바로 선다. 서버 응답을 기다리지 않는다
@@ -164,6 +144,7 @@ function Pane({ chatId, onCreated }: { chatId: number | null; onCreated: (id: nu
     const push = () => setLive({ ...L, pieces: acc ? [...L.pieces, { t: "text", v: acc }] : L.pieces });
     try {
       await send(cid, t, (e: Ev) => {
+        if (gone()) return;                        // 옛 대화의 답은 새 판에 안 세운다
         if (e.t === "delta") { acc += e.v; push(); }
         // **무엇을 보냈는지도 화면에 남긴다.** input 을 비워 보내니 「모델이 무엇을 물었길래
         // 이 답이 나왔나」를 화면에서 못 봤다. start 의 인자를 붙들었다가 end 에 붙인다(2026-09-09 대표)
@@ -178,9 +159,10 @@ function Pane({ chatId, onCreated }: { chatId: number | null; onCreated: (id: nu
         }
       }, ac.signal);
     } catch { /* 중단은 오류가 아니다 */ }
-    abort.current = null;
     // 서버 것을 **먼저** 받고 나서 흘러오던 것을 내린다. 반대로 하면 그 틈에 답이 잠깐 사라진다
     await qc.invalidateQueries({ queryKey: ["ai-msgs", cid] });
+    if (gone()) return;                            // 옮긴 판의 상태는 이미 비웠다
+    abort.current = null;
     setLive(null);
   }
 
