@@ -74,11 +74,12 @@ class SaveIn(BaseModel):
 
 
 # 고객 마이페이지 「매물」 탭(S09 · 10-04) — 최근 본 · 관심 · 구해요가 한 표다. 줄 칸을 같은 이름으로 맞춘다
-_AD_ROW = """lp.pnu, COALESCE(app.parcel_addr(lp.pnu), '') AS addr, a.title AS ad_title, a.state AS ad_state,
+# 땅 값은 지번 표 하나(parcel_spot · 0259) — 대지면적은 동이 선 지번이면 대장 값, 나대지면 토지면적
+_AD_ROW = """lp.pnu, COALESCE(ps.addr, '') AS addr, a.title AS ad_title, a.state AS ad_state,
              (a.state = '노출' AND a.expires_on < current_date) AS ad_expired,
              -- 광고 가격 = 그 매물의 매매가(0226). 가격 비공개면 안 낸다
              CASE WHEN a.price_open THEN la.price END AS ad_price,
-             b.land_area, r.total_area,
+             CASE WHEN ps.rep_pk IS NULL THEN ps.parcel_area ELSE b.land_area END AS land_area, r.total_area,
              COALESCE(t.office_name, t.name) AS office_name,
              (SELECT ap.photo_id FROM app.ad_photos ap WHERE ap.ad_id = a.id ORDER BY ap.sort LIMIT 1) AS photo_id"""
 
@@ -95,8 +96,9 @@ async def list_saves(user: CurrentUser = Depends(viewer)):
              LEFT JOIN app.ads a ON a.id = s.ad_id
              LEFT JOIN app.listings la ON la.id = a.listing_id
              LEFT JOIN app.listing_parcels lp ON lp.listing_id = la.id AND lp.main
-             LEFT JOIN master.parcel_rep r ON r.pnu = lp.pnu
-             LEFT JOIN master.buildings b ON b.building_pk = r.rep_pk
+             LEFT JOIN master.parcel_spot ps ON ps.pnu = lp.pnu
+             LEFT JOIN master.parcel_rep r ON r.pkey = ps.pkey
+             LEFT JOIN master.buildings b ON b.building_pk = ps.rep_pk
              LEFT JOIN app.teams t ON t.id = la.team_id
             WHERE s.account_id = $1 ORDER BY s.created_at DESC""", user.account_id)
     return [dict(r) for r in rows]
@@ -112,11 +114,12 @@ async def recent_views(user: CurrentUser = Depends(viewer)):
               FROM app.ad_views v JOIN app.ads a ON a.id = v.ad_id
               JOIN app.listings la ON la.id = a.listing_id
               LEFT JOIN app.listing_parcels lp ON lp.listing_id = la.id AND lp.main
-              LEFT JOIN master.parcel_rep r ON r.pnu = lp.pnu
-              LEFT JOIN master.buildings b ON b.building_pk = r.rep_pk
+              LEFT JOIN master.parcel_spot ps ON ps.pnu = lp.pnu
+              LEFT JOIN master.parcel_rep r ON r.pkey = ps.pkey
+              LEFT JOIN master.buildings b ON b.building_pk = ps.rep_pk
               LEFT JOIN app.teams t ON t.id = la.team_id
              WHERE v.account_id = $1 AND v.viewed_on >= current_date - 30
-             GROUP BY v.ad_id, a.id, la.id, lp.pnu, b.land_area, r.total_area, t.office_name, t.name
+             GROUP BY v.ad_id, a.id, la.id, lp.pnu, ps.addr, ps.rep_pk, ps.parcel_area, b.land_area, r.total_area, t.office_name, t.name
              ORDER BY max(v.viewed_on) DESC, v.ad_id DESC LIMIT 200""", user.account_id)
     return [dict(r) for r in rows]
 

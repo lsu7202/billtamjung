@@ -8,9 +8,8 @@ import { PhotoFitEditor, fitStyle, DEFAULT_FIT, type Fit } from "../ui/PhotoFit"
 import { useAuth } from "../store/auth";
 import { useAreaPick } from "../store/areaPick";
 import { NewsFilterPanel } from "./NewsFilterPanel";
-import { CompPoint, geoToPaths, openDetail, conePath } from "./geo";
+import { geoToPaths, conePath } from "./geo";
 
-const COMP_COLOR = { sale: "var(--c-real)", rent: "var(--c-rent)" };   // 실거래=주황(시세추이와 통일) · 임대=초록 · 본매물=네이비(별도)
 
 /** S02 매물사진 패널 — 지도 / 로드뷰(Panorama) / 업로드 사진 탭.
  * 지도 탭: 본매물 필지 색칠 + '주변상권 정의하기'(정의 중 지도 전체화면).
@@ -21,9 +20,9 @@ const COMP_COLOR = { sale: "var(--c-real)", rent: "var(--c-rent)" };   // 실거
 /** 지도에 찍는 소식 하나 — 갈래·이름은 목록이 쥐고, 지도는 자리·아이콘·빅 이벤트 여부만 안다 */
 export interface EventPin { id: number; lng: number; lat: number; icon: string; big: boolean; name: string; source_url?: string | null }
 
-export function PhotoPanel({ lng, lat, lid, pnu, comps, events, parcelGeom, noStrip = false, noRoad = false, pov }: {
+export function PhotoPanel({ lng, lat, lid, pnu, events, parcelGeom, noStrip = false, noRoad = false, pov }: {
   /** lid = 사진 열쇠(매물 번호 · 0255) · pnu = 색칠할 땅(지번) */
-  lng: number; lat: number; lid?: number | null; pnu?: string; comps?: CompPoint[];
+  lng: number; lat: number; lid?: number | null; pnu?: string;
   /** 사진 스트립(팀 사진)을 안 세운다 — 상세보기 사양서는 팀 자료를 안 싣는다(10-01) */
   noStrip?: boolean;
   /** 거리뷰 작은 창을 안 띄운다 — 상세보기 타일은 거리뷰가 따로 선다(10-01) */
@@ -173,22 +172,6 @@ export function PhotoPanel({ lng, lat, lid, pnu, comps, events, parcelGeom, noSt
     return () => { dead = true; parcel?.setMap(null); };
   }, [mapReady, pnu, parcelGeom]);
 
-  // 발견된 주변 매물 마커 — 실거래/임대 색 구분. 클릭=새 탭 상세.
-  useEffect(() => {
-    if (!mapReady) return;
-    const naver = window.naver;
-    const markers = (comps ?? []).map((c) => {
-      const color = COMP_COLOR[c.kind];
-      const m = new naver.maps.Marker({
-        position: new naver.maps.LatLng(c.lat, c.lng), map: mapObj.current, zIndex: 80,
-        icon: { content: `<div style="width:11px;height:11px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);cursor:pointer"></div>`, anchor: new naver.maps.Point(5, 5) },
-      });
-      naver.maps.Event.addListener(m, "click", () => openDetail(c.building_pk));
-      return m;
-    });
-    return () => markers.forEach((m) => m.setMap(null));
-  }, [mapReady, comps]);
-
   // 주변 소식 아이콘(2026-09-06) — 기본은 빅 이벤트만. 기타까지 다 찍으면 지도가 더러워진다.
   //   목록에서 고른 것은 파랗게 차고 파문이 돈다. 아이콘을 누르면 목록이 그 줄로 간다.
   useEffect(() => {
@@ -267,12 +250,6 @@ export function PhotoPanel({ lng, lat, lid, pnu, comps, events, parcelGeom, noSt
               </div>
             )}
             <button className={`ev-all ${evOpen ? "on" : ""}`} onClick={() => setEvOpen((v) => !v)}>소식</button>
-          </div>
-        )}
-        {!roadBig && (comps?.length ?? 0) > 0 && (
-          <div style={{ position: "absolute", bottom: 12, left: 12, zIndex: 6, background: "#fff", borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,.15)", padding: "6px 10px", fontSize: 11, display: "flex", gap: 12 }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: COMP_COLOR.sale }} />실거래</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: COMP_COLOR.rent }} />임대</span>
           </div>
         )}
         {!roadBig && mapReady && (

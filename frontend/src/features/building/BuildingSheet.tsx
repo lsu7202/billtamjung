@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Navigate, useParams, useSearchParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { buildingsApi, marketApi, parcelsApi } from "../../shared/api/endpoints";
 import { RoadviewMini, type RoadView } from "../../shared/map/Roadview";
 import { PhotoPanel } from "../../shared/map/PhotoPanel";
@@ -43,11 +43,15 @@ function Card({ title, wide, children, extra, k }: { title: string; wide?: boole
   );
 }
 
-export function BuildingSheet({ pnu, dong, onOpen }: { pnu: string; /** 고른 동(건물 번호) — 없으면 1동(대표) */ dong?: string | null;
-  /** 유사거래 줄을 누르면 그 지번 사양서로 */ onOpen?: (pnu: string) => void }) {
+export function BuildingSheet({ pnu, dong, onOpen, onMain }: { pnu: string; /** 고른 동(건물 번호) — 없으면 1동(대표) */ dong?: string | null;
+  /** 유사거래 줄을 누르면 그 지번 사양서로 */ onOpen?: (pnu: string) => void;
+  /** 부속 지번으로 들어왔을 때 — 본 지번으로 넘긴다(바꿔 끼우기 · 뒤로 가기에 안 남게) */ onMain?: (pnu: string) => void }) {
   const pk = pnu;   // 화면 상태를 지번마다 새로 세우는 열쇠
   const { unit, area } = useUnit();
   const bq = useQuery({ queryKey: ["parcel", pnu], queryFn: () => parcelsApi.get(pnu) });
+  // 다른 건물에 딸린 필지(부속 지번)면 서버가 본 지번만 준다 — 그 지번 페이지로 넘어간다(지도 클릭과 같은 규칙)
+  const mainPnu = (bq.data?.main_pnu as string | undefined) ?? null;
+  useEffect(() => { if (mainPnu && mainPnu !== pnu) onMain?.(mainPnu); }, [mainPnu, pnu]);   // eslint-disable-line react-hooks/exhaustive-deps
   const parcelsQ = useQuery({ queryKey: ["lands-raw", pnu], queryFn: () => parcelsApi.lands(pnu, true) });
 
   const dealsQ = useQuery({ queryKey: ["trades", pnu], queryFn: () => parcelsApi.trades<Deal>(pnu) });
@@ -397,15 +401,17 @@ export function BuildingSheetModal({ pnu, dong, onClose, onOpen, left }: { pnu: 
           <Icon name="external" size={18} /></button>
         <button className="sheet-ic" title="닫기" onClick={onClose}><Icon name="close" size={20} /></button>
       </div>
-      <div className="sheet-scroll"><BuildingSheet pnu={pnu} dong={dong} onOpen={onOpen} /></div>
+      <div className="sheet-scroll"><BuildingSheet pnu={pnu} dong={dong} onOpen={onOpen} onMain={onOpen} /></div>
     </div>
   );
 }
 
 /** 새 탭 페이지(/parcels/:pnu?dong=) — 같은 사양서, 화면 폭 전체 */
 export function BuildingSheetPage({ pnu, dong }: { pnu: string; dong?: string | null }) {
+  const nav = useNavigate();
   return <div className="sheet-page"><div className="sheet-top"><SheetHead pnu={pnu} /><span className="sp" /><UnitToggle /></div>
-    <BuildingSheet pnu={pnu} dong={dong} onOpen={(p) => { window.location.href = `/parcels/${p}`; }} /></div>;
+    <BuildingSheet pnu={pnu} dong={dong} onOpen={(p) => { window.location.href = `/parcels/${p}`; }}
+      onMain={(p) => nav(`/parcels/${p}`, { replace: true })} /></div>;
 }
 
 /** 라우트(/parcels/:pnu) */

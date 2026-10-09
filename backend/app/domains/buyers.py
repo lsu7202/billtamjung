@@ -331,8 +331,8 @@ async def list_proposals(buyer_id: int | None = None, listing_id: int | None = N
                   -- 매수자 전화(0128 문서 씨앗) — 열람 경계는 목록과 같다: 담당자 본인·대표만
                   CASE WHEN $4::bigint = y.assignee_account_id OR $5::text = 'owner'
                        THEN y.phone END AS buyer_phone,
-                  lp.pnu, COALESCE(b.addr, vp.addr) AS addr, COALESCE(b.land_area, vp.area) AS land_area,
-                  pr.total_area, COALESCE(b.use_zone, vp.use_zone) AS use_zone,
+                  lp.pnu, ps.addr, CASE WHEN ps.rep_pk IS NULL THEN ps.parcel_area ELSE b.land_area END AS land_area,
+                  pr.total_area, ps.use_zone,
                   plog.price_log,
                   -- 매매가(0226) — 짝이 가리키는 매물의 값(보이는 범위는 listings_now). 추정가를 섞지 않는다
                   (SELECT n.price FROM app.listings_now(p.team_id, true) n
@@ -347,11 +347,11 @@ async def list_proposals(buyer_id: int | None = None, listing_id: int | None = N
            -- 소프트 삭제된 매수자의 짝은 보드에서 뺀다. 사람은 목록에서 사라졌는데
            -- 그 사람 카드만 보드에 남으면 눌러도 갈 곳이 없다(2026-08-09 QA).
            JOIN app.buyers y ON y.id = p.buyer_id AND y.deleted_at IS NULL
-           -- 매물의 땅(0255) — 대표 지번 · 그 지번의 대표 동 · 나대지
+           -- 매물의 땅(0255) — 대표 지번의 지번 표(parcel_spot · 0259, 나대지 포함) · 동 합 · 대표 동 대장
            LEFT JOIN app.listing_parcels lp ON lp.listing_id = p.listing_id AND lp.main
-           LEFT JOIN master.parcel_rep pr ON pr.pnu = lp.pnu
-           LEFT JOIN master.buildings b ON b.building_pk = pr.rep_pk
-           LEFT JOIN master.vacant_parcels vp ON pr.pnu IS NULL AND vp.pnu = lp.pnu
+           LEFT JOIN master.parcel_spot ps ON ps.pnu = lp.pnu
+           LEFT JOIN master.parcel_rep pr ON pr.pkey = ps.pkey
+           LEFT JOIN master.buildings b ON b.building_pk = ps.rep_pk
            LEFT JOIN master.parcel_sale_est se ON se.pnu = lp.pnu
            -- 임대 총계의 정본(0134) — 사람이 적은 총액. 우리 사무소 매물일 때만
            LEFT JOIN app.office_listings l2 ON l2.id = p.listing_id AND l2.team_id = p.team_id
@@ -1414,7 +1414,7 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                        user: CurrentUser = Depends(current_user)):
     """매물 단위 — 흐름 보드와 「이 매도자의 매물들」이 읽는다."""
     rows = await pool().fetch(
-        """SELECT l.id AS listing_id, l.pnu, r.rep_pk AS building_pk, l.owner_id,
+        """SELECT l.id AS listing_id, l.pnu, ps.rep_pk AS building_pk, l.owner_id,
                   o.name AS owner_name, o.phone AS owner_phone, o.owner_type, o.relation,
                   o.cooperation, o.kindness, o.age_band AS owner_age_band,
                   o.gender AS owner_gender, o.note AS owner_note,
@@ -1425,11 +1425,11 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                   (o.id IS NOT NULL) AS has_owner,
                   l.intent, l.urgency, l.call_result,
                   l.assignee_account_id, l.updated_at,
-                  -- 위치는 매물의 대표 지번(0255). 동이 없는 지번(나대지)은 vacant_parcels 가 주소 · 대지면적을 준다
-                  -- building_pk = 그 지번의 대표 동(동 카드 · 층별을 열 때만 쓴다)
-                  COALESCE(b.addr, vp.addr) AS addr,
-                  COALESCE(b.land_area, vp.area) AS land_area, pr.total_area,
-                  (pr.pnu IS NULL) AS is_vacant,
+                  -- 위치는 매물의 대표 지번(0255) · 땅 값은 지번 표(parcel_spot · 0259, 나대지 포함)
+                  -- building_pk = 그 지번의 대표 동(동 카드 · 임대 줄을 열 때만 쓴다). 대지면적은 대장 값, 나대지면 토지면적
+                  ps.addr,
+                  CASE WHEN ps.rep_pk IS NULL THEN ps.parcel_area ELSE b.land_area END AS land_area, pr.total_area,
+                  (ps.rep_pk IS NULL) AS is_vacant,
                   -- 매매가 = 이 매물의 값 하나(0226). 추정가로 미리 채우지 않는다(2026-08-18)
                   l.price AS list_price, l.pp_land,
                   se.sale_est AS est_price,   -- 지번 추정가(0250)
@@ -1469,10 +1469,9 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                     WHERE m2.listing_id = l.id AND m2.kind = '메모') AS memo_text
            FROM app.office_listings l
            LEFT JOIN app.owners o ON o.id = l.owner_id AND o.deleted_at IS NULL   -- 0058
-           LEFT JOIN master.parcel_rep pr ON pr.pnu = l.pnu
-           LEFT JOIN master.parcel_rep r ON r.pnu = l.pnu
-           LEFT JOIN master.buildings b ON b.building_pk = pr.rep_pk
-           LEFT JOIN master.vacant_parcels vp ON pr.pnu IS NULL AND vp.pnu = l.pnu
+           LEFT JOIN master.parcel_spot ps ON ps.pnu = l.pnu
+           LEFT JOIN master.parcel_rep pr ON pr.pkey = ps.pkey
+           LEFT JOIN master.buildings b ON b.building_pk = ps.rep_pk
            LEFT JOIN master.parcel_sale_est se ON se.pnu = l.pnu
            LEFT JOIN app.statuses ls ON ls.id = l.status_id
            -- 대표 사진 — 외관 먼저(서류가 표지로 올라오지 않게). 제안 목록과 같은 규칙.

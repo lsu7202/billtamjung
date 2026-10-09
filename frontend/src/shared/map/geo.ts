@@ -10,14 +10,6 @@ export function mergeGeo(list: object[]): object | null {
   return polys.length ? { type: "MultiPolygon", coordinates: polys } : null;
 }
 
-/** 지도에 찍을 주변 매물 포인트 — 실거래(sale)/임대(rent) 색 구분. */
-export type CompPoint = { building_pk: string; lng: number; lat: number; kind: "sale" | "rent" };
-
-/** 매물 상세를 새 탭으로 (redirect=항상 새 탭). */
-// 나대지 매물은 building_pk 자리에 'P'+pnu 가 산다(2026-08-27) — 상세도 필지 화면으로 간다.
-// 진짜 건물 PK 는 숫자로 시작하므로(대장 PK) 접두 'P' 와 부딪히지 않는다.
-export const openDetail = (pk: string) =>
-  window.open(pk.startsWith("P") ? `/parcels/${pk.slice(1)}` : `/buildings/${pk}`, "_blank", "noopener");
 /** 지번 페이지를 새 탭으로(10-08) — 동을 고르고 들어오면 ?dong= */
 export const openParcel = (pnu: string, dong?: string | null) =>
   window.open(`/parcels/${pnu}${dong ? `?dong=${encodeURIComponent(dong)}` : ""}`, "_blank", "noopener");
