@@ -60,7 +60,7 @@ if step_ge load; then
   declare -a MAP=(
     "buildings:buildings.csv" "parcels:parcels.csv"
     "building_parcels:building_parcels.csv" "gongsi_series:gongsi_series.csv"
-    "sales_history:sales_history.csv" "complex:complex.csv"
+    "complex:complex.csv"
     "unit:unit.csv" "energy:energy.csv" "zone:zone.csv" "closed:closed.csv"
     "basic:basic.csv" "septic:septic.csv"
     # aptprice 는 뺐다(2026-09-02) — 읽는 화면·API 가 없다. 되살리려면 build_all 의
@@ -157,19 +157,9 @@ if step_ge load; then
   }
 
   # ① 참조표 — 건물마다 계산할 때 읽는 상수들
-  # 상권 72칸 — 원본 SHP 이 있으면 그걸로, 없으면 DB 에서 떠 둔 CSV 로(2026-08-30).
-  # 원본은 공공데이터포털 15086933 인데 자동 다운로드가 없고 폴더가 유실됐다.
-  if [ -e "data/raw/상권구획도(업로드용)" ]; then
-    derive "sanggwon (부동산원 상권 72칸 · SHP)" scripts/sanggwon/load_sanggwon.py "" gis
-  else
-    derive "sanggwon (부동산원 상권 72칸 · 보존 CSV)" scripts/sanggwon/load_sanggwon_csv.py \
-           "data/exports/sanggwon/sanggwon.csv.gz"
-  fi
-  derive "trade_area (서울시 상권 1,650칸)"     scripts/sanggwon/load_seoul_trade_area.py \
-         "data/raw/서울시 상권분석서비스(영역-상권)" gis
   derive "subway_stations (역 위치)"            scripts/transit/load_stations.py \
          "data/raw/서울시 역사마스터 정보.json"
-  derive "building_redevel (정비구역·재정비)"    scripts/vworld/load_redevel_zones.py \
+  derive "redevel_zone (정비구역·재정비 폴리곤)"    scripts/vworld/load_redevel_zones.py \
          "data/raw/LSMD_CONT_UD602_서울" gis
   # 지구단위계획은 「포함 여부」가 아니라 **계획 이름**이 필요해서 따로 싣는다(2026-09-04).
   # 필지 원장(KLIP)은 「지구단위계획구역 포함」까지만 말한다.
@@ -201,40 +191,28 @@ if step_ge load; then
   derive "area_event 본문 되붙임"                scripts/load_urban_notice.py \
          "data/raw/_urban_notice/notices.jsonl"
 
-  # ①-3 업체 명부 — 층별 임대 상호명·면적과 상권 7갈래의 재료
+  # ①-3 업체 명부 — 층별 임대 상호명·면적의 재료
   derive "sbiz_store (소상공인 상가정보)"        scripts/load_sbiz.py "data/raw/_sbiz"
   # pyproj(5174→4326)를 쓴다 — gis 인터프리터라야 한다
   derive "localdata_permit (LOCALDATA 208업종)"  scripts/load_localdata.py \
          "data/raw/_localdata" gis
-  derive "sanggwon_rent_series (임대 시계열)"    "$RENT/build_series.py"
   derive "sale_price_index (분기 가격지수)"      "$RENT/build_price_index.py"
 
   # ② 검색·분석 전용 계산값 — 대장이 비운 용적률·건폐율·면적(0143·0144).
-  #    **화면·서류에는 안 나간다.** 활용 유형(building_score)과 검색 필터가 이 표를 읽으므로
-  #    점수보다 먼저 와야 한다. buildings 를 다시 실으면 이것도 같이 다시 낸다.
+  #    **화면·서류에는 안 나간다.** 검색 필터가 이 표를 읽는다. buildings 를 다시 실으면 이것도 같이 다시 낸다.
   derive "building_calc (검색·분석 전용 용적률·건폐율)" scripts/build_building_calc.py
   # 법정 건폐·용적을 건물마다 펴 둔다(2026-09-04). 검색이 use_zone 을 CASE 로 잘라
   # 건물 상세와 다른 값을 내던 것을 고치려고 만들었다. 산식은 상세와 **같다**.
   derive "building_legal (법정 건폐·용적)"       scripts/build_building_legal.py
+  # 지번 대표 동 · 나대지 MV — 적재기가 안 고친다(2026-10-07)
+  derive "parcel_mvs (지번 대표 동 · 나대지)"   scripts/refresh_parcel_mvs.py
 
-  # ③ 임대 추정 — 층이 먼저, 건물 총액이 그 합
-  #    산식은 v4(공시지가 주축). 계수는 scripts/rent_estimate/_rent_v4_coef.json 에 **박혀 있다** —
-  #    파이프라인이 다시 굽지 않는다. 크롤 잣대로 한 번 굽는 것이고(fit_rent_v4.py),
-  #    매번 다시 구우면 남의 사이트를 긁어야 파이프라인이 도는 꼴이 된다. 잣대는 잣대로만 쓴다.
-  derive "floor_rent_est (층별 임대추정)"        "$RENT/build_floor.py"
-  derive "building_rent_est (건물 임대추정)"     "$RENT/build_bldg.py"
+  # ③ 임대 추정 · 구별 cap rate 는 2026-10-07 에 지웠다(태그 「추정임대-마지막」).
 
-  # ③-2 구별 cap rate — **임대추정 ÷ 실거래**라 임대가 나온 뒤여야 한다.
-  #     예전엔 참조표 묶음에 있어 임대 빌더보다 앞에서 돌았다. 그래서 임대 산식을 고쳐도
-  #     cap 은 지난번 임대로 계산된 값이 남았고, 그 cap 이 적정가의 수익환원 축으로 들어갔다.
-  derive "income_cap (구별 cap rate)"           "$RENT/build_income_cap.py"
+  # ④ 적정가 — 참조표를 읽는다(수익환원 재료는 다음 파이프라인에서 임대매물 호가로 다시 붙인다)
+  derive "parcel_sale_est (지번 적정가)"           "$RENT/build_sale_est.py"
 
-  # ④ 적정가 — 임대(수익환원)와 참조표를 둘 다 읽는다
-  derive "building_sale_est (적정가)"           "$RENT/build_sale_est.py"
-
-  # ⑤ 점수 — 활용유형·매도가능성(매력도는 2026-09-06 삭제). 읽는 것은 **계산 용적률(building_calc)**·정비구역·
-  #    공시 추세·최근 거래연월이다. 적정가·임대는 안 읽는다(예전 주석이 틀렸다).
-  derive "building_score (활용유형·매도가능성)" scripts/build_building_score.py
+  # ⑤ 점수(활용유형 · 매도가능성)는 2026-10-07 에 지웠다(0240). 매력도는 09-06.
 
   # ── 6) 검증 ───────────────────────────────────────────────────
   # 돌고 나서 **데이터가 성한지** 본다. 층 표기가 뒤집혔는지·파생 배치가 비었는지·
@@ -259,8 +237,7 @@ if step_ge load; then
     echo ""
     echo "  ❌ qa_data 실패 — 위에 ✗ 로 뜬 항목을 고치기 전에는 이 데이터를 쓰지 마세요."
     echo "     적재·파생은 이미 끝났습니다. 산식을 고쳤으면 해당 파생 배치만 다시 돌리면 됩니다:"
-    echo "       scripts/rent_estimate/build_floor.py · build_bldg.py · build_income_cap.py"
-    echo "       scripts/rent_estimate/build_sale_est.py · scripts/build_building_score.py"
+    echo "       scripts/rent_estimate/build_sale_est.py"
     exit 1
   fi
 

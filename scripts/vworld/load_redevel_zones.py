@@ -1,4 +1,4 @@
-"""master.building_redevel — 정비구역(UD602)·재정비촉진지구(UD603) 건물 태깅.
+"""master.redevel_zone — 정비구역(UD602)·재정비촉진지구(UD603) 폴리곤(주변 소식 재료).
 
 F-21 미래가치 '개발여지' 축 입력: 구역 안 건물 = 명시적 개발 기대(재건축 옵션 문헌 근거).
 원천: V-World SHP(EPSG:5174, download_vworld.py 30335/30337) → 4326 재투영 → PostGIS 조인.
@@ -104,19 +104,8 @@ async def main():
         dat = sum(1 for x in rows if x[6] is not None)
         nm = sum(1 for x in rows if x[1])
         print(f"{label}: 폴리곤 {len(rows)} · 이름 {nm} · 고시연도 {got} · 고시일자 {dat}")
-    # 건물 태깅 — 포인트 in 폴리곤(건물 geom은 대표점). 한 건물이 여러 구역이면 전부 보존.
-    # 고시 정보를 같이 내린다(2026-09-04). 예전엔 kind·name 뿐이라 「언제 지정됐나」가
-    # 구역 표에만 있고 건물에는 안 왔다. 읽는 쪽이 조인을 또 하지 않게 여기서 편다.
-    await c.execute("""DROP TABLE IF EXISTS master.building_redevel;
-        CREATE TABLE master.building_redevel AS
-        SELECT DISTINCT b.building_pk, z.id AS zone_id, z.kind, z.name, z.label,
-               z.gosi_year, z.gosi_no, z.ntf_date
-        FROM master.buildings b JOIN master.redevel_zone z ON ST_Contains(z.geom, b.geom);
-        CREATE INDEX ON master.building_redevel(building_pk)""")
-    n = await c.fetchval("SELECT count(DISTINCT building_pk) FROM master.building_redevel")
-    per = await c.fetch("""SELECT kind, count(DISTINCT building_pk) n
-                           FROM master.building_redevel GROUP BY kind""")
-    print(f"태깅 건물 {n:,}동 · " + " · ".join(f"{r['kind']} {r['n']:,}" for r in per))
+    # 건물 태깅(master.building_redevel)은 2026-10-07 에 뺐다 — 읽던 것은 미래가치(F-21)뿐이었다.
+    # 구역 폴리곤(redevel_zone)은 주변 소식(build_area_event)이 읽는다.
     lab = await c.fetchval("SELECT count(*) FILTER (WHERE label IS NULL) FROM master.redevel_zone")
     print(f"이름도 고시번호도 없는 구역 {lab}건 — 화면에 이름을 못 쓴다")
     await c.close()

@@ -1,9 +1,11 @@
 """인증: 가입(원자 트랜잭션)·로그인·refresh·비번변경/재설정. specs S00 · 01-상세설계 §5."""
+import os
 import secrets
+import uuid
 import datetime as dt
-from fastapi import APIRouter, HTTPException, Response, Cookie
+from fastapi import APIRouter, File, HTTPException, Response, Cookie, UploadFile
 from pydantic import BaseModel, EmailStr, Field
-from ..core import security
+from ..core import security, storage
 from ..core.db import tx, pool
 from ..core.config import settings
 
@@ -38,7 +40,6 @@ class LoginIn(BaseModel):
 
 class TokenOut(BaseModel):
     access_token: str
-    tier: str
 
 
 def _set_refresh(resp: Response, account_id: int, remember: bool = True) -> None:
@@ -56,12 +57,13 @@ async def _issue(resp: Response, acc: dict, remember: bool = True) -> TokenOut:
         "SELECT team_id, role FROM app.team_members WHERE account_id=$1 AND left_at IS NULL LIMIT 1",
         acc["id"],
     )
-    kind = await pool().fetchval("SELECT kind FROM app.accounts WHERE id=$1", acc["id"]) or "중개사"
+    # 가입 중엔 아직 커밋 전이라 풀에서 안 보인다 — 가입이 넘겨준 kind 를 먼저 쓴다(고객 토큰이 중개사로 찍히던 버그)
+    kind = acc.get("kind") or await pool().fetchval("SELECT kind FROM app.accounts WHERE id=$1", acc["id"]) or "중개사"
     # 팀이 없는 계정(고객)도 들어온다 — 전엔 row 가 None 이면 500 이었다
     access = security.make_access(acc["id"], row["team_id"] if row else None,
-                                  row["role"] if row else None, acc["tier"], kind)
+                                  row["role"] if row else None, kind)
     _set_refresh(resp, acc["id"], remember)
-    return TokenOut(access_token=access, tier=acc["tier"])
+    return TokenOut(access_token=access)
 
 
 SIGNUP_CLOSED = "관리자만 이용 가능합니다."
@@ -88,26 +90,27 @@ async def signup(body: SignupIn, resp: Response):
             raise HTTPException(409, "이미 가입된 이메일입니다")
         acc = await conn.fetchrow(
             """INSERT INTO app.accounts(email,password_hash,name,office_name,phone,
-                   job_role,referral_source,interest_region,gender,tier,
-                   trial_started_at,trial_ends_at,terms_agreed_at,privacy_agreed_at,marketing_agreed_at,kind)
-               VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'trial',now(),now()+interval '1 month',
+                   job_role,referral_source,interest_region,gender,
+                   terms_agreed_at,privacy_agreed_at,marketing_agreed_at,kind)
+               VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,
                       now(),now(),CASE WHEN $10 THEN now() END,$11)
-               RETURNING id, tier""",
+               RETURNING id, kind""",
             body.email, pw, body.name or body.email.split("@")[0], body.office_name, body.phone,
             body.job_role, body.referral_source, body.interest_region, body.gender, body.marketing_agreed,
             body.kind,
         )
-        if body.kind == "고객":
-            return await _issue(resp, dict(acc))
-        team_name = body.office_name or f"{body.name or body.email.split(chr(64))[0]} 팀"
-        team_id = await conn.fetchval(
-            "INSERT INTO app.teams(name,owner_account_id) VALUES($1,$2) RETURNING id",
-            team_name, acc["id"],
-        )
-        await conn.execute(
-            "INSERT INTO app.team_members(team_id,account_id,role) VALUES($1,$2,'owner')",
-            team_id, acc["id"],
-        )
+        if body.kind != "고객":
+            team_name = body.office_name or f"{body.name or body.email.split(chr(64))[0]} 팀"
+            team_id = await conn.fetchval(
+                "INSERT INTO app.teams(name,owner_account_id) VALUES($1,$2) RETURNING id",
+                team_name, acc["id"],
+            )
+            await conn.execute(
+                "INSERT INTO app.team_members(team_id,account_id,role) VALUES($1,$2,'owner')",
+                team_id, acc["id"],
+            )
+    # 토큰은 커밋 **뒤에** 만든다 — _issue 는 풀에서 팀 · 종류를 읽는데, 커밋 전엔 안 보여
+    # 새 중개사 토큰에 팀이 비고 고객 토큰에 「중개사」가 찍혔다(2026-09-30)
     return await _issue(resp, dict(acc))
 
 
@@ -124,7 +127,7 @@ def login_blocked(email: str | None) -> bool:
 @router.post("/login", response_model=TokenOut)
 async def login(body: LoginIn, resp: Response):
     acc = await pool().fetchrow(
-        "SELECT id, tier, password_hash FROM app.accounts WHERE email=$1 AND deleted_at IS NULL",
+        "SELECT id, password_hash FROM app.accounts WHERE email=$1 AND deleted_at IS NULL",
         body.email,
     )
     # 존재여부 은닉: 실패 메시지 통일(S00 §3.2)
@@ -144,7 +147,7 @@ async def refresh(resp: Response, refresh: str | None = Cookie(default=None)):
         account_id = int(payload["sub"])
     except Exception:
         raise HTTPException(401, "invalid refresh token")
-    acc = await pool().fetchrow("SELECT id, tier FROM app.accounts WHERE id=$1", account_id)
+    acc = await pool().fetchrow("SELECT id FROM app.accounts WHERE id=$1", account_id)
     if not acc:
         raise HTTPException(401, "account not found")
     return await _issue(resp, dict(acc))
@@ -162,11 +165,62 @@ from fastapi import Depends  # noqa: E402
 
 @router.get("/me")
 async def me(user: CurrentUser = Depends(any_user)):
-    row = await pool().fetchrow("SELECT name, email, job_role, gender, phone FROM app.accounts WHERE id=$1", user.account_id)
+    row = await pool().fetchrow("SELECT name, email, job_role, job_title, gender, phone, photo_path FROM app.accounts WHERE id=$1", user.account_id)
     return {"account_id": user.account_id, "team_id": user.team_id, "job_role": row["job_role"] if row else None, "gender": row["gender"] if row else None,
-            "role": user.role, "tier": user.tier, "kind": user.kind,
+            "role": user.role, "kind": user.kind,
             "name": row["name"] if row else None, "email": row["email"] if row else None,
-            "phone": row["phone"] if row else None}
+            "phone": row["phone"] if row else None, "job_title": row["job_title"] if row else None,
+            "photo": photo_url(user.account_id, row["photo_path"]) if row else None}
+
+
+# ── 프로필 사진(0219) ─────────────────────────────────
+# 중개사 사진은 매물 카드에 선다 — 고객도 보는 자리라 주소로 바로 열린다(<img> 는 토큰을 못 싣는다).
+# 고객 사진은 남에게 안 보인다 — 주소로는 중개사 것만 열고, 본인 것은 /auth/me/photo 로 받는다.
+def photo_url(account_id: int, path: str | None) -> str | None:
+    """사진 주소 — 바꿀 때마다 키가 바뀌니 ?v= 로 캐시를 넘긴다"""
+    return f"/api/auth/photo/{account_id}?v={path.rsplit('_', 1)[-1].split('.')[0][:8]}" if path else None
+
+
+@router.post("/me/photo")
+async def upload_photo(file: UploadFile = File(...), user: CurrentUser = Depends(any_user)):
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(422, "이미지 파일만 올릴 수 있습니다")
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(422, "5MB 보다 작은 사진을 올려 주세요")
+    key = f"avatars/acc{user.account_id}_{uuid.uuid4().hex}{os.path.splitext(file.filename or '')[1][:8] or '.png'}"
+    await storage.save(key, data, file.content_type or "image/png")
+    await pool().execute("UPDATE app.accounts SET photo_path=$1 WHERE id=$2", key, user.account_id)
+    return {"ok": True, "photo": photo_url(user.account_id, key)}
+
+
+@router.delete("/me/photo")
+async def delete_photo(user: CurrentUser = Depends(any_user)):
+    await pool().execute("UPDATE app.accounts SET photo_path=NULL WHERE id=$1", user.account_id)
+    return {"ok": True}
+
+
+def _img(data: bytes) -> str:
+    return "image/png" if data[:4] == b"\x89PNG" else "image/webp" if data[8:12] == b"WEBP" else "image/gif" if data[:3] == b"GIF" else "image/jpeg"
+
+
+@router.get("/me/photo")
+async def my_photo(user: CurrentUser = Depends(any_user)):
+    key = await pool().fetchval("SELECT photo_path FROM app.accounts WHERE id=$1", user.account_id)
+    data = await storage.load(key) if key else None
+    if data is None:
+        raise HTTPException(404, "사진이 없습니다")
+    return Response(content=data, media_type=_img(data), headers={"Cache-Control": "private, max-age=300"})
+
+
+@router.get("/photo/{account_id}")
+async def broker_photo(account_id: int):
+    key = await pool().fetchval(
+        "SELECT photo_path FROM app.accounts WHERE id=$1 AND kind='중개사' AND deleted_at IS NULL", account_id)
+    data = await storage.load(key) if key else None
+    if data is None:
+        raise HTTPException(404, "사진이 없습니다")
+    return Response(content=data, media_type=_img(data), headers={"Cache-Control": "public, max-age=86400"})
 
 
 # ── 비밀번호 변경 · 재설정 ───────────────────────────
@@ -186,6 +240,7 @@ class ProfileIn(BaseModel):
     referral_source: str | None = None
     interest_region: str | None = None
     gender: str | None = None
+    job_title: str | None = None       # 직급(0206) — "" 를 보내면 지운다
 
 
 @router.patch("/profile")
@@ -196,6 +251,10 @@ async def patch_profile(body: ProfileIn, user: CurrentUser = Depends(any_user)):
         v = getattr(body, k)
         if v is not None and str(v).strip() != "":
             args.append(v.strip()); sets.append(f"{k}=${len(args)}")
+    if body.job_title is not None and body.job_title.strip() == "":
+        sets.append("job_title=NULL")              # 빈 값은 지우기(클릭-편집 칸 규칙)
+    elif body.job_title is not None:
+        args.append(body.job_title.strip()); sets.append(f"job_title=${len(args)}")
     if not sets:
         return {"ok": True}
     args.append(user.account_id)

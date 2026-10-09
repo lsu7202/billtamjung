@@ -6,7 +6,6 @@
   · V-World MK zip     → 압축해제 → data/raw/<정규 LSMD dir>/  (paths.py가 *.shp glob)
   · V-World NA zip     → 토지특성(AL_D194 25구) → data/raw/토지특성/<stem>/ · 공시지가(AL_D150) → data/raw/<stem>/
   · 역사/버스 json      → data/raw/*.json
-  · 임대동향 xlsx       → data/raw/*.xlsx
   · 승강기 csv          → data/raw/*.csv
 멱등(덮어쓰기). raw 사용 원장 = specs/07-architecture/05-raw-사용-원장.
 
@@ -116,7 +115,7 @@ def handle_vworld_na(zip_path):
 
 
 def handle_copy(path):
-    """역사/버스 json · 임대동향 xlsx · 승강기 csv → raw 최상위로 복사."""
+    """역사/버스 json · 승강기 csv → raw 최상위로 복사."""
     dst = os.path.join(RAW, os.path.basename(path))
     shutil.copy2(path, dst)
     note(f"복사 {os.path.basename(path)} → data/raw/")
@@ -159,11 +158,6 @@ def classify_and_route(path, djy_txts):
                         note(f"상가정보 {os.path.basename(fixed)} → data/raw/_sbiz/")
                 else:
                     note(f"상가정보 {name}: zip 안에 서울 CSV 가 없다 — {z.namelist()[:3]}")
-        elif "상권분석서비스" in name:   # zip 안 이름이 CP949 로 깨져 나온다 → sanggwon.*
-            dest = os.path.join(RAW, "서울시 상권분석서비스(영역-상권)")
-            _unzip_to(path, dest)
-            _rename_stem(dest, None, "sanggwon")
-            note(f"상권분석 {name} → {os.path.relpath(dest, ROOT)}/")
         elif name.startswith("C_UQ"):                    # 지구단위계획 등 비LSMD → 이름 그대로 dir
             dest = os.path.join(RAW, re.sub(r"\.zip$", "", name))
             _unzip_to(path, dest)
@@ -177,8 +171,6 @@ def classify_and_route(path, djy_txts):
         else:                                            # 판별불가 zip → HUB 시도(내부 mart 확인)
             handle_hub(path, djy_txts)
     elif low.endswith(".json") and ("역사마스터" in name or "버스정류소" in name or "지가변동률" in name):
-        handle_copy(path)
-    elif low.endswith(".xlsx") and "임대동향" in name:
         handle_copy(path)
     elif low.endswith(".csv") and "승강기" in name:
         handle_copy(path)

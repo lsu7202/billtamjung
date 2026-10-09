@@ -1,7 +1,13 @@
-"""master.building_sale_est 적재 — 전 서울 상업 건물 F-17 v2 적정가(매매가 마스터 기본값).
+"""master.parcel_sale_est 적재 — 전 서울 상업 지번 F-17 적정가(매매가 마스터 기본값).
+
+## 지번 단위(2026-10-08 · 스펙 12 §2-2)
+본매물 = 지번. 연면적 = 그 지번 모든 동의 합(parcel_rep) · 대지 = 대표 동에 딸린 필지(building_parcels)와 그 지번 필지의
+면적 합 · 공시 = 그 필지들의 면적 가중(공시총액 = Σ 필지 면적 × ㎡당 공시). 대장 대지면적은 안 쓴다 — 30% 가 비어
+있어 그 지번은 값을 못 냈다(검증 8구 938건 중 588건만). 같은 표본 MdAPE 대장 16.83% → 딸린 필지 16.13%
+(holdout_parcel.py). 여러 동 지번도 값이 하나다 — 동마다 같은 대지를 넣고 돌던 옛 문제(§5-3)가 없다.
 
 ★ 라이브(리포트) 기본값과 **완전 통일**. 오버레이(상권·comp제외) 없으면 검색·상세·리포트 동일 값.
-  - 산식: report_calc.appraise + blend_income (동일 함수)
+  - 산식: report_calc.appraise (비교사례 100%)
   - comp 수집: 500m 반경(geodesic) + 상업·주상 성격 + building_pk 제외 + per_area IQR 이상치 제외
     → 라이브 _fetch_comps 규칙과 정합(거리는 equirectangular ~0.1%, 경계 1건 이내 오차).
   값이 달라지는 건 오직 유저 오버레이(상권 반경/폴리곤·comp 제외) 반영분뿐 — 산식·규칙 차이 아님.
@@ -75,34 +81,34 @@ async def main():
     time_adjust = json.loads(tj) if isinstance(tj, str) else (tj or {})
     qrows = await c.fetch("SELECT quarter, ratio FROM master.sale_price_index")   # v3.1 분기지수
     time_adjust = {**time_adjust, **{r["quarter"]: float(r["ratio"]) for r in qrows}}
-    beta = params.get("blend.income", 0.2)
-    seoul_cap = await c.fetchval("SELECT cap FROM master.income_cap WHERE gu='_seoul'")
+    # 수익환원은 섞지 않는다(비교사례 100%, 2026-10-08 확정). 주변 임대 호가로 재료를 만들어 섞어 보니
+    # β 0.1 · 0.2 · 0.3 모두 검증 오차가 늘었다(17.23% → 17.38~20.31%, backtest_income.py).
 
     # comp 풀: 서울 상업 매각(5년). 공시총액 = gongsi_latest × sh.land_area
     # ★ 라이브(_fetch_comps)와 동일 조건: price>0·total_area>0만 필수(land/공시 없어도 T축 기여),
     #   성격 필터는 본매물별(report_calc.comp_type_filter)로 아래 루프에서 적용 — 전역 사전필터 금지.
     comps = await c.fetch(
-        """SELECT DISTINCT ON (sh.building_pk) sh.building_pk pk, ST_X(b.geom) lng, ST_Y(b.geom) lat,
-              sh.price::float pr, sh.land_area::float la, sh.total_area::float ta,
+        """SELECT DISTINCT ON (sh.pnu) b.building_pk pk, ST_X(b.geom) lng, ST_Y(b.geom) lat,
+              sh.price::float pr, sh.land_area::float la, sh.total_area::float ta, sh.pnu,
               CASE WHEN b.gongsi_latest>0 AND sh.land_area>0 THEN b.gongsi_latest::float*sh.land_area END gt,
               sh.contract_ym, b.approval_ymd ay, b.remodel_ymd ry,
               b.land_use lu, substr(b.main_use,1,2) mu2,
               b.road_frontage rf, pp.day_avg::float dp, pp.night_avg::float np
-            FROM master.sales_history sh JOIN master.buildings b USING(building_pk)
+            FROM master.trade_whole sh JOIN master.parcel_rep pr ON pr.pnu = sh.pnu JOIN master.buildings b ON b.building_pk = pr.rep_pk
             LEFT JOIN master.building_pop pp ON pp.building_pk = b.building_pk
             WHERE b.bjd_code LIKE '11%'
               AND sh.contract_ym >= to_char(now()-interval '5 years','YYYYMM')
               AND sh.price>0 AND sh.total_area>0
-            ORDER BY sh.building_pk, sh.contract_ym DESC""")
+            ORDER BY sh.pnu, sh.contract_ym DESC, sh.contract_day DESC NULLS LAST""")
     grid: dict[tuple[int, int], list] = {}
     for r in comps:
-        # 좌표 없는 건물이 comp 로 섞여 든다 — 지적도에 PNU 가 없어 geom NULL 로 살려 둔 동들이다
-        # (backfill_missing_buildings, 24,440동). 거리를 못 재니 사례로 쓸 수 없다.
+        # 좌표 없는 건물은 사례로 못 쓴다(거리를 못 잰다). 지적도에 없는 동은 2026-10-07 부터 싣지 않으므로
+        # 보통은 없지만 가드는 남긴다.
         if r['lng'] is None or r['lat'] is None:
             continue
         x, y = _mx(float(r['lng'])), _my(float(r['lat']))
         grid.setdefault((int(x // CELL), int(y // CELL)), []).append(
-            (r['pk'], float(r['lng']), float(r['lat']), float(r['pr']),
+            (r['pnu'], float(r['lng']), float(r['lat']), float(r['pr']),
              (float(r['gt']) if r['gt'] is not None else None),
              (float(r['la']) if r['la'] is not None else None),
              float(r['ta']), r['contract_ym'], r['ay'], r['ry'], r['lu'], r['mu2'],
@@ -111,24 +117,30 @@ async def main():
 
     # 계산 대상 = 상업/업무 성격(land_use SECT ∪ main_use 상업코드) — 산정법이 유효한 범위.
     # 주거(단독·공동주택 등)는 대상 아님 → 핀·상세 모두 '상업 매물 아님'으로 게이팅(라이브 경로도 동일 정의).
+    # 본매물 = 지번(위 머리말). 자리 · 연식 · 용도 · 도로 · 유동인구는 대표 동(연면적 큰 동)에서
     subs = await c.fetch(
-        f"""SELECT b.building_pk pk, ST_X(b.geom) lng, ST_Y(b.geom) lat,
-              b.gongsi_latest::float g, b.land_area::float la, b.total_area::float ta,
-              e.annual_rent::float ann, COALESCE(ic.cap, {float(seoul_cap)})::float cap,
+        f"""SELECT pr.pnu pk, ST_X(b.geom) lng, ST_Y(b.geom) lat,
+              pr.total_area::float ta, lnd.la, lnd.gt,
               b.approval_ymd ay, b.remodel_ymd ry, b.land_use lu, b.main_use mu,
               b.road_frontage rf, pp.day_avg::float dp, pp.night_avg::float np
-            FROM master.buildings b
+            FROM master.parcel_rep pr
+            JOIN master.buildings b ON b.building_pk = pr.rep_pk
+            JOIN LATERAL (
+              SELECT sum(p.area)::float la,
+                     sum(p.area * p.gongsi_latest) FILTER (WHERE p.gongsi_latest > 0)::float gt
+                FROM master.parcels p
+               WHERE p.pnu IN (SELECT bp.pnu FROM master.building_parcels bp WHERE bp.building_pk = pr.rep_pk
+                               UNION SELECT pr.pnu)) lnd ON true
             LEFT JOIN master.building_pop pp ON pp.building_pk = b.building_pk
-            LEFT JOIN master.building_rent_est e ON e.building_pk=b.building_pk
-            LEFT JOIN master.income_cap ic ON ic.gu=substr(b.bjd_code,1,5)
-            WHERE b.bjd_code LIKE '11%' AND {COMM_SQL}
-              AND b.gongsi_latest>0 AND b.land_area>0 AND b.total_area>0""",
+            WHERE pr.pnu IS NOT NULL AND b.bjd_code LIKE '11%' AND {COMM_SQL}
+              AND lnd.la > 0 AND lnd.gt > 0 AND pr.total_area > 0""",
         list(SECT))
 
-    await c.execute("""DROP TABLE IF EXISTS master.building_sale_est;
-        CREATE TABLE master.building_sale_est(
-          building_pk text PRIMARY KEY, sale_est bigint, per_py bigint, n_comps int, method text,
-          updated timestamptz DEFAULT now())""")
+    # 새 표에 채운 뒤 한 번에 바꿔 끼운다 — 빌드 도는 동안 화면에서 추정가가 비지 않게
+    await c.execute("""DROP TABLE IF EXISTS master.parcel_sale_est_new;
+        CREATE TABLE master.parcel_sale_est_new(
+          pnu text PRIMARY KEY, sale_est bigint, per_py bigint, n_comps int,
+          land_area numeric, gongsi_total numeric, method text, updated timestamptz DEFAULT now())""")
     ins = []
     for s in subs:
         if s['lng'] is None or s['lat'] is None:
@@ -141,7 +153,7 @@ async def main():
             for dy in (-1, 0, 1):
                 for (pk, clng, clat, pr, gt, la, ta, ym, ay, ry, lu, mu2,
                      rf, dp, np_) in grid.get((cx + dx, cy + dy), []):
-                    if pk == s['pk']:                      # 본매물 제외 — 라이브(building_pk 기준)와 동일
+                    if pk == s['pk']:                      # 본매물 지번의 거래는 사례에서 뺀다
                         continue
                     if allowed_lu is not None and not (lu in allowed_lu or (mu2 or "") in allowed_mu):
                         continue                            # 성격(섹터) 불일치 — 라이브 _fetch_comps와 동일
@@ -155,25 +167,29 @@ async def main():
         if len(cd) < 3:
             continue
         cd = _iqr_keep(cd)   # 이상치 제외 — 라이브와 동일(검색·상세 값 통일)
-        subj = {"total_area": s['ta'], "land_area": s['la'], "gongsi_latest": s['g'],
+        subj = {"total_area": s['ta'], "land_area": s['la'], "gongsi_latest": s['gt'] / s['la'],
                 "approval_ymd": s['ay'], "remodel_ymd": s['ry'],
                 "road_frontage": s['rf'], "day_pop": s['dp'], "night_pop": s['np']}
         ap = report_calc.appraise(subj, cd, params, time_adjust)   # ← 라이브와 동일 함수
         fair = ap.get("fair_price")
         if not fair:
             continue
-        ann = (float(s['ann']) if s['ann'] else None)
-        fair = report_calc.blend_income(fair, ann, float(s['cap']) if s['cap'] else None, beta)  # ← 공용
         py = float(s['ta']) / 3.305785
         per_py = int(fair / py) if py else 0
         if fair <= 0 or per_py > 300_000_000:
             continue
-        ins.append((s['pk'], int(fair), per_py, len(cd), 'f17v3'))
+        ins.append((s['pk'], int(fair), per_py, len(cd), s['la'], s['gt'], 'f17v3p'))
     await c.executemany(
-        "INSERT INTO master.building_sale_est(building_pk,sale_est,per_py,n_comps,method) VALUES($1,$2,$3,$4,$5)", ins)
-    print(f"적정가 적재: {len(ins)}동 (comp<3 등 제외 {len(subs)-len(ins)})")
-    r = await c.fetchrow("""SELECT sale_est,n_comps FROM master.building_sale_est
-        WHERE building_pk=(SELECT building_pk FROM master.buildings WHERE jibun_norm='강남구삼성동157-36')""")
+        "INSERT INTO master.parcel_sale_est_new(pnu,sale_est,per_py,n_comps,land_area,gongsi_total,method)"
+        " VALUES($1,$2,$3,$4,$5,$6,$7)", ins)
+    async with c.transaction():
+        await c.execute("DROP TABLE IF EXISTS master.parcel_sale_est")
+        await c.execute("ALTER TABLE master.parcel_sale_est_new RENAME TO parcel_sale_est")
+        await c.execute("ALTER INDEX master.parcel_sale_est_new_pkey RENAME TO parcel_sale_est_pkey")
+        await c.execute("COMMENT ON TABLE master.parcel_sale_est IS '지번 적정가(F-17). 연면적 = 지번 동 합 · 대지 = 딸린 필지 합 · 공시총액 = Σ 필지 면적 × 공시'")
+    print(f"적정가 적재: {len(ins)}지번 (comp<3 등 제외 {len(subs)-len(ins)})")
+    r = await c.fetchrow("""SELECT sale_est,n_comps FROM master.parcel_sale_est
+        WHERE pnu=(SELECT pnu FROM master.buildings WHERE jibun_norm='강남구삼성동157-36' LIMIT 1)""")
     if r:
         print(f"157-36: {r['sale_est']/1e8:.0f}억 (comp {r['n_comps']}) · 라이브와 동일 함수")
     await c.close()

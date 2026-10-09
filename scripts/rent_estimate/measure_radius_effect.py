@@ -5,7 +5,7 @@
 
 지금은 같은 건물의 적정가가 두 곳에서 계산된다.
 
-    배치    scripts/rent_estimate/build_sale_est.py  → master.building_sale_est
+    배치    scripts/rent_estimate/build_sale_est.py  → master.parcel_sale_est
     라이브  리포트가 열릴 때 그 자리에서 다시 계산
 
 둘이 어긋나 화면마다 값이 달라진다(2026-08-28 삼성동 78, 2026-09-02 재발).
@@ -59,7 +59,7 @@ async def main():
                b.land_use lu, substr(b.main_use,1,2) mu,
                p.day_avg::float dp, p.night_avg::float np
           FROM master.buildings b
-          JOIN master.building_sale_est se USING (building_pk)
+          JOIN master.parcel_sale_est se ON se.pnu = b.pnu
           LEFT JOIN master.building_pop p USING (building_pk)
          WHERE b.geom IS NOT NULL
          ORDER BY random() LIMIT {N}""")
@@ -73,7 +73,7 @@ async def main():
             # 라이브와 같은 규칙: 5년 · 반경 · 성격 필터 · 본매물 제외
             allowed_lu, allowed_mu, _ = report_calc.comp_type_filter(s["lu"], s["mu"])
             rows = await c.fetch("""
-                SELECT DISTINCT ON (sh.building_pk)
+                SELECT DISTINCT ON (sh.pnu)
                        sh.price::float price, sh.total_area::float total_area,
                        sh.land_area::float land_area,
                        CASE WHEN b.gongsi_latest>0 AND sh.land_area>0
@@ -82,16 +82,17 @@ async def main():
                        b.road_frontage, p.day_avg::float day_pop, p.night_avg::float night_pop,
                        round(ST_Distance(b.geom::geography,
                              ST_SetSRID(ST_MakePoint($1,$2),4326)::geography)) dist_m
-                  FROM master.sales_history sh
-                  JOIN master.buildings b USING (building_pk)
-                  LEFT JOIN master.building_pop p USING (building_pk)
+                  FROM master.trade_whole sh
+                  JOIN master.parcel_rep pr ON pr.pnu = sh.pnu
+                  JOIN master.buildings b ON b.building_pk = pr.rep_pk
+                  LEFT JOIN master.building_pop p ON p.building_pk = b.building_pk
                  WHERE sh.contract_ym >= to_char(now()-interval '5 years','YYYYMM')
-                   AND sh.price>0 AND sh.total_area>0 AND sh.building_pk <> $4
+                   AND sh.price>0 AND sh.total_area>0 AND b.building_pk <> $4
                    AND ($5::text[] IS NULL OR b.land_use = ANY($5)
                         OR substr(b.main_use,1,2) = ANY($6))
                    AND ST_DWithin(b.geom::geography,
                         ST_SetSRID(ST_MakePoint($1,$2),4326)::geography, $3)
-                 ORDER BY sh.building_pk, sh.contract_ym DESC""",
+                 ORDER BY sh.pnu, sh.contract_ym DESC""",
                 float(s["lng"]), float(s["lat"]), rad, s["pk"],
                 list(allowed_lu) if allowed_lu else None,
                 list(allowed_mu) if allowed_mu else None)

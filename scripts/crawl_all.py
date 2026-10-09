@@ -8,9 +8,10 @@ V-World는 로그인 세션이 필요 → scripts/vworld/cookie.txt (브라우�
 
 상태(2026-09-01 갱신):
   ✅ 원천 다운로드는 **전부 자동**이다:
-       실거래(RTMS) · 생활인구 · 승강기 · 건축HUB 서울본 · 임대동향(R-ONE) · 지가변동률(R-ONE)
-       · V-World LSMD 9종 · 지구단위계획 · 도로구간 · 교통 · 상권 · 공시지가/토지특성/토지이용계획정보
-  ✅ 로더: 상권(load_sanggwon.py) · 생활인구(load_living_pop.py)
+       실거래(RTMS) · 생활인구 · 승강기 · 건축HUB 서울본 · 지가변동률(R-ONE)
+       · V-World LSMD 9종 · 지구단위계획 · 도로구간 · 교통 · 공시지가/토지특성/토지이용계획정보
+  ✅ 로더: 생활인구(load_living_pop.py)
+  (부동산원 상권 · 임대동향 · 서울시 상권분석서비스는 2026-10-07 에 뺐다 — 읽는 곳이 없었다)
   ⚠️ 원천은 받는데 **쓰는 코드가 없는 것**: 토지이용계획정보(AL_D155) 원장 → parcel_luris.csv.gz
        변환 스크립트가 없다. 지금 쓰는 gz 는 2026-08-30 에 손으로 만든 것이고,
        원장을 새로 받아도 갈아 끼울 방법이 코드에 없다.
@@ -53,7 +54,7 @@ def vworld(out, flag=None):     # flag: None(LSMD 9종) | "--na"(공시·토지)
     run(args, env=env)   # 쿠키 없으면 download_vworld가 VW_ID/VW_PW로 자동로그인
 
 
-def datagokr(out, only="15112638"):   # 검증분: 승강기. (임대동향·상권구획도는 재검토)
+def datagokr(out, only="15112638"):   # 승강기 · 소상공인 상가정보
     run([PY, "scripts/datagokr/download_datagokr.py", "--out", out, "--only", only])
 
 
@@ -74,16 +75,8 @@ def hub(out):
     run([PY, "scripts/hub/download_seoul.py"])
 
 
-def trade_area(out):  # 서울열린데이터 상권분석서비스(영역-상권) — 전통시장 판정용 1,650칸
-    run([PY, "scripts/seoul_open/download_trade_area.py", "--out", out])
-
-
 def transit(out):    # 서울열린데이터 역사마스터·버스정류소
     run([PY, "scripts/seoul_open/download_transit.py", "--out", out])
-
-
-def rone(out):       # R-ONE 상업용 임대동향조사(최신 분기 xlsx)
-    run([PY, "scripts/rone/download_rone.py", "--out", out])
 
 
 def jiga(out):       # R-ONE 지역별 지가변동률(연) → build_land_adjust 입력
@@ -153,14 +146,12 @@ def main():
     if g in ("all", "quarterly"):
         print("[분기] 승강기(data.go.kr)"); datagokr(a.out, "15112638")
         print("[분기] 건축HUB 대장·인허가"); hub(a.out)
-        print("[분기] 임대동향(R-ONE)"); rone(a.out)
         print("[분기] 소상공인 상가정보"); datagokr(a.out, "15083033")
     if g in ("all", "semiannual"):
         print("[반기] V-World LSMD 9종"); vworld(a.out)
         print("[반기] V-World 지구단위계획(C_UQ161)"); vworld(a.out, "--misc")
         print("[반기] V-World 도로명주소 도로구간(30055)"); vworld(a.out, "--sido")
         print("[반기] 교통(서울열린데이터)"); transit(a.out)
-        print("[반기] 서울시 상권분석서비스(영역-상권)"); trade_area(a.out)
     if g in ("all", "annual"):
         print("[연1] V-World 공시지가·토지특성(NA)"); vworld(a.out, "--na")
         print("[연1] 지가변동률(R-ONE)"); jiga(a.out)

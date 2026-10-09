@@ -128,8 +128,8 @@ async def main() -> None:
         # **표는 그대로 두고 안만 갈아 끼운다.** 이름을 바꿔 다는 방식이었는데 두 가지가 걸렸다
         # (2026-09-01, 두 번째 적재에서 처음 드러났다 — 첫 적재 때는 쥐고 있는 것이 없었다):
         #   · 인덱스 이름은 표를 따라 안 바뀐다. 옛 표가 floor_outline_pk 를 쥔 채 남는다.
-        #   · 이 표를 읽는 MV(floor_est_by_floor·floor_est_total)는 이름이 아니라 표 자체를
-        #     붙든다. 이름을 바꾸면 **MV 가 옛 표를 따라가** 새 데이터를 안 본다.
+        #   · 이 표를 읽는 MV 는 이름이 아니라 표 자체를 붙든다. 이름을 바꾸면 **MV 가 옛 표를 따라가**
+        #     새 데이터를 안 본다(그때 MV 는 층 추정 floor_est_* — 2026-10-07 추정임대와 함께 지웠다).
         # 검사는 여전히 staging(_floor_outline_new)에서 끝낸 뒤에 한다 — 통과 못 하면
         # 살아 있는 표는 손도 안 댄다. 트랜잭션이라 읽는 쪽은 잠깐 기다릴 뿐 빈 표를 보지 않는다.
         # 표 모양(칸)은 db/migrations/0152 가 맡는다.
@@ -143,14 +143,6 @@ async def main() -> None:
                        dong, area_excluded, structure, main_sub
                   FROM master._floor_outline_new""")
         await c.execute("DROP TABLE IF EXISTS master._floor_outline_new")
-
-        # 층 추정이 이 표를 읽는다 — 함께 굴린다
-        for mv in ("master.floor_est_by_floor", "master.floor_est_total"):
-            try:
-                await c.execute(f"REFRESH MATERIALIZED VIEW CONCURRENTLY {mv}")
-                print(f"  · {mv} 갱신")
-            except Exception as e:
-                print(f"  ⚠️ {mv} 갱신 실패(무시): {e}")
 
         await c.execute(
             """UPDATE master.master_loads

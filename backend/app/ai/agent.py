@@ -107,24 +107,23 @@ def reduce_result(name: str, out: Any) -> dict | None:
     숫자·물음을 낸 도구(invest·develop·ask)는 없다 — 그건 답 글에 이미 있다."""
     if not isinstance(out, dict):
         return None
-    if name == "search":
+    if name == "buildings":
         rows = []
         for g in out.get("검색") or []:
             if not isinstance(g, dict):
                 continue
-            items: list[dict] = []
-            for part in ("내매물", "일반"):
-                p = g.get(part) or {}
-                items += [*(p.get("목록") or []), *(p.get("나머지") or [])]
-            bld = [{"순서": i + 1, "건물번호": x["건물번호"], **({"주소": x["주소"]} if x.get("주소") else {})}
-                   for i, x in enumerate(x for x in items if isinstance(x, dict) and x.get("건물번호"))]
-            rows.append({"건물": bld[:REF_CAP],
-                         "전체": sum(((g.get(p) or {}).get("전체") or 0) for p in ("내매물", "일반"))})
+            # 한 건물은 한 줄 — 출처로 가르지 않는다(0224)
+            items: list[dict] = g.get("목록") or []
+            total = g.get("전체") or 0
+            # 다음 턴엔 **주소**로 다시 가리킨다 — 건물번호는 모델이 모른다(11b · 10-04)
+            bld = [{"순서": i + 1, "주소": x["주소"]}
+                   for i, x in enumerate(x for x in items if isinstance(x, dict) and x.get("주소"))]
+            rows.append({"건물": bld[:REF_CAP], "전체": total})
         return {"검색": rows} if rows else None
-    if name == "building":
-        got = [{"건물번호": b.get("건물번호"), "주소": (b.get("대장") or {}).get("주소")}
-               for b in out.get("건물") or [] if isinstance(b, dict)]
-        return {"건물": got} if got else None
+    if name == "customers":
+        got = [{"이름": c.get("이름"), "등록일": c.get("등록일")}
+               for c in (out.get("고객") or {}).get("목록") or [] if isinstance(c, dict)]
+        return {"고객": got} if got else None
     if name in ("make", "fix"):
         got = {k: out[k] for k in ("자료번호", "제목") if k in out}
         return got or None
@@ -153,16 +152,19 @@ class Exec:
     async def __call__(self, name: str, kwargs: dict[str, Any]) -> str:
         t0 = time.monotonic()
         hits: list[str] = []
-        tool = next((t for t in toolbox.REGISTRY if t.name == name), None)
+        tool = next((t for t in toolbox.tools_for(self.user) if t.name == name), None)   # 모드 목록 안에서만
         try:
             if tool is None:
                 raise ValueError(f"그런 도구는 없다: {name}")
             tok = toolbox._PINS.set([])                 # 화면 지도용 핀을 받을 자리
+            ptok = toolbox._PANEL.set({})              # 오른쪽 판 열기 신호(0235) — 도구가 「보여 준다」고 정했을 때만
             try:
                 raw = await tool.run(kwargs, self.user)
             finally:
                 pins = toolbox._PINS.get() or []
+                panel = toolbox._PANEL.get() or None
                 toolbox._PINS.reset(tok)
+                toolbox._PANEL.reset(ptok)
             if isinstance(raw, dict) and "__ask__" in raw:
                 self.asked = raw["__ask__"]
                 raw = {"물었다": "답을 기다린다. 이 바퀴는 여기서 끝난다"}
@@ -176,6 +178,7 @@ class Exec:
             log.warning("도구 %s 실패: %s", name, e)
             text = dumps({"error": str(e)[:600]})
             pins = []
+            panel = None
         rec = {
             "name": name,
             "input": kwargs,
@@ -184,6 +187,7 @@ class Exec:
             "bytes": len(text),
             # 화면 지도용. 모델에게 가는 `text` 엔 없다 — 이 기록을 라우트가 SSE 로 흘린다
             "pins": pins or None,
+            "panel": panel or None,      # 오른쪽 판 열기(0235). 모델에게 가는 `text` 엔 없다
         }
         self.calls.append(rec)
         # 백엔드 로그에 그대로 남긴다. 요청과 **응답을 따로 한 줄씩** — 한 줄에 몰면 응답이
@@ -202,7 +206,8 @@ class Exec:
         return out
 
 
-async def ask(text: str, user: CurrentUser, history: list[dict] | None = None) -> AsyncIterator[dict]:
+async def ask(text: str, user: CurrentUser, history: list[dict] | None = None,
+              template: str | None = None) -> AsyncIterator[dict]:
     """한 물음을 끝까지 돌리며 일어난 일을 그대로 흘린다.
 
     내는 조각: `{t:"scrubbed"}` · `{t:"tool"}` · `{t:"text"}` · `{t:"done"}`.
@@ -216,9 +221,14 @@ async def ask(text: str, user: CurrentUser, history: list[dict] | None = None) -
     if said.hits:
         yield {"t": "scrubbed", "kinds": sorted(set(said.hits))}
 
-    built = await toolbox.build()
+    # 자료 템플릿(0235) — **사용자가 고른 요청에만** make 설명이 그 템플릿의 규격이 된다. 이 말 한 번뿐이다
+    from ..render import templates as tpl
+    chosen = tpl.get(template)
+    built = await toolbox.build(user, chosen["key"] if chosen else None)
+    ttok = toolbox._TEMPLATE.set(chosen["key"] if chosen else None)
     ex = Exec(user)
-    msgs = list(history or []) + [{"role": "user", "content": said.text}]
+    note = f"\n\n(사용자가 자료 템플릿 「{chosen['name']}」을 골랐다 — make 로 이 템플릿의 자료를 만든다)" if chosen else ""
+    msgs = list(history or []) + [{"role": "user", "content": said.text + note}]
 
     tok_in = tok_out = tok_cached = tok_tools = 0
     calls_n = 0

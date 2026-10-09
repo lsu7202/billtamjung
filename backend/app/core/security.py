@@ -23,11 +23,11 @@ def _now() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)
 
 
-def make_access(account_id: int, team_id: int | None, role: str | None, tier: str,
+def make_access(account_id: int, team_id: int | None, role: str | None,
                 kind: str = "중개사") -> str:
     # 고객(kind=고객)은 팀이 없다 — team_id · role 이 비어서 나간다(S05, 2026-09-28)
     payload = {
-        "sub": str(account_id), "team_id": team_id, "role": role, "tier": tier, "kind": kind,
+        "sub": str(account_id), "team_id": team_id, "role": role, "kind": kind,
         "typ": "access", "exp": _now() + dt.timedelta(minutes=settings.access_ttl_min),
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_alg)

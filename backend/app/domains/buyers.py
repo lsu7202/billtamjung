@@ -9,26 +9,26 @@ import json
 import re as _re
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from ..core.db import pool, tx
+from ..core.db import pool
+from .listing_core import create_office_listing, need_listing
 from ..core.deps import current_user, CurrentUser
 from ..core.shape import drop, keep
 
 # ── 응답에서 걷는 칸(감사 2026-09-17) — 화면 어디에도 안 그려지는 것. 이 목록이 곧 응답 스키마다.
 # 매수자×매물 짝: 계약 조건·현장 메모·매수자 인적(계약 문서가 읽는 것은 남김)·다음 일정·매물 규모·
 # 추정 짝·사진·사다리 판정 재료·값 이력(호가판이 따로 낸다)
-PROPOSAL_DROP = ("team_id", "report_id", "note", "created_by", "created_at", "visited_on", "visit_note",
+PROPOSAL_DROP = ("team_id", "note", "created_by", "created_at", "visited_on", "visit_note",
                  "commission_amount", "commission_split", "report_filed_on", "terms", "brief_note",
                  "buyer_nationality", "next_sched_title", "next_sched_on", "next_sched_at",
-                 "land_area", "total_area", "use_zone", "price_is_est", "sale_est", "vs_est_pct",
-                 "roi", "photo_id", "cell_sched", "price_log")
-# 매물 보드 줄: 다음 일정·추정가·접수일·점수·사진·보고서 유무·광고/노출/시기 칸·마지막 접촉·사다리 낱말.
-# price 는 list_price 와 같은 값이 두 번 실린 것.
+                 "land_area", "total_area", "use_zone", "sale_est",
+                 "photo_id", "cell_sched", "price_log")
+# 매물 보드 줄: 다음 일정·추정가·접수일·사진·광고/노출/시기 칸·마지막 접촉·사다리 낱말.
 # 매물 표(2026-09-26)가 다음 일정·접수일·사진·규모·등급·입지·노후도·시기 날짜를 되살려 쓴다.
-SELLER_DROP = ("next_sched_at", "est_price", "sell_score",
-               "photo_n", "photo_kinds", "has_report", "has_briefing",
-               "last_on", "last_kind", "last_note", "price")
+SELLER_DROP = ("next_sched_at", "est_price",
+               "photo_n", "photo_kinds",
+               "last_on", "last_kind", "last_note")
 # 접촉(메모창): 내부 키·커밋 스냅샷·짝 id
 CONTACT_DROP = ("team_id", "target_type", "target_id", "created_by", "status", "auto", "prev",
                 "src_schedule_id", "proposal_id")
@@ -38,7 +38,7 @@ from .mirror import (
     iso_date as _d, iso_time as _t, has_money as _has_money,
     mirror_to_listing, mirror_to_proposal,
     schedule_create, schedule_retract, schedule_log, schedule_set_state,
-    attendees_sync, apply_sched_op, event_mark, event_unmark, resolve_anchor, mirror_skips,
+    attendees_sync, apply_sched_op, mirror_skips,
     SCHED_CATEGORIES,
     listing_values_write, listing_values_restore, proposal_prices_prev, proposal_prices_restore,
 )
@@ -99,6 +99,16 @@ class BuyerIn(BaseModel):
     # 업무 사다리(0090) — 본인/대리인(공동중개 상대는 매수자 명단에 그대로 한 줄로 선다) · 긴급도
     is_agent: bool | None = None
     urgency: str | None = None
+    # 고객 성격(S09 · 0214) — 중개사가 쓰던 고객 엑셀 열 그대로
+    equity_won: int | None = None
+    goal: list[str] | None = None
+    build_intent: str | None = None
+    timing: str | None = None
+    experience: str | None = None     # 매입 경험(0218) — 이해도 대신
+    regions: list[str] | None = None  # 원하는 지역(구, 0218) — 조건과 따로
+    prefer_ad: bool | None = None
+    budget_min: int | None = None     # 희망매매가(원, 0216)
+    budget_max: int | None = None
 
 
 @router.get("/buyers", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
@@ -107,11 +117,8 @@ async def list_buyers(user: CurrentUser = Depends(current_user)):
     rows = await pool().fetch(
         """SELECT b.*,
                   (SELECT count(*) FROM app.proposals p
-                    WHERE p.buyer_id = b.id AND p.dropped_at IS NULL) AS active_proposals,
-                  -- 상태는 사람이 고른다(0199) — 사무소가 만든 고객 상태(이름 · 색)
-                  bs.name AS status_name, bs.color AS status_color
+                    WHERE p.buyer_id = b.id AND p.dropped_at IS NULL) AS active_proposals
            FROM app.buyers b
-           LEFT JOIN app.statuses bs ON bs.id = b.status_id
            WHERE b.team_id = $1 AND b.deleted_at IS NULL
            ORDER BY b.updated_at DESC""",
         user.team_id)
@@ -135,12 +142,15 @@ async def create_buyer(body: BuyerIn, user: CurrentUser = Depends(current_user))
     bid = await pool().fetchval(
         """INSERT INTO app.buyers
              (team_id, assignee_account_id, name, phone, grade, source, is_corp, memo,
-              age_band, cooperation, kindness, exclusive, gender, is_agent, urgency)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id""",
+              age_band, cooperation, kindness, exclusive, gender, is_agent, urgency,
+              equity_won, goal, build_intent, timing, experience, prefer_ad, budget_min, budget_max, regions)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING id""",
         user.team_id, body.assignee_account_id or user.account_id, body.name.strip(),
         body.phone, body.grade, body.source, body.is_corp, body.memo,
         body.age_band, body.cooperation, body.kindness, body.exclusive, body.gender,
-        bool(body.is_agent), body.urgency)
+        bool(body.is_agent), body.urgency,
+        body.equity_won, body.goal or None, body.build_intent, body.timing, body.experience, body.prefer_ad,
+        body.budget_min, body.budget_max, body.regions or None)
     return {"id": bid}
 
 
@@ -171,6 +181,16 @@ class BuyerPatch(BaseModel):
     equity_won: int | None = None
     loan_rate: float | None = None
     fee_pct: float | None = None
+    # 고객 성격(S09 · 0214). 글자 칸은 빈 문자열 = 지움, 목록 · 불리언은 clear 로 지운다
+    goal: list[str] | None = None
+    build_intent: str | None = None
+    timing: str | None = None
+    experience: str | None = None
+    regions: list[str] | None = None
+    prefer_ad: bool | None = None
+    budget_min: int | None = None     # 희망매매가(원, 0216) — 비우기는 clear
+    budget_max: int | None = None
+    budget_any: bool | None = None    # 희망매매가 상관없음(0217) — 켜면 범위를 비운다
     # 불리언은 빈 문자열 어법을 못 쓴다 — 비우기는 명시 목록으로(is_corp·is_agent)
     clear: list[str] | None = None
 
@@ -208,16 +228,27 @@ async def update_buyer(bid: int, body: BuyerPatch, user: CurrentUser = Depends(c
              nationality = CASE WHEN $21::text IS NULL THEN nationality WHEN $21::text = '' THEN NULL ELSE $21::text END,
              equity_won = COALESCE($22::bigint, equity_won),
              loan_rate = COALESCE($23::numeric, loan_rate),
-             fee_pct = COALESCE($24::numeric, fee_pct)
+             fee_pct = COALESCE($24::numeric, fee_pct),
+             goal = COALESCE($25::text[], goal),
+             build_intent = CASE WHEN $26::text IS NULL THEN build_intent WHEN $26::text = '' THEN NULL ELSE $26::text END,
+             timing = CASE WHEN $27::text IS NULL THEN timing WHEN $27::text = '' THEN NULL ELSE $27::text END,
+             experience = CASE WHEN $28::text IS NULL THEN experience WHEN $28::text = '' THEN NULL ELSE $28::text END,
+             prefer_ad = COALESCE($29, prefer_ad),
+             budget_min = COALESCE($30::bigint, budget_min),
+             budget_max = COALESCE($31::bigint, budget_max),
+             budget_any = COALESCE($32, budget_any),
+             regions = COALESCE($33::text[], regions)
            WHERE id=$1 AND team_id=$2 AND deleted_at IS NULL""",
         bid, user.team_id, body.name, body.phone, body.grade, body.source, body.is_corp,
         body.memo, body.assignee_account_id,
         body.age_band, body.cooperation, body.kindness, body.exclusive, body.gender,
         body.is_agent, body.urgency, body.call_result,
         body.addr, body.rep_name, body.corp_no, body.nationality,
-        body.equity_won, body.loan_rate, body.fee_pct)
+        body.equity_won, body.loan_rate, body.fee_pct,
+        body.goal, body.build_intent, body.timing, body.experience, body.prefer_ad,
+        body.budget_min, body.budget_max, body.budget_any, body.regions)
     if body.clear:
-        ok_clear = set(body.clear) & {"is_corp", "is_agent", "equity_won", "loan_rate", "fee_pct"}
+        ok_clear = set(body.clear) & {"is_corp", "is_agent", "equity_won", "loan_rate", "fee_pct", "goal", "prefer_ad", "budget_min", "budget_max", "budget_any", "regions"}
         if ok_clear:
             sets = ", ".join(f"{c} = NULL" for c in sorted(ok_clear))
             await pool().execute(
@@ -237,8 +268,9 @@ async def delete_buyer(bid: int, user: CurrentUser = Depends(current_user)):
         async with conn.transaction():
             await conn.execute(
                 "UPDATE app.buyers SET deleted_at = now() WHERE id=$1 AND team_id=$2", bid, user.team_id)
+            # 고객에 붙은 저장한 조건도 닫는다(0214 — 조건은 저장한 조건에 고객을 붙인 것)
             await conn.execute(
-                "DELETE FROM app.buyer_conditions WHERE buyer_id=$1 AND team_id=$2", bid, user.team_id)
+                "UPDATE app.saved_searches SET closed_at = now() WHERE buyer_id=$1 AND team_id=$2", bid, user.team_id)
     return {"ok": True}
 
 
@@ -254,18 +286,19 @@ async def add_condition(bid: int, body: CondIn, user: CurrentUser = Depends(curr
         "SELECT 1 FROM app.buyers WHERE id=$1 AND team_id=$2 AND deleted_at IS NULL", bid, user.team_id)
     if not owned:
         raise HTTPException(404, "매수자를 찾을 수 없습니다")
+    # 조건 = 저장한 조건에 고객을 붙인 것(0214). 팀 전체가 본다
     cid = await pool().fetchval(
-        """INSERT INTO app.buyer_conditions(team_id, buyer_id, name, conditions_json)
-           VALUES($1,$2,$3,$4) RETURNING id""",
-        user.team_id, bid, body.name.strip() or "조건", json.dumps(body.conditions))
+        """INSERT INTO app.saved_searches(account_id, team_id, buyer_id, name, conditions_json)
+           VALUES($1,$2,$3,$4,$5) RETURNING id""",
+        user.account_id, user.team_id, bid, body.name.strip() or "조건", json.dumps(body.conditions))
     return {"id": cid}
 
 
 @router.patch("/conditions/{cid}")
 async def update_condition(cid: int, body: CondIn, user: CurrentUser = Depends(current_user)):
     n = await pool().execute(
-        """UPDATE app.buyer_conditions SET name=$3, conditions_json=$4
-           WHERE id=$1 AND team_id=$2""",
+        """UPDATE app.saved_searches SET name=$3, conditions_json=$4
+           WHERE id=$1 AND team_id=$2 AND buyer_id IS NOT NULL""",
         cid, user.team_id, body.name.strip() or "조건", json.dumps(body.conditions))
     if n.endswith(" 0"):
         raise HTTPException(404, "조건을 찾을 수 없습니다")
@@ -274,22 +307,21 @@ async def update_condition(cid: int, body: CondIn, user: CurrentUser = Depends(c
 
 @router.delete("/conditions/{cid}")
 async def delete_condition(cid: int, user: CurrentUser = Depends(current_user)):
-    await pool().execute("DELETE FROM app.buyer_conditions WHERE id=$1 AND team_id=$2", cid, user.team_id)
+    await pool().execute("DELETE FROM app.saved_searches WHERE id=$1 AND team_id=$2 AND buyer_id IS NOT NULL", cid, user.team_id)
     return {"ok": True}
 
 
 # ── 짝(매수자 × 매물) ───────────────────────────────────
 class ProposalIn(BaseModel):
     buyer_id: int
-    building_pk: str
-    report_id: int | None = None
+    listing_id: int                 # 담을 매물(0227 · 0255). 짝은 매물을 가리킨다 — 건물 번호로 고르지 않는다
     note: str | None = None
 
 
 @router.get("/proposals")
-async def list_proposals(buyer_id: int | None = None, building_pk: str | None = None,
+async def list_proposals(buyer_id: int | None = None, listing_id: int | None = None,
                          user: CurrentUser = Depends(current_user)):
-    """짝(매수자×매물) 목록. 매물 값은 building_pk로 조인해서 붙인다 —
+    """짝(매수자×매물) 목록. 매물 값은 매물(listing_id) → 지번으로 붙인다 —
     엑셀이 매수자별로 옮겨 적던 열(면적·가격·수익률)을 사람이 다시 치지 않게 하는 것이 1차 가치."""
     rows = await pool().fetch(
         """SELECT p.*, y.name AS buyer_name, y.grade AS buyer_grade,
@@ -299,18 +331,13 @@ async def list_proposals(buyer_id: int | None = None, building_pk: str | None = 
                   -- 매수자 전화(0128 문서 씨앗) — 열람 경계는 목록과 같다: 담당자 본인·대표만
                   CASE WHEN $4::bigint = y.assignee_account_id OR $5::text = 'owner'
                        THEN y.phone END AS buyer_phone,
-                  ns.*,
-                  b.addr, b.land_area, b.total_area, b.use_zone, cs.cell_sched,
-                  plog.price_log, sl2.scheds,
-                  COALESCE(l2.sale_price, se.sale_est) AS price,
-                  (l2.sale_price IS NULL) AS price_is_est,
-                  -- 카드에 값 판단 재료를 같이 낸다. "3.2억"만 있으면 비싼지 싼지 모른다.
-                  se.sale_est,
-                  CASE WHEN se.sale_est > 0 AND l2.sale_price IS NOT NULL
-                       THEN round((l2.sale_price::numeric / se.sale_est - 1) * 100, 1) END AS vs_est_pct,
-                  -- 수익률·연임대는 매물 줄에 접어 둔 값이다(0173). 여기서 나누지 않는다.
-                  -- 팀 매매가가 없으면 수익률도 없다(미지정은 null) — 추정가로 나누던 옛 폴백은 뺐다.
-                  l2.roi,
+                  lp.pnu, COALESCE(b.addr, vp.addr) AS addr, COALESCE(b.land_area, vp.area) AS land_area,
+                  pr.total_area, COALESCE(b.use_zone, vp.use_zone) AS use_zone,
+                  plog.price_log,
+                  -- 매매가(0226) — 짝이 가리키는 매물의 값(보이는 범위는 listings_now). 추정가를 섞지 않는다
+                  (SELECT n.price FROM app.listings_now(p.team_id, true) n
+                    WHERE n.listing_id = p.listing_id) AS price,
+                  se.sale_est,   -- 지번 추정가(0250)
                   l2.total_rent * 12.0 AS annual_rent,
                   p.hope_price, p.deal_price,
                   ph.id AS photo_id,
@@ -320,36 +347,22 @@ async def list_proposals(buyer_id: int | None = None, building_pk: str | None = 
            -- 소프트 삭제된 매수자의 짝은 보드에서 뺀다. 사람은 목록에서 사라졌는데
            -- 그 사람 카드만 보드에 남으면 눌러도 갈 곳이 없다(2026-08-09 QA).
            JOIN app.buyers y ON y.id = p.buyer_id AND y.deleted_at IS NULL
-           LEFT JOIN master.buildings b ON b.building_pk = p.building_pk
-           LEFT JOIN master.building_sale_est se ON se.building_pk = p.building_pk
-           LEFT JOIN master.building_score sc ON sc.building_pk = p.building_pk
-           LEFT JOIN master.building_rent_est re ON re.building_pk = p.building_pk
-           -- 임대 총계의 정본(0134) — 층별 실측이 있으면 그 합계, 없으면 직접 적은 총액.
-           -- 하이브리드(팀 입력 + 미입력층 대장 추정)는 폐지했다: 한 숫자에 실측과 추정을 안 섞는다.
-           LEFT JOIN app.listings l2 ON l2.building_pk = p.building_pk AND l2.team_id = p.team_id
+           -- 매물의 땅(0255) — 대표 지번 · 그 지번의 대표 동 · 나대지
+           LEFT JOIN app.listing_parcels lp ON lp.listing_id = p.listing_id AND lp.main
+           LEFT JOIN master.parcel_rep pr ON pr.pnu = lp.pnu
+           LEFT JOIN master.buildings b ON b.building_pk = pr.rep_pk
+           LEFT JOIN master.vacant_parcels vp ON pr.pnu IS NULL AND vp.pnu = lp.pnu
+           LEFT JOIN master.parcel_sale_est se ON se.pnu = lp.pnu
+           -- 임대 총계의 정본(0134) — 사람이 적은 총액. 우리 사무소 매물일 때만
+           LEFT JOIN app.office_listings l2 ON l2.id = p.listing_id AND l2.team_id = p.team_id
            -- 팀이 올린 사진 한 장(외관 우선) — 제안 카드 썸네일
            LEFT JOIN LATERAL (SELECT id FROM app.photos f
-                               WHERE f.building_pk = p.building_pk AND f.team_id = p.team_id
+                               WHERE f.listing_id = p.listing_id AND f.team_id = p.team_id
                                  AND f.deleted_at IS NULL
                                ORDER BY (f.kind = 'exterior') DESC, f.sort_order, f.id
                                LIMIT 1) ph ON TRUE
-           LEFT JOIN LATERAL (SELECT s.title AS next_sched_title, s.on_date AS next_sched_on,
-                                     s.at_time AS next_sched_at
-                                FROM app.schedules s
-                               WHERE s.team_id = $1 AND s.building_pk = p.building_pk
-                                 AND s.state='예정' AND s.on_date >= current_date
-                               ORDER BY s.on_date, s.at_time NULLS LAST LIMIT 1) ns ON TRUE
-           -- 이 쌍에 걸린 일정(2026-08-19) — 창에서 만든 약속이 창에 그대로 보여야 한다.
-           -- 매물의 일정 중 이 매수자가 참석자인 것 + 매물 전체 약속(참석자 없는 것)도 함께.
-           LEFT JOIN LATERAL (
-             SELECT jsonb_agg(jsonb_build_object('id', z.id, 'title', z.title, 'cat', z.category,
-                                                 'on', z.on_date, 'at', z.at_time, 'state', z.state,
-                                                 'method', z.method, 'amount', z.amount, 'id2', z.id)
-                              ORDER BY z.on_date DESC) AS scheds
-               FROM (SELECT s3.id, s3.title, s3.category, s3.on_date, s3.at_time, s3.state, s3.method, s3.amount
-                       FROM app.schedules s3
-                      WHERE s3.team_id = p.team_id AND s3.proposal_id = p.id
-                      ORDER BY s3.on_date DESC LIMIT 8) z) sl2 ON TRUE
+           -- 다음 일정 · 이 쌍의 일정 · 칸별 약속 조인은 걷었다(0222) — 일정은 매물 · 짝에 영향을 주지 않는다.
+           -- 계약일 · 중도금 · 잔금일은 짝 칸(contract_on · mid_on · mid_amount · balance_on)이다
            -- 오간 값(2026-08-19) — 「저번에 얼마 불렀더라」가 다음 수를 정한다.
            -- 정본은 값 이력(app.field_events·0109)이다. 최근 6개만 본다.
            LEFT JOIN LATERAL (
@@ -362,29 +375,11 @@ async def list_proposals(buyer_id: int | None = None, building_pk: str | None = 
                       WHERE e.target_type='proposal' AND e.target_id = p.id::text
                         AND e.field IN ('hope_price','deal_price') AND e.value ~ '^[0-9]+$'
                       ORDER BY e.id DESC LIMIT 6) t) plog ON TRUE
-           -- 칸별 약속(2026-08-18) — 거래 칸은 **일정이 정본**이다: 잡았나(예정) · 했나(완료).
-           -- 창이 제 날짜를 따로 갖던 것을 접는다 — 캘린더와 두 벌이 되면 반드시 어긋난다.
-           LEFT JOIN LATERAL (
-             SELECT jsonb_object_agg(k.cell, to_jsonb(k) - 'cell') AS cell_sched FROM (
-               SELECT c3.cell,
-                      max(s2.on_date) FILTER (WHERE s2.state='완료')             AS done_on,
-                      min(s2.on_date) FILTER (WHERE s2.state='예정')             AS due_on,
-                      (array_agg(s2.method ORDER BY s2.on_date DESC)
-                        FILTER (WHERE s2.state='예정'))[1]                       AS due_how,
-                      (array_agg(s2.id ORDER BY s2.on_date DESC)
-                        FILTER (WHERE s2.state='예정'))[1]                       AS due_id
-                 FROM (VALUES ('brief','브리핑'), ('visit','임장'),
-                              ('sign','계약'), ('pay','잔금')) AS c3(cell, cat)
-                 LEFT JOIN app.schedules s2
-                        ON s2.team_id = p.team_id AND s2.category = c3.cat
-                       AND (s2.proposal_id = p.id
-                            OR (s2.proposal_id IS NULL AND s2.building_pk = p.building_pk))
-                GROUP BY c3.cell) k) cs ON TRUE
            WHERE p.team_id = $1
              AND ($2::bigint IS NULL OR p.buyer_id = $2)
-             AND ($3::text IS NULL OR p.building_pk = $3)
+             AND ($3::bigint IS NULL OR p.listing_id = $3)
            ORDER BY p.updated_at DESC""",
-        user.team_id, buyer_id, building_pk, user.account_id, user.role)
+        user.team_id, buyer_id, listing_id, user.account_id, user.role)
     return [drop(dict(r), PROPOSAL_DROP) for r in rows]
 
 
@@ -392,30 +387,23 @@ async def list_proposals(buyer_id: int | None = None, building_pk: str | None = 
 async def create_proposal(body: ProposalIn, user: CurrentUser = Depends(current_user)):
     """매수자에게 매물을 **담는다**. 같은 (매수자, 매물)이면 새 행을 만들지 않는다 —
     중복을 구조로 막는다(유니크). 담기는 사실 하나뿐이라 상태를 받지 않는다(0141)."""
-    # 있는 건물만 담긴다(2026-08-19) — 없는 번호로 담기면 주소가 없어 화면에 **고유번호**가
-    # 그대로 뜬다(짝 표엔 외래키가 없다). 담는 입구에서 막는다.
-    if not await pool().fetchval(
-            """SELECT 1 FROM master.buildings WHERE building_pk=$1
-               UNION ALL
-               SELECT 1 FROM master.vacant_parcels WHERE 'P' || pnu = $1""", body.building_pk):
-        raise HTTPException(422, "없는 건물입니다")
-    # 담긴 매물은 **내 목록에 있어야 한다**(2026-08-19). 검색에서 아무 건물이나 담을 수 있는데,
-    # 목록에 없으면 매수자 쪽엔 붙어 있고 매물 탭엔 없는 유령이 된다.
-    # 그래서 담는 순간 **관심**으로 들어온다(소유자를 붙이면 그때 매물로 승격 — 기존 규칙).
-    await pool().execute(
-        """INSERT INTO app.listings(building_pk, team_id) VALUES($1,$2)
-           ON CONFLICT (building_pk, team_id) DO NOTHING""",
-        body.building_pk, user.team_id)
+    # 담는다고 내 매물이 생기지 않는다(0226 — 매물은 등록으로만). 짝의 대상은 내가 볼 수 있는 모든 매물이다
+    # (내 매물 · 다른 사무소 광고 매물 · 수집 매물, 매물-중심 §2-6). 짝은 **매물**을 가리킨다(0227 · 0255)
+    broker = user.kind == "중개사" and user.team_id is not None
+    lid = await pool().fetchval(
+        "SELECT n.listing_id FROM app.listings_now($1, $2) n WHERE n.listing_id = $3",
+        user.team_id, broker, body.listing_id)
+    if lid is None:
+        raise HTTPException(422, "볼 수 있는 매물이 아닙니다")
     pid = await pool().fetchval(
-        """INSERT INTO app.proposals(team_id, buyer_id, building_pk, report_id, note, created_by)
-           VALUES($1,$2,$3,$4,$5,$6)
-           ON CONFLICT (team_id, buyer_id, building_pk) DO UPDATE SET
-             report_id = COALESCE(EXCLUDED.report_id, app.proposals.report_id),
+        """INSERT INTO app.proposals(team_id, buyer_id, listing_id, note, created_by)
+           VALUES($1,$2,$3,$4,$5)
+           ON CONFLICT (team_id, buyer_id, listing_id) DO UPDATE SET
              note = COALESCE(EXCLUDED.note, app.proposals.note),
              dropped_at = NULL,          -- 다시 담으면 살아난다
              updated_at = now()
            RETURNING id""",
-        user.team_id, body.buyer_id, body.building_pk, body.report_id, body.note,
+        user.team_id, body.buyer_id, lid, body.note,
         user.account_id)
     # 담기만 한 것은 **장부에 안 쓴다**(0057 이후). 예전엔 담는 순간 「후보」 기록이 자동으로
     # 깔렸는데, 그 줄에는 아무 내용이 없었다 — 왜 이 사람에게 이 매물인지가 빠진 빈 줄이다.
@@ -449,8 +437,8 @@ class ScheduleIn(BaseModel):
     method: str | None = None
     # 계약·중도금·잔금 금액(0112) — 계약 일정에 적은 금액은 **그 쌍의 확정가**가 된다(0115)
     amount: int | None = None
-    # 창에서 붙인 매물(명시 닻) — 참석자 추론(resolve_anchor)보다 세다. 모달이 본 기능이다
-    building_pk: str | None = None
+    # 창에서 붙인 매물 — 매도자를 참석자로 앉힐 때만 쓴다(0222 · 0255). 일정 줄에도 매물 쪽에도 안 남는다
+    listing_id: int | None = None
 
 
 class SchedOpIn(BaseModel):
@@ -469,8 +457,6 @@ class ProposalPatch(BaseModel):
     deal_price: int | None = None         # 거래가(0069) — 합의된 값
     dropped: bool | None = None           # 죽이기/되살리기 — 옛 철회·계약파기 자리
     issued_on: str | None = None          # 언제 있었던 일인가(YYYY-MM-DD)
-    schedule: ScheduleIn | None = None    # 문장에서 읽은 약속(0070)
-    schedule_op: SchedOpIn | None = None  # 있던 약속 손대기(0072)
 
 
 # 계약파기는 **한 사건의 양면**이다 — 매수자와의 계약이 깨지면 그 건물의 매도도 깨진다.
@@ -485,7 +471,7 @@ MIRRORED = ("계약", BROKEN)
 # 끝 = 살아 있는 짝 하나가 계약 상대로 정해졌다. 낱말이 아니라 사실을 본다.
 # `{t}` 에 매물 별칭을 넣어 쓴다: SELLER_DONE.format(t="l")
 SELLER_DONE = """EXISTS (SELECT 1 FROM app.proposals pz
-                          WHERE pz.team_id = {t}.team_id AND pz.building_pk = {t}.building_pk
+                          WHERE pz.team_id = {t}.team_id AND pz.listing_id = {t}.id
                             AND pz.picked_at IS NOT NULL AND pz.dropped_at IS NULL)"""
 
 
@@ -519,12 +505,10 @@ async def update_proposal(pid: int, body: ProposalPatch, user: CurrentUser = Dep
                                WHEN $5 THEN COALESCE(dropped_at, now()) ELSE NULL END,
              updated_at = now()
            WHERE id=$1 AND team_id=$2
-           RETURNING building_pk, buyer_id, picked_at""",
+           RETURNING listing_id, buyer_id, picked_at""",
         pid, user.team_id, body.hope_price, body.deal_price, body.dropped)
     if row is None:
         raise HTTPException(404, "짝을 찾을 수 없습니다")
-    pk = row["building_pk"]
-
     at = None
     if body.issued_on:
         try:
@@ -542,233 +526,44 @@ async def update_proposal(pid: int, body: ProposalPatch, user: CurrentUser = Dep
             user.team_id, str(row["buyer_id"]), body.note,
             at.date() if at else None, user.account_id, prev, pid)
 
-    # 캘린더로 가는 것 둘(0070) — ① 문장이 품은 약속 ② 계약파기(일어난 날이 찾아볼 값이다)
-    own_sid = evt_sid = None
-    if pk and body.schedule_op:
-        await apply_sched_op(user.team_id, pk, body.schedule_op,
-                             _d(body.schedule.on) if body.schedule else None,
-                             "buy", proposal_id=pid)
-    elif pk and body.schedule:
-        own_sid = await schedule_create(user.team_id, "buy", body.schedule, user.account_id,
-                                        building_pk=pk, contact_id=cid, proposal_id=pid)
-        # 계약 일정에 적은 금액 = 그 쌍의 **확정가**(2026-08-19). 값이 두 곳에 따로 살면
-        # 어긋나므로 일정에서 받은 금액을 쌍에 그대로 물린다(거울).
-        if body.schedule.category == "계약" and body.schedule.amount:
-            await pool().execute(
-                "UPDATE app.proposals SET deal_price=$3 WHERE id=$1 AND team_id=$2",
-                pid, user.team_id, body.schedule.amount)
-
+    # 짝을 고쳐도 일정은 생기지 않는다(0222 — 일정이 매물 · 짝에 영향을 주는 선을 끊음).
     # 계약까지 갔던 짝이 죽으면 그건 **계약파기**다 — 매도 장부에도 같은 사실이 선다(0067).
-    if body.dropped and row["picked_at"] is not None and pk:
-        evt_sid = await event_mark(
-            user.team_id, "buy", BROKEN, at.date() if at else dt.date.today(),
-            user.account_id, building_pk=pk, contact_id=cid, proposal_id=pid,
-            own_sid=own_sid, explicit_day=at is not None)
-        await mirror_to_listing(user.team_id, pid, BROKEN, user.account_id, evt_sid=evt_sid)
+    if body.dropped and row["picked_at"] is not None:
+        await mirror_to_listing(user.team_id, pid, BROKEN, user.account_id)
     return {"ok": True, "contact_id": cid}
 
 
-@router.get("/buyers/{bid}/events")
-async def buyer_events(bid: int, limit: int = 12, user: CurrentUser = Depends(current_user)):
-    """이 **사람**의 최근 움직임 — 시간순. 장부는 하나다(app.contacts · 0141)."""
-    rows = await pool().fetch(
-        """SELECT c.id, c.status, c.note, c.occurred_on, c.created_at, c.kind,
-                  a.name AS by_name
-           FROM app.contacts c
-           LEFT JOIN app.accounts a ON a.id = c.created_by
-           WHERE c.team_id = $1 AND c.target_type = 'buyer' AND c.target_id = $2
-           ORDER BY c.occurred_on DESC, c.id DESC
-           LIMIT $3""", user.team_id, str(bid), min(limit, 50))
-    return [dict(r) for r in rows]
 
 
-@router.get("/sales/find")
 
-def _says_listing(no: str | None, up: str) -> bool:
-    """문장이 이 매물번호를 말하나. 매물번호가 숫자만이라(0183) 부분일치로 보면
-    「2248만원」에도 걸린다 — 앞뒤에 숫자·글자가 붙지 않은 자리만 번호로 본다.
-    옛 번호(BT-2248)로 말해도 알아듣는다."""
-    if not no:
-        return False
-    return bool(_re.search(rf"(?<![0-9A-Za-z가-힣])(?:BT-?)?{_re.escape(no.upper())}(?![0-9A-Za-z가-힣])", up))
-
-async def find_target(q: str, user: CurrentUser = Depends(current_user)):
-    """문장에서 **누구(어느 매물) 얘기인지**를 찾는다 — 하단 대화창의 대상 찾기.
-
-    언어 이해가 아니라 목록 조회다. 팀의 사람·매물은 수십~수백이라 파이썬에서 맞춘다
-    (SQL 한 방보다 규칙을 읽고 고치기 쉽다 — 이 규칙은 자주 다듬게 된다).
-
-    맞추는 차례(숫자가 작을수록 세다):
-      ① 이름 통째        「윤미경 내일 2시」
-      ② 매물번호         「1112 잔금」
-      ③ 주소 조각        「49-9 자식들이 반대」 · 「삼성동 27-12」
-      ④ 전화 뒷 4자리    「0000 통화함」
-      ⑤ 성 + 호칭        「윤 사장님」
-
-    같이 주는 것: 어느 길로 맞았는지(via)와 그 매물(building_pk·proposal_id) —
-    「1112 잔금」은 사람 장부가 아니라 **그 매물 장부**에 적혀야 한다.
-    """
-    t = (q or "").strip()
-    if len(t) < 2:
-        return []
-    rows = await pool().fetch(
-        """SELECT 'owner' AS kind, o.id, o.name, o.phone,
-                  l.building_pk, l.listing_no, b.addr,
-                  NULL::bigint AS proposal_id
-             FROM app.owners o
-             LEFT JOIN app.listings l ON l.owner_id = o.id AND l.team_id = o.team_id
-             LEFT JOIN master.buildings b ON b.building_pk = l.building_pk
-            WHERE o.team_id = $1 AND o.deleted_at IS NULL
-           UNION ALL
-           SELECT 'buyer', y.id, y.name, y.phone,
-                  p.building_pk, l.listing_no, b.addr, p.id
-             FROM app.buyers y
-             LEFT JOIN app.proposals p ON p.buyer_id = y.id AND p.team_id = y.team_id
-             LEFT JOIN app.listings l ON l.building_pk = p.building_pk AND l.team_id = y.team_id
-             LEFT JOIN master.buildings b ON b.building_pk = p.building_pk
-            WHERE y.team_id = $1 AND y.deleted_at IS NULL""", user.team_id)
-
-    import re
-    digits = re.sub(r"\D", "", t)
-    jibuns = re.findall(r"\d+-\d+", t)
-    up = t.upper()
-
-    best: dict[tuple, dict] = {}
-    for r in rows:
-        name = r["name"] or ""
-        rank = 0; via = None
-        # 매물 언급은 순위와 **별개로** 본다 — 「문서희 1112 …」는 이름이 순위를 갖지만
-        # 매물을 명시했으니 그 매물 장부로 가야 한다(한 줄에 둘 다 있는 게 보통이다).
-        hit_listing = _says_listing(r["listing_no"], up) or \
-                      bool(r["addr"] and any(j in r["addr"] for j in jibuns))
-        if len(name) >= 2 and name in t:
-            rank, via = 1, "name"
-        elif _says_listing(r["listing_no"], up):
-            rank, via = 2, "listing"
-        elif r["addr"] and any(j in r["addr"] for j in jibuns):
-            rank, via = 3, "addr"
-        elif r["phone"]:
-            tail = re.sub(r"\D", "", r["phone"])[-4:]
-            if len(tail) == 4 and tail in digits:
-                rank, via = 4, "phone"
-        if rank == 0 and name and re.search(
-                re.escape(name[0]) + r"\s*(사장|사모|대표|이사|씨|님)", t):
-            rank, via = 5, "alias"
-        if rank == 0:
-            continue
-        key = (r["kind"], r["id"])
-        cur = best.get(key)
-        # 매물 길(listing/addr)로 맞았으면 그 매물을 싣는다. 이름과 매물이 **같이** 있는
-        # 문장(「문서희 1112 …」)은 이름이 순위를 갖되 매물 정보는 합쳐 둔다 —
-        # 안 합치면 매물을 명시했는데도 사람 장부로 가버린다.
-        # 이름만 맞고 매물 언급이 없으면 매물은 비운다(매물이 하나라고 그리로 보내는 건 추측이다).
-        via_b = via in ("listing", "addr") or hit_listing
-        row_b = {
-            "building_pk": r["building_pk"] if via_b else None,
-            "addr": r["addr"] if via_b else None,
-            "proposal_id": r["proposal_id"] if via_b else None,
-        }
-        if cur is None:
-            # 전화번호는 맞추는 데만 쓰고 응답엔 안 싣는다 — 목록 API 의 마스킹 규칙
-            # (담당자+대표만)을 이 길로 우회하면 안 된다
-            best[key] = {"kind": r["kind"], "id": r["id"], "name": name,
-                         "rank": rank, "via": via, **row_b}
-        else:
-            if rank < cur["rank"]:
-                cur.update(rank=rank, via=via)
-            if via_b and cur["building_pk"] is None:
-                cur.update(row_b)
-    out = sorted(best.values(), key=lambda x: (x["rank"], x["name"]))
-    return out[:6]
 
 
 @router.get("/sales/people")
-async def building_people(building_pk: str | None = None,
+async def building_people(listing_id: int | None = None,
                           user: CurrentUser = Depends(current_user)):
     """이 매물에 얽힌 사람 전부 — 약속 창에서 참석자로 고른다(0075).
 
     매도자 하나와 이 매물이 담긴 매수자들. 계약 자리엔 이 사람들이 같이 오고,
     동행 임장도 마찬가지다. 이름을 몰라 못 찾는 사람은 창에서 그대로 적어 넣는다.
     """
-    if not building_pk:
+    if not listing_id:
         return []
     rows = await pool().fetch(
         """SELECT 'owner' AS kind, o.id AS ref_id, o.name AS label, NULL::text AS sub
-             FROM app.listings l JOIN app.owners o ON o.id = l.owner_id AND o.deleted_at IS NULL
-            WHERE l.building_pk=$1 AND l.team_id=$2
+             FROM app.office_listings l JOIN app.owners o ON o.id = l.owner_id AND o.deleted_at IS NULL
+            WHERE l.id=$1 AND l.team_id=$2
            UNION ALL
-           SELECT 'buyer', y.id, y.name, (SELECT st.name FROM app.statuses st WHERE st.id = y.status_id)
+           SELECT 'buyer', y.id, y.name, NULL::text
              FROM app.proposals p JOIN app.buyers y ON y.id = p.buyer_id AND y.deleted_at IS NULL
-            WHERE p.building_pk=$1 AND p.team_id=$2 AND p.dropped_at IS NULL
-           ORDER BY 1 DESC, 3""", building_pk, user.team_id)
+            WHERE p.listing_id=$1 AND p.team_id=$2 AND p.dropped_at IS NULL
+           ORDER BY 1 DESC, 3""", listing_id, user.team_id)
     return [dict(r) for r in rows]
 
 
-@router.get("/sales/person-timeline")
-async def person_timeline(kind: str, person_id: int, user: CurrentUser = Depends(current_user)):
-    """한 **사람**의 모든 기록을 시간순으로 — 매물을 가로질러(0076).
-
-    장부는 하나다(app.contacts · 0141). 매수자는 자기 줄만, 매도자는 자기 줄 + 자기 매물들의 줄.
-    짝 창에서 적은 줄은 proposal_id 를 들고 있어 어느 매물 얘기였는지가 남는다.
-    읽기 전용 합본이다 — 쓰기는 각 자리에서.
-    """
-    if kind not in ("buyer", "owner"):
-        raise HTTPException(422, "kind는 buyer 또는 owner")
-    # 줄에 붙는 약속 — 그 줄이 낳은 것이거나 그 줄을 낳은 것
-    SCH = """LEFT JOIN LATERAL (
-               SELECT s.title AS sched_title, s.on_date AS sched_on, s.at_time AS sched_at,
-                      oc.note AS sched_note
-                 FROM app.schedules s
-                 LEFT JOIN app.contacts oc ON oc.id = s.contact_id
-                WHERE s.contact_id = c.id OR s.id = c.src_schedule_id
-                ORDER BY s.id LIMIT 1) sch ON TRUE"""
-    if kind == "buyer":
-        rows = await pool().fetch(
-            f"""SELECT c.id, p.building_pk, b.addr, c.status, c.note,
-                       c.kind AS channel, c.auto, a.name AS by_name,
-                       CASE WHEN c.occurred_on = c.created_at::date THEN c.created_at
-                            ELSE c.occurred_on::timestamptz END AS at,
-                       'contact'::text AS src, c.proposal_id, sch.*
-                  FROM app.contacts c
-                  LEFT JOIN app.accounts a ON a.id = c.created_by
-                  LEFT JOIN app.proposals p ON p.id = c.proposal_id
-                  LEFT JOIN master.buildings b ON b.building_pk = p.building_pk
-                  {SCH}
-                 WHERE c.team_id=$1 AND c.target_type='buyer' AND c.target_id = $2
-                 ORDER BY at DESC, c.id DESC LIMIT 200""",
-            user.team_id, str(person_id))
-    else:
-        rows = await pool().fetch(
-            f"""SELECT * FROM (
-                 SELECT c.id, NULL::text AS building_pk, NULL::text AS addr, c.status, c.note,
-                        c.kind AS channel, c.auto, a.name AS by_name,
-                        CASE WHEN c.occurred_on = c.created_at::date THEN c.created_at
-                             ELSE c.occurred_on::timestamptz END AS at,
-                        'contact'::text AS src, c.proposal_id, sch.*
-                   FROM app.contacts c
-                   LEFT JOIN app.accounts a ON a.id = c.created_by
-                   {SCH}
-                  WHERE c.team_id=$1 AND c.target_type='owner' AND c.target_id = $3
-                 UNION ALL
-                 -- 이 매도자가 가진 매물들의 기록
-                 SELECT c.id, c.target_id, b.addr, c.status, c.note,
-                        c.kind, c.auto, a.name,
-                        CASE WHEN c.occurred_on = c.created_at::date THEN c.created_at
-                             ELSE c.occurred_on::timestamptz END,
-                        'contact', c.proposal_id, sch.*
-                   FROM app.contacts c
-                   JOIN app.listings l ON l.building_pk = c.target_id AND l.team_id = c.team_id
-                   LEFT JOIN master.buildings b ON b.building_pk = c.target_id
-                   LEFT JOIN app.accounts a ON a.id = c.created_by
-                   {SCH}
-                  WHERE c.team_id=$1 AND c.target_type='listing' AND l.owner_id = $2
-               ) t ORDER BY at DESC, id DESC LIMIT 200""",
-            user.team_id, person_id, str(person_id))
-    return [dict(r) for r in rows]
 
 
 @router.get("/sales/timeline")
-async def building_timeline(building_pk: str, user: CurrentUser = Depends(current_user)):
+async def building_timeline(listing_id: int, user: CurrentUser = Depends(current_user)):
     """한 건물에 얽힌 줄 전부를 시간순으로 — 매물 1 : 매도자 1 : 매수자 N 이라
     사람 단위 화면(매도·매수)만으로는 「이 매물에 지금 무슨 일이 벌어지고 있나」가 흩어진다.
 
@@ -795,14 +590,14 @@ async def building_timeline(building_pk: str, user: CurrentUser = Depends(curren
                    LEFT JOIN app.contacts oc ON oc.id = s.contact_id
                   WHERE s.contact_id = c.id OR s.id = c.src_schedule_id
                   ORDER BY s.id LIMIT 1) sch ON TRUE
-              WHERE c.team_id = $1 AND p.building_pk = $2
+              WHERE c.team_id = $1 AND p.listing_id = $2
              UNION ALL
              SELECT 'sell', o.name, c.status, c.note,
                     CASE WHEN c.occurred_on = c.created_at::date THEN c.created_at
                          ELSE c.occurred_on::timestamptz END,
                     c.auto, a.name, c.kind, NULL::bigint, c.id, sch.*
                FROM app.contacts c
-               LEFT JOIN app.listings l ON l.building_pk = c.target_id AND l.team_id = c.team_id
+               LEFT JOIN app.office_listings l ON l.id = c.listing_id AND l.team_id = c.team_id
                LEFT JOIN app.owners o ON o.id = l.owner_id
                LEFT JOIN app.accounts a ON a.id = c.created_by
                LEFT JOIN LATERAL (
@@ -812,9 +607,9 @@ async def building_timeline(building_pk: str, user: CurrentUser = Depends(curren
                    LEFT JOIN app.contacts oc ON oc.id = s.contact_id
                   WHERE s.contact_id = c.id OR s.id = c.src_schedule_id
                   ORDER BY s.id LIMIT 1) sch ON TRUE
-              WHERE c.team_id = $1 AND c.target_type = 'listing' AND c.target_id = $2
+              WHERE c.team_id = $1 AND c.listing_id = $2
            ) t ORDER BY at, side DESC""",
-        user.team_id, building_pk)
+        user.team_id, listing_id)
     return [dict(r) for r in rows]
 
 
@@ -836,6 +631,11 @@ class DealPatch(BaseModel):
     pick_price: int | None = None          # 채택 가격 — 확정된 값
     vat_mode: str | None = None            # 부가세 조건(0128) — 별도·포함
     down_payment: int | None = None        # 계약금(0128) — 잔금은 저장 안 함(파생)
+    # 계약 날짜(0222) — 예전엔 일정 줄이 그릇이었다. 이제 짝 칸
+    contract_on: str | None = None         # 계약일
+    mid_on: str | None = None              # 중도금 날짜
+    mid_amount: int | None = None          # 중도금 금액
+    balance_on: str | None = None          # 잔금일
     # 되돌리기(2026-08-18) — 실수로 찍은 칸을 비운다. COALESCE 패치라 null 로는 못 지워서
     # 명시 목록으로 받는다. 허용 필드만(아래 _CLEARABLE).
     clear: list[str] | None = None
@@ -843,12 +643,8 @@ class DealPatch(BaseModel):
 
 _CLEARABLE = {"briefed_on", "brief_how", "brief_note", "visited_on", "visit_note", "pre_contract_on",
               "pre_contract_amount", "commission_amount", "commission_split",
-              "report_filed_on", "terms", "vat_mode", "down_payment"}
-# 장부는 사람 낱말로 — 영문 컬럼명이 줄에 서면 안 읽힌다
-_CLEAR_KO = {"briefed_on": "브리핑", "brief_how": "브리핑 방식", "brief_note": "브리핑 내용", "visited_on": "임장", "visit_note": "임장 결과",
-             "pre_contract_on": "계약금 일부", "pre_contract_amount": "계약금",
-             "commission_amount": "수수료", "commission_split": "배분",
-             "report_filed_on": "거래신고", "terms": "조건"}
+              "report_filed_on", "terms", "vat_mode", "down_payment",
+              "contract_on", "mid_on", "mid_amount", "balance_on"}
 
 
 @router.patch("/proposals/{pid}/deal")
@@ -861,7 +657,7 @@ async def patch_deal(pid: int, body: DealPatch, user: CurrentUser = Depends(curr
             await pool().execute(
                 """UPDATE app.proposals SET picked_at = NULL
                     WHERE team_id=$2 AND id <> $1
-                      AND building_pk = (SELECT building_pk FROM app.proposals WHERE id=$1)""",
+                      AND listing_id = (SELECT listing_id FROM app.proposals WHERE id=$1)""",
                 pid, user.team_id)
             await pool().execute(
                 """UPDATE app.proposals
@@ -910,7 +706,11 @@ async def patch_deal(pid: int, body: DealPatch, user: CurrentUser = Depends(curr
              brief_note = CASE WHEN $13::text IS NULL THEN brief_note
                                WHEN $13::text = '' THEN NULL ELSE $13::text END,
              vat_mode = COALESCE($14, vat_mode),
-             down_payment = COALESCE($15, down_payment)
+             down_payment = COALESCE($15, down_payment),
+             contract_on = COALESCE($16, contract_on),
+             mid_on = COALESCE($17, mid_on),
+             mid_amount = COALESCE($18, mid_amount),
+             balance_on = COALESCE($19, balance_on)
            WHERE id=$1 AND team_id=$2""",
         pid, user.team_id,
         _d(body.briefed_on) if body.briefed_on else None,
@@ -920,7 +720,10 @@ async def patch_deal(pid: int, body: DealPatch, user: CurrentUser = Depends(curr
         body.pre_contract_amount, body.commission_amount, body.commission_split,
         _d(body.report_filed_on) if body.report_filed_on else None,
         body.terms, body.brief_how, body.brief_note,
-        body.vat_mode, body.down_payment)
+        body.vat_mode, body.down_payment,
+        _d(body.contract_on) if body.contract_on else None,
+        _d(body.mid_on) if body.mid_on else None, body.mid_amount,
+        _d(body.balance_on) if body.balance_on else None)
     if n.endswith(" 0"):
         raise HTTPException(404, "제안을 찾을 수 없습니다")
     # 창 저장 = 장부 한 줄(auto·접힘) — 무엇이 있었는지는 남되 사람 문장 사이에 안 끼게
@@ -961,16 +764,16 @@ _DOCS: list[tuple[str, str, bool | None, str, str]] = [
 ]
 
 
-@router.post("/listings/{building_pk}/owner-to-buyer")
-async def owner_to_buyer(building_pk: str, user: CurrentUser = Depends(current_user)):
+@router.post("/listings/{listing_id}/owner-to-buyer")
+async def owner_to_buyer(listing_id: int, user: CurrentUser = Depends(current_user)):
     """매도자 → 매수자 명단(2026-08-18·아티팩트 ③「이 사람의 매수 의사」 복원).
     「살건없고팔건보내준다고함」의 반대 — 팔면서 살 생각도 있는 사람을 잃지 않는 길.
     판 사람이 매수자 확보의 최대 원천(엑셀 10.매각→3_1.매수로 1,046행)이라 같은 기계를
     잔금 뒤에도 쓴다. 전화번호(숫자만)로 중복을 막는다 — 이미 있으면 그 사람을 돌려준다."""
     row = await pool().fetchrow(
-        """SELECT o.id, o.name, o.phone, o.owner_type FROM app.listings l
+        """SELECT o.id, o.name, o.phone, o.owner_type FROM app.office_listings l
              JOIN app.owners o ON o.id = l.owner_id AND o.deleted_at IS NULL
-            WHERE l.building_pk=$1 AND l.team_id=$2""", building_pk, user.team_id)
+            WHERE l.id=$1 AND l.team_id=$2""", listing_id, user.team_id)
     if row is None or not row["name"]:
         raise HTTPException(422, "소유자가 확보되어 있어야 명단에 올릴 수 있습니다")
     digits = "".join(ch for ch in (row["phone"] or "") if ch.isdigit())
@@ -998,13 +801,13 @@ async def owner_to_buyer(building_pk: str, user: CurrentUser = Depends(current_u
     return {"buyer_id": bid, "created": created}
 
 
-@router.delete("/listings/{building_pk}/owner-to-buyer")
-async def owner_from_buyer(building_pk: str, user: CurrentUser = Depends(current_user)):
+@router.delete("/listings/{listing_id}/owner-to-buyer")
+async def owner_from_buyer(listing_id: int, user: CurrentUser = Depends(current_user)):
     """전환 취소 — 명단에서 내린다(소프트 삭제 · 지우지 않는다). 칩을 끄는 길."""
     row = await pool().fetchrow(
-        """SELECT o.name, o.phone FROM app.listings l
+        """SELECT o.name, o.phone FROM app.office_listings l
              JOIN app.owners o ON o.id = l.owner_id AND o.deleted_at IS NULL
-            WHERE l.building_pk=$1 AND l.team_id=$2""", building_pk, user.team_id)
+            WHERE l.id=$1 AND l.team_id=$2""", listing_id, user.team_id)
     if row is None or not (row["phone"] or "").strip():
         raise HTTPException(404, "내릴 사람을 찾을 수 없습니다")
     digits = "".join(ch for ch in row["phone"] if ch.isdigit())
@@ -1066,27 +869,27 @@ async def put_paper(pid: int, body: PaperIn, user: CurrentUser = Depends(current
 
 
 @router.get("/sales/offer-board")
-async def offer_board(building_pk: str, user: CurrentUser = Depends(current_user)):
+async def offer_board(listing_id: int, user: CurrentUser = Depends(current_user)):
     """호가판(2026-08-19) — 값의 시간 흐름을 그린다.
     매도 쪽(매매가·매도희망가)과 매수자별 희망가가 같은 시간축 위에 선다.
     값은 `app.field_events`(append-only)에서 오고, 지금 값은 그 최신 행이다."""
     sell = await pool().fetch(
         """SELECT id, field, prev, value, created_at
              FROM app.field_events
-            WHERE team_id=$1 AND target_type='listing' AND target_id=$2
+            WHERE team_id=$1 AND listing_id=$2
               AND field IN ('sale_price','ask_price')
-            ORDER BY created_at""", user.team_id, building_pk)
+            ORDER BY created_at""", user.team_id, listing_id)
     buys = await pool().fetch(
         """SELECT p.id AS proposal_id, y.name AS buyer_name,
-                  (SELECT st.name FROM app.statuses st WHERE st.id = y.status_id) AS status,
+                  NULL::text AS status,   -- 고객 상태는 0220 에서 지웠다
                   f.id AS event_id, f.field, f.prev, f.value, f.created_at
              FROM app.proposals p
              JOIN app.buyers y ON y.id = p.buyer_id
              LEFT JOIN app.field_events f
                     ON f.team_id = p.team_id AND f.target_type='proposal'
                    AND f.target_id = p.id::text AND f.field IN ('hope_price','deal_price')
-            WHERE p.team_id=$1 AND p.building_pk=$2
-            ORDER BY p.id, f.created_at""", user.team_id, building_pk)
+            WHERE p.team_id=$1 AND p.listing_id=$2
+            ORDER BY p.id, f.created_at""", user.team_id, listing_id)
     # 값 이력의 정본은 하나다(app.field_events · 0141) — 커밋 장부에서 따로 긁어 올리지 않는다.
     # prev·매수자 이름·상태는 화면이 안 읽고, events 는 늘 빈 배열이라 뺐다(감사 2026-09-17)
     return {"sell": [keep(dict(r), ("id", "field", "value", "created_at")) for r in sell],
@@ -1105,42 +908,6 @@ async def del_offer_event(src: str, eid: int, user: CurrentUser = Depends(curren
     return {"ok": True}
 
 
-@router.get("/proposals/{pid}/docs")
-async def list_docs(pid: int, user: CurrentUser = Depends(current_user)):
-    """조합(매도 개인/법인 × 매수 개인/법인)에 맞는 체크리스트 + 체크 상태.
-    조합을 가르는 두 필드는 이미 있다 — owners.owner_type · buyers.is_corp."""
-    row = await pool().fetchrow(
-        """SELECT y.is_corp AS buyer_corp, o.owner_type,
-                  l.meongdo, l.myeolsil, l.use_change
-             FROM app.proposals p
-             JOIN app.buyers y ON y.id = p.buyer_id
-             LEFT JOIN app.listings l ON l.building_pk = p.building_pk AND l.team_id = p.team_id
-             LEFT JOIN app.owners o ON o.id = l.owner_id AND o.deleted_at IS NULL
-            WHERE p.id=$1 AND p.team_id=$2""", pid, user.team_id)
-    if row is None:
-        raise HTTPException(404, "제안을 찾을 수 없습니다")
-    seller_corp = row["owner_type"] == "법인"
-    buyer_corp = bool(row["buyer_corp"])
-    checked = {r["code"] for r in await pool().fetch(
-        "SELECT code FROM app.deal_docs WHERE proposal_id=$1 AND team_id=$2", pid, user.team_id)}
-    # 이행 항목의 발동 — 매물 필드가 「약속이 있다」고 말할 때만(없던 약속은 안 선다)
-    fulfil = {
-        "f_meongdo": (row["meongdo"] or "") in ("가능", "일부", "조건부", "확인중"),
-        "f_myeolsil": (row["myeolsil"] or "") in ("잔금전멸실", "협조가능", "협의가능", "조건부"),
-        "f_use": (row["use_change"] or "") in ("가능", "협의가능", "조건부"),
-    }
-    out = []
-    for phase, actor, corp, code, label in _DOCS:
-        if code in fulfil and not fulfil[code]:
-            continue
-        if corp is not None:
-            if actor == "매도" and corp != seller_corp:
-                continue
-            if actor == "매수" and corp != buyer_corp:
-                continue
-        out.append({"phase": phase, "actor": actor, "code": code, "label": label,
-                    "done": code in checked})
-    return {"seller_corp": seller_corp, "buyer_corp": buyer_corp, "items": out}
 
 
 class DocToggle(BaseModel):
@@ -1148,20 +915,6 @@ class DocToggle(BaseModel):
     done: bool
 
 
-@router.put("/proposals/{pid}/docs")
-async def toggle_doc(pid: int, body: DocToggle, user: CurrentUser = Depends(current_user)):
-    if body.code not in {c for _, _, _, c, _ in _DOCS}:
-        raise HTTPException(422, "모르는 항목입니다")
-    if body.done:
-        await pool().execute(
-            """INSERT INTO app.deal_docs(team_id, proposal_id, code, done_by)
-               VALUES($1,$2,$3,$4) ON CONFLICT (proposal_id, code) DO NOTHING""",
-            user.team_id, pid, body.code, user.account_id)
-    else:
-        await pool().execute(
-            "DELETE FROM app.deal_docs WHERE proposal_id=$1 AND team_id=$2 AND code=$3",
-            pid, user.team_id, body.code)
-    return {"ok": True}
 
 
 @router.delete("/proposals/{pid}")
@@ -1174,73 +927,8 @@ async def delete_proposal(pid: int, user: CurrentUser = Depends(current_user)):
     return {"ok": True}
 
 
-# ── 활동 — 이 사람에게 언제 무엇을 했나 ──────────────────
-# 장부는 하나다(app.contacts · 0141). 매물이 걸린 줄은 proposal_id 를 들고 있어
-# 어느 매물 얘기였는지가 같이 선다.
-@router.get("/buyers/{bid}/activity")
-async def buyer_activity(bid: int, user: CurrentUser = Depends(current_user)):
-    rows = await pool().fetch(
-        """SELECT c.occurred_on::timestamptz AS at, c.kind, c.status, c.note,
-                  b.addr, p.building_pk, a.name AS by_name
-             FROM app.contacts c
-             LEFT JOIN app.accounts a ON a.id = c.created_by
-             LEFT JOIN app.proposals p ON p.id = c.proposal_id
-             LEFT JOIN master.buildings b ON b.building_pk = p.building_pk
-            WHERE c.team_id=$1 AND c.target_type='buyer' AND c.target_id=$2
-            ORDER BY at DESC LIMIT 50""",
-        user.team_id, str(bid))
-    return [dict(r) for r in rows]
 
 
-# ── 매수자 → 매물 추천 ─────────────────────────────────
-# 반대 방향. "이 사람에게 뭘 보여줄까"를 조건 세트로 검색 엔진에 물어본다(같은 엔진 — 규칙 한 벌).
-# 추천은 출발점일 뿐이다 — 마음에 안 들면 지도·상세에서 직접 골라 담는다(제안 리스트).
-@router.get("/buyers/{bid}/matches")
-async def buyer_matches(bid: int, limit: int = 6, user: CurrentUser = Depends(current_user)):
-    from . import search as S   # 순환 임포트 방지
-
-    conds = await pool().fetch(
-        """SELECT c.id, c.name, c.conditions_json FROM app.buyer_conditions c
-           JOIN app.buyers b ON b.id = c.buyer_id AND b.deleted_at IS NULL
-           WHERE c.team_id=$1 AND c.buyer_id=$2 ORDER BY c.id""", user.team_id, bid)
-    # 이미 리스트에 담긴 매물은 다시 추천하지 않는다(거절 포함 — 같은 걸 또 들이밀지 않는다)
-    seen = {r["building_pk"] for r in await pool().fetch(
-        "SELECT building_pk FROM app.proposals WHERE team_id=$1 AND buyer_id=$2", user.team_id, bid)}
-
-    out: list[dict] = []
-    for c in conds:
-        cond = c["conditions_json"]
-        if isinstance(cond, str):
-            cond = json.loads(cond)
-        filters = {k: v for k, v in ((cond or {}).get("filters") or {}).items()
-                   if v is not None and v != [] and v != ""}
-        regions = (cond or {}).get("regions") or []
-        poly = (cond or {}).get("polygon") or None
-        if not (filters or regions or poly):
-            continue
-        f = dict(filters)
-        if poly:
-            f.pop("bjd_code", None)
-        elif not f.get("bjd_code") and regions:
-            f["bjd_code"] = regions[0].get("bjd_code")
-        try:
-            base, args, outer = S._build_base(S.SearchIn(filters=S.Filters(**f), polygon=poly), user)
-            rows = await pool().fetch(
-                base + f"""SELECT building_pk, addr, price, roi, land_area, total_area
-                           FROM classified WHERE TRUE {outer}
-                           ORDER BY price DESC NULLS LAST LIMIT 20""", *args)
-        except Exception:
-            continue
-        for r in rows:
-            if r["building_pk"] in seen:
-                continue
-            seen.add(r["building_pk"])
-            out.append({**dict(r), "cond_name": c["name"]})
-            if len(out) >= limit:
-                break
-        if len(out) >= limit:
-            break
-    return out
 
 
 # ── 조건 기반 추천(2026-08-20) ──────────────────────────
@@ -1410,6 +1098,41 @@ async def _attach_specs(rows: list[dict]) -> None:
         r["remodel"] = sp["remodel"] if sp else None
 
 
+def _fmt(col: str, v) -> str:
+    if v is None:
+        return "—"
+    if col == "price":
+        return f"{round(float(v) / 1e8, 1)}억"
+    if col in ("land_area", "total_area"):
+        return f"{round(float(v) / 3.305785)}평"
+    if col in ("roi", "far_slack", "gongsi_ratio"):
+        return f"{round(float(v), 2)}%"
+    return str(v)
+
+
+def _explain(filters: dict, row: dict | None) -> list[dict]:
+    """조건 항목별 충족표. 점수 하나로 뭉개지 않는다 —
+    '수익률만 0.5%p 모자란다'가 보여야 "그래도 보여줄까"를 판단한다."""
+    if not row:
+        return []
+    out = []
+    for kmin, kmax, label, col in _CHECKS:
+        lo, hi = filters.get(kmin), filters.get(kmax)
+        if lo is None and hi is None:
+            continue
+        got = row.get(col)
+        ok = got is not None and (lo is None or float(got) >= float(lo)) and (hi is None or float(got) <= float(hi))
+        want = " ~ ".join(x for x in [_fmt(col, lo) if lo is not None else "",
+                                      _fmt(col, hi) if hi is not None else ""] if x)
+        out.append({"label": label, "ok": bool(ok), "want": want.strip(" ~"), "got": _fmt(col, got)})
+    if filters.get("use_zones"):
+        z = row.get("use_zone")
+        out.append({"label": "용도지역", "ok": z in filters["use_zones"],
+                    "want": " · ".join(filters["use_zones"][:3]), "got": z or "—"})
+    return out
+
+
+
 @router.get("/buyers/{bid}/recommend")
 async def buyer_recommend(bid: int, limit: int = 20, user: CurrentUser = Depends(current_user)):
     """이 매수자에게 보여줄 만한 매물 — **전 서울이 대상**이고, 내 매물이면 표식이 붙는다.
@@ -1423,14 +1146,17 @@ async def buyer_recommend(bid: int, limit: int = 20, user: CurrentUser = Depends
         """SELECT c.id, c.name, c.conditions_json FROM app.buyer_conditions c
            JOIN app.buyers b ON b.id = c.buyer_id AND b.deleted_at IS NULL
            WHERE c.team_id=$1 AND c.buyer_id=$2 ORDER BY c.id""", user.team_id, bid)
-    taken = {r["building_pk"] for r in await pool().fetch(
-        "SELECT building_pk FROM app.proposals WHERE team_id=$1 AND buyer_id=$2", user.team_id, bid)}
+    # 담은 땅 · 팔린 땅 — 짝은 매물을 가리키고(0255) 매물의 위치는 지번이다. 추천 후보도 지번으로 견준다
+    taken = {r["pnu"] for r in await pool().fetch(
+        """SELECT lp.pnu FROM app.proposals p JOIN app.listing_parcels lp ON lp.listing_id = p.listing_id AND lp.main
+            WHERE p.team_id=$1 AND p.buyer_id=$2""", user.team_id, bid)}
     # 팔린 매물은 추천하지 않는다(2026-08-20) — 이미 남의 것이 된 물건을 들이미는 일이 없게.
-    sold = {r["building_pk"] for r in await pool().fetch(
-        """SELECT DISTINCT p.building_pk FROM app.proposals p
-             JOIN app.schedules s ON s.proposal_id = p.id
-                                 AND s.category = '계약' AND s.state = '완료'
-            WHERE p.team_id=$1 AND p.picked_at IS NOT NULL AND p.dropped_at IS NULL""",
+    sold = {r["pnu"] for r in await pool().fetch(
+        """SELECT DISTINCT lp.pnu FROM app.proposals p
+             JOIN app.listing_parcels lp ON lp.listing_id = p.listing_id AND lp.main
+            WHERE p.team_id=$1 AND p.picked_at IS NOT NULL AND p.dropped_at IS NULL
+              AND p.contract_on IS NOT NULL   -- 계약일이 짝 칸이 됐다(0222)
+        """,
         user.team_id)}
 
     best: dict[str, dict] = {}
@@ -1471,7 +1197,7 @@ async def buyer_recommend(bid: int, limit: int = 20, user: CurrentUser = Depends
             order = (f"abs(COALESCE(price, 0) - {int(mid)}) ASC" if mid
                      else "price DESC NULLS LAST")
             rows = await pool().fetch(
-                base + f"""SELECT building_pk, addr, price, roi, land_area, total_area,
+                base + f"""SELECT pnu, building_pk, listing_id, addr, price, roi, land_area, total_area,
                                   use_zone, lng, lat, col
                              FROM classified WHERE TRUE {outer}
                             ORDER BY (col = 'mine') DESC, {order}
@@ -1481,7 +1207,7 @@ async def buyer_recommend(bid: int, limit: int = 20, user: CurrentUser = Depends
         cands = [dict(r) for r in rows]
         await _attach_specs(cands)         # 주차·엘리베이터·연식은 검색 엔진 밖의 값
         for row in cands:
-            pk = row["building_pk"]
+            pk = row["pnu"]
             if pk in sold:
                 continue
             mine = row.get("col") == "mine"
@@ -1493,7 +1219,8 @@ async def buyer_recommend(bid: int, limit: int = 20, user: CurrentUser = Depends
             if cur and cur["score"] >= score:
                 continue
             best[pk] = {
-                "building_pk": pk, "addr": row["addr"], "price": row["price"],
+                "pnu": pk, "building_pk": row["building_pk"], "listing_id": row["listing_id"],
+                "addr": row["addr"], "price": row["price"],
                 "roi": float(row["roi"]) if row["roi"] is not None else None,
                 "land_area": row["land_area"], "total_area": row["total_area"],
                 "mine": mine, "score": score, "cond_name": c["name"],
@@ -1507,8 +1234,8 @@ async def buyer_recommend(bid: int, limit: int = 20, user: CurrentUser = Depends
     return {"needs_condition": not used_cond, "items": out}
 
 
-@router.get("/buildings/{building_pk}/recommend-buyers")
-async def listing_recommend_buyers(building_pk: str, limit: int = 20,
+@router.get("/listings/{listing_id}/recommend-buyers")
+async def listing_recommend_buyers(listing_id: int, limit: int = 20,
                                    user: CurrentUser = Depends(current_user)):
     """이 매물을 돌릴 만한 매수자 — 조건 있는 사람은 점수로, 없는 사람은 뒤에 그대로 둔다.
 
@@ -1517,16 +1244,20 @@ async def listing_recommend_buyers(building_pk: str, limit: int = 20,
     """
     from . import search as S
 
-    base, args, _outer = S._build_base(
-        S.SearchIn(filters=S.Filters(building_pk=building_pk)), user)
-    subject = await pool().fetchrow(base + "SELECT * FROM classified LIMIT 1", *args)
+    # 견줄 대상 = 매물의 대표 지번(검색 줄 한 줄 · 0258). 나대지도 지번 값(면적 · 용도지역 · 공시)으로 견준다
+    pnu = await pool().fetchval(
+        "SELECT pnu FROM app.listing_parcels WHERE listing_id = $1 AND main", listing_id)
+    subject = None
+    if pnu:
+        base, args, _outer = S._build_base(S.SearchIn(filters=S.Filters(pnu=pnu)), user)
+        subject = await pool().fetchrow(base + "SELECT * FROM classified LIMIT 1", *args)
     subj = dict(subject) if subject else None
     if subj:
         await _attach_specs([subj])
 
     taken = {r["buyer_id"] for r in await pool().fetch(
-        "SELECT buyer_id FROM app.proposals WHERE team_id=$1 AND building_pk=$2",
-        user.team_id, building_pk)}
+        "SELECT buyer_id FROM app.proposals WHERE team_id=$1 AND listing_id=$2",
+        user.team_id, listing_id)}
 
     # 이미 계약을 마친 사람은 명단에서 뺀다(2026-08-20) — 그 사람은 「계약」 갈래로 갔다
     rows = await pool().fetch(
@@ -1536,10 +1267,8 @@ async def listing_recommend_buyers(building_pk: str, limit: int = 20,
              LEFT JOIN app.buyer_conditions c ON c.buyer_id = b.id
             WHERE b.team_id=$1 AND b.deleted_at IS NULL
               AND NOT EXISTS (SELECT 1 FROM app.proposals pd
-                               JOIN app.schedules sd ON sd.proposal_id = pd.id
-                                                    AND sd.category = '계약' AND sd.state = '완료'
                               WHERE pd.buyer_id = b.id AND pd.picked_at IS NOT NULL
-                                AND pd.dropped_at IS NULL)
+                                AND pd.dropped_at IS NULL AND pd.contract_on IS NOT NULL)
             ORDER BY b.name""", user.team_id)
 
     best: dict[int, dict] = {}
@@ -1583,127 +1312,14 @@ _CHECKS: list[tuple[str, str, str, str]] = [
 ]
 
 
-def _fmt(col: str, v) -> str:
-    if v is None:
-        return "—"
-    if col == "price":
-        return f"{round(float(v) / 1e8, 1)}억"
-    if col in ("land_area", "total_area"):
-        return f"{round(float(v) / 3.305785)}평"
-    if col in ("roi", "far_slack", "gongsi_ratio"):
-        return f"{round(float(v), 2)}%"
-    return str(v)
 
 
-def _explain(filters: dict, row: dict | None) -> list[dict]:
-    """조건 항목별 충족표. 점수 하나로 뭉개지 않는다 —
-    '수익률만 0.5%p 모자란다'가 보여야 "그래도 보여줄까"를 판단한다."""
-    if not row:
-        return []
-    out = []
-    for kmin, kmax, label, col in _CHECKS:
-        lo, hi = filters.get(kmin), filters.get(kmax)
-        if lo is None and hi is None:
-            continue
-        got = row.get(col)
-        ok = got is not None and (lo is None or float(got) >= float(lo)) and (hi is None or float(got) <= float(hi))
-        want = " ~ ".join(x for x in [_fmt(col, lo) if lo is not None else "",
-                                      _fmt(col, hi) if hi is not None else ""] if x)
-        out.append({"label": label, "ok": bool(ok), "want": want.strip(" ~"), "got": _fmt(col, got)})
-    if filters.get("use_zones"):
-        z = row.get("use_zone")
-        out.append({"label": "용도지역", "ok": z in filters["use_zones"],
-                    "want": " · ".join(filters["use_zones"][:3]), "got": z or "—"})
-    return out
 
 
-@router.get("/buildings/{building_pk}/matching-buyers")
-async def matching_buyers(building_pk: str, user: CurrentUser = Depends(current_user)):
-    """이 매물을 돌릴 만한 매수자 + 그 근거.
-
-    매칭용 쿼리를 새로 만들지 않는다 — 검색 엔진(_build_base)을 **이 매물 한 행으로 좁혀** 돌린다.
-    따로 만들면 '검색 결과'와 '매칭 결과'가 언젠가 어긋난다.
-    조건에 안 걸린 매수자도 함께 낸다(out_of_condition) — 조건은 참고지 규칙이 아니고,
-    "조건엔 없지만 이건 보여줄 만하다"가 현장에서 자주 일어난다.
-    """
-    from . import search as S   # 순환 임포트 방지 — 호출 시점에
-
-    rows = await pool().fetch(
-        """SELECT b.id, b.name, b.grade, b.phone, b.assignee_account_id,
-                  c.id AS cond_id, c.name AS cond_name, c.conditions_json
-           FROM app.buyers b LEFT JOIN app.buyer_conditions c ON c.buyer_id = b.id
-           WHERE b.team_id=$1 AND b.deleted_at IS NULL
-           ORDER BY b.name""", user.team_id)
-
-    # 이미 담아 둔 사람 — 상태 칸은 없앴다(0142). 담겼나만 본다(살아 있는 짝).
-    held = {r["buyer_id"] for r in await pool().fetch(
-        """SELECT buyer_id FROM app.proposals
-            WHERE team_id=$1 AND building_pk=$2 AND dropped_at IS NULL""",
-        user.team_id, building_pk)}
-
-    # 과거에 접은 패턴은 보류 표(stops)에서 왔다 — 0199 에서 보류 표를 걷어 비어 있다
-    rej: dict[int, list] = {}
-
-    # 이 매물의 계산값 한 줄(수익률·평단가·여유분 등) — 항목별 충족 판정의 기준
-    base, args, outer = S._build_base(S.SearchIn(filters=S.Filters(building_pk=building_pk)), user)
-    subject = await pool().fetchrow(base + "SELECT * FROM classified LIMIT 1", *args)
-    subj = dict(subject) if subject else None
-
-    best: dict[int, dict] = {}
-    for r in rows:
-        bid = r["id"]
-        cond = r["conditions_json"]
-        if isinstance(cond, str):
-            cond = json.loads(cond)
-        # 모달이 저장하는 filters는 값 없는 키까지 전부 담는다(null 범벅).
-        # 그대로 두면 "조건 없음"이 truthy로 통과해 그 매수자가 모든 매물에 걸린다.
-        filters = {k: v for k, v in ((cond or {}).get("filters") or {}).items()
-                   if v is not None and v != [] and v != ""}
-        regions = (cond or {}).get("regions") or []
-        # 지도에서 그린 영역도 조건이다. 빼먹으면 "영역만 그린 조건"은 영원히 안 걸린다.
-        poly = (cond or {}).get("polygon") or None
-
-        hit = False
-        if filters or regions or poly:
-            f = dict(filters)
-            f["building_pk"] = building_pk
-            # 영역이 있으면 지역코드는 안 건다 — 영역이 더 좁고, 둘을 AND로 걸면
-            # 영역이 그 동 밖으로 조금만 나가도 아무것도 안 걸린다(검색 화면과 같은 규칙).
-            if poly:
-                f.pop("bjd_code", None)
-            elif not f.get("bjd_code") and regions:
-                f["bjd_code"] = regions[0].get("bjd_code")
-            try:
-                b2, a2, o2 = S._build_base(
-                    S.SearchIn(filters=S.Filters(**f), polygon=poly), user)
-                hit = bool(await pool().fetchval(
-                    b2 + f"SELECT count(*) FROM classified WHERE TRUE {o2}", *a2))
-            except Exception:
-                hit = False               # 조건이 깨졌으면 조용히 넘어간다(한 명 때문에 화면이 죽으면 안 된다)
-
-        cur = best.get(bid)
-        # 매수자당 한 줄. 조건 세트가 여럿이면 걸린 세트를 우선 보여준다.
-        if cur and (cur["matched"] or not hit):
-            continue
-        best[bid] = {
-            "id": bid, "name": r["name"], "grade": r["grade"],
-            # 연락처는 담당자 본인+대표만(S0M §3.4 경계를 매수자에도 적용)
-            "phone": r["phone"] if _can_see(user, r["assignee_account_id"]) else _mask(r["phone"]),
-            "matched": hit,
-            "matched_condition": r["cond_name"] if hit else None,
-            "checks": _explain(filters, subj) if hit or filters else [],
-            "rejects": rej.get(bid, [])[:3],
-            "held": bid in held,
-        }
-
-    out = list(best.values())
-    # 조건에 걸린 사람 먼저 · 이미 담은 사람은 뒤로(앞에 오는 건 아직 안 돌린 사람이어야 한다)
-    out.sort(key=lambda x: (not x["matched"], x["held"], x["name"]))
-    return out
 
 
 # ── 매도자(소유자) — 영업의 반대쪽 절반 ──────────────────
-# 별도 저장소가 없다. 업무탭이 쓰는 app.listings의 같은 행을 사람 관점으로 다시 편 것 —
+# 별도 저장소가 없다. 업무탭이 쓰는 app.office_listings의 같은 행을 사람 관점으로 다시 편 것 —
 # 영업에서 고치면 업무탭에도 바뀌어 있다(수정 = 기존 PATCH /listings/biz 재사용).
 #
 # **단계를 발명하지 않는다**(2026-08-10 감사에서 확정). 매물에는 상태 칸이 없다(0142) —
@@ -1724,13 +1340,13 @@ async def list_owners(mine: bool = False, user: CurrentUser = Depends(current_us
     rows = await pool().fetch(
         """SELECT o.id, o.name, o.phone, o.owner_type, o.relation, o.cooperation,
                   o.kindness, o.age_band, o.gender, o.note, o.updated_at,
-                  (SELECT count(*) FROM app.listings x WHERE x.owner_id = o.id) AS n_listings,
-                  (SELECT max(a.assignee_account_id) FROM app.listings a WHERE a.owner_id = o.id)
+                  (SELECT count(*) FROM app.office_listings x WHERE x.owner_id = o.id) AS n_listings,
+                  (SELECT max(a.assignee_account_id) FROM app.office_listings a WHERE a.owner_id = o.id)
                     AS assignee_account_id
            FROM app.owners o
            WHERE o.team_id = $1 AND o.deleted_at IS NULL
              AND ($2::bigint IS NULL OR EXISTS (
-                   SELECT 1 FROM app.listings a WHERE a.owner_id = o.id AND a.assignee_account_id = $2))
+                   SELECT 1 FROM app.office_listings a WHERE a.owner_id = o.id AND a.assignee_account_id = $2))
            ORDER BY o.updated_at DESC""",
         user.team_id, user.account_id if mine else None)
     out = []
@@ -1771,7 +1387,7 @@ async def create_owner(body: OwnerIn, user: CurrentUser = Depends(current_user))
 
 
 class OwnerListingIn(BaseModel):
-    building_pk: str
+    pnu: str                 # 이 땅을 매물로(지번). 이미 있으면 그 매물
 
 
 @router.put("/owners/{oid}/listings")
@@ -1785,15 +1401,12 @@ async def attach_listing(oid: int, body: OwnerListingIn, user: CurrentUser = Dep
     # 붙이는 사람이 담당자가 된다 — 담당자가 없으면 매물번호도 접수일도 안 나온다(0068 트리거).
     # 예전엔 owner_id 만 넣어서 「매도자 등록 → 매물 붙이기」로 만든 매물이 번호 없이 남았다.
     # 이미 담당자가 있으면 건드리지 않는다(남의 매물을 가로채면 안 된다 · claim 규칙).
+    # 매도자에 건물을 붙이는 것은 매물 등록이다(0226) — 매물 + 관리 줄을 만들고 소유자 · 담당을 단다
+    lid = await create_office_listing(user.team_id, body.pnu)
     await pool().execute(
-        """INSERT INTO app.listings(building_pk, team_id, owner_id, assignee_account_id)
-           VALUES($1,$2,$3,$4)
-           ON CONFLICT (building_pk, team_id) DO UPDATE
-             SET owner_id = EXCLUDED.owner_id,
-                 assignee_account_id = COALESCE(app.listings.assignee_account_id, EXCLUDED.assignee_account_id),
-                 updated_at = now()""",
-        body.building_pk, user.team_id, oid, user.account_id)
-    return {"ok": True}
+        """UPDATE app.listing_office SET owner_id = $2, assignee_account_id = COALESCE(assignee_account_id, $3)
+            WHERE listing_id = $1""", lid, oid, user.account_id)
+    return {"ok": True, "listing_id": lid}
 
 
 @router.get("/sales/sellers", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
@@ -1801,7 +1414,7 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                        user: CurrentUser = Depends(current_user)):
     """매물 단위 — 흐름 보드와 「이 매도자의 매물들」이 읽는다."""
     rows = await pool().fetch(
-        """SELECT l.building_pk, l.owner_id, ns.*,
+        """SELECT l.id AS listing_id, l.pnu, r.rep_pk AS building_pk, l.owner_id,
                   o.name AS owner_name, o.phone AS owner_phone, o.owner_type, o.relation,
                   o.cooperation, o.kindness, o.age_band AS owner_age_band,
                   o.gender AS owner_gender, o.note AS owner_note,
@@ -1812,48 +1425,35 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                   (o.id IS NOT NULL) AS has_owner,
                   l.intent, l.urgency, l.call_result,
                   l.assignee_account_id, l.updated_at,
-                  -- 나대지(2026-08-27): building_pk 가 'P'+pnu 인 매물은 건물이 아니라 빈 땅이다.
-                  -- 주소·대지면적은 vacant_parcels 가 준다. 연면적은 없다 — 없는 것은 비워 둔다.
+                  -- 위치는 매물의 대표 지번(0255). 동이 없는 지번(나대지)은 vacant_parcels 가 주소 · 대지면적을 준다
+                  -- building_pk = 그 지번의 대표 동(동 카드 · 층별을 열 때만 쓴다)
                   COALESCE(b.addr, vp.addr) AS addr,
-                  COALESCE(b.land_area, vp.area) AS land_area, b.total_area,
-                  (b.building_pk IS NULL AND vp.pnu IS NOT NULL) AS is_vacant,
-                  -- 매매가는 **사람이 넣은 값만**(2026-08-18) — 마스터(추정가)로 미리 채우지
-                  -- 않는다. 채워 두면 다들 호가인 줄 알아 오해가 선다. 추정가는 보조지표.
-                  l.sale_price AS price,
-                  l.sale_price AS list_price, se.sale_est AS est_price,
+                  COALESCE(b.land_area, vp.area) AS land_area, pr.total_area,
+                  (pr.pnu IS NULL) AS is_vacant,
+                  -- 매매가 = 이 매물의 값 하나(0226). 추정가로 미리 채우지 않는다(2026-08-18)
+                  l.price AS list_price, l.pp_land,
+                  se.sale_est AS est_price,   -- 지번 추정가(0250)
+                  CASE WHEN l.total_rent > 0 AND l.price > 0 THEN round(l.total_rent * 12.0 / l.price * 100, 2) END AS roi,
+                  CASE WHEN l.rent_full > 0 AND l.price > 0 THEN round(l.rent_full * 12.0 / l.price * 100, 2) END AS roi_full,
                   l.listing_no, l.received_on,
                   dp.deal_price,
                   l.ask_price,                  -- 매도희망가 — 매물 줄의 값(0173)
-                  -- 수익률 = 매물 줄에 접어 둔 값(총임대×12 ÷ 매매가). 추정 임대로 나누던 옛 식은 뺐다.
-                  l.roi,
-                  sc.sell_score, ph.id AS photo_id,
+                  ph.id AS photo_id,
                   -- 매물 표(0182·0184) — 대분류·소분류·등급·전속·확인일·층수
                   l.building_major, l.building_use, l.grade, l.exclusive, l.checked_on, l.price_vs_market,
-                  b.floors_above, b.floors_below,
+                  pr.floors_above, pr.floors_below,
                   -- 모달 요약 탭의 임대 합계 줄(정본=건물 상세 층별)
-                  l.total_deposit, l.total_rent, l.total_mgmt, l.vacant_area, l.roi_full, l.full_est,
-                  l.pp_land_team,          -- 표 금액 칸의 평단가(대지, 원/평)
+                  l.total_deposit, l.total_rent, l.total_mgmt, l.vacant_area, l.rent_full,
                   -- 자료 창의 파생 상태(2026-08-18) — 정본은 건물 상세. 여기선 읽기만.
                   (SELECT count(*) FROM app.photos f
-                    WHERE f.building_pk = l.building_pk AND f.team_id = l.team_id
-                      AND f.deleted_at IS NULL) AS photo_n,
+                    WHERE f.listing_id = l.id AND f.deleted_at IS NULL) AS photo_n,
                   -- 종류별(외관·내부·건축물대장·토지이용계획…) — 자료 창이 「뭐가 빠졌나」를 센다
                   (SELECT COALESCE(jsonb_object_agg(t.kind, t.n), '{}'::jsonb)
                      FROM (SELECT f.kind, count(*) AS n FROM app.photos f
-                            WHERE f.building_pk = l.building_pk AND f.team_id = l.team_id
-                              AND f.deleted_at IS NULL GROUP BY f.kind) t) AS photo_kinds,
-                  -- 산출물별 매칭(2026-08-18) — 분석보고서와 브리핑자료는 딴 물건이다.
-                  -- 브리핑 생성은 폐지 상태(kind=analysis만)라 당분간 늘 false — 되살릴지는 역할 확정 후.
-                  EXISTS (SELECT 1 FROM app.reports rp
-                           JOIN app.team_members tm2 ON tm2.account_id = rp.account_id
-                          WHERE rp.building_pk = l.building_pk AND tm2.team_id = l.team_id
-                            AND rp.status = 'done' AND rp.kind = 'analysis') AS has_report,
-                  EXISTS (SELECT 1 FROM app.reports rp
-                           JOIN app.team_members tm2 ON tm2.account_id = rp.account_id
-                          WHERE rp.building_pk = l.building_pk AND tm2.team_id = l.team_id
-                            AND rp.status = 'done' AND rp.kind = 'briefing') AS has_briefing,
+                            WHERE f.listing_id = l.id AND f.deleted_at IS NULL GROUP BY f.kind) t) AS photo_kinds,
                   l.meongdo, l.use_change, l.myeolsil, l.nohudo, l.ipji,
                   l.sell_on, l.sell_vague, l.rent_check,
+                  l.loan, l.loan_open, l.move_in, l.move_in_on,   -- 광고 기본정보의 정본(0209)
                   fr.rent_n,
                   ob.id AS owner_buyer_id,
                   c.last_on, c.last_kind, c.last_note,
@@ -1866,34 +1466,25 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                     ORDER BY a.id DESC LIMIT 1) AS ad_expires,
                   -- 표 검색이 메모 내용까지 찾는다(부기사는 비밀메모까지 찾는다). 메모창과 같은 줄(kind=메모)
                   (SELECT string_agg(m2.note, ' ') FROM app.contacts m2
-                    WHERE m2.team_id = l.team_id AND m2.target_type = 'listing'
-                      AND m2.target_id = l.building_pk AND m2.kind = '메모') AS memo_text
-           FROM app.listings l
+                    WHERE m2.listing_id = l.id AND m2.kind = '메모') AS memo_text
+           FROM app.office_listings l
            LEFT JOIN app.owners o ON o.id = l.owner_id AND o.deleted_at IS NULL   -- 0058
-           LEFT JOIN master.buildings b ON b.building_pk = l.building_pk
-           LEFT JOIN master.vacant_parcels vp ON l.building_pk = 'P' || vp.pnu
-           LEFT JOIN master.building_score sc ON sc.building_pk = l.building_pk
-           LEFT JOIN master.building_sale_est se ON se.building_pk = l.building_pk
-           LEFT JOIN master.building_rent_est re ON re.building_pk = l.building_pk
+           LEFT JOIN master.parcel_rep pr ON pr.pnu = l.pnu
+           LEFT JOIN master.parcel_rep r ON r.pnu = l.pnu
+           LEFT JOIN master.buildings b ON b.building_pk = pr.rep_pk
+           LEFT JOIN master.vacant_parcels vp ON pr.pnu IS NULL AND vp.pnu = l.pnu
+           LEFT JOIN master.parcel_sale_est se ON se.pnu = l.pnu
            LEFT JOIN app.statuses ls ON ls.id = l.status_id
            -- 대표 사진 — 외관 먼저(서류가 표지로 올라오지 않게). 제안 목록과 같은 규칙.
            LEFT JOIN LATERAL (SELECT id FROM app.photos f
-                               WHERE f.building_pk = l.building_pk AND f.team_id = l.team_id
-                                 AND f.deleted_at IS NULL
+                               WHERE f.listing_id = l.id AND f.deleted_at IS NULL
                                ORDER BY (f.kind = 'exterior') DESC, f.sort_order, f.id
                                LIMIT 1) ph ON TRUE
-           -- 다음 일정 — 머리의 「상태 + 다음 일정」 재료(2026-08-15). 예정만, 오늘 이후만.
-           LEFT JOIN LATERAL (SELECT s.title AS next_sched_title, s.on_date AS next_sched_on,
-                                     s.at_time AS next_sched_at, s.category AS next_sched_cat
-                                FROM app.schedules s
-                               WHERE s.team_id = l.team_id AND s.building_pk = l.building_pk
-                                 AND s.state='예정' AND s.on_date >= current_date
-                               ORDER BY s.on_date, s.at_time NULLS LAST LIMIT 1) ns ON TRUE
            -- 매물의 계약가 = **계약 상대**의 합의값(2026-08-20). 예전엔 status IN ('계약',…)
            -- 만 봤는데, 계약은 이제 picked_at + deal_price 로 선다 — 그래서 레일은 계약·잔금·
            -- 신고까지 초록인데 프로필 값은 매매가로 남는 어긋남이 났다(삼성동 147-4).
            LEFT JOIN LATERAL (SELECT p2.deal_price FROM app.proposals p2
-                               WHERE p2.team_id = l.team_id AND p2.building_pk = l.building_pk
+                               WHERE p2.team_id = l.team_id AND p2.listing_id = l.id
                                  AND p2.deal_price IS NOT NULL
                                  AND p2.picked_at IS NOT NULL
                                ORDER BY (p2.picked_at IS NOT NULL) DESC, p2.updated_at DESC
@@ -1903,8 +1494,7 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
            -- 임대내역 요약(정보 창 「밖에서 아는 것」) — 정본은 건물 상세의 임대차 표
            LEFT JOIN LATERAL (SELECT count(*) AS rent_n
                                 FROM app.floor_rents f2
-                               WHERE f2.building_pk = l.building_pk AND f2.team_id = l.team_id
-                                 AND f2.deleted_at IS NULL
+                               WHERE f2.listing_id = l.id AND f2.deleted_at IS NULL
                                  -- 받은 임대내역 = 돈이 적힌 호실. 원장에서 복사한 업체 줄은 안 센다(0185)
                                  AND (f2.rent > 0 OR f2.deposit > 0)) fr ON TRUE
            -- 소유자가 매수자 명단에도 있나(전화 숫자 일치) — 의사 창 「매수도 원함」 칩의 근거
@@ -1915,15 +1505,12 @@ async def list_sellers(mine: bool = False, owner_id: int | None = None,
                                      = regexp_replace(o.phone,'\D','','g')
                                ORDER BY b2.id LIMIT 1) ob ON TRUE
            LEFT JOIN LATERAL (SELECT COALESCE(max(id), 0) AS mid FROM app.contacts m
-                               WHERE m.team_id = l.team_id AND m.target_type='listing'
-                                 AND m.target_id = l.building_pk
-                                 AND m.note = '소유자 찾기 시작 전') mk ON TRUE
+                               WHERE m.listing_id = l.id AND m.note = '소유자 찾기 시작 전') mk ON TRUE
            LEFT JOIN LATERAL (SELECT max(occurred_on) FILTER (WHERE ct.id > mk.mid) AS last_on,
                                      (array_agg(kind ORDER BY occurred_on DESC, id DESC))[1] AS last_kind,
                                      (array_agg(note ORDER BY occurred_on DESC, id DESC))[1] AS last_note
                                 FROM app.contacts ct
-                               WHERE ct.team_id = l.team_id AND ct.target_type='listing'
-                                 AND ct.target_id = l.building_pk) c ON TRUE
+                               WHERE ct.listing_id = l.id) c ON TRUE
            WHERE l.team_id = $1
              AND ($2::bigint IS NULL OR l.assignee_account_id = $2)
              AND ($3::bigint IS NULL OR l.owner_id = $3)
@@ -1946,27 +1533,28 @@ async def delete_contact(cid: int, user: CurrentUser = Depends(current_user)):
     삭제는 **담당자 본인 또는 대표만**(매수 쪽과 같은 경계) — 열람은 팀 공유지만
     남의 매물 기록을 지우는 건 다른 문제다(권한 점검 2026-08-13)."""
     row = await pool().fetchrow(
-        """SELECT target_type, target_id, status, auto, prev, occurred_on
+        """SELECT target_type, target_id, listing_id, status, auto, prev, occurred_on
              FROM app.contacts WHERE id=$1 AND team_id=$2""",
         cid, user.team_id)
     if not row:
         raise HTTPException(404, "기록을 찾을 수 없습니다")
-    if row["target_type"] == "listing":
-        assignee = await pool().fetchval(
-            "SELECT assignee_account_id FROM app.listings WHERE building_pk=$1 AND team_id=$2",
-            row["target_id"], user.team_id)
-        if assignee is not None and not _can_see(user, assignee):
+    if row["listing_id"] is not None:
+        # 매물 기록은 매물 번호로 가리킨다(0255). 못 찾으면 담당자를 모르는 것이니 대표만 지운다(10-07 감사)
+        lst = await pool().fetchrow(
+            """SELECT o.assignee_account_id FROM app.listings l JOIN app.listing_office o ON o.listing_id = l.id
+                WHERE l.id = $1 AND l.team_id = $2""",
+            row["listing_id"], user.team_id)
+        if lst is None:
+            if user.role != "owner":
+                raise HTTPException(403, "기록 삭제는 담당자 본인 또는 대표만 할 수 있습니다")
+        elif lst["assignee_account_id"] is not None and not _can_see(user, lst["assignee_account_id"]):
             raise HTTPException(403, "기록 삭제는 담당자 본인 또는 대표만 할 수 있습니다")
-    await pool().execute("DELETE FROM app.contacts WHERE id=$1 AND team_id=$2", cid, user.team_id)
+    # 일정을 먼저 걷는다 — 줄을 먼저 지우면 FK(0257)가 일정의 contact_id 를 비워 그 일정을 못 찾는다
     await schedule_retract(user.team_id, contact_id=cid)   # 일정 + 참석자 거울 + 상태 로그(H1)
+    await pool().execute("DELETE FROM app.contacts WHERE id=$1 AND team_id=$2", cid, user.team_id)
     # 이 커밋이 덮었던 가격을 되돌린다(0078)
-    if row["prev"]:
-        await listing_values_restore(user.team_id, row["target_id"], row["prev"], user.account_id)
-    if row["target_type"] == "listing":
-        # 계약 · 계약파기 줄을 지우면 그 줄이 완료시킨 일정만 예정으로 되돌린다.
-        # 채택 · 안 산다는 거울이 켜지 않으니(0199) 여기서 풀 것도 없다
-        if not row["auto"] and row["status"] in MIRRORED:
-            await event_unmark(user.team_id, contact_id=cid)
+    if row["prev"] and row["listing_id"] is not None:
+        await listing_values_restore(user.team_id, row["listing_id"], row["prev"], user.account_id)
     return {"ok": True}
 
 
@@ -1976,13 +1564,9 @@ async def _sched_guard(sch, user: CurrentUser) -> None:
     기록 삭제는 대표에게 열어 뒀다(팀 장부가 정확해야 하니까). 약속은 다르다:
     그 사람이 상대와 잡은 시간이라, 옮기려면 상대와 다시 통화해야 한다. 대표가 캘린더에서
     끌어 옮겨 봐야 상대는 모른다 — 앱에서만 참인 약속이 생긴다. 보는 건 팀 전체 공유다.
-    담당 = 일정 자기 담당, 없으면 매물 담당(화면의 COALESCE와 같은 규칙).
+    담당 = 일정 자기 담당(일정은 매물 칸이 없다 · 0222 · 0255).
     """
     assignee = sch["assignee_account_id"]
-    if assignee is None and sch["building_pk"]:
-        assignee = await pool().fetchval(
-            "SELECT assignee_account_id FROM app.listings WHERE building_pk=$1 AND team_id=$2",
-            sch["building_pk"], user.team_id)
     if assignee is not None and assignee != user.account_id:
         raise HTTPException(403, "일정은 담당자 본인만 고칠 수 있습니다")
 
@@ -2067,34 +1651,20 @@ async def patch_schedule(sid: int, body: SchedulePatch, user: CurrentUser = Depe
         # 명단 교체 = 생성과 **같은 함수** — 새로 부른 사람의 장부에도 거울이 서고,
         # 뺀 사람의 거울은 걷힌다(H5: 편집만 거울이 없던 비대칭을 없앤다)
         origin = None       # 사람 장부에서 난 일정이면 그 사람 자신은 거울 밖(생성 때와 같은 규칙)
-        if sch["contact_id"] and not sch["building_pk"] and not sch["proposal_id"]:
+        if sch["contact_id"] and not sch["proposal_id"]:
             oc = await pool().fetchrow(
                 "SELECT target_type, target_id FROM app.contacts WHERE id=$1 AND team_id=$2",
                 sch["contact_id"], user.team_id)
             if oc and oc["target_type"] in ("buyer", "owner"):
                 origin = (oc["target_type"], int(oc["target_id"]))
         skip_buyer, skip_owner = mirror_skips(
-            building_pk=sch["building_pk"], proposal_id=sch["proposal_id"], person=origin)
+            listing_id=None, proposal_id=sch["proposal_id"], person=origin)
         await attendees_sync(
             user.team_id, sid, user.account_id, body.people,
             on=_d(body.on_date) if body.on_date else sch["on_date"],
             at=(body.at_time or (sch["at_time"].strftime("%H:%M") if sch["at_time"] else None)),
             title=body.title or sch["title"], place=body.place if body.place is not None else sch["place"],
-            skip_buyer_side=skip_buyer, skip_owner_side=skip_owner, skip_person=origin,
-            building_pk=sch["building_pk"])
-    # 브리핑 약속을 완료하면 **그 방식이 브리핑 값이 된다**(0111) — 캘린더에서 찍어도 같다.
-    # 창에서만 옮기면 「캘린더로 끝냈더니 브리핑이 비어 있다」가 된다.
-    if body.state == "완료" and sch["category"] == "브리핑" and sch["proposal_id"]:
-        # 소화 = 「했다」 — 브리핑 날짜가 자동으로 기입된다(2026-08-24). 방식은 있을 때만 병합
-        await pool().execute(
-            """UPDATE app.proposals
-                  SET briefed_on = COALESCE(briefed_on, $3),
-                      brief_how = CASE WHEN $4::text IS NULL THEN brief_how
-                                       ELSE (SELECT array_agg(DISTINCT e)
-                                               FROM unnest(COALESCE(brief_how, '{}') || ARRAY[$4::text]) e) END
-                WHERE team_id=$1 AND id=$2""",
-            user.team_id, sch["proposal_id"], sch["on_date"], sch["method"])
-
+            skip_buyer_side=skip_buyer, skip_owner_side=skip_owner, skip_person=origin)
     if body.state and body.state != sch["state"]:
         # 완료 ↔ 예정 — 예정으로 되돌리면 「완료」 로그도 걷힌다(H2). 한 길: mirror.schedule_set_state
         await schedule_set_state(user.team_id, sch, user.account_id, body.state)   # 「8/21 방문 완료」
@@ -2111,7 +1681,7 @@ class ScheduleNew(BaseModel):
     hint: str | None = None
     category: str | None = None
     method: str | None = None
-    building_pk: str | None = None
+    listing_id: int | None = None   # 매물에서 만든 일정 — 매도자를 참석자로 앉힐 때만 쓴다(일정 줄엔 안 남는다 · 0222)
     people: list[PersonIn] | None = None
     assignee_account_id: int | None = None
 
@@ -2120,16 +1690,15 @@ class ScheduleNew(BaseModel):
 async def create_schedule(body: ScheduleNew, user: CurrentUser = Depends(current_user)):
     if body.category and body.category not in SCHED_CATEGORIES:
         raise HTTPException(422, f"일정 종류는 {'/'.join(SCHED_CATEGORIES)} 중 하나")
-    if body.building_pk:
+    if body.listing_id:
         own = await pool().fetchval(
-            "SELECT 1 FROM app.listings WHERE team_id=$1 AND building_pk=$2",
-            user.team_id, body.building_pk)
+            "SELECT 1 FROM app.office_listings WHERE team_id=$1 AND id=$2", user.team_id, body.listing_id)
         if not own:
             raise HTTPException(404, "우리 매물이 아닙니다")
     # 만드는 동사는 거울 한 곳뿐이다 — 참석자·장부 줄이 여기서 같이 선다
     sid = await schedule_create(
         user.team_id, "sell", body, user.account_id,
-        building_pk=body.building_pk, category=body.category)
+        listing_id=body.listing_id, category=body.category)
     return {"id": sid}
 
 
@@ -2181,11 +1750,10 @@ async def sales_schedule(start: str, end: str, mine: bool = False,
     """
     rows = await pool().fetch(
         """SELECT s.id, s.side, s.title, s.on_date, s.at_time, s.hint, s.state, s.kind, s.moved_from,
-                  s.place, s.building_pk, s.proposal_id, p.buyer_id, b.addr,
+                  s.place, s.proposal_id, p.buyer_id, app.parcel_addr(lp.pnu) AS addr, p.listing_id,
                   (s.promoted_by_contact_id IS NOT NULL) AS promoted, s.contract, s.category,
-                  -- 일정 담당은 일정 자체에 있다(0075) — 매물 담당과 다를 수 있다(대신 가기도 한다)
-                  COALESCE(s.assignee_account_id, l.assignee_account_id) AS assignee_account_id,
-                  COALESCE(sa.name, ac.name) AS assignee_name,
+                  -- 일정 담당은 일정 자체에 있다(0075). 일정엔 매물 칸이 없다(0222 · 0255)
+                  s.assignee_account_id, sa.name AS assignee_name,
                   -- 오는 사람들 — 계약 날엔 매도자와 매수자가 같이 온다
                   COALESCE((SELECT json_agg(json_build_object(
                               'id', sp.id, 'kind', sp.ref_kind, 'ref_id', sp.ref_id,
@@ -2197,22 +1765,18 @@ async def sales_schedule(start: str, end: str, mine: bool = False,
                             WHERE sp.schedule_id = s.id), '[]'::json) AS people,
                   -- 이 일정을 만든 **장부 원문**. 날짜만 보면 「무슨 얘기 끝에 잡힌 약속인지」를
                   -- 모른다 — 캘린더에서 장부로 건너뛰지 않고 바로 읽히게 같이 싣는다.
-                  COALESCE(y.name, o.name) AS who,
+                  y.name AS who,
                   ct.note AS src_note, ct.occurred_on AS src_on, ca.name AS src_by
            FROM app.schedules s
            LEFT JOIN app.proposals p ON p.id = s.proposal_id AND p.team_id = s.team_id
            LEFT JOIN app.buyers y ON y.id = p.buyer_id
-           LEFT JOIN app.listings l ON l.building_pk = s.building_pk AND l.team_id = s.team_id
-           LEFT JOIN app.owners o ON o.id = l.owner_id
-           LEFT JOIN master.buildings b ON b.building_pk = s.building_pk
-           LEFT JOIN app.accounts ac ON ac.id = l.assignee_account_id
+           LEFT JOIN app.listing_parcels lp ON lp.listing_id = p.listing_id AND lp.main   -- 짝의 매물 땅(주소)
            LEFT JOIN app.accounts sa ON sa.id = s.assignee_account_id
            LEFT JOIN app.contacts ct ON ct.id = s.contact_id
            LEFT JOIN app.accounts ca ON ca.id = ct.created_by
            WHERE s.team_id = $1
              AND s.on_date BETWEEN $2::date AND $3::date
-             AND ($4::bigint IS NULL
-                  OR COALESCE(s.assignee_account_id, l.assignee_account_id) = $4)
+             AND ($4::bigint IS NULL OR s.assignee_account_id = $4)
            ORDER BY s.on_date, s.at_time NULLS LAST, s.id""",
         user.team_id, dt.date.fromisoformat(start[:10]), dt.date.fromisoformat(end[:10]),
         user.account_id if mine else None)
@@ -2230,8 +1794,9 @@ async def sales_schedule(start: str, end: str, mine: bool = False,
 
 # ── 접촉 이력 ───────────────────────────────────────────
 class ContactIn(BaseModel):
-    target_type: str      # buyer | listing
-    target_id: str
+    target_type: str               # buyer · owner · listing
+    target_id: str | None = None   # 사람 장부(buyer · owner)의 사람 번호
+    listing_id: int | None = None  # 매물 장부의 매물 번호(0255)
     kind: str | None = None
     occurred_on: str | None = None
     note: str | None = None
@@ -2246,8 +1811,15 @@ class ContactIn(BaseModel):
 
 
 @router.get("/contacts")
-async def list_contacts(target_type: str, target_id: str,
+async def list_contacts(target_type: str, target_id: str | None = None, listing_id: int | None = None,
                         user: CurrentUser = Depends(current_user)):
+    """장부 줄 — 사람 장부는 (buyer · owner, target_id), 매물 장부는 listing_id(0255)."""
+    if target_type == "listing":
+        target_id = None
+        if listing_id is None:
+            raise HTTPException(422, "매물 장부는 listing_id 로 부른다")
+    elif not target_id:
+        raise HTTPException(422, "사람 장부는 target_id 로 부른다")
     rows = await pool().fetch(
         """SELECT c.*, a.name AS by_name, sch.* FROM app.contacts c
            LEFT JOIN app.accounts a ON a.id = c.created_by
@@ -2258,9 +1830,10 @@ async def list_contacts(target_type: str, target_id: str,
                LEFT JOIN app.contacts oc ON oc.id = s.contact_id
               WHERE s.contact_id = c.id OR s.id = c.src_schedule_id
               ORDER BY s.id LIMIT 1) sch ON TRUE
-           WHERE c.team_id=$1 AND c.target_type=$2 AND c.target_id=$3
+           WHERE c.team_id=$1 AND c.target_type=$2
+             AND (CASE WHEN $2 = 'listing' THEN c.listing_id = $4 ELSE c.target_id = $3 END)
            ORDER BY c.occurred_on DESC, c.id DESC LIMIT 100""",
-        user.team_id, target_type, target_id)
+        user.team_id, target_type, target_id, listing_id)
     return [drop(dict(r), CONTACT_DROP) for r in rows]
 
 
@@ -2270,6 +1843,14 @@ async def create_contact(body: ContactIn, user: CurrentUser = Depends(current_us
     # 사람 장부는 매물에 안 매달리는 기록을 받는다 — 첫 통화·조건 상담·안부.
     if body.target_type not in ("buyer", "owner", "listing"):
         raise HTTPException(422, "target_type은 buyer · owner · listing 중 하나")
+    # 매물 장부는 매물 번호로(0255), 사람 장부는 사람 번호로
+    lid = None
+    if body.target_type == "listing":
+        if body.listing_id is None:
+            raise HTTPException(422, "매물 장부는 listing_id")
+        lid = await need_listing(user.team_id, body.listing_id)
+    elif not body.target_id:
+        raise HTTPException(422, "사람 장부는 target_id")
     # asyncpg는 date 컬럼에 문자열을 못 받는다(str에 toordinal이 없다며 500).
     # 파이썬 date로 바꿔서 넘긴다 — listings.patch_biz의 received_on과 같은 처리.
     day: dt.date | None = None
@@ -2284,20 +1865,20 @@ async def create_contact(body: ContactIn, user: CurrentUser = Depends(current_us
         raise HTTPException(422, f"장부에 실리는 사건은 {'/'.join(MIRRORED)} 중 하나")
     # 이미 계약된 매물인가 — 옛 prev_status 자리. 낱말이 아니라 사실을 본다.
     was_done = await pool().fetchval(
-        f"""SELECT {SELLER_DONE.format(t="l")} FROM app.listings l
-             WHERE l.building_pk=$1 AND l.team_id=$2""",
-        body.target_id, user.team_id) if body.target_type == "listing" else None
+        f"""SELECT {SELLER_DONE.format(t="l")} FROM app.office_listings l
+             WHERE l.id=$1 AND l.team_id=$2""",
+        lid, user.team_id) if lid else None
     # 가격을 덮기 전에 이전 값을 뜬다 — 이 커밋을 지우면 이 값으로 돌아간다(0078)
     prev: str | None = None
     if body.target_type == "listing" and (body.list_price is not None or body.hope_price is not None):
         prev = await listing_values_write(
-            user.team_id, body.target_id,
+            user.team_id, lid,
             {"sale_price": body.list_price, "ask_price": body.hope_price}, user.account_id)
     cid = await pool().fetchval(
-        """INSERT INTO app.contacts(team_id, target_type, target_id, kind, occurred_on,
+        """INSERT INTO app.contacts(team_id, target_type, target_id, listing_id, kind, occurred_on,
                                     note, status, created_by, prev)
-           VALUES($1,$2,$3,$4,COALESCE($5::date, current_date),$6,$7,$8,$9) RETURNING id""",
-        user.team_id, body.target_type, body.target_id, body.kind,
+           VALUES($1,$2,$3,$4,$5,COALESCE($6::date, current_date),$7,$8,$9,$10) RETURNING id""",
+        user.team_id, body.target_type, None if lid else body.target_id, lid, body.kind,
         day, body.note, body.status, user.account_id, prev)
     # 단계를 말했으면 매물의 진행상태도 같이 옮긴다 — 화면이 두 번 부르지 않게 여기서 한다.
     # 매물의 현재 단계 = 마지막 접촉이 만든 단계. 접촉 이력이 곧 장부다(0059).
@@ -2318,42 +1899,17 @@ async def create_contact(body: ContactIn, user: CurrentUser = Depends(current_us
                     buyers.add(int(pn.ref_id))
                 elif pn.kind == "owner" and pn.ref_id:
                     owners.add(int(pn.ref_id))
-            if body.schedule.building_pk:
-                # 창에서 붙인 매물 — 추론 없이 그 매물이다. 제안은 참석 매수자와 유일할 때만
-                bld = body.schedule.building_pk
-                pids = [r["id"] for r in await pool().fetch(
-                    """SELECT id FROM app.proposals
-                        WHERE team_id=$1 AND building_pk=$2 AND buyer_id = ANY($3::bigint[])""",
-                    user.team_id, bld, list(buyers))] if buyers else []
-                ppid = pids[0] if len(pids) == 1 else None
-            else:
-                bld, ppid = await resolve_anchor(user.team_id, buyers, owners)
+            # 매물은 창에서 붙인 이름표뿐이다(0222). 참석자로 매물을 추론하지 않고, 짝에도 안 붙인다
             await schedule_create(
                 user.team_id, "buy" if body.target_type == "buyer" else "sell",
                 body.schedule, user.account_id, contact_id=cid,
-                building_pk=bld, proposal_id=ppid,
+                listing_id=body.schedule.listing_id,
                 person=(body.target_type, int(body.target_id)))
-    evt_sid = None
-    if body.target_type == "listing":
-        own_sid = None
-        if body.schedule_op:
-            await apply_sched_op(user.team_id, body.target_id, body.schedule_op,
-                                  _d(body.schedule.on) if body.schedule else None, "sell")
-        elif body.schedule:
-            own_sid = await schedule_create(user.team_id, "sell", body.schedule, user.account_id,
-                                            building_pk=body.target_id, contact_id=cid)
-        # 계약·계약파기는 일어난 날에 캘린더로(매수와 같은 규칙) — **한 사건 = 한 표**.
-        # 잡아 둔 「계약」 일정이 있으면 그것을 완료로 세운다(이름 유지). 없으면 새로 선다.
-        # 이미 계약된 건엔 또 안 박는다 — 잔금을 적을 때마다 계약이 두 번 서면 안 된다.
-        if body.status in MIRRORED and not (body.status == "계약" and was_done):
-            evt_sid = await event_mark(
-                user.team_id, "sell", body.status, day or dt.date.today(), user.account_id,
-                building_pk=body.target_id, contact_id=cid, own_sid=own_sid,
-                explicit_day=day is not None)
+    # 매물 장부에 적어도 일정은 생기지 않는다(0222 — 일정 ↔ 매물 선을 끊음)
     linked = None
     if body.status and body.target_type == "listing":
         # 매물엔 낱말을 안 적는다(0142) — 사실은 짝이 들고 간다(picked_at · dropped_at).
         # 매수자는 같은 표에 앉는다: 한 사건에 일정은 하나다.
-        linked = await mirror_to_proposal(user.team_id, body.target_id, body.status,
-                                          user.account_id, body.deal_price, evt_sid=evt_sid)
+        linked = await mirror_to_proposal(user.team_id, lid, body.status,
+                                          user.account_id, body.deal_price)
     return {"id": cid, "linked": linked}

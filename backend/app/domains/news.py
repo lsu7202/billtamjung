@@ -22,7 +22,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Query
 
 from ..core.db import pool
-from ..core.deps import CurrentUser, current_user, any_user
+from ..core.deps import CurrentUser, current_user, any_user, viewer
 
 router = APIRouter(prefix="/news", tags=["news"])
 
@@ -39,7 +39,7 @@ async def news(
     tag: str | None = None,
     limit: int = Query(50, ge=1, le=200),
     cursor: str | None = None,
-    _: CurrentUser = Depends(any_user),
+    _: CurrentUser = Depends(viewer),
 ):
     """날짜 내림차순 한 페이지. `cursor` 는 「날짜|열쇠」 — 같은 날이 많아 날짜만으론 못 넘긴다.
     `years` 는 최근 N년(화면 기본 1년), `tag` 는 해시태그 하나로 거른다(보도자료만 태그가 있다)."""
@@ -161,7 +161,7 @@ async def news_pins(
     minlng: float, minlat: float, maxlng: float, maxlat: float,
     years: int = 1,
     limit: int = Query(400, ge=1, le=1000),
-    _: CurrentUser = Depends(any_user),
+    _: CurrentUser = Depends(viewer),
 ):
     """건물 검색 지도에 찍을 소식 핀(2026-09-06 대표 「소식 아이콘은 검색 지도에도」).
 
@@ -186,7 +186,7 @@ async def news_pins(
 
 
 @router.get("/item", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
-async def news_item(id: int, _: CurrentUser = Depends(any_user)):
+async def news_item(id: int, _: CurrentUser = Depends(viewer)):
     """지도 핀 하나 → 소식 탭에서 **그 소식**을 연다(2026-09-06 대표 「소식에서 보기가 소식 탭으로만 간다」).
 
     area_event 의 id 를 받아 소식 탭이 쓰는 모양으로 돌려준다. 보도자료 줄이면 소식 탭과 같이 글 단위(ntt_no)로.

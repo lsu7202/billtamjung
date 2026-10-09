@@ -1,0 +1,33 @@
+/* 홍보물 — 세로 한 장 1080 × 1350(4:5) · 문자 · 카톡용 */
+:root{
+  --ink:#191F28; --ink-2:#4E5968; --muted:#8B95A1; --line:#E5E8EB; --bg:#FFFFFF;
+  --accent:#F04452;
+  --sans:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+}
+body{font-family:var(--sans); color:var(--ink); background:#F2F4F6; -webkit-font-smoothing:antialiased}
+.promo .slide{width:1080px; height:1350px; padding:96px 88px 72px; background:var(--bg);
+  /* 칸 비율 고정(여백을 뺀 높이 기준) — 제목 9 · 설명 41.5 · 사진 41.5 · 사무소 8(설명과 사진은 같은 높이) */
+  display:grid; grid-template-rows:18fr 83fr 83fr 16fr; row-gap:36px; align-items:start}
+.promo .slide > *{min-height:0; overflow:hidden}
+.slide h1{margin:0; font-size:76px; line-height:1.15; font-weight:800; letter-spacing:-.04em; white-space:nowrap; overflow:hidden; text-align:center; align-self:center}   /* 제목은 한 줄 — fit.js 가 폭에 맞춰 줄인다 */
+.slide h1 br{display:none}
+.slide .lead{margin:0; font-size:34px; line-height:1.6; color:var(--ink-2); letter-spacing:-.01em}
+.slide .lead b{color:var(--ink)}
+.slide .pic{height:100%; border-radius:28px; overflow:hidden; background:#F2F4F6}
+.slide .pic img{width:100%; height:100%; object-fit:cover; display:block}   /* 어떤 사진이든 칸을 꽉 채운다 */
+.slide .pic .bt-none{width:100%; height:100%}
+.slide .foot{border-top:2px solid var(--line); padding-top:16px; height:100%}
+.bt-office{display:flex; align-items:center; gap:20px}
+.bt-office .bt-logo{width:72px; height:72px; object-fit:contain; border-radius:14px}
+.bt-office-t{display:flex; flex-wrap:wrap; align-items:baseline; column-gap:18px; row-gap:2px; font-size:22px; color:var(--ink-2)}
+.bt-office-t b{font-size:28px; color:var(--ink)}
+.bt-office-t small{font-size:18px; color:var(--muted)}
+.bt-promo, .bt-photo{width:100%; height:100%; object-fit:cover; display:block}
+.bt-none{display:grid; place-items:center; font-size:24px; color:var(--muted); background:#F2F4F6; min-height:200px}
+@media print{ body{background:#fff} }
+@page{size:1080px 1350px; margin:0}
+
+/* 상자 잠금 — 지면 안 요소는 테두리 · 바탕 · 그림자 · 둥근 모서리를 갖지 않는다. 사진 칸 · 사무소 칸은 예외.
+   사용자가 다른 모양을 원하면 모델이 지면에 custom 을 붙이고(대표 규칙) 그때만 풀린다 */
+.slide:not(.custom) *:not(.pic):not(.pic *):not(.foot):not(.foot *){
+  border:0 !important; background:none !important; box-shadow:none !important; border-radius:0 !important; outline:0 !important}

@@ -1,20 +1,14 @@
-"""고객 쪽(S05 §5 · §6, 3묶음 2026-09-29) — 프로필 · 관심 저장 · 알림 · 신고. 전부 누구나(any_user).
+"""고객 쪽(S05 §5 · §6) — 프로필 · 저장 · 신고. 전부 누구나(any_user).
 
-알림은 **읽을 때 센다**(배치 없음, 0198).
-  · 저장한 건물 — 저장한 날 뒤로 그 건물에 새 광고가 오르면
-  · 조건 — 알림을 켠 조건(saved_searches.notify)에 맞는 새 광고가 오르면. 조건에 실린 검색 요청(request)으로
-    /search/pins 를 그대로 다시 불러 맞는 건물을 얻고, 켠 날 뒤로 오른 광고를 want_alerts 에 쌓는다
-  · 「새 것」은 accounts.alerts_seen_at 뒤에 생긴 것. 알림 목록을 열면 그때로 옮긴다
-우리 팀 광고는 알림에서 뺀다.
+저장은 **광고(매물) 단위**다(0205, 10-01). 한 건물에 광고가 여럿일 수 있다.
+광고 없는 건물 저장과 「저장한 건물에 새 광고」 알림은 없앴다 — 「이 건물이 나오면」은 구해요가 맡는다.
+알림(/alerts)도 출처가 다 사라져 걷었다(구해요 제안 알림을 만들 때 다시 세운다).
 """
-import time
-
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..core.db import pool
-from ..core.deps import any_user, CurrentUser
-from . import search as search_mod
+from ..core.deps import any_user, CurrentUser, viewer
 
 router = APIRouter(tags=["customer"])
 
@@ -22,180 +16,136 @@ _LIVE = "a.state = '노출' AND a.expires_on >= current_date"
 
 
 # ── 프로필(§5-1) ──────────────────────────────────────────────
-LITERACY = ("처음", "관심", "공부해봄")
-INTENT = ("A", "B", "C")                  # 매수자 등급 사전(buyer_grade) 그대로 — 확실 · 보통 · 관망
-PURPOSES = ("실사용", "투자용", "신축용")  # 매수자 사전(building_use) 그대로
+# 칸 이름 · 값은 중개사의 고객 기록(app.buyers)과 같다(0214 · 0218) — 문의에서 「고객으로 등록」할 때 그대로 옮겨진다
+GOALS = ("시세차익", "수익률", "실사용")
+BUILD = ("있음", "없음", "모름")
+TIMING = ("3개월 안", "6개월 안", "1년 안", "미정")
+EXPERIENCE = ("처음", "보유 경험")
+# 고객이 스스로 매기던 의사는 뺐다(0213 — 긴급도는 중개사가). 이해도도 뺐다(0218 — 매입 경험이 더 직관적)
+FIELDS = "goal, build_intent, regions, budget_min, budget_max, budget_any, equity_won, timing, experience, is_corp, note"
 
 
 class ProfileIn(BaseModel):
-    intent: str | None = None
-    literacy: str | None = None
-    purposes: list[str] = []
+    goal: list[str] = []
+    build_intent: str | None = None
     regions: list[str] = []
     budget_min: int | None = None
     budget_max: int | None = None
+    budget_any: bool | None = None    # 희망매매가 상관없음 — 빈칸(모름)과 다르다
+    equity_won: int | None = None     # 시드
+    timing: str | None = None
+    experience: str | None = None
+    is_corp: bool | None = None
     note: str | None = None
 
 
 @router.get("/customer/profile")
 async def get_profile(user: CurrentUser = Depends(any_user)):
-    r = await pool().fetchrow(
-        "SELECT intent, literacy, purposes, regions, budget_min, budget_max, note FROM app.customer_profile "
-        "WHERE account_id=$1", user.account_id)
-    return dict(r) if r else {"intent": None, "literacy": None, "purposes": [], "regions": [],
-                              "budget_min": None, "budget_max": None, "note": None}
+    r = await pool().fetchrow(f"SELECT {FIELDS} FROM app.customer_profile WHERE account_id=$1", user.account_id)
+    return dict(r) if r else {k: ([] if k in ("goal", "regions") else None) for k in FIELDS.split(", ")}
 
 
 @router.put("/customer/profile")
 async def put_profile(body: ProfileIn, user: CurrentUser = Depends(any_user)):
-    """모든 칸은 고객이 직접 적는다. 모르면 비운다(null)."""
-    if body.intent not in (None, *INTENT):
-        raise HTTPException(422, "의사는 확실 · 보통 · 관망")
-    if body.literacy not in (None, *LITERACY):
-        raise HTTPException(422, "이해도는 처음 · 관심 · 공부해봄")
-    if any(p not in PURPOSES for p in body.purposes):
-        raise HTTPException(422, "목적은 실사용 · 투자용 · 신축용")
+    """모든 칸은 고객이 직접 적는다. 모르면 비운다(null). 받은 문의엔 문의 순간 사본이 따로 있어 여기를 고쳐도 안 바뀐다."""
+    if any(g not in GOALS for g in body.goal):
+        raise HTTPException(422, "목표는 시세차익 · 수익률 · 실사용")
+    if body.build_intent not in (None, *BUILD):
+        raise HTTPException(422, "건축의사는 있음 · 없음 · 모름")
+    if body.timing not in (None, *TIMING):
+        raise HTTPException(422, "시기는 3개월 안 · 6개월 안 · 1년 안 · 미정")
+    if body.experience not in (None, *EXPERIENCE):
+        raise HTTPException(422, "매입 경험은 처음 · 보유 경험")
+    any_ = bool(body.budget_any)
     await pool().execute(
-        """INSERT INTO app.customer_profile(account_id, intent, literacy, purposes, regions, budget_min, budget_max, note, updated_at)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,now())
-           ON CONFLICT (account_id) DO UPDATE SET intent=$2, literacy=$3, purposes=$4, regions=$5,
-             budget_min=$6, budget_max=$7, note=$8, updated_at=now()""",
-        user.account_id, body.intent, body.literacy, body.purposes or None, body.regions or None,
-        body.budget_min, body.budget_max, (body.note or "").strip() or None)
+        f"""INSERT INTO app.customer_profile(account_id, {FIELDS}, updated_at)
+            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())
+            ON CONFLICT (account_id) DO UPDATE SET goal=$2, build_intent=$3, regions=$4, budget_min=$5, budget_max=$6,
+              budget_any=$7, equity_won=$8, timing=$9, experience=$10, is_corp=$11, note=$12, updated_at=now()""",
+        user.account_id, body.goal or None, body.build_intent, body.regions or None,
+        None if any_ else body.budget_min, None if any_ else body.budget_max, body.budget_any or None,
+        body.equity_won, body.timing, body.experience, body.is_corp, (body.note or "").strip() or None)
     return {"ok": True}
 
 
 # ── 관심 저장(§5-2) ───────────────────────────────────────────
 class SaveIn(BaseModel):
-    building_pk: str
-    ad_id: int | None = None
+    ad_id: int
+
+
+# 고객 마이페이지 「매물」 탭(S09 · 10-04) — 최근 본 · 관심 · 구해요가 한 표다. 줄 칸을 같은 이름으로 맞춘다
+_AD_ROW = """lp.pnu, COALESCE(app.parcel_addr(lp.pnu), '') AS addr, a.title AS ad_title, a.state AS ad_state,
+             (a.state = '노출' AND a.expires_on < current_date) AS ad_expired,
+             -- 광고 가격 = 그 매물의 매매가(0226). 가격 비공개면 안 낸다
+             CASE WHEN a.price_open THEN la.price END AS ad_price,
+             b.land_area, r.total_area,
+             COALESCE(t.office_name, t.name) AS office_name,
+             (SELECT ap.photo_id FROM app.ad_photos ap WHERE ap.ad_id = a.id ORDER BY ap.sort LIMIT 1) AS photo_id"""
 
 
 @router.get("/saves")
-async def list_saves(user: CurrentUser = Depends(any_user)):
-    """저장한 건물 · 광고 — 최근 저장이 위. 광고가 내려가도 건물 저장은 남는다(ad_state 로 보인다)."""
+async def list_saves(user: CurrentUser = Depends(viewer)):
+    """저장한 광고 — 최근 저장이 위. 광고가 내려가면 ad_state 로 보인다."""
     rows = await pool().fetch(
-        """SELECT s.id, s.building_pk, s.ad_id, s.memo, s.created_at, COALESCE(b.addr, '') AS addr,
-                  a.title AS ad_title, a.state AS ad_state, CASE WHEN a.price_open THEN a.price END AS ad_price,
-                  (SELECT count(*) FROM app.ads x WHERE x.building_pk = s.building_pk
+        f"""SELECT s.id, s.ad_id, s.memo, s.created_at, {_AD_ROW},
+                  (SELECT count(*) FROM app.ads x JOIN app.listing_parcels xp ON xp.listing_id = x.listing_id AND xp.main
+                    WHERE xp.pnu = lp.pnu
                      AND x.state = '노출' AND x.expires_on >= current_date) AS live_ads
              FROM app.saves s
-             LEFT JOIN master.buildings b ON b.building_pk = s.building_pk
              LEFT JOIN app.ads a ON a.id = s.ad_id
+             LEFT JOIN app.listings la ON la.id = a.listing_id
+             LEFT JOIN app.listing_parcels lp ON lp.listing_id = la.id AND lp.main
+             LEFT JOIN master.parcel_rep r ON r.pnu = lp.pnu
+             LEFT JOIN master.buildings b ON b.building_pk = r.rep_pk
+             LEFT JOIN app.teams t ON t.id = la.team_id
             WHERE s.account_id = $1 ORDER BY s.created_at DESC""", user.account_id)
     return [dict(r) for r in rows]
 
 
-@router.get("/saves/building/{building_pk}")
-async def saves_of(building_pk: str, user: CurrentUser = Depends(any_user)):
-    rows = await pool().fetch("SELECT id, ad_id FROM app.saves WHERE account_id=$1 AND building_pk=$2",
-                              user.account_id, building_pk)
+@router.get("/customer/recent")
+async def recent_views(user: CurrentUser = Depends(viewer)):
+    """최근 본 매물 — 30일 안에 연 광고(계정마다 하루 한 번 남는 ad_views). 최근 연 날이 위"""
+    if not user.account_id:
+        return []
+    rows = await pool().fetch(
+        f"""SELECT v.ad_id, max(v.viewed_on) AS viewed_on, {_AD_ROW}
+              FROM app.ad_views v JOIN app.ads a ON a.id = v.ad_id
+              JOIN app.listings la ON la.id = a.listing_id
+              LEFT JOIN app.listing_parcels lp ON lp.listing_id = la.id AND lp.main
+              LEFT JOIN master.parcel_rep r ON r.pnu = lp.pnu
+              LEFT JOIN master.buildings b ON b.building_pk = r.rep_pk
+              LEFT JOIN app.teams t ON t.id = la.team_id
+             WHERE v.account_id = $1 AND v.viewed_on >= current_date - 30
+             GROUP BY v.ad_id, a.id, la.id, lp.pnu, b.land_area, r.total_area, t.office_name, t.name
+             ORDER BY max(v.viewed_on) DESC, v.ad_id DESC LIMIT 200""", user.account_id)
+    return [dict(r) for r in rows]
+
+
+@router.get("/saves/ad/{ad_id}")
+async def saves_of(ad_id: int, user: CurrentUser = Depends(viewer)):
+    """이 광고를 저장했나 — 별의 켜짐."""
+    rows = await pool().fetch("SELECT id FROM app.saves WHERE account_id=$1 AND ad_id=$2", user.account_id, ad_id)
     return [dict(r) for r in rows]
 
 
 @router.post("/saves", status_code=201)
 async def add_save(body: SaveIn, user: CurrentUser = Depends(any_user)):
+    if not await pool().fetchval("SELECT 1 FROM app.ads WHERE id=$1", body.ad_id):
+        raise HTTPException(404, "광고가 없습니다")
     sid = await pool().fetchval(
-        """INSERT INTO app.saves(account_id, building_pk, ad_id) VALUES($1,$2,$3)
-           ON CONFLICT (account_id, building_pk, COALESCE(ad_id, 0)) DO NOTHING RETURNING id""",
-        user.account_id, body.building_pk, body.ad_id)
+        """INSERT INTO app.saves(account_id, ad_id) VALUES($1,$2)
+           ON CONFLICT (account_id, ad_id) DO NOTHING RETURNING id""",
+        user.account_id, body.ad_id)
     return {"id": sid}
 
 
-class MemoIn(BaseModel):
-    memo: str | None = None
 
 
-@router.patch("/saves/{sid}")
-async def save_memo(sid: int, body: MemoIn, user: CurrentUser = Depends(any_user)):
-    await pool().execute("UPDATE app.saves SET memo=$3 WHERE id=$1 AND account_id=$2",
-                         sid, user.account_id, (body.memo or "").strip() or None)
-    return {"ok": True}
 
 
 @router.delete("/saves/{sid}")
 async def del_save(sid: int, user: CurrentUser = Depends(any_user)):
     await pool().execute("DELETE FROM app.saves WHERE id=$1 AND account_id=$2", sid, user.account_id)
-    return {"ok": True}
-
-
-# ── 알림(§5-2 · §5-3) ────────────────────────────────────────
-_last_match: dict[int, float] = {}        # 계정마다 마지막으로 조건을 맞춰 본 때 — 2분에 한 번만 다시 센다
-
-
-async def _match_searches(user: CurrentUser) -> None:
-    now = time.monotonic()
-    if now - _last_match.get(user.account_id, 0) < 120:
-        return
-    _last_match[user.account_id] = now
-    rows = await pool().fetch(
-        """SELECT id, conditions_json, notify_since FROM app.saved_searches
-            WHERE account_id=$1 AND notify AND closed_at IS NULL AND notify_since IS NOT NULL""", user.account_id)
-    import json
-    for r in rows:
-        cond = r["conditions_json"]
-        cond = json.loads(cond) if isinstance(cond, str) else cond
-        req = (cond or {}).get("request")
-        if not isinstance(req, dict):
-            continue
-        # 화면의 request 는 bjd_code 를 바깥에 둔다 — 서버 몸통에선 filters 안이다(searchApi.pins 와 같게)
-        req = {**req, "filters": {**(req.get("filters") or {}), **({"bjd_code": req["bjd_code"]} if req.get("bjd_code") else {})}}
-        keep = {k: v for k, v in req.items() if k in search_mod.SearchIn.model_fields}
-        keep.update(tab="ad", chip="ads", bbox=None)
-        try:
-            pins = await search_mod.pins(search_mod.SearchIn(**keep), user)
-        except Exception:                                           # noqa: BLE001 — 옛 조건 하나가 알림 전체를 막지 않게
-            continue
-        pks = [p["building_pk"] for p in pins]
-        if not pks:
-            continue
-        await pool().execute(
-            f"""INSERT INTO app.want_alerts(saved_search_id, ad_id, matched_at)
-                SELECT $1, a.id, now() FROM app.ads a
-                 WHERE a.building_pk = ANY($2::text[]) AND {_LIVE}
-                   AND a.posted_on >= $3::date AND a.team_id IS DISTINCT FROM $4
-                ON CONFLICT DO NOTHING""",
-            r["id"], pks, r["notify_since"], user.team_id)
-
-
-async def _alerts(user: CurrentUser):
-    await _match_searches(user)
-    return await pool().fetch(
-        f"""WITH seen AS (SELECT alerts_seen_at AS t FROM app.accounts WHERE id = $1),
-           s AS (   -- 저장한 건물에 저장 뒤 새 광고
-             SELECT DISTINCT ON (a.id) '저장한 건물'::text AS kind, NULL::text AS label, a.id AS ad_id,
-                    GREATEST(a.created_at, a.posted_on::timestamptz) AS at
-               FROM app.saves v JOIN app.ads a ON a.building_pk = v.building_pk
-              WHERE v.account_id = $1 AND {_LIVE} AND a.posted_on >= v.created_at::date
-                AND a.id IS DISTINCT FROM v.ad_id AND a.team_id IS DISTINCT FROM $2),
-           w AS (   -- 알림을 켠 조건에 맞은 새 광고
-             SELECT '조건'::text, q.name, w.ad_id, w.matched_at
-               FROM app.want_alerts w JOIN app.saved_searches q ON q.id = w.saved_search_id
-               JOIN app.ads a ON a.id = w.ad_id
-              WHERE q.account_id = $1 AND q.closed_at IS NULL AND {_LIVE})
-           SELECT x.kind, x.label, x.ad_id, x.at, a.building_pk, a.title,
-                  CASE WHEN a.price_open THEN a.price END AS price, COALESCE(b.addr, '') AS addr,
-                  (x.at > COALESCE((SELECT t FROM seen), '-infinity')) AS new
-             FROM (SELECT * FROM s UNION ALL SELECT * FROM w) x
-             JOIN app.ads a ON a.id = x.ad_id
-             LEFT JOIN master.buildings b ON b.building_pk = a.building_pk
-            ORDER BY x.at DESC LIMIT 100""", user.account_id, user.team_id)
-
-
-@router.get("/alerts")
-async def list_alerts(user: CurrentUser = Depends(any_user)):
-    return [dict(r) for r in await _alerts(user)]
-
-
-@router.get("/alerts/count")
-async def count_alerts(user: CurrentUser = Depends(any_user)):
-    """아바타의 빨간 점 — 아직 안 본 알림 수."""
-    return {"unread": sum(1 for r in await _alerts(user) if r["new"])}
-
-
-@router.post("/alerts/seen")
-async def seen_alerts(user: CurrentUser = Depends(any_user)):
-    await pool().execute("UPDATE app.accounts SET alerts_seen_at = now() WHERE id=$1", user.account_id)
     return {"ok": True}
 
 
@@ -213,7 +163,9 @@ async def report_ad(ad_id: int, body: ReportIn, user: CurrentUser = Depends(any_
     text = (body.body or "").strip()
     if body.reason == "표시정보 다름" and not text:
         raise HTTPException(422, "무엇이 다른지 적으세요")
-    ad = await pool().fetchrow("SELECT team_id FROM app.ads WHERE id=$1 AND state IN ('노출','거래완료')", ad_id)
+    ad = await pool().fetchrow(
+        """SELECT l.team_id FROM app.ads a JOIN app.listings l ON l.id = a.listing_id
+            WHERE a.id=$1 AND a.state IN ('노출','거래완료')""", ad_id)
     if not ad:
         raise HTTPException(404, "광고가 없습니다")
     if user.team_id is not None and ad["team_id"] == user.team_id:

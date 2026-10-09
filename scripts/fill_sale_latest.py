@@ -3,11 +3,11 @@
 
 ## 왜 (2026-09-07)
 
-실거래(`sales_history`)는 월마다 새로 실리는데, 건물 표의 마지막 매각 두 칸은 대장 빌드가
+실거래(`trade` · 통매는 `trade_whole`)는 월마다 새로 실리는데, 건물 표의 마지막 매각 두 칸은 대장 빌드가
 `_sales_est.json` → SQLite → CSV 로 구워 넣은 값이라 **다음 대장 빌드까지 90일 묵었다**
 (09-표별-칸별-사슬 §5 buildings 이상 8). 공시지가·승강기와 같은 모양인데 이쪽만 되붙임이 없었다.
 
-정본은 `master.sales_agg`(sales_history 를 건물별로 집계한 MV · 로더가 sales 적재마다 REFRESH).
+정본은 `master.trade_whole`(지번의 통매 실거래 · 0245).
 거기서 최근 계약년월·가격을 가져와 살아 있는 세대 표에 UPDATE 한다.
 
     BT_DATABASE_URL=... backend/.venv/bin/python scripts/fill_sale_latest.py
@@ -33,14 +33,16 @@ async def main() -> int:
             sys.exit(f"✗ master.buildings 가 가리키는 표를 못 찾았습니다 — {tbl!r}")
         before = await c.fetchval(f"SELECT count(last_sale_price) FROM master.{tbl}")
         r = await c.execute(f"""
+            -- 실거래는 지번에 붙는다(2026-10-08) — 그 지번의 마지막 통매 거래를 그 지번의 모든 동에.
+            -- 붙은 거래가 없는 동은 비운다(옛 추정 매칭값이 남아 있으면 안 된다)
             WITH latest AS (
-              SELECT DISTINCT ON (building_pk) building_pk, contract_ym, price
-                FROM master.sales_history WHERE price > 0
-               ORDER BY building_pk, contract_ym DESC)
+              SELECT DISTINCT ON (pnu) pnu, contract_ym, price
+                FROM master.trade_whole
+               ORDER BY pnu, contract_ym DESC, contract_day DESC NULLS LAST, trade_id)   -- 같은 날 두 건이면 id 로 고정
             UPDATE master.{tbl} b
                SET last_sale_ym = l.contract_ym, last_sale_price = l.price
-              FROM latest l
-             WHERE l.building_pk = b.building_pk
+              FROM master.{tbl} b2 LEFT JOIN latest l ON l.pnu = b2.pnu
+             WHERE b2.building_pk = b.building_pk
                AND (b.last_sale_ym IS DISTINCT FROM l.contract_ym
                     OR b.last_sale_price IS DISTINCT FROM l.price)""")
         after = await c.fetchval(f"SELECT count(last_sale_price) FROM master.{tbl}")

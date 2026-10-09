@@ -10,7 +10,7 @@
 승강기(`elevator_ext`)·필지 용도지역(`load_parcel_luris`)과 같은 자리다 —
 **대장 CSV 를 거치지 않고 적재 뒤에 붙인다.** 대장을 다시 실어도 그 뒤에 또 붙는다.
 
-이 값을 적정가(`build_sale_est`)·임대추정(`build_floor`·`build_bldg`)·
+이 값을 적정가(`build_sale_est`)·
 가격지수(`build_price_index`) 넷이 읽는다. 어긋나면 그 넷이 옛 지가로 계산한다.
 
     BT_DATABASE_URL=... backend/.venv/bin/python scripts/fill_gongsi_latest.py

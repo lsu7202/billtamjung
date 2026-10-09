@@ -1,0 +1,10 @@
+{
+  "key": "report",
+  "name": "보고서",
+  "desc": "적극적인 매수자에게 보여 줄 매물 투자 보고서. 네이처셀 결의 A4 문서",
+  "kind": "doc",
+  "size": "A4 세로",
+  "version": 1,
+  "ready": true,
+  "parts": ["map", "photo"]
+}

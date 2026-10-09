@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 from ..core.db import pool
 from ..core.hangul import from_qwerty, looks_latin
-from ..core.deps import current_user, any_user, CurrentUser
+from ..core.deps import current_user, any_user, CurrentUser, viewer
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -24,7 +24,8 @@ class Suggestion(BaseModel):
     price: int | None = None           # 매매가(팀 수기 ?? 추정가) — 후보에 표시
     sub: str | None = None             # 부가표시(역=호선, 지역=매물수, 나대지=면적)
     bjd_code: str | None = None        # 지역이면 법정동 코드 — 고르면 그 동이 지역 필터가 된다(2026-09-06)
-    pnu: str | None = None             # 나대지는 building_pk 가 없다 — 필지 자체가 대상이다
+    pnu: str | None = None             # 고르는 열쇠 = 지번(0255). 나대지는 building_pk 가 없다
+    listing_id: int | None = None      # 그 지번 1번 매물(볼 수 있는 것 중) — 담기 창이 짝을 만들 때 쓴다
 
 
 # 지역(동·구 중심좌표)·역 — master 버전 키 인메모리 캐시(즉시 매칭·DB 왕복 없음)
@@ -66,22 +67,30 @@ async def _suggest_refs() -> tuple[list, list]:
 
 # 건물 후보 — 접두/부분일치 공통 부분(팀 매물 여부·표시가격 조인)
 _BUILDING_SUGGEST = """
-    SELECT b.building_pk, b.addr, ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat,
-           bb.total_area, bb.floors_above,
-           (l.assignee_account_id IS NOT NULL) AS is_mine,
-           COALESCE(lv.sale_price, se.sale_est) AS price
-      FROM ({cand}) b
+    WITH c0 AS ({cand}),
+         -- 지번 한 줄(0230) — 후보 동을 그 지번의 대표 건물 하나로 접는다. 연면적 · 층수는 지번 값
+         c AS (SELECT DISTINCT pr.rep_pk AS building_pk, pr.pnu FROM c0
+                 JOIN master.buildings x ON x.building_pk = c0.building_pk
+                 JOIN master.parcel_rep pr ON pr.pkey = COALESCE(x.pnu, 'B' || x.building_pk)),
+         -- 매물은 지번에 붙는다(0255) — 그 지번 1번 매물
+         n AS (SELECT DISTINCT ON (n.pnu) n.pnu, n.listing_id, n.price, n.owner
+                 FROM app.listings_now($2::bigint, $2::bigint IS NOT NULL) n JOIN c ON c.pnu = n.pnu
+                WHERE NOT n.closed ORDER BY n.pnu, n.rank)
+    SELECT bb.building_pk, b.pnu, n.listing_id, bb.addr, ST_X(bb.geom) AS lng, ST_Y(bb.geom) AS lat,
+           pr.total_area, pr.floors_above,
+           (n.owner = 'mine') IS TRUE AS is_mine,
+           -- 매매가(0226) — 그 지번 1번 매물의 값(핀과 같은 값). 추정가를 섞지 않는다
+           n.price
+      FROM c b
       JOIN master.buildings bb ON bb.building_pk = b.building_pk
-      LEFT JOIN app.listings l
-        ON l.building_pk = b.building_pk AND l.team_id = $2 AND l.assignee_account_id IS NOT NULL
-      LEFT JOIN app.listings lv ON lv.building_pk = b.building_pk AND lv.team_id = $2   -- 팀 매매가(0173)
-      LEFT JOIN master.building_sale_est se ON se.building_pk = b.building_pk
-     ORDER BY (l.assignee_account_id IS NOT NULL) DESC, length(b.addr), b.addr
+      JOIN master.parcel_rep pr ON pr.rep_pk = b.building_pk
+      LEFT JOIN n ON n.pnu = b.pnu
+     ORDER BY (n.owner = 'mine') IS TRUE DESC, length(bb.addr), bb.addr
      LIMIT $3
 """
 
 @router.get("/suggest", response_model=list[Suggestion], openapi_extra={"x-ai": "read"})
-async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(any_user)):
+async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(viewer)):
     """통합 자동완성 — 지역(동·구) + 지하철역 + 건물주소(§3.1a 개편, 지오코딩 폴백 폐지).
     지역·역=인메모리 캐시 즉시 매칭 / 건물=동+지번 접두(btree) 우선, 모자라면 부분일치(trgm).
     한/영 전환을 잊고 친 입력은 자판을 되돌려 검색한다(로그에 EHSDMLEHD=돈의동 실사례)."""
@@ -92,7 +101,7 @@ async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(any_
     # 색인(master.dong_jibun)이 「번지」를 떼고 만들어지니, 입력도 같은 규칙으로 다듬는다.
     # 「서울특별시/서울시」와 구 이름도 같은 이유로 뗀다 — 색인은 동+지번만 담는다.
     norm = re.sub(r"^서울(특별시|시)?", "", norm)
-    norm = re.sub(r"^[가-힣]{1,4}(구|군)(?=[가-힣0-9]{2,}(동|가|로|street)?)", "", norm)   # 종로5가 같은 숫자 낀 동도
+    norm = re.sub(r"^[가-힣]{1,4}?(구|군)(?=[가-힣0-9]+(동|가|로))", "", norm)   # 종로5가 · 한 글자 동(초동)도 · _jibun_key 와 같은 규칙
     norm = norm.replace("번지", "")
     out: list[Suggestion] = []
 
@@ -142,12 +151,14 @@ async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(any_
     left = need - len(rows)
     if left > 0 and len(q) >= 2:
         biz = await pool().fetch(
-            """SELECT l.building_pk, COALESCE(b.addr, vp.addr) AS addr, l.listing_no,
+            """SELECT r.rep_pk AS building_pk, l.pnu, l.id AS listing_id, COALESCE(b.addr, vp.addr) AS addr, l.listing_no,
                       o.name AS owner_name,
-                      ST_X(ST_Centroid(b.geom)) AS lng, ST_Y(ST_Centroid(b.geom)) AS lat
-                 FROM app.listings l
-                 LEFT JOIN master.buildings b ON b.building_pk = l.building_pk
-                 LEFT JOIN master.vacant_parcels vp ON l.building_pk = 'P' || vp.pnu
+                      COALESCE(ST_X(b.geom), ST_X(ST_PointOnSurface(vp.geom))) AS lng,
+                      COALESCE(ST_Y(b.geom), ST_Y(ST_PointOnSurface(vp.geom))) AS lat
+                 FROM app.office_listings l
+                 LEFT JOIN master.parcel_rep r ON r.pnu = l.pnu
+                 LEFT JOIN master.buildings b ON b.building_pk = r.rep_pk
+                 LEFT JOIN master.vacant_parcels vp ON r.pnu IS NULL AND vp.pnu = l.pnu
                  LEFT JOIN app.owners o ON o.id = l.owner_id AND o.deleted_at IS NULL
                 WHERE l.team_id = $1
                   AND (l.listing_no ILIKE '%' || $2 || '%' OR o.name ILIKE '%' || $2 || '%')
@@ -156,12 +167,13 @@ async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(any_
             user.team_id, q, left)
         # seen 은 ① 접두가 채운 것 — 여기서 덮으면 아래 trgm 의 중복 제거가 틀어진다
         for r in biz:
-            if r["building_pk"] in seen or not r["addr"]:
+            key = r["building_pk"] or r["pnu"]
+            if key in seen or not r["addr"]:
                 continue
             hit = r["listing_no"] if (r["listing_no"] and q.lower() in r["listing_no"].lower()) else r["owner_name"]
-            out.append(Suggestion(kind="building", building_pk=r["building_pk"], addr=r["addr"],
-                                  lng=r["lng"], lat=r["lat"], is_mine=True, sub=hit))
-            seen.add(r["building_pk"])
+            out.append(Suggestion(kind="building" if r["building_pk"] else "vacant", building_pk=r["building_pk"],
+                                  pnu=r["pnu"], listing_id=r["listing_id"], addr=r["addr"], lng=r["lng"], lat=r["lat"], is_mine=True, sub=hit))
+            seen.add(key)
             need -= 1          # 여기서 채운 만큼 아래 trgm 이 덜 돈다(안 돌 수도 있다)
     # ② 접두로 모자라면 부분일치(trgm). 2글자 이하는 trigram 선택도가 없어 190~270ms가 나오므로
     #    건너뛴다 — 그 길이에선 위 지역·역·접두 결과가 이미 더 쓸모 있다.
@@ -188,7 +200,7 @@ async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(any_
         if r["floors_above"]:
             parts.append(f"{r['floors_above']}층")
         return " · ".join(parts) or None
-    out += [Suggestion(kind="building", building_pk=r["building_pk"], addr=r["addr"], lng=r["lng"],
+    out += [Suggestion(kind="building", building_pk=r["building_pk"], pnu=r["pnu"], listing_id=r["listing_id"], addr=r["addr"], lng=r["lng"],
                        lat=r["lat"], is_mine=r["is_mine"], price=r["price"], sub=_sub(r))
             for r in rows[:need]]
 
@@ -211,6 +223,14 @@ async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(any_
         out += [Suggestion(kind="vacant", pnu=r["pnu"], addr=r["addr"], lng=r["lng"], lat=r["lat"],
                            sub=f"나대지 · {round(float(r['area']) / 3.305785):,}평")
                 for r in vac]
+    # 건물 후보에도 지번을 싣는다 — 고르는 열쇠는 지번이다(10-08). 건물 번호는 그 지번의 대표 동
+    bpks = [o.building_pk for o in out if o.kind == "building" and o.building_pk and not o.pnu]
+    if bpks:
+        pm = {r["building_pk"]: r["pnu"] for r in await pool().fetch(
+            "SELECT building_pk, pnu FROM master.buildings WHERE building_pk = ANY($1::text[])", bpks)}
+        for o in out:
+            if o.kind == "building" and o.building_pk in pm:
+                o.pnu = pm[o.building_pk]
     return out
 
 
@@ -218,7 +238,7 @@ _regions_cache: dict = {}   # master_version 키 캐시(적재 시에만 변함)
 
 
 @router.get("/regions")
-async def regions(_: CurrentUser = Depends(any_user)):
+async def regions(_: CurrentUser = Depends(viewer)):
     """구·법정동 목록(3단 캐스케이드용). 미리 집계한 master.region_index(0028) + 버전별 인메모리 캐시.
     예전엔 buildings 전수 GROUP BY라 인스턴스별 첫 호출이 9.1s였다(필터 모달 여는 순간)."""
     ver = await pool().fetchval("SELECT version FROM master.master_version")
@@ -262,7 +282,7 @@ class Filters(BaseModel):
     실제로 그 부류의 버그를 겪었다."""
     model_config = ConfigDict(extra="forbid")
 
-    bjd_code: str | None = Field(None, description="법정동 코드(구 5자리·동 10자리). 이름을 알면 region 을 쓴다")       # 법정동(prefix: 구=5자리·동=10자리)
+    bjd_code: str | list[str] | None = Field(None, description="법정동 코드(구 5자리·동 10자리). 여럿이면 목록(OR). 이름을 알면 region 을 쓴다")       # 법정동(prefix: 구=5자리·동=10자리)
     # **지역을 이름으로 받는다**(2026-09-09). 코드를 모르는 쪽이 코드를 만들어 내는 것보다
     # 서버가 맞추는 게 싸고 정확하다 — AI 는 한 바퀴가 3,976토큰이고, 그 바퀴에서 코드를 지어냈다.
     # 여럿이면 서버가 고르지 않는다 — 후보를 담아 400 을 낸다(조용히 하나 고르면 그게 거짓말이다).
@@ -276,7 +296,7 @@ class Filters(BaseModel):
     building_pk: str | list[str] | None = Field(None, description="건물 하나 또는 여럿으로 좁힌다")
     # 나대지 하나로 좁힌다. 건물의 `building_pk` 자리다 — 없으면 모델이 나대지 한 필지를
     # 집을 길이 없어 검색이 조회를 대신할 수 없다(2026-09-21). 건물 검색에선 안 쓴다.
-    pnu: str | list[str] | None = Field(None, description="나대지 하나 또는 여럿으로 좁힌다. 19자리")
+    pnu: str | list[str] | None = Field(None, description="지번 하나 또는 여럿으로 좁힌다. 19자리")
     # 지번으로 한 채(2026-09-22). 이게 없어 「종로5가 104-8」을 물으면 모델이 지역 검색을 가격 구간으로
     # 잘라 가며 13바퀴를 돌고도 못 찾았다(입력 114만 토큰). 색인 master.dong_jibun 과 같은 규칙으로
     # 다듬어 정확 일치. 같은 지번의 여러 동(104-8 은 둘)이 다 나온다. 나대지도 같은 이름으로 걸린다.
@@ -287,9 +307,10 @@ class Filters(BaseModel):
     road_frontages: list[str] | None = Field(None, description="도로접면. 값은 GET /enums 의 road_frontage")  # 도로접면
     shapes: list[str] | None = Field(None, description="지형 형상")          # 지형형상
     slopes: list[str] | None = Field(None, description="지세")          # 지세
-    # 매물 유형(0193) — 빌딩 · 상가주택 · 공장·창고 · 숙박 · 기타. 광고는 중개사가 고른 값, 내 매물은 대분류,
-    # 그 밖은 대장으로 센 값(building_derived.use_kind). 실거래 보기에는 안 걸린다(신고 유형 칸이 아직 없다)
+    # 매물 유형(0246 · ref.enums building_major) — 팀이 고른 대분류, 없으면 네이버 유형. 둘 다 없으면 미지정.
+    # 실거래 보기에는 안 걸린다 — 실거래는 trade_types(신고 갈래)로 거른다. 둘은 다른 칸이다
     kinds: list[str] | None = Field(None, description="매물 유형")
+    trade_types: list[str] | None = Field(None, description="실거래 유형(실거래 보기에만). 값은 GET /enums 의 trade_type")
     # 규제(토지이용계획) — 필지 하나라도 그 규제가 포함·저촉·접함이면 걸린다. 정비구역·재정비촉진지구도
     # 여기 든다(정비 129,153동 중 99.9%가 필지 규제에 「정비」로 적혀 있다, 2026-09-22 실측).
     regulations: list[str] | None = Field(None, description="토지이용계획의 규제 이름(지구단위계획구역·정비구역·재정비촉진지구·개발제한구역 등). 필지 하나라도 걸리면")
@@ -364,31 +385,32 @@ class Filters(BaseModel):
     bcr_slack_max: float | None = Field(None, description="건폐율 여유 이하")
     far_slack_min: float | None = Field(None, description="용적률 여유(법정 − 현재) 이상. 클수록 더 지을 수 있다")
     far_slack_max: float | None = Field(None, description="용적률 여유 이하")
+    # 법정 대비(09-30, 화면 조건) — **현재 − 법정**. 넘으면 +, 남으면 −(0에서 안 끊는다). [[no-percent-point]]
+    # 모델은 아직 여유(법정 − 현재)를 쓴다 — 모델 도구 개편 때 이쪽으로 옮긴다
+    bcr_over_min: float | None = Field(None, description="법정 대비 건폐율(현재 − 법정) % 이상", json_schema_extra=_EST)
+    bcr_over_max: float | None = Field(None, description="법정 대비 건폐율 % 이하", json_schema_extra=_EST)
+    far_over_min: float | None = Field(None, description="법정 대비 용적률(현재 − 법정) % 이상", json_schema_extra=_EST)
+    far_over_max: float | None = Field(None, description="법정 대비 용적률 % 이하", json_schema_extra=_EST)
     # ── classified 계산값(매매가·수익률·평단가·공시·실거래·집계) ──
-    value_min: int | None = Field(None, description="가격 원 이상. 추정가·매매가·매도희망가 **어느 하나라도** 이 범위면 나온다. 어느 값이 걸렸는지는 줄에 다 나온다. 지난 실거래가는 안 본다")
-    value_max: int | None = Field(None, description="가격 원 이하. 위와 같다")
-    price_min: int | None = Field(None, description="내 팀이 적은 매매가 원 이상", json_schema_extra=_PRICE)             # 매매가(원)
-    price_max: int | None = Field(None, description="내 팀이 적은 매매가 원 이하", json_schema_extra=_PRICE)
-    # 팀 값과 추정값은 **다른 항목**이다(2026-08-27). 예전엔 매매가 칸에 추정가를 채워 넣어
-    # 매매가로 검색했는데, 추정가가 제 칸을 가졌으니 각자 걸린다.
+    # 매매가(0224) — 매물로 내놓은 값. 내 매물 · 빌탐정 광고 · 네이버 가운데 **보이는 것 하나라도** 이 범위면 걸린다.
+    # 추정가는 매매가가 아니다 — 제 칸(sale_est)으로 따로 건다
+    price_min: int | None = Field(None, description="매매가 원 이상", json_schema_extra=_PRICE)
+    price_max: int | None = Field(None, description="매매가 원 이하", json_schema_extra=_PRICE)
     sale_est_min: int | None = Field(None, description="빌탐정 추정가 원 이상", json_schema_extra=_PRICE)          # 빌탐정 추정가(원)
     sale_est_max: int | None = Field(None, description="빌탐정 추정가 원 이하", json_schema_extra=_PRICE)
-    roi_est_min: float | None = Field(None, description="추정 수익률 % 이상(추정 연임대 ÷ 추정가). 중위 오차 임대 29%", json_schema_extra=_EST)         # 추정 수익률(%) = 추정임대 ÷ 추정가
-    roi_est_max: float | None = Field(None, description="추정 수익률 % 이하", json_schema_extra=_EST)
-    # 추정 임대(master.building_rent_est) — 20.1만동에 값이 있는데 필터로는 못 찾고 있었다
-    rent_est_min: int | None = Field(None, description="추정 월임대료 원 이상", json_schema_extra=_EST)          # 추정 월임대료(원)
-    rent_est_max: int | None = Field(None, description="추정 월임대료 원 이하", json_schema_extra=_EST)
-    deposit_est_min: int | None = Field(None, description="추정 보증금 원 이상", json_schema_extra=_EST)       # 추정 보증금(원)
-    deposit_est_max: int | None = Field(None, description="추정 보증금 원 이하", json_schema_extra=_EST)
-    # 팀 매매가로 나눈 파생 — 추정가로 나눈 것과 다른 컬럼이다(같은 이름으로 부르지 않는다)
-    pp_land_team_min: int | None = Field(None, description="**팀 매매가** ÷ 대지 원/평 이상. 추정가로 나눈 pp_land 와 다른 칸이다")
-    pp_land_team_max: int | None = Field(None, description="팀 매매가 ÷ 대지 원/평 이하")
-    pp_total_team_min: int | None = Field(None, description="팀 매매가 ÷ 연면적 원/평 이상")
-    pp_total_team_max: int | None = Field(None, description="팀 매매가 ÷ 연면적 원/평 이하")
-    gongsi_ratio_team_min: float | None = Field(None, description="공시총액 ÷ **팀 매매가** % 이상. 높을수록 땅값이 값을 받친다")
-    gongsi_ratio_team_max: float | None = Field(None, description="공시총액 ÷ 팀 매매가 % 이하")
-    roi_min: float | None = Field(None, description="팀 수익률 % 이상. 팀이 임대와 매매가를 **둘 다** 적은 건물만 걸린다")             # 수익률(%) = 총임대료 ÷ 팀 매매가
-    roi_max: float | None = Field(None, description="팀 수익률 % 이하. 위와 같은 주의")
+    # 매매가로 나눈 파생(0224) — 매매가마다 하나씩. 추정가로 나눈 것(pp_land …)과 다른 칸이다
+    pp_land_sale_min: int | None = Field(None, description="매매가 ÷ 대지 원/평 이상")
+    pp_land_sale_max: int | None = Field(None, description="매매가 ÷ 대지 원/평 이하")
+    pp_total_sale_min: int | None = Field(None, description="매매가 ÷ 연면적 원/평 이상")
+    pp_total_sale_max: int | None = Field(None, description="매매가 ÷ 연면적 원/평 이하")
+    gongsi_ratio_sale_min: float | None = Field(None, description="공시총액 ÷ 매매가 % 이상. 높을수록 땅값이 값을 받친다")
+    gongsi_ratio_sale_max: float | None = Field(None, description="공시총액 ÷ 매매가 % 이하")
+    # 임대료(0224 · 11b) — ㎡당 월세. 내 매물 층별 실제 임대료 · 네이버 임대시세(최근 수집일) 가운데 **하나라도** 범위면.
+    # 추정 임대는 없다(0239 삭제)
+    rent_ppm_min: int | None = Field(None, description="㎡당 월세 원 이상", json_schema_extra=_EST)
+    rent_ppm_max: int | None = Field(None, description="㎡당 월세 원 이하", json_schema_extra=_EST)
+    roi_min: float | None = Field(None, description="수익률 % 이상(내 매물 총월임대 × 12 ÷ 매매가, 매매가마다)")
+    roi_max: float | None = Field(None, description="수익률 % 이하")
     ask_min: int | None = Field(None, description="매도희망가 원 이상. 건물주가 부른 값", json_schema_extra=_PRICE)
     ask_max: int | None = Field(None, description="매도희망가 원 이하", json_schema_extra=_PRICE)
     sell_vagues: list[str] | None = Field(None, description="막연한 매도 시점. 값은 「이달 안」·「올해 안」·「상반기」·「하반기」·「연말」·「내년 초」·「봄」·「가을」")
@@ -407,9 +429,8 @@ class Filters(BaseModel):
     vacant: str | None = Field(None, description="「있음」 또는 「없음」. **팀이 층마다 공실면적을 적은 건물에만** 뜻이 있다")                # 공실 있음/없음
     vacant_area_min: float | None = Field(None, description="팀이 적은 공실면적 ㎡ 이상")
     vacant_area_max: float | None = Field(None, description="팀이 적은 공실면적 ㎡ 이하")
-    # 만실(0181) — 공실이 다 찼다고 가정한 수익률. 공실 평당가가 없는 층은 층별 추정으로 채워서
-    # 추정이 섞일 수 있다(줄에선 이름 앞에 「추정」이 붙는다)
-    roi_full_min: float | None = Field(None, description="만실 수익률 % 이상. 공실이 다 찼다고 가정한 값이다. 공실 층의 평당가를 모르면 층별 추정으로 채운다")
+    # 만실(0181) — 공실이 다 찼다고 가정한 수익률. 공실 층은 같은 층 실측 평당가로만 채운다(0239 · 추정 폴백 삭제)
+    roi_full_min: float | None = Field(None, description="만실 수익률 % 이상. 공실이 다 찼다고 가정한 값이다. 공실 층은 같은 층 실제 임대료 평당가로 채운다")
     roi_full_max: float | None = Field(None, description="만실 수익률 % 이하")
     gongsi_total_min: int | None = Field(None, description="공시지가 총액(㎡단가 × 대지) 원 이상")      # 공시지가 총액(원)
     gongsi_total_max: int | None = Field(None, description="공시지가 총액 원 이하")
@@ -441,6 +462,18 @@ class Filters(BaseModel):
     has_phone: str | None = Field(None, description="「있음」 또는 「없음」. 소유자 전화를 아는가. 우리 매물에만 있다")             # 전화번호 있음/없음
     has_photo: str | None = Field(None, description="「있음」 또는 「없음」. 사진이 있는가. **건물을 고르는 조건이 아니다**")             # 사진 있음/없음
     received_from: str | None = Field(None, description="매물 접수일 이후(YYYY-MM-DD). 우리 매물에만 있다")         # 접수일 YYYY-MM-DD
+    # ── 매물관리 칸(0199~0209 · 모델 읽기 11b, 2026-10-04) — 전부 우리 매물에만 있다 ──
+    statuses: list[str] | None = Field(None, description="매물 상태(사무소가 만든 상태 이름). 우리 매물에만 있다")
+    hold_reasons: list[str] | None = Field(None, description="보류 사유. 우리 매물에만 있다")
+    exclusive: list[str] | None = Field(None, description="「전속」 · 「일반」. 우리 매물에만 있다")
+    checked_from: str | None = Field(None, description="마지막 확인일 이후(YYYY-MM-DD). 우리 매물에만 있다")
+    checked_to: str | None = Field(None, description="마지막 확인일 이전. 우리 매물에만 있다")
+    grades: list[str] | None = Field(None, description="등급. 우리 매물에만 있다")
+    ipjis: list[str] | None = Field(None, description="입지. 우리 매물에만 있다")
+    nohudos: list[str] | None = Field(None, description="노후도. 우리 매물에만 있다")
+    price_vs_markets: list[str] | None = Field(None, description="시세 대비. 우리 매물에만 있다")
+    building_majors: list[str] | None = Field(None, description="매물 대분류. 우리 매물에만 있다")
+    building_uses: list[str] | None = Field(None, description="매물 소분류(실사용 · 투자용 · 신축용). 우리 매물에만 있다")
     # 「아님」 — 조건 이름 → 뺄 값들. 모델의 {"없음": [...]} 이 여기로 온다(tools 가 옮긴다).
     # **NULL 은 남긴다.** 안 적힌 것은 「그 값이 아님」이 아니라 「모름」이다(미지정은 null 원칙).
     nots: dict[str, list[str]] | None = Field(None, json_schema_extra=_EST)
@@ -479,12 +512,24 @@ class SearchIn(BaseModel):
     #   all  전 건물 추정가
     #   deal 실거래 — 기간(sale_years) 안에 거래가 있는 건물만
     #   ad   매매 — 광고(노출 · 거래완료)가 있는 건물 ∪ 내 매물(중개사). chip 으로 좁힌다
-    tab: str = "all"                  # all | deal | ad
+    tab: str = "all"                  # all | deal | ad | explore(매물 탐색 S08 · 중개사만)
     chip: str = ""                    # ad 탭: "" 전체 | mine 내 매물 | ads 광고만
+    # 매물 범위(모델 읽기 11b, 2026-10-05) — 출처로 가르지 않는다. 한 건물은 한 줄이고 매매가가 전부 붙는다.
+    #   mine  내 사무소 매물이 있는 건물(매각됨 뺌 — sold_mine 이면 넣음)
+    #   any   매물 = 내 매물이거나 보이는 매매가가 하나라도 있는 건물
+    #   none  매물이 아닌 건물(일반) — 기본 범위(any)일 때 수만 셀 때 쓴다
+    #   all   다
+    # 주면 탭 · 열(mine/normal) 대신 이 범위 한 열만 돌려준다. 화면은 안 준다
+    scope: str = ""
+    # 한 채를 짚었을 때(건물번호 · 주소)는 매각된 내 매물도 내 매물로 센다(10-04 대표 「가」).
+    # 팔린 매물을 권하지 않는 건 찾기에서고, 자기 매물 상태를 물으면 답해야 한다
+    sold_mine: bool = False
     sale_years: int = 3               # deal 탭 기간(대표 09-28 기본 3년)
     # 기간 범위(연도) — 고르면 sale_years 대신. 2013~2015 처럼(대표 09-28). to 가 없으면 지금까지
     sale_from: int | None = None
     sale_to: int | None = None
+    # 고른 해들(대표 09-30) — 범위가 아니라 한 해씩 켠다(2019 · 2022 · 2024). 주면 위 셋보다 이긴다
+    sale_year_list: list[int] | None = None
     # 지도 화면 범위 [서, 남, 동, 북](경위도) — 탐색 화면은 검색 없이 지도가 보이는 만큼 부른다(09-28)
     bbox: list[float] | None = None
 
@@ -493,48 +538,23 @@ class SnapIn(BaseModel):
     polygon: dict                     # GeoJSON — 손으로 그린 영역
 
 
-@router.post("/snap")
-async def snap_parcels(body: SnapIn, _: CurrentUser = Depends(any_user)):
-    """자석 올가미(후처리): 그린 영역에 걸치는 필지 합집합으로 스냅 → 필지 경계 정합 폴리곤 반환.
-    specs S01 §3.6c(영역 그리기)·기능목록 §2(자석 스냅 후처리). parcels_v2 GiST 인덱스 사용."""
-    gj = await pool().fetchval(
-        """SELECT ST_AsGeoJSON(ST_Union(p.geom))
-           FROM master.parcels p
-           WHERE ST_Intersects(p.geom, ST_MakeValid(ST_GeomFromGeoJSON($1::text)))""",
-        json.dumps(body.polygon),
-    )
-    return {"polygon": json.loads(gj) if gj else None}
 
 
 @router.get("/parcel-at")
-async def parcel_at_point(lng: float, lat: float, _: CurrentUser = Depends(any_user)):
-    """클릭 지점을 포함하는 필지 1건 → building_pk. 지적도 전체 로드 없이 클릭 시에만 조회.
-    ST_Contains(&& GiST 선행). 색칠은 building_pk로 /parcel/{pk} 조회."""
-    row = await pool().fetchrow(
-        """SELECT building_pk, pnu FROM master.parcels
-           WHERE geom && ST_SetSRID(ST_MakePoint($1, $2), 4326)
-             AND ST_Contains(geom, ST_SetSRID(ST_MakePoint($1, $2), 4326))
-           LIMIT 1""",
-        lng, lat,
-    )
-    return {"building_pk": row["building_pk"], "pnu": row["pnu"]} if row else {"building_pk": None, "pnu": None}
-
-
-@router.get("/parcel/{building_pk}")
-async def parcel_for_building(building_pk: str, _: CurrentUser = Depends(any_user)):
-    """한 건물의 필지 합집합(선택 시 분류색 오버레이용). 멀티필지는 union.
-    나대지는 'P'+pnu 로 온다(listings 와 같은 약속) — 그 필지 하나."""
-    if building_pk.startswith("P"):
-        gj = await pool().fetchval(
-            "SELECT ST_AsGeoJSON(geom) FROM master.vacant_parcels WHERE pnu=$1", building_pk[1:])
-    else:
-        gj = await pool().fetchval(
-            "SELECT ST_AsGeoJSON(ST_Union(geom)) FROM master.parcels WHERE building_pk=$1",
-            building_pk,
-        )
-    return {"polygon": json.loads(gj) if gj else None}
-
-
+async def parcel_at_point(lng: float, lat: float, _: CurrentUser = Depends(viewer)):
+    """클릭 지점의 지번(pnu) 하나 — 지도에서 누르는 것은 필지다(스펙 12 §3-1).
+    누른 필지가 어느 건물의 부속지번이면(그 필지에 대표 동이 없고 건물에 딸려 있으면) 그 건물의 지번으로 간다 —
+    땅 하나에 지번 페이지 하나. 색칠은 GET /parcels/{pnu}/geom."""
+    pnu = await pool().fetchval(
+        """WITH hit AS (SELECT pnu FROM master.parcels
+                         WHERE geom && ST_SetSRID(ST_MakePoint($1, $2), 4326)
+                           AND ST_Contains(geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)) LIMIT 1)
+           SELECT COALESCE((SELECT r.pnu FROM master.parcel_rep r WHERE r.pnu = hit.pnu),
+                           (SELECT b.pnu FROM master.building_parcels bp JOIN master.buildings b ON b.building_pk = bp.building_pk
+                             WHERE bp.pnu = hit.pnu AND b.pnu IS NOT NULL ORDER BY b.total_area DESC NULLS LAST LIMIT 1),
+                           hit.pnu)
+             FROM hit""", lng, lat)
+    return {"pnu": pnu}
 
 
 # 고르는 자가 받는 값. 뜰 때 한 번 읽는다.
@@ -641,6 +661,12 @@ def _check_enum(field: str, vals: list[str] | None) -> None:
                                  f"되는 값: {' · '.join(sorted(known))}")
 
 
+def _bjd_likes(raw: str | list[str]) -> list[str]:
+    """bjd_code 하나 또는 여럿(09-30 — 조건 화면에서 여러 구 · 동을 담는다) → LIKE ANY 에 넣을 접두 목록."""
+    codes = [raw] if isinstance(raw, str) else list(raw)[:50]
+    return [_check_bjd(c) + "%" for c in codes if c]
+
+
 def _check_bjd(raw: str) -> str:
     """bjd_code 를 검사해 깨끗한 코드로. **없는 지역 코드는 0건이 아니라 오류다.** 조용한 0 을 모델은
     「그런 건물이 없다」로 읽는다. 실제로 나온 것들: 「11-00-06-00-13」(지어냄) · 「1100%」(접두 LIKE 라는
@@ -669,13 +695,52 @@ def _jibun_key(text: str) -> str:
     norm = text.replace(" ", "")
     norm = re.sub(r"^서울(특별시|시)?", "", norm)
     # 동 이름에 숫자가 낀다(종로5가 · 을지로3가). [가-힣]만 보면 구가 안 떨어져 0건이 났다(2026-09-22)
-    norm = re.sub(r"^[가-힣]{1,4}(구|군)(?=[가-힣0-9]{2,}(동|가|로))", "", norm)
+    # 구 이름은 **짧게** 잡고 동 이름은 한 글자부터 받는다 — 초동 · 묘동 · 재동처럼 한 글자 동이면 구가 안 떨어져
+    # 「중구초동53-20」이 되어 0건이었다. 짧게 잡아야 「종로구구기동」이 「기동」으로 잘리지 않는다(2026-10-06)
+    norm = re.sub(r"^[가-힣]{1,4}?(구|군)(?=[가-힣0-9]+(동|가|로))", "", norm)
     return norm.replace("번지", "")
 
 
-def _addr_cond(col: str, key: str) -> str:   # noqa: ARG001 — 산 지번도 「우이동산68-1」로 붙어 있어 같은 길이다
-    """지번 조건 SQL. 색인(master.dong_jibun)과 정확 일치."""
+def _road_key(text: str) -> str:
+    """도로명 주소 → 색인 `master.road_key` 의 열쇠(0223). 「종로구 필운대로5가길 53」 → 「필운대로5가길53」."""
+    t = re.sub(r"\s*\(.*\)\s*$", "", text.strip())
+    t = re.sub(r"^서울(특별시|시)?\s*", "", t)
+    t = re.sub(r"^\S+구\s+", "", t)
+    return t.replace(" ", "")
+
+
+def addr_keys(text: str) -> tuple[str, str]:
+    """주소 하나 → (지번 열쇠, 도로명 열쇠). **주소를 푸는 길은 이것 하나다**(11b ②) —
+    검색 필터 · 주소 해석(pks_by_addr) · 자료 지도가 같은 열쇠 · 같은 SQL 조건(_addr_cond)을 쓴다."""
+    return _jibun_key(text), _road_key(text)
+
+
+def _addr_cond(col: str, key: str) -> str:   # noqa: ARG001
+    """주소 조건 SQL — 지번(dong_jibun) 또는 도로명(road_key) 정확 일치. 인자 둘(${i} = 지번, ${i}+1 = 도로명)을
+    호출부가 연달아 넣는다. 나대지 표엔 도로명 칸이 없어 지번만 본다(_addr_cond_vacant)."""
+    road = col.replace("addr", "road_addr")
+    return f"(master.dong_jibun({col}) = ${{i}} OR master.road_key({road}) = ${{j}})"
+
+
+def _addr_cond_vacant(col: str) -> str:
     return f"master.dong_jibun({col}) = ${{i}}"
+
+
+async def pks_by_addr(addr: str) -> list[str]:
+    """주소(지번 · 도로명) → 그 주소의 건물들(연면적 큰 순), 없으면 나대지 필지. 모델 · 자료는 **주소로 건물을 가리킨다**
+    (11b, 10-04 대표 「유저가 알면 안 되는 번호」) — 내부 번호는 여기서만 풀린다."""
+    jk, rk = addr_keys(addr)
+    rows = await pool().fetch(
+        "SELECT building_pk FROM master.buildings WHERE " + _addr_cond("addr", jk).replace("${i}", "$1").replace("${j}", "$2")
+        + " ORDER BY total_area DESC NULLS LAST, building_pk", jk, rk)
+    if rows:
+        return [r["building_pk"] for r in rows]
+    return [r["pnu"] for r in await pool().fetch(
+        "SELECT pnu FROM master.vacant_parcels WHERE master.dong_jibun(addr) = $1", jk)]
+
+
+# 대지면적 — 동이 선 지번은 대장 값(빈칸이면 빈칸 · 10-08 대표), 나대지는 지번 면적
+_LAND_AREA = "(CASE WHEN s.rep_pk IS NULL THEN s.parcel_area ELSE b.land_area END)"
 
 
 def _filter_sql(f: Filters, args: list, with_team: bool = True) -> tuple[str, str, str]:
@@ -703,42 +768,57 @@ def _filter_sql(f: Filters, args: list, with_team: bool = True) -> tuple[str, st
         if hi is not None: add(lst, f"{col} <= ${{i}}", hi)
     def anyof(lst, col, vals):
         if vals: add(lst, f"{col} = ANY(${{i}})", vals)
+    def anyrng(lst, col, lo, hi):
+        """배열 칸(매매가가 여럿, 0224) — 값 **하나라도** 범위면. 한 값 안에서 하한 · 상한을 같이 본다"""
+        if (lo is None and hi is None) or (lst is t and not with_team):
+            return
+        conds = []
+        for op, v in ((">=", lo), ("<=", hi)):
+            if v is not None:
+                args.append(v)
+                conds.append(f"v {op} ${len(args)}")
+        lst.append(f"EXISTS (SELECT 1 FROM unnest({col}) v WHERE {' AND '.join(conds)})")
 
     # ── 마스터(b.) — classified WHERE ──
     if f.building_pk:
         one = isinstance(f.building_pk, str)
         add(m, "b.building_pk = ${i}" if one else "b.building_pk = ANY(${i}::text[])",
             f.building_pk)
+    if f.pnu:   # 지번 하나 또는 여럿(0258 — 줄이 지번이라 건물 검색에서도 먹는다)
+        one = isinstance(f.pnu, str)
+        add(m, "s.pnu = ${i}" if one else "s.pnu = ANY(${i}::text[])", f.pnu)
     if f.region and not f.bjd_code:
         wants = f.region if isinstance(f.region, list) else [f.region]
         ors = []
         for w in wants[:10]:
             code, name = resolve_region(w)
             args.append(code)
-            ors.append(f"b.bjd_code LIKE ${len(args)} || '%'")
+            ors.append(f"s.bjd_code LIKE ${len(args)} || '%'")
             matched.append(name)
         if ors:
             m.append("(" + " OR ".join(ors) + ")")
 
     if f.bjd_code:
-        add(m, "b.bjd_code LIKE ${i} || '%'", _check_bjd(f.bjd_code))
+        add(m, "s.bjd_code LIKE ANY(${i}::text[])", _bjd_likes(f.bjd_code))
     if f.addr:
-        key = _jibun_key(f.addr)
-        add(m, _addr_cond("b.addr", key), key)
-    anyof(m, "b.use_zone", f.use_zones)
-    anyof(m, "b.jimok", f.jimoks)
+        jk, rk = addr_keys(f.addr)
+        args.extend([jk, rk])
+        m.append(_addr_cond("s.addr", jk).replace("${i}", f"${len(args)-1}").replace("${j}", f"${len(args)}"))
+    anyof(m, "s.use_zone", f.use_zones)
+    anyof(m, "s.jimok", f.jimoks)
     for _fld, _vals in (("road_frontages", f.road_frontages), ("shapes", f.shapes), ("slopes", f.slopes)):
         _check_enum(_fld, _vals)
-    anyof(m, "b.road_frontage", f.road_frontages)
-    anyof(m, "b.shape", f.shapes)
-    anyof(m, "b.slope", f.slopes)
+    anyof(m, "s.road_frontage", f.road_frontages)
+    anyof(m, "s.shape", f.shapes)
+    anyof(m, "s.slope", f.slopes)
     rng(m, "br.front_m", f.road_front_min, f.road_front_max)   # 도로폭 원장(building_road) 조인
     if f.regulations:
         _check_enum("regulations", f.regulations)
         add(m, "EXISTS (SELECT 1 FROM master.parcels p, jsonb_array_elements(p.regulations) e"
-               " WHERE p.building_pk = b.building_pk AND e->>0 = ANY(${i}::text[]))", f.regulations)
-    anyof(m, "b.land_use", f.land_uses)
-    anyof(m, "b.main_use_name", f.main_uses)   # UI=주용도명 · DB main_use_name과 직접 일치(코드매핑 불필요)
+               " WHERE p.pnu = s.pnu AND e->>0 = ANY(${i}::text[]))", f.regulations)
+    anyof(m, "s.land_use", f.land_uses)
+    # 주용도 · 연면적 · 층수 · 주차 · 승강기는 **지번 값**(master.parcel_rep · 0230 · 스펙 §5-2): 주용도는 동 하나라도 맞으면
+    if f.main_uses: add(m, "pr.uses && ${i}::text[]", f.main_uses)
     if f.etc_use:
         add(m, "b.etc_use ILIKE '%' || ${i} || '%'", f.etc_use)
     # 업종·상호 — **카카오**(2026-09-16). 이 함수는 동기라 핸들러가 resolve_biz() 로 먼저 카카오를
@@ -755,7 +835,7 @@ def _filter_sql(f: Filters, args: list, with_team: bool = True) -> tuple[str, st
             for w in (g if isinstance(g, list) else [g]):
                 if str(w).strip():
                     args.append(str(w).strip())
-                    ands.append(f"b.main_use_name ILIKE '%' || ${len(args)} || '%'")
+                    ands.append(f"EXISTS (SELECT 1 FROM unnest(pr.uses) u WHERE u ILIKE '%' || ${len(args)} || '%')")
             if ands:
                 ors.append("(" + " AND ".join(ands) + ")")
         if ors:
@@ -769,12 +849,16 @@ def _filter_sql(f: Filters, args: list, with_team: bool = True) -> tuple[str, st
             if vals:
                 _check_enum("regulations", vals)
                 add(m, "NOT EXISTS (SELECT 1 FROM master.parcels p, jsonb_array_elements(p.regulations) e"
-                       " WHERE p.building_pk = b.building_pk AND e->>0 = ANY(${i}::text[]))", vals)
+                       " WHERE p.pnu = s.pnu AND e->>0 = ANY(${i}::text[]))", vals)
             continue
         where, col = _NOT_COL.get(fname, (None, None))
         if not col or not vals:
             continue
         lst = m if where == "m" else t
+        if fname == "use":                    # 지번의 동 어느 것도 그 주용도가 아니다
+            for w in vals:
+                add(m, "NOT EXISTS (SELECT 1 FROM unnest(pr.uses) u WHERE u ILIKE '%' || ${i} || '%')", w)
+            continue
         if fname in _NOT_LIKE:
             for w in vals:
                 add(lst, f"COALESCE({col},'') NOT ILIKE '%' || ${{i}} || '%'", w)
@@ -784,20 +868,20 @@ def _filter_sql(f: Filters, args: list, with_team: bool = True) -> tuple[str, st
     rest_and = list(biz["and"]) if biz else []
     if biz:
         for pks in rest_and:
-            add(m, "b.building_pk = ANY(${i})", sorted(pks))
+            add(m, "s.pkey IN (SELECT COALESCE(x.pnu, 'B' || x.building_pk) FROM master.buildings x WHERE x.building_pk = ANY(${i}))", sorted(pks))
         for pks in biz["not"]:
             if pks:
-                add(m, "NOT (b.building_pk = ANY(${i}))", sorted(pks))
+                add(m, "s.pkey NOT IN (SELECT COALESCE(x.pnu, 'B' || x.building_pk) FROM master.buildings x WHERE x.building_pk = ANY(${i}))", sorted(pks))
     elif f.biz or f.biz_dnf or f.biz_not:
         # **조용히 빼지 않는다.** 필터가 빠진 채 전체가 나가면 모델은 「그 업종이 다 있다」로 읽는다.
         raise HTTPException(500, "biz 필터가 준비되지 않았다 — 핸들러가 resolve_biz(body) 를 먼저 부른다")
-    rng(m, "b.land_area", f.land_area_min, f.land_area_max)
-    rng(m, "b.total_area", f.total_area_min, f.total_area_max)
-    rng(m, "COALESCE(b.build_area, bc.build_area_calc)", f.build_area_min, f.build_area_max)
-    rng(m, "b.parcel_area", f.parcel_area_min, f.parcel_area_max)
-    rng(m, "COALESCE(b.far_area, bc.far_area_calc)", f.far_area_min, f.far_area_max)
-    rng(m, "b.floors_above", f.floors_above_min, f.floors_above_max)
-    rng(m, "b.floors_below", f.floors_below_min, f.floors_below_max)
+    rng(m, _LAND_AREA, f.land_area_min, f.land_area_max)
+    rng(m, "pr.total_area", f.total_area_min, f.total_area_max)
+    rng(m, "COALESCE(pr.build_area, bc.build_area_calc)", f.build_area_min, f.build_area_max)
+    rng(m, "s.parcel_area", f.parcel_area_min, f.parcel_area_max)
+    rng(m, "COALESCE(pr.far_area, bc.far_area_calc)", f.far_area_min, f.far_area_max)
+    rng(m, "pr.floors_above", f.floors_above_min, f.floors_above_max)
+    rng(m, "pr.floors_below", f.floors_below_min, f.floors_below_max)
     # 건폐율·용적률·면적은 **거를 때만** 계산값을 얹는다(0143·0144).
     # **보여주는 값은 대장 그대로다**(아래 SELECT 는 b.bcr·b.far 를 낸다) — 화면 값이
     # 계약서·중개대상물 확인설명서·브리핑으로 그대로 이어지기 때문이다.
@@ -805,8 +889,8 @@ def _filter_sql(f: Filters, args: list, with_team: bool = True) -> tuple[str, st
     # 않는다: 용적률로 거르면 대장만으로는 36.5%가 통째로 빠지는데 계산값을 얹으면 16.1%다.
     rng(m, "COALESCE(b.bcr, bc.bcr_calc)", f.bcr_min, f.bcr_max)
     rng(m, "COALESCE(b.far, bc.far_calc)", f.far_min, f.far_max)
-    rng(m, "b.elevator", f.elevator_min, f.elevator_max)
-    rng(m, "b.parking", f.parking_min, f.parking_max)
+    rng(m, "pr.elevator", f.elevator_min, f.elevator_max)
+    rng(m, "pr.parking", f.parking_min, f.parking_max)
     if f.station_dist_max is not None:
         add(m, "b.station_dist <= ${i}", f.station_dist_max)
     rng(m, "b.last_sale_price", f.last_sale_min, f.last_sale_max)
@@ -814,7 +898,7 @@ def _filter_sql(f: Filters, args: list, with_team: bool = True) -> tuple[str, st
         add(m, "b.last_sale_ym >= to_char(CURRENT_DATE - make_interval(years => ${i}), 'YYYYMM')", f.last_sale_years_max)
     if f.last_sale_years_min is not None:
         add(m, "b.last_sale_ym <= to_char(CURRENT_DATE - make_interval(years => ${i}), 'YYYYMM')", f.last_sale_years_min)
-    rng(m, "b.gongsi_latest", f.gongsi_min, f.gongsi_max)
+    rng(m, "s.gongsi_latest", f.gongsi_min, f.gongsi_max)
     if f.age_max is not None:
         add(m, "b.approval_ymd >= (CURRENT_DATE - make_interval(years => ${i}))", f.age_max)
     if f.age_min is not None:
@@ -829,26 +913,31 @@ def _filter_sql(f: Filters, args: list, with_team: bool = True) -> tuple[str, st
     rng(o, "legal_far", f.legal_far_min, f.legal_far_max)
     rng(o, "bcr_slack", f.bcr_slack_min, f.bcr_slack_max)
     rng(o, "far_slack", f.far_slack_min, f.far_slack_max)
-    rng(t, "team_price", f.price_min, f.price_max)   # 매매가 = 팀이 적은 값만
-    # 모델용 「값」 — 넷 중 어느 하나라도 범위면. 각 열은 NULL 이면 그 항만 거짓이라 OR 로 묶으면 된다
-    if f.value_min is not None or f.value_max is not None:
-        parts = []
-        for col in ("team_price", "sale_est", "ask_price"):
-            c = []
-            if f.value_min is not None: add(c, f"{col} >= ${{i}}", f.value_min)
-            if f.value_max is not None: add(c, f"{col} <= ${{i}}", f.value_max)
-            parts.append("(" + " AND ".join(c) + ")")
-        o.append("(" + " OR ".join(parts) + ")")
+    rng(o, "bcr_over", f.bcr_over_min, f.bcr_over_max)     # 현재 − 법정(classified 칸)
+    rng(o, "far_over", f.far_over_min, f.far_over_max)
+    # 매매가 · 매매가로 나눈 값(0226) — 매물 하나에 하나
+    rng(o, "price", f.price_min, f.price_max)
     rng(t, "roi", f.roi_min, f.roi_max)
-    rng(o, "roi_est", f.roi_est_min, f.roi_est_max)
+    if f.rent_ppm_min is not None or f.rent_ppm_max is not None:
+        # 바깥 WHERE 는 FROM classified 다 — 칸을 classified.building_pk 로 못박아야 하위질의 표의 칸과 안 섞인다.
+        # $1 = 사무소(_build_base 의 첫 인자). 네이버 임대시세는 중개사만 보는 자료라 이 이름도 중개사 스키마에만 있다
+        rc = []
+        for op, v in ((">=", f.rent_ppm_min), ("<=", f.rent_ppm_max)):
+            if v is not None:
+                args.append(v); rc.append(f"{{x}} {op} ${len(args)}")
+        fr = " AND ".join(rc).replace("{x}", "fr.rent / fr.contract_area")
+        mr = " AND ".join(rc).replace("{x}", "mr.rent / mr.contract_area")
+        o.append("(EXISTS (SELECT 1 FROM app.floor_rents fr WHERE fr.building_pk = classified.building_pk"
+                 " AND fr.team_id = $1 AND fr.deleted_at IS NULL AND fr.rent > 0 AND fr.contract_area > 0 AND " + fr + ")"
+                 " OR EXISTS (SELECT 1 FROM master.market_rent mr WHERE mr.building_pk = classified.building_pk"
+                 " AND mr.observed_on = (SELECT max(observed_on) FROM master.market_rent)"
+                 " AND mr.rent > 0 AND mr.contract_area > 0 AND " + mr + "))")
     rng(o, "sale_est", f.sale_est_min, f.sale_est_max)
-    rng(o, "rent_est_m", f.rent_est_min, f.rent_est_max)
-    rng(o, "deposit_est", f.deposit_est_min, f.deposit_est_max)
     rng(t, "ask_price", f.ask_min, f.ask_max)          # 매도희망가 — 건물주가 부른 값
     rng(o, "pp_land", f.pp_land_min, f.pp_land_max)
-    rng(t, "pp_land_team", f.pp_land_team_min, f.pp_land_team_max)
-    rng(t, "pp_total_team", f.pp_total_team_min, f.pp_total_team_max)
-    rng(t, "gongsi_ratio_team", f.gongsi_ratio_team_min, f.gongsi_ratio_team_max)
+    rng(o, "pp_land_sale", f.pp_land_sale_min, f.pp_land_sale_max)
+    rng(o, "pp_total_sale", f.pp_total_sale_min, f.pp_total_sale_max)
+    rng(o, "gongsi_ratio_sale", f.gongsi_ratio_sale_min, f.gongsi_ratio_sale_max)
     rng(o, "pp_total", f.pp_total_min, f.pp_total_max)
     rng(t, "deposit_total", f.deposit_total_min, f.deposit_total_max)
     rng(t, "rent_total", f.rent_total_min, f.rent_total_max)
@@ -892,6 +981,21 @@ def _filter_sql(f: Filters, args: list, with_team: bool = True) -> tuple[str, st
         add(t, "received_on >= ${i}::date", f.received_from)
     if f.received_to:
         add(t, "received_on <= ${i}::date", f.received_to)
+    # 매물관리 칸(11b) — 우리 매물에만
+    anyof(t, "status_name", f.statuses)
+    anyof(t, "hold_reason", f.hold_reasons)
+    anyof(t, "exclusive_word", f.exclusive)
+    if f.checked_from:
+        add(t, "checked_on >= ${i}::date", f.checked_from)
+    if f.checked_to:
+        add(t, "checked_on <= ${i}::date", f.checked_to)
+    anyof(t, "grade", f.grades)
+    anyof(t, "ipji", f.ipjis)
+    anyof(t, "nohudo", f.nohudos)
+    anyof(t, "price_vs_market", f.price_vs_markets)
+    anyof(t, "building_major", f.building_majors)
+    if f.building_uses:
+        add(t, "building_use && ${i}::text[]", f.building_uses)     # 소분류는 여럿(배열)
 
     ms = (" AND " + " AND ".join(m)) if m else ""
     os_ = (" AND " + " AND ".join(o)) if o else ""
@@ -900,18 +1004,27 @@ def _filter_sql(f: Filters, args: list, with_team: bool = True) -> tuple[str, st
     return ms, os_, ts
 
 
+# 매물유형(0246) — 팀이 고른 대분류(lo2, 다른 사무소 것도 읽는다 · 광고에 나가는 값), 없으면 네이버 유형 원문을
+# 사전(ref.enums building_major meta.naver)으로 바꾼 값. 대장으로 센 유형은 안 쓴다
+_LISTING_KIND = "COALESCE(lo2.building_major, app.naver_major(lc.ad_use_type))"
+
+
 def _tab_sql(body: SearchIn, args: list, mine_is: str) -> str:
     """검색 탭 → raw WHERE 조건(S05 §2). all 은 아무것도 안 붙인다.
     raw 에서 거른다 — classified 바깥에 두면 서울 전역 매매 탭이 58만 행을 다 만들고 버린다.
     ad_agg 에 줄이 있으면 광고(노출 · 거래완료)가 있는 건물이다."""
     if body.tab == "deal":
         return " AND ds.price IS NOT NULL"     # 기간 안 거래가 있는 건물(ds 는 _build_base 의 LATERAL)
+    if body.tab == "explore":
+        # 매물 탐색(S08) — 보이는 매물 전부(listings_now 를 INNER JOIN 으로 붙였다). 매물마다 한 줄
+        return ""
     if body.tab == "ad":
+        # 매물 찾기 — 광고 매물(+ 중개사면 내 매물). 매물이 없어도 거래완료 광고가 있던 건물은 「거래완료」 핀
         if body.chip == "mine":
-            return f" AND {mine_is}"
+            return " AND n.owner = 'mine'"
         if body.chip == "ads":
-            return " AND aa.building_pk IS NOT NULL"
-        return f" AND (aa.building_pk IS NOT NULL OR {mine_is})"
+            return " AND (n.owner = 'office' OR (n.listing_id IS NULL AND aa.ad_sold))"
+        return " AND (n.owner IN ('mine', 'office') OR (n.listing_id IS NULL AND aa.ad_sold))"
     return ""
 
 
@@ -926,68 +1039,116 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
     poly_sql = ""
     if body.polygon:
         args.append(json.dumps(body.polygon))
-        poly_sql = f" AND ST_Within(b.geom, ST_MakeValid(ST_GeomFromGeoJSON(${len(args)}::text)))"
+        poly_sql = f" AND ST_Within(s.geom, ST_MakeValid(ST_GeomFromGeoJSON(${len(args)}::text)))"
     # 팀 절은 기본으로 두 열에 다 붙는다(화면). for_model 이면 normal 에는 안 붙여,
     # 「우리 매물 중 조건 맞는 것 + 일반 건물 전부」가 나온다(모델). 그 뜻은 도구 설명에 있다.
     # 고객(팀 없음)에게는 팀 조건을 아예 안 만든다 — 팀 칸은 이름부터 없다(S05 §1)
+    scoped = body.scope in ("mine", "any", "none", "all")
+    # 수집 매물(네이버)은 중개사만 본다(S08 · 0226 app.listings_now 가 가린다)
+    broker = user.kind == "중개사" and user.team_id is not None
     with_team = not (body.for_model and col == "normal") and user.team_id is not None
+    if scoped:
+        # 팀 조건은 늘 건다 — 팀 칸은 내 매물 줄에만 값이 있어, 걸면 저절로 내 매물만 남는다(11b)
+        with_team = user.team_id is not None
     master_filt, outer_sql, team_sql = _filter_sql(body.filters, args, with_team)
-    outer_sql += team_sql
+    # 매물 탐색(S08 §4): 팀 조건(상태 · 담당 · 등급 …)은 내 매물에만 — 광고 · 네이버 매물은 건물 조건으로만 거른다
+    outer_sql += f" AND (kind <> 'mine' OR (TRUE{team_sql}))" if body.tab == "explore" and team_sql else team_sql
+    if scoped:
+        outer_sql += {"mine": " AND is_listing", "any": " AND on_market",
+                      "none": " AND NOT on_market", "all": ""}[body.scope]
+        if team_sql:
+            # 팀 조건(담당 · 상태 …)을 걸었으면 내 매물만 — 매각된 내 매물이 네이버 값으로 「매물」에 다시 서서
+            # 팀 칸 없이 섞이던 것을 막는다(10-05 대화 「이승욱 담당」에 누상동 94)
+            outer_sql += " AND is_listing"
     # 'mine'만 내린다. 'normal'에 IS NULL을 걸면 대다수 행이 통과하는 조건이라
     # 플래너가 조인 순서를 바꿔 되레 느려졌다(구 단위 615ms→1401ms 실측).
     # 모델에겐 팀 매물 전부가 내 매물이다(SearchIn.for_model). 화면은 담당 배정된 것만.
     # l 은 이미 team_id = $1 로 조인돼 있으므로 모델 쪽은 「줄이 있으면」이 곧 우리 것이다.
     # **두 자리에 같이 써야 한다** — raw 의 WHERE 는 훑을 행을 줄이는 것이고, 열을 실제로
     # 가르는 것은 classified 의 CASE 다. 한쪽만 고쳤다가 13건이 5건으로 나왔다(2026-09-19).
-    mine_is = "l.id IS NOT NULL" if body.for_model else "l.assignee_account_id IS NOT NULL"
-    mine_is_out = "has_listing" if body.for_model else "assignee_account_id IS NOT NULL"
+    # 모델 읽기(출처 모드)도 팀 매물 전부가 내 매물이다(11b)
+    # 내 매물 = 주인이 내 사무소인 매물(0226). 매물은 등록으로만 생겨서 담당 없는 매물이 없다
+    mine_is = "n.owner = 'mine'"
+    mine_is_out = "has_listing"
     # 실거래 보기 — 건물마다 기간 안 가장 최근 거래(ds). 핀 값 · 년월이 이것으로 바뀐다(0192 인덱스)
     deal_join = ""
-    sale_cols = "b.last_sale_price, b.last_sale_ym"
+    sale_cols = "b.last_sale_price, b.last_sale_ym, NULL::text AS trade_use"
     if body.tab == "deal":
         import datetime as _dt
         y = _dt.date.today().year
-        if body.sale_from:
+        yl = sorted({int(v) for v in (body.sale_year_list or []) if 1990 <= int(v) <= y})
+        if yl:
+            lo, hi = f"{yl[0]}01", f"{yl[-1]}12"     # 인덱스로 좁히는 겉 범위 — 사이의 안 고른 해는 아래에서 뺀다
+        elif body.sale_from:
             lo, hi = f"{body.sale_from}01", f"{body.sale_to or y}12"
         else:
             d = _dt.date.today()
             lo, hi = f"{d.year - max(1, min(body.sale_years or 3, 30))}{d.month:02d}", "999912"
         args.extend([lo, hi])
-        deal_join = (f"        LEFT JOIN LATERAL (SELECT sh.price, sh.contract_ym FROM master.sales_history sh"
-                     f" WHERE sh.building_pk = b.building_pk AND sh.contract_ym BETWEEN ${len(args)-1} AND ${len(args)}"
-                     f" ORDER BY sh.contract_ym DESC LIMIT 1) ds ON TRUE\n")
-        sale_cols = "ds.price AS last_sale_price, ds.contract_ym AS last_sale_ym"
+        rng = f"${len(args)-1} AND ${len(args)}"
+        yr_sql = ""
+        if yl:
+            args.append([str(v) for v in yl])
+            yr_sql = f" AND left(sh.contract_ym, 4) = ANY(${len(args)}::text[])"
+        # 실거래 유형(0246) — 신고 갈래로 거른다. 매물유형과 상관없다. 조건이 LATERAL 안에 있어 핀 값은 고른 유형의 최근 거래
+        tt_sql = ""
+        if body.filters and body.filters.trade_types:
+            args.append(body.filters.trade_types)
+            tt_sql = f" AND sh.trade_type = ANY(${len(args)}::text[])"
+        # 지번에 붙은 거래 전부(통매 · 호실 · 토지, trade_parcel). 같은 달이면 날짜 · 거래 id 로 순서를 굳힌다
+        deal_join = (f"        LEFT JOIN LATERAL (SELECT sh.price, sh.contract_ym, sh.use_label FROM master.trade_parcel sh"
+                     f" WHERE sh.pnu = s.pnu AND sh.contract_ym BETWEEN {rng}{yr_sql}{tt_sql}"
+                     f" ORDER BY sh.contract_ym DESC, sh.contract_day DESC NULLS LAST, sh.trade_id DESC LIMIT 1) ds ON TRUE\n")
+        sale_cols = "ds.price AS last_sale_price, ds.contract_ym AS last_sale_ym, ds.use_label AS trade_use"
     col_filt = f" AND {mine_is}" if col == "mine" else ""
-    col_filt += _tab_sql(body, args, mine_is)
-    # 매물 유형 — 광고가 있으면 광고의 유형, 없으면 (내 매물 대분류 ∨ 대장 유형).
+    if body.for_model and body.target == "building":
+        # 모델은 건물 · 나대지를 따로 부른다(target) — 건물 검색엔 동이 선 지번만. 5단계(모델 쿼리)에서 하나로 합친다
+        col_filt += " AND s.rep_pk IS NOT NULL"
+    if scoped:
+        # 범위마다 raw 에서 먼저 좁힌다 — classified 만 보면 서울 전역을 다 만들고 버린다
+        # 「매물 아닌 땅」은 매물을 붙이지 않고 NOT EXISTS 로 거른다 — LEFT JOIN … IS NULL 로 두면 플래너가 줄 수를 1로 잡아
+        # 뒤의 조인마다 표를 통째로 훑었다(강남구 일반 1.9만 줄에 13~27s, 10-06). 매물 칸은 어차피 빈다
+        col_filt += {"mine": f" AND {mine_is}", "any": " AND n.listing_id IS NOT NULL",
+                     "none": " AND NOT EXISTS (SELECT 1 FROM n nx WHERE nx.pnu = s.pnu)",
+                     "all": ""}[body.scope]
+    else:
+        col_filt += _tab_sql(body, args, mine_is)
+    # 매물 유형(0246) — 팀이 고른 대분류, 없으면 네이버 유형. 대장으로 채우지 않는다.
     # 유형을 모르는 **내 매물**은 거르지 않는다 — 모르는 것을 빼면 담아 둔 매물이 사라진다(미지정은 null)
+    # 실거래 보기는 매물유형을 안 본다(trade_types 가 LATERAL 안에서 거른다)
     if body.filters and body.filters.kinds and body.tab != "deal":
         args.append(body.filters.kinds)
         k = len(args)
-        col_filt += (f" AND (CASE WHEN aa.ad_kinds IS NOT NULL THEN aa.ad_kinds && ${k}::text[]"
-                     f" ELSE COALESCE(l.building_major, bd.use_kind) = ANY(${k}::text[])"
-                     f" OR (l.id IS NOT NULL AND COALESCE(l.building_major, bd.use_kind) IS NULL) END)")
+        col_filt += (f" AND ({_LISTING_KIND} = ANY(${k}::text[])"
+                     f" OR (n.owner = 'mine' AND {_LISTING_KIND} IS NULL))")
     if body.bbox and len(body.bbox) == 4:
         args.extend(body.bbox)
         n = len(args)
-        col_filt += f" AND b.geom && ST_MakeEnvelope(${n-3}::float8, ${n-2}::float8, ${n-1}::float8, ${n}::float8, 4326)"
+        col_filt += f" AND s.geom && ST_MakeEnvelope(${n-3}::float8, ${n-2}::float8, ${n-1}::float8, ${n}::float8, 4326)"
     # 내 매물만 볼 때는 listings 를 **INNER JOIN** 으로 바꿔 담당 매물(수십 건)에서 시작한다.
     # LEFT JOIN + WHERE 로 두면 플래너가 buildings_v2 58만 행을 먼저 다 만들고 마지막에
     # 5건으로 줄였다(2026-08-28 실측 2.1s). 지역·폴리곤이 있으면 그쪽이 이미 좁히므로
     # 기존 LEFT JOIN 을 유지한다 — 예전에 전면 적용했다가 되레 느려진 기록이 위 주석이다.
-    narrow = col == "mine" and not body.polygon and not (body.filters and body.filters.bjd_code)
-    listing_join = "JOIN" if narrow else "LEFT JOIN"
+    narrow = (col == "mine" or body.scope == "mine") and not body.polygon and not (body.filters and body.filters.bjd_code)
     # INNER JOIN 도, IN 서브쿼리도 플래너를 못 바꿨다 — b 가 뷰라 펼치고 나면 buildings_v2 가
     # base 가 되어 58만 행을 먼저 만든다. MATERIALIZED CTE 로 담당 매물 pk 를 **먼저 굳혀**
     # 그것과 조인해야 pkey 인덱스로 들어간다(2026-08-28).
     mine_cte = ""
     mine_join = ""
     if narrow:
-        _mine_w = "" if body.for_model else " AND assignee_account_id IS NOT NULL"
         mine_cte = ("      mine_pk AS MATERIALIZED ("
-                    "SELECT building_pk FROM app.listings"
-                    f" WHERE team_id = $1{_mine_w}),\n")
-        mine_join = "        JOIN mine_pk mp ON mp.building_pk = b.building_pk\n"
+                    "SELECT DISTINCT lp.pnu FROM app.listings ol "
+                    "JOIN app.listing_parcels lp ON lp.listing_id = ol.id AND lp.main WHERE ol.team_id = $1),\n")
+        mine_join = "        JOIN mine_pk mp ON mp.pnu = s.pnu\n"
+    # 매물 보기(매물 찾기 · 탐색 · 매물 범위) — 줄은 매물이 붙은 지번(+ 거래완료 광고 지번)뿐이다.
+    # 그 지번을 먼저 굳혀 출발한다. 안 그러면 지번 66만 줄을 다 만들고 거른다(서울 매물 찾기 1.3s→2.5s, 10-08)
+    mkt_cte = mkt_join = ""
+    area_narrow = bool(body.polygon or (body.filters and (body.filters.bjd_code or body.filters.addr)))
+    if not narrow and not area_narrow and body.scope != "none" and (
+            body.tab in ("ad", "explore") or body.scope in ("mine", "any")):
+        extra = " UNION SELECT pnu FROM ad_agg" if body.tab == "ad" and not scoped else ""
+        mkt_cte = f",\n      mkt_pk AS MATERIALIZED (SELECT pnu FROM n{extra})"
+        mkt_join = "        JOIN (SELECT DISTINCT pnu FROM mkt_pk) mk ON mk.pnu = s.pnu\n"
 
     # 유동인구 = **실측 명수 그대로**(서울 생활인구 250m 격자 주간 평균, master.building_pop · 0130).
     # 예전엔 (도로접면 점수 + 역거리 점수)/2 를 다섯 칸으로 잘라 「높음」이라 불렀다. 이름만
@@ -1001,84 +1162,115 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
     need_reg = bool(_f.regulations or (_f.nots and "regulations" in _f.nots)
                     or ("reg_names" in (body.fields or [])))
     reg_col = ("(SELECT array_agg(DISTINCT e->>0) FROM master.parcels p, jsonb_array_elements(p.regulations) e"
-               " WHERE p.building_pk = b.building_pk)") if need_reg else "NULL::text[]"
+               " WHERE p.pnu = s.pnu)") if need_reg else "NULL::text[]"
 
+    # 매물(0226) — 누가 무엇을 보나 · 건물 안 순번은 app.listings_now 한 곳이 정한다. 매물 하나에 매매가 하나.
+    # 매물을 보는 자리(탐색 · 매물 찾기 · 모델 범위)는 **매물마다 한 줄**, 건물을 보는 자리(전체 · 실거래 · 구해요)는
+    # 건물마다 한 줄에 1번 매물만 붙인다(핀에 서는 매물).
+    # 매각된 내 매물은 「나와 있는 매물」이 아니다 — 한 채를 짚었을 때(sold_mine)만 넣는다.
+    _keep_sold = scoped and body.sold_mine
+    per_listing = scoped or body.tab in ("explore", "ad")
+    n_join = ("JOIN" if (body.tab == "explore" or body.scope in ("mine", "any")) else "LEFT JOIN") \
+        + " n ON n.pnu = s.pnu" + ("" if per_listing else " AND n.rank = 1")   # 매물은 지번에(0255)
+    if body.scope == "none":
+        n_join = "LEFT JOIN n ON FALSE"     # 매물 아닌 땅 — 매물 칸은 비운 채로 둔다(거르기는 위 NOT EXISTS)
+    # 핀 종류(S05 §2) — 주인에서 나온다: 내 매물 · 다른 사무소 광고 매물 · 수집 매물 · 매물 아님. 매물 찾기는 거래완료도
+    kind_sql = ("CASE owner WHEN 'mine' THEN 'mine' WHEN 'office' THEN 'ad' WHEN 'crawl' THEN 'market'"
+                " ELSE CASE WHEN ad_sold THEN 'sold' ELSE 'normal' END END")
     base = f"""
-      WITH {mine_cte}      photo_ex AS (SELECT DISTINCT building_pk FROM app.photos),
-      -- 광고(0191) — 건물마다 노출 중 건수 · 공개된 최저가 · 거래완료가 있었나. 누구나 본다
+      WITH {mine_cte}      photo_ex AS (SELECT DISTINCT lp.pnu FROM app.photos ph
+                     JOIN app.listing_parcels lp ON lp.listing_id = ph.listing_id AND lp.main),
+      -- MATERIALIZED: 한 번만 계산해 굳힌다. 안 굳히면 플래너가 줄마다 다시 돌렸다(종로구 내 매물 392번 × 0.1s = 44s, 10-06)
+      n AS MATERIALIZED (SELECT * FROM app.listings_now($1, {'TRUE' if broker else 'FALSE'}){'' if _keep_sold else ' WHERE NOT closed'}),
+      -- 거래완료 광고가 있던 건물(매물 찾기의 「거래완료」 핀). 누구나 본다
       ad_agg AS (
-        SELECT building_pk,
-               count(*) FILTER (WHERE state = '노출' AND expires_on >= current_date) AS ad_n,
-               min(price) FILTER (WHERE state = '노출' AND expires_on >= current_date AND price_open) AS ad_price_min,
-               bool_or(state = '거래완료') AS ad_sold,
-               array_agg(DISTINCT use_type) FILTER (WHERE use_type IS NOT NULL) AS ad_kinds
-          FROM app.ads WHERE state IN ('노출','거래완료') GROUP BY building_pk),
+        SELECT lp.pnu, true AS ad_sold
+          FROM app.ads a JOIN app.listing_parcels lp ON lp.listing_id = a.listing_id AND lp.main
+         WHERE a.state = '거래완료' GROUP BY lp.pnu){mkt_cte},
+
       raw AS (
-        SELECT b.building_pk, b.addr, b.land_area, b.total_area, b.gongsi_latest,
-               b.floors_above, b.floors_below, b.use_zone,
+        -- 줄 = 지번 하나(parcel_spot · 0258). 땅 값은 s, 대장 값은 대표 동 b(나대지면 빈다)
+        SELECT b.building_pk, s.addr, {_LAND_AREA} AS land_area, pr.total_area, s.gongsi_latest,
+               pr.floors_above, pr.floors_below, s.use_zone,
                -- 되비침용 대장 칸(2026-09-18) — 모델이 조건으로 건 값을 결과 줄에 같이 낸다.
                -- 안 걸면 SELECT 에 안 실리므로 응답은 안 커진다.
-               b.jimok, b.land_use, b.road_frontage, b.shape, b.slope,
+               s.jimok, s.land_use, s.road_frontage, s.shape, s.slope,
                -- 조회(building) 대장에만 있던 넷(2026-09-21). 검색 줄에서도 고를 수 있어야
                -- 「건물번호로 한 채」가 조회를 대신한다. 걸 조건이 없으니 fields 로만 나간다.
-               b.structure, b.height, b.road_addr, b.bjd_code,
-               b.main_use_name, b.etc_use, b.build_area, b.far_area, b.parcel_area,
-               b.elevator, b.parking, b.station_dist, b.approval_ymd, b.remodel_ymd,
+               b.structure, pr.height, s.road_addr, s.bjd_code,
+               b.main_use_name, b.etc_use, pr.build_area, pr.far_area, s.parcel_area,
+               pr.elevator, pr.parking, b.station_dist, b.approval_ymd, b.remodel_ymd,
+               -- 지번(0230) — 동 수 · 동들의 주용도. 줄은 대표 건물(연면적 큰 동)로만 선다
+               s.pnu, COALESCE(pr.n_bldg, 0) AS n_bldg, pr.uses,
                -- 실측 도로폭 셋(building_road)과 필지 규제 이름들(2026-09-22). 규제는 필지마다
                -- jsonb 목록이라 걸거나 달랄 때만 모은다 — 안 그러면 줄마다 하위질의가 돈다.
                br.front_m AS road_front, br.side_m AS road_side, br.rear_m AS road_rear,
                {reg_col} AS reg_names,
-               ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat,
+               ST_X(s.geom) AS lng, ST_Y(s.geom) AS lat,
                {sale_cols},
-               -- 팀이 적은 값은 **매물 줄 한 곳**(app.listings, 0173)에서 온다. 매매가·매도희망가·
-               -- 임대 합계·수익률 전부. 층별(floor_rents)은 쓸 때 mirror 가 여기로 접어 두므로
-               -- 검색은 조인도 나눗셈도 안 한다. 예전엔 overlays·floor_rents 를 CTE 로 매번 모았다.
-               l.sale_price, l.ask_price, se.sale_est, re.annual_rent,
-               re.monthly_rent AS rent_est_m, re.deposit_est,
+               -- 매물(0226) — 주인 · 매매가 하나 · 매매가로 나눈 셋. 내 매물이면 관리 칸(l), 수집 매물이면 수집 정보(lc)
+               n.listing_id, n.rank AS listing_rank, n.owner, n.office, n.ad_id,
+               n.price, n.price_on, n.pp_land AS pp_land_sale, n.pp_total AS pp_total_sale, n.gongsi_ratio AS gongsi_ratio_sale,
+               lc.seen_on AS mk_on, lc.n_ads AS mk_n,
+               -- 추정가는 지번 하나에 값 하나(0250 · parcel_sale_est)
+               l.ask_price, se.sale_est,
                l.total_rent AS rent_total, l.total_deposit AS deposit_total, l.total_mgmt AS mgmt_total,
-               l.vacant_area, l.roi AS team_roi, l.sell_vague,
-               l.rent_full, l.roi_full, l.full_est,      -- 만실(0181) · full_est 면 추정이 섞였다
-               (l.id IS NOT NULL) AS has_listing,   -- 「우리 팀 매물인가」 · 담당 배정과 다르다
+               l.vacant_area, l.sell_vague,
+               l.rent_full,                  -- 만실(0181)
+               (n.owner = 'mine') AS has_listing,   -- 내 매물인가 — 주인이 내 사무소
                l.assignee_account_id, l.urgency, l.grade, l.ipji, ow.owner_type,
                ow.relation, ow.cooperation, ow.kindness, l.building_major, l.building_use, l.price_vs_market, l.meongdo, l.use_change,
                l.myeolsil, l.nohudo, ow.phone AS owner_phone, ow.name AS owner_name,
                l.listing_no, l.intent, l.received_on,
                sa.sale_cnt,
-               (ph.building_pk IS NOT NULL) AS has_photo,
+               (ph.pnu IS NOT NULL) AS has_photo,
                b.bcr, b.far,
                -- 법정 건폐·용적은 **필지 원장**에서 온다(master.building_legal · 토지이음 산식 0153).
-               bl.legal_bcr, bl.legal_far,
-               -- **읽을 때 계산하는 값은 없다**(0174). 추정 수익률·평단가·공시비율·공시 상승·실거래 등락·
+               s.legal_bcr, s.legal_far,   -- 동이 있으면 building_legal, 나대지는 필지 값(0258)
+               -- **읽을 때 계산하는 값은 없다**(0174). 평단가·공시비율·공시 상승·실거래 등락·
                -- 건폐/용적 여유·도로/역 점수는 파이프라인이 master.building_derived 에 채운 칸이고,
-               -- 팀 매매가로 나눈 셋은 매물 줄(listings)에 접혀 있다. 산식은 DB 함수 한 벌뿐이다.
-               bd.roi_est, bd.pp_land, bd.pp_total, bd.gongsi_total, bd.gongsi_ratio,
+               -- 매매가로 나눈 셋은 매물 줄(app.listings)에 있다. 수익률만 아래에서 임대료와 짝짓는다.
+               bd.pp_land, bd.pp_total, bd.gongsi_total,
+               bd.gongsi_ratio,   -- 추정가로 나눈 셋 — 지번 값(0250)
                bd.gongsi_up5, bd.gongsi_up10, bd.sale_pnl, bd.bcr_slack, bd.far_slack,
                bd.road_score, bd.station_score,
-               l.pp_land_team, l.pp_total_team, l.gongsi_ratio_team,
-               COALESCE(aa.ad_n, 0) AS ad_n, aa.ad_price_min, COALESCE(aa.ad_sold, false) AS ad_sold,
+               COALESCE(aa.ad_sold, false) AS ad_sold,
+               l.hold_reason AS l_hold, {_LISTING_KIND} AS listing_kind,
+               -- 매물관리 칸(0199~0209 · 11b) — 상태 이름 · 전속 · 확인일 · 매각 · 융자 · 입주
+               st.name AS status_name, l.exclusive, l.checked_on, l.sold_on, l.sold_price,
+               CASE WHEN l.loan_open IS NOT FALSE THEN l.loan END AS loan, l.move_in, l.move_in_on,
                {float_pop_case} AS float_pop_calc,
                bp.night_avg AS float_pop_night     -- 모델 칸 「유동인구」는 주간·야간 두 수(2026-09-22)
-        FROM master.buildings b
-{mine_join}        LEFT JOIN master.building_sale_est se ON se.building_pk = b.building_pk
-        LEFT JOIN master.building_rent_est re ON re.building_pk = b.building_pk
+        FROM master.parcel_spot s
+        -- 보는 단위는 지번(0258) — 동이 선 지번은 지번 값(pr)과 대표 동 대장(b)을 붙이고, 나대지는 둘 다 빈다
+        LEFT JOIN master.parcel_rep pr ON pr.pkey = s.pkey
+        LEFT JOIN master.buildings b ON b.building_pk = s.rep_pk
+{mine_join}{mkt_join}        LEFT JOIN master.parcel_sale_est se ON se.pnu = s.pnu
         -- 유동인구 실측(0130) — 건물 좌표를 250m 격자로 접어 붙여 둔 표라 조인 한 번이다
         LEFT JOIN master.building_pop bp ON bp.building_pk = b.building_pk
-        LEFT JOIN master.building_legal bl ON bl.building_pk = b.building_pk
         LEFT JOIN master.building_road br ON br.building_pk = b.building_pk     -- 실측 도로폭(08-07)
         -- 검색 전용 계산값(0143) — 필터만 읽는다. SELECT 에는 안 싣는다(화면=대장)
         LEFT JOIN master.building_calc bc ON bc.building_pk = b.building_pk
         LEFT JOIN master.building_derived bd ON bd.building_pk = b.building_pk   -- 파생값(0174)
-        {listing_join} app.listings l ON l.building_pk = b.building_pk AND l.team_id = $1
+        {n_join}
+        -- 내 매물의 관리 칸 — 내 사무소 매물일 때만 붙는다(남의 관리 칸은 안 읽는다)
+        -- 뷰(office_listings)로 붙이면 플래너가 줄마다 내 매물 전부를 훑었다(일반 1.9만 줄 × 706 = 16s, 10-06). 관리 칸은 다 listing_office 에 있다
+        LEFT JOIN app.listing_office l ON l.listing_id = n.listing_id AND n.owner = 'mine'
+        -- 매물 유형(대분류)은 광고에 나가는 값이라 다른 사무소 매물 것도 읽는다 — 이 칸 하나만
+        LEFT JOIN app.listing_office lo2 ON lo2.listing_id = n.listing_id
+        LEFT JOIN app.listing_crawl lc ON lc.listing_id = n.listing_id
         LEFT JOIN app.owners ow ON ow.id = l.owner_id AND ow.deleted_at IS NULL   -- 0058 · 소유자는 사람 표
-        LEFT JOIN master.sales_agg sa ON sa.building_pk = b.building_pk   -- MV(0028): 매 검색마다 11.4만행 재집계하던 CTE 대체
-        LEFT JOIN photo_ex ph ON ph.building_pk = b.building_pk
-        LEFT JOIN ad_agg aa ON aa.building_pk = b.building_pk
+        LEFT JOIN app.statuses st ON st.id = l.status_id                         -- 상태(0199)
+        LEFT JOIN master.sales_agg sa ON sa.pnu = s.pnu   -- MV(0245 · 지번 단위): 매 검색마다 재집계하던 CTE 대체
+        LEFT JOIN photo_ex ph ON ph.pnu = s.pnu
+        LEFT JOIN ad_agg aa ON aa.pnu = s.pnu
 {deal_join}        WHERE TRUE {poly_sql} {master_filt} {col_filt}
       ),
       classified AS (
         SELECT building_pk, addr, land_area, total_area, floors_above, floors_below, use_zone,
                jimok, land_use, road_frontage, shape, slope, main_use_name, etc_use,
                structure, height, road_addr, bjd_code,          -- 조회 대장에만 있던 넷(2026-09-21)
+               pnu, n_bldg, uses,                               -- 지번(0230)
                build_area, far_area, parcel_area, elevator, parking, station_dist,
                road_front, road_side, road_rear, reg_names,
                approval_ymd, remodel_ymd, bcr, far, gongsi_latest,
@@ -1088,17 +1280,14 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
                owner_phone, owner_name, listing_no, intent, received_on, has_photo,
                COALESCE(sale_cnt, 0) AS sale_cnt,
                CASE WHEN {mine_is_out} THEN 'mine' ELSE 'normal' END AS col,
-               COALESCE(sale_price, sale_est) AS price,
-               (sale_price IS NULL) AS price_is_est,
-               -- 실측 짝의 수익률 = 총임대료 ÷ **팀 매매가**. 매물 줄에 접어 둔 값이다(0173).
-               team_roi AS roi,
-               deposit_total, rent_total, mgmt_total, vacant_area, rent_full, roi_full, full_est,
+               -- 매물(0226) — 매물 하나에 매매가 하나. 추정가를 섞지 않는다(추정가는 sale_est)
+               listing_id, listing_rank, owner, office, ad_id, price, price_on,
+               pp_land_sale, pp_total_sale, gongsi_ratio_sale, mk_on, mk_n,
+               -- 수익률 = 내 매물 총월임대 × 12 ÷ 매매가(읽을 때 낸다 — 분모 · 분자가 따로 바뀐다)
+               CASE WHEN rent_total > 0 AND price > 0 THEN round(rent_total * 12.0 / price * 100, 2) END AS roi,
+               CASE WHEN rent_full > 0 AND price > 0 THEN round(rent_full * 12.0 / price * 100, 2) END AS roi_full,
+               deposit_total, rent_total, mgmt_total, vacant_area, rent_full,
                ask_price, sell_vague,   -- 0000 매도희망가·매도 시점
-               -- 추정 연임대 — 추정가와 짝. 실측(rent_total)과 섞지 않는다: 카드는 추정 짝·실측 짝을 갈라 보여준다.
-               annual_rent AS est_annual_rent, rent_est_m, deposit_est,
-               roi_est,                    -- 추정 연임대 ÷ 추정가 — building_derived(0174)
-               sale_price AS team_price,   -- 필터용 팀 매매가(표시용 price 는 추정가 폴백이 섞인다)
-               pp_land_team, pp_total_team, gongsi_ratio_team,   -- 팀 매매가로 나눈 셋 — listings(0173·0174)
                pp_land, pp_total, gongsi_total, gongsi_ratio,    -- 추정가·공시 — building_derived
                gongsi_up5, gongsi_up10, sale_pnl,
                float_pop_calc AS float_pop, float_pop_night,
@@ -1108,10 +1297,14 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
                -- 검색은 「얼마나 더 지을 수 있나」를 묻는 필터라 법정 − 현재 이고 0에서 끊는다.
                -- 법정치는 이제 둘 다 같은 원장(building_legal)에서 온다 — 다른 것은 부호뿐이다.
                bcr_slack, far_slack,   -- 법정 − 현재, 0에서 끊음 — building_derived(0174)
-               ad_n, ad_price_min, ad_sold,
-               -- 핀 종류(S05 §2) — 내 매물 파랑 · 광고 검정 · 거래완료 회색 · 그 밖은 일반
-               CASE WHEN {mine_is_out} THEN 'mine' WHEN ad_n > 0 THEN 'ad'
-                    WHEN ad_sold THEN 'sold' ELSE 'normal' END AS kind
+               (bcr - legal_bcr) AS bcr_over, (far - legal_far) AS far_over,   -- 법정 대비(현재 − 법정, 09-30) — 걸면 줄에도 실린다
+               ad_sold, listing_kind, trade_use,
+               status_name, l_hold AS hold_reason,
+               CASE WHEN exclusive THEN '전속' WHEN exclusive IS FALSE THEN '일반' END AS exclusive_word,
+               checked_on, sold_on, sold_price, loan, move_in, move_in_on,
+               {kind_sql} AS kind,
+               (owner = 'mine') AS is_listing,
+               (listing_id IS NOT NULL) AS on_market
         FROM raw
       )
     """
@@ -1166,10 +1359,10 @@ async def resolve_biz(body: SearchIn) -> None:
         scope = "WHERE b.pk = ANY($3::text[])"
         sargs = [[f.building_pk] if isinstance(f.building_pk, str) else list(f.building_pk)]
     elif f.bjd_code or f.region:
-        codes = [_check_bjd(f.bjd_code)] if f.bjd_code else \
-                [resolve_region(w)[0] for w in (f.region if isinstance(f.region, list) else [f.region])[:10]]
+        likes = _bjd_likes(f.bjd_code) if f.bjd_code else \
+                [resolve_region(w)[0] + "%" for w in (f.region if isinstance(f.region, list) else [f.region])[:10]]
         scope = "JOIN master.buildings bb ON bb.building_pk = b.pk AND bb.bjd_code LIKE ANY($3::text[])"
-        sargs = [[c + "%" for c in codes]]
+        sargs = [likes]
     counts: list[dict[str, int]] = [{} for _ in words]
     hit_names: list[dict[str, list[str]]] = [{} for _ in words]
     places_n = [0] * len(words)
@@ -1228,13 +1421,12 @@ async def resolve_biz(body: SearchIn) -> None:
 # (「공시지가 대비 8.68%라 저평가」 — 아무도 안 물었고 그 숫자 하나로는 알 수도 없다).
 # 열다섯으로 줄여도 같은 병이다. 무엇을 견줄지는 **모델이 조건을 세우며 정한다**(조건 세우기 스킬).
 #
-#   늘        pk · 주소 · 값 둘(팀 매매가 · 추정가)          — 없으면 가리킬 수도, 값을 말할 수도 없다
+#   늘        pk · 주소 · 추정가                              — 매매가는 모델 층이 매매가 표에서 통째로 붙인다(0224)
 #   따라옴    이번에 건 조건의 값                            — 자기가 건 조건은 결과에서 보여야 설명이 된다
 #   고른 것   fields 로 달라고 한 칸                         — 걸지는 않지만 답에 쓸 값
 #
-# 값을 한 칸(price)에 섞지 않는다. sale_price 는 팀이 적은 것, sale_est 는 우리 추정이고, 둘을
-# COALESCE 로 합치면 모델이 사실과 추정을 못 가른다 — 지난번 estimate·등급이 거기서 나왔다.
-_BASE_COLS = ("building_pk", "addr", "team_price AS sale_price", "sale_est")
+# 매매가와 추정가를 한 칸에 섞지 않는다. 섞으면 모델이 사실과 추정을 못 가른다 — 지난번 estimate·등급이 거기서 나왔다.
+_BASE_COLS = ("pnu", "building_pk", "addr", "sale_est")
 
 # 필터 → 결과 줄에 되비칠 칸. 여기 없는 필터는 되비치지 않는다(지역·영역처럼 값이 아닌 것).
 # 「아님」이 되는 조건 — 이름 → (어느 목록, SQL 칸). m=classified 안쪽(b.) · t=팀 계산값.
@@ -1249,6 +1441,9 @@ _NOT_COL: dict[str, tuple[str, str]] = {
     "kindnesses": ("t", "kindness"), "sell_vagues": ("t", "sell_vague"),
     "meongdos": ("t", "meongdo"), "use_changes": ("t", "use_change"),
     "myeolsils": ("t", "myeolsil"),
+    "statuses": ("t", "status_name"), "hold_reasons": ("t", "hold_reason"),
+    "grades": ("t", "grade"), "ipjis": ("t", "ipji"), "nohudos": ("t", "nohudo"),
+    "price_vs_markets": ("t", "price_vs_market"), "building_majors": ("t", "building_major"),
     "regulations": ("m", "regulations"),   # 값은 안 쓴다 — _filter_sql 이 NOT EXISTS 로 따로 뺀다
 }
 _NOT_LIKE = frozenset({"use", "etc_use"})     # 부분일치라 = ANY 가 아니라 NOT ILIKE
@@ -1259,8 +1454,9 @@ _NOT_LIKE = frozenset({"use", "etc_use"})     # 부분일치라 = ANY 가 아니
 # 달래도 내림차순이 나갔다 — 잘린 꼬리가 싼 쪽이라 「80억쯤」을 묻고 싼 것을 못 봤다.
 # 화면은 sort_asc 를 안 보내므로(기본 False) 화면 순서는 그대로다.
 _SORT_ALIAS = {
-    "price": "price {d} NULLS LAST, addr",
-    "roi": "roi_est {d} NULLS LAST, price {d} NULLS LAST",
+    # 매매가 없는 건물은 뒤로, 그 안에선 추정가로(섞지는 않는다 — 세우는 차례일 뿐이다)
+    "price": "price {d} NULLS LAST, sale_est {d} NULLS LAST, addr",
+    "roi": "roi {d} NULLS LAST, price {d} NULLS LAST",      # 내 매물 실제 수익률(추정수익률은 0239 에서 삭제)
 }
 
 _ECHO: dict[str, str] = {
@@ -1281,6 +1477,8 @@ _ECHO: dict[str, str] = {
     "legal_far_min": "legal_far", "legal_far_max": "legal_far",
     "bcr_slack_min": "bcr_slack", "bcr_slack_max": "bcr_slack",
     "far_slack_min": "far_slack", "far_slack_max": "far_slack",
+    "bcr_over_min": "bcr_over", "bcr_over_max": "bcr_over", "far_over_min": "far_over", "far_over_max": "far_over",
+    "kinds": "listing_kind",
     "use_zones": "use_zone", "jimoks": "jimok", "land_uses": "land_use",
     "road_frontages": "road_frontage", "shapes": "shape", "slopes": "slope",
     "use": "main_use_name", "main_uses": "main_use_name", "etc_use": "etc_use",
@@ -1289,24 +1487,19 @@ _ECHO: dict[str, str] = {
     "gongsi_ratio_min": "gongsi_ratio", "gongsi_ratio_max": "gongsi_ratio",
     "gongsi_up5_min": "gongsi_up5", "gongsi_up5_max": "gongsi_up5",
     "gongsi_up10_min": "gongsi_up10", "gongsi_up10_max": "gongsi_up10",
-    "value_min": ("team_price AS sale_price", "sale_est", "ask_price"),
-    "value_max": ("team_price AS sale_price", "sale_est", "ask_price"),
-    "price_min": "team_price AS sale_price", "price_max": "team_price AS sale_price",
+    "price_min": "price", "price_max": "price",
     "ask_min": "ask_price", "ask_max": "ask_price",
     "sell_vagues": "sell_vague",
     "sale_est_min": "sale_est", "sale_est_max": "sale_est",
     "roi_min": "roi", "roi_max": "roi",
-    "roi_est_min": "roi_est", "roi_est_max": "roi_est",
-    "rent_est_min": "rent_est_m", "rent_est_max": "rent_est_m",
-    "deposit_est_min": "deposit_est", "deposit_est_max": "deposit_est",
     "rent_total_min": "rent_total", "rent_total_max": "rent_total",
     "deposit_total_min": "deposit_total", "deposit_total_max": "deposit_total",
     "mgmt_total_min": "mgmt_total", "mgmt_total_max": "mgmt_total",
     "pp_land_min": "pp_land", "pp_land_max": "pp_land",
     "pp_total_min": "pp_total", "pp_total_max": "pp_total",
-    "pp_land_team_min": "pp_land_team", "pp_land_team_max": "pp_land_team",
-    "pp_total_team_min": "pp_total_team", "pp_total_team_max": "pp_total_team",
-    "gongsi_ratio_team_min": "gongsi_ratio_team", "gongsi_ratio_team_max": "gongsi_ratio_team",
+    "pp_land_sale_min": "pp_land_sale", "pp_land_sale_max": "pp_land_sale",
+    "pp_total_sale_min": "pp_total_sale", "pp_total_sale_max": "pp_total_sale",
+    "gongsi_ratio_sale_min": "gongsi_ratio_sale", "gongsi_ratio_sale_max": "gongsi_ratio_sale",
     "sale_pnl_min": "sale_pnl", "sale_pnl_max": "sale_pnl",
     "sale_count_min": "sale_cnt", "sale_count_max": "sale_cnt",
     "last_sale_min": "last_sale_price", "last_sale_max": "last_sale_price",
@@ -1316,25 +1509,36 @@ _ECHO: dict[str, str] = {
     "regulations": "reg_names",
     "vacant": "vacant_area",
     "vacant_area_min": "vacant_area", "vacant_area_max": "vacant_area",
-    # 만실 월임대는 조건이 없고 만실 수익률에 딸려 나간다. full_est 는 이름을 가르는 데 쓴다
-    "roi_full_min": ("roi_full", "rent_full", "full_est"), "roi_full_max": ("roi_full", "rent_full", "full_est"),
+    # 만실 월임대는 조건이 없고 만실 수익률에 딸려 나간다
+    "roi_full_min": ("roi_full", "rent_full"), "roi_full_max": ("roi_full", "rent_full"),
     "urgencies": "urgency", "owner_types": "owner_type", "relations": "relation",
     "cooperations": "cooperation", "kindnesses": "kindness", "meongdos": "meongdo",
     "use_changes": "use_change", "myeolsils": "myeolsil",
     "assignees": "assignee_account_id", "owner_name": "owner_name",
     "listing_no": "listing_no", "intent": "intent", "received_from": "received_on",
     "received_to": "received_on", "has_photo": "has_photo",
+    # 매물관리 칸 · 광고 · 네이버(11b)
+    "statuses": "status_name", "hold_reasons": "hold_reason", "exclusive": "exclusive_word",
+    "checked_from": "checked_on", "checked_to": "checked_on",
+    "grades": "grade", "ipjis": "ipji", "nohudos": "nohudo", "price_vs_markets": "price_vs_market",
+    "building_majors": "building_major", "building_uses": "building_use",
 }
 # fields 로 고를 수 있는 칸 — 되비칠 수 있는 것 전부 + 늘 나가는 것
 _FIELDS_OK = ({c.split(" AS ")[0] for v in _ECHO.values() for c in (v if isinstance(v, tuple) else (v,))}
-              | {"lng", "lat", "col", "price_is_est", "owner_phone", "grade", "ipji",
-                 "building_major", "building_use", "price_vs_market", "nohudo", "est_annual_rent"}
+              | {"lng", "lat", "col", "price", "price_on", "owner_phone", "grade", "ipji",
+                 "building_major", "building_use", "price_vs_market", "nohudo"}
               # 조회 대장에만 있던 넷. 조건으로는 못 걸고 **보기만** 한다(2026-09-21).
               | {"structure", "height", "road_addr", "bjd_code"}
               # 측면·후면 도로폭은 조건은 없고 보기만(2026-09-22). 전면은 조건이 된다
               | {"road_side", "road_rear"}
               # 야간 유동인구 — 모델은 「유동인구」 한 이름으로 주간·야간을 같이 받는다(names.DROP 에도)
-              | {"float_pop_night"})
+              | {"float_pop_night"}
+              # 보기만(11b) — 매각 · 융자 · 입주 · 매물 유형 · 핀 색(kind) · 내 매물인가(is_listing)
+              # 매물(0226) — 매물 번호 · 건물 안 순번 · 주인 · 주인 사무소 이름 · 수집일 · 광고 수
+              | {"sold_on", "sold_price", "loan", "move_in", "move_in_on", "listing_kind", "trade_use", "kind", "is_listing",
+                 "listing_id", "listing_rank", "owner", "office", "ad_id", "mk_on", "mk_n",
+                 # 지번(0230) — 동 수 · 동들의 주용도 · 지번번호
+                 "n_bldg", "uses", "pnu"})
 # road_score·station_score 는 뺐다(2026-09-19). 적정가 산식이 쓰는 내부 점수표라 화면에도 안 나오고,
 # 안쪽 질의에만 있고 바깥 SELECT 에 없어서 fields 로 부르면 UndefinedColumnError 로 죽었다.
 
@@ -1368,10 +1572,6 @@ def _row_cols(body: "SearchIn") -> tuple[list[str], list[str]]:
             alias = c.split(" AS ")[-1]
             if alias not in seen:
                 cols.append(c); seen.add(alias)
-    # 만실 값이 나가면 **추정이 섞였는지**도 같이 나가야 한다(0181). 안 그러면 추정값이 실측
-    # 이름으로 나간다 — 모델은 칸만 달라고 하고 조건은 안 거는 일이 흔하다
-    if ({"rent_full", "roi_full"} & seen) and "full_est" not in seen:
-        cols.append("full_est"); seen.add("full_est")
     return cols, unknown
 
 
@@ -1433,7 +1633,7 @@ async def search_vacant(body: SearchIn, user: CurrentUser) -> dict:
         if ors:
             where.append("(" + " OR ".join(ors) + ")")
     if f.bjd_code:
-        add("v.bjd_code LIKE ${} || '%'", _check_bjd(f.bjd_code))
+        add("v.bjd_code LIKE ANY(${}::text[])", _bjd_likes(f.bjd_code))
 
     for name, col in _VACANT_ANY.items():
         vals = getattr(f, name, None)
@@ -1445,8 +1645,8 @@ async def search_vacant(body: SearchIn, user: CurrentUser) -> dict:
         if v is not None:
             if name == "pnu" and isinstance(v, str):
                 v = [v]                       # 하나를 줘도 목록으로 건다
-            if name == "addr":                # 지번 열쇠로 다듬고, 산 지번은 주소 전체로
-                v = _jibun_key(v); tmpl = _addr_cond("v.addr", v).replace("${i}", "{}")
+            if name == "addr":                # 나대지는 지번만(도로명 칸이 없다)
+                v = _jibun_key(v); tmpl = _addr_cond_vacant("v.addr").replace("${i}", "{}")
             add(tmpl.replace("{}", "${}"), v)
     for fname, vals in (f.nots or {}).items():
         col = _VACANT_ANY.get(fname)
@@ -1492,7 +1692,7 @@ def _with_match(body: SearchIn, out: dict) -> dict:
 
 
 @router.post("", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3). 화면과 같은 답
-async def search(body: SearchIn, user: CurrentUser = Depends(any_user)):
+async def search(body: SearchIn, user: CurrentUser = Depends(viewer)):
     """2열 목록(내매물/일반) + 열별 독립 페이징.
 
     분류(§3.4·상태 종속): 내매물 = 팀 담당자 지정 · 일반 = 나머지.
@@ -1509,7 +1709,7 @@ async def search(body: SearchIn, user: CurrentUser = Depends(any_user)):
     if body.sort in _SORT_ALIAS:
         order = _SORT_ALIAS[body.sort].format(d=d)
     elif body.sort in _FIELDS_OK:
-        order = f"{body.sort} {d} NULLS LAST, building_pk"
+        order = f"{body.sort} {d} NULLS LAST, pnu"
     elif body.for_model:
         # 모델 층은 이름을 다 검사해서 보내므로 여기 오면 우리 표가 어긋난 것이다.
         # 조용히 기본으로 떨어뜨리면 「오름차순」이 내림차순으로 나가도 아무도 모른다.
@@ -1529,16 +1729,18 @@ async def search(body: SearchIn, user: CurrentUser = Depends(any_user)):
         # 열 조건을 raw WHERE로 내려 그 열에 속한 행만 만든다(내매물 0건 팀은 즉시 종료).
         base, args, outer_sql = _build_base(body, user, col=name)
         off = (page - 1) * body.per_page
+        # 범위 모드는 열(col) 대신 범위로 가른다 — outer_sql 에 is_listing · on_market 이 이미 붙어 있다
+        colw = "TRUE" if body.scope else f"col = '{name}'"
         # count(*) OVER() 윈도우는 LIMIT 최적화를 막아 구 전체(2.4만+)에서 30s+ 행업(플래너가
         # 전 행 계산·nested-loop 폭발). rows(LIMIT)와 total(경량 count)을 분리하면 ~5s.
         rows, total = await asyncio.gather(
             pool().fetch(
                 base + f"""SELECT {", ".join(cols)} FROM classified
-                           WHERE col = '{name}' {outer_sql} ORDER BY {order}
+                           WHERE {colw} {outer_sql} ORDER BY {order}
                            LIMIT {body.per_page} OFFSET {off}""",
                 *args),
             pool().fetchval(
-                base + f"SELECT count(*) FROM classified WHERE col = '{name}' {outer_sql}",
+                base + f"SELECT count(*) FROM classified WHERE {colw} {outer_sql}",
                 *args),
         )
         items = [dict(r) for r in rows]
@@ -1561,6 +1763,8 @@ async def search(body: SearchIn, user: CurrentUser = Depends(any_user)):
     # 내 매물만 — 지역·영역이 없으면 '일반' 열은 서울 전체가 되어 의미도 없고 느리다.
     # 담당자 있는 행만 훑으므로(listings_claim 부분 인덱스) 범위 조건 없이도 가볍다.
     _empty = {"items": [], "total": 0, "page": 1, "pages": 1}
+    if body.scope in ("mine", "any", "none", "all"):     # 범위 한 열(모델 읽기 11b)
+        return _with_match(body, {body.scope: await column(body.scope, body.page_normal)})
     if body.mine_only or body.only == "mine":
         return {"mine": await column("mine", body.page_mine), "normal": _empty}
     if body.only == "normal":      # 모델의 `범위:"일반"` — 「내 매물 아닌 것 중에」
@@ -1572,12 +1776,20 @@ async def search(body: SearchIn, user: CurrentUser = Depends(any_user)):
     return _with_match(body, {"mine": mine, "normal": normal})
 
 
+@router.get("/regulations")
+async def regulations(user: CurrentUser = Depends(viewer)):
+    """규제 이름 — 걸린 건물이 많은 것부터(조건 화면 「규제」 줄, 09-30). 모델 스키마 값 목록과 같은 표."""
+    return [{"name": n, "buildings": c} for n, c in await regulation_names()]
+
+
 @router.post("/count")
-async def count_only(body: SearchIn, user: CurrentUser = Depends(any_user)):
+async def count_only(body: SearchIn, user: CurrentUser = Depends(viewer)):
     """조건에 맞는 건수만(2026-08-27) — 필터 창이 닫기 전에 결과 크기를 말하려고 쓴다.
 
     목록 조회는 두 열을 각각 페이징하고 값도 많이 실어 구 단위에서 초가 걸린다.
     여기서는 building_pk 하나만 세므로 같은 조건이라도 훨씬 가볍다."""
+    if body.tab == "explore" and (user.kind != "중개사" or user.team_id is None):
+        raise HTTPException(403, "중개사 전용입니다")
     await load_guards()
     await resolve_biz(body)
     base, args, outer_sql = _build_base(body, user, col="mine" if body.mine_only else None)
@@ -1587,23 +1799,31 @@ async def count_only(body: SearchIn, user: CurrentUser = Depends(any_user)):
 
 
 @router.post("/pins")
-async def pins(body: SearchIn, user: CurrentUser = Depends(any_user)):
+async def pins(body: SearchIn, user: CurrentUser = Depends(viewer)):
     """지도 핀 — 페이징 없이 조건에 맞는 매물(경량: 좌표·분류·가격).
     프론트가 뷰포트 컬링(화면 안 핀만 렌더)하므로 넉넉히 반환하되, 3000개 상한(응답 크기·극단 방지).
     가격 있는 매물 우선(NULLS LAST) → 상한에 걸려도 유의미한 핀부터."""
+    if body.tab == "explore" and (user.kind != "중개사" or user.team_id is None):
+        raise HTTPException(403, "중개사 전용입니다")   # 매물 탐색(S08) — 네이버 매물은 크롤링 자료
     await load_guards()
     await resolve_biz(body)
     base, args, outer_sql = _build_base(body, user, col="mine" if body.mine_only else None)
     rows = await pool().fetch(
-        base + f"""SELECT building_pk, addr, lng, lat, col, price, roi,
-                         price_is_est, roi_est,   -- 추정 짝·실측 짝을 가르는 재료(0134)
+        base + f"""SELECT pnu, building_pk, addr, lng, lat, col, price, roi,   -- pnu = 고르는 열쇠(지번 · 10-08)
+                         -- 매물(0226) — 줄 하나 = 매물 하나(매물 탭) · 건물 하나(건물 탭, 1번 매물). 핀은 rank 1 만 그린다
+                         listing_id, listing_rank AS rank, owner, office, ad_id,
                          last_sale_price, sale_est,
                          -- 지도에서 실거래를 총액·단가로 견주는 데 쓴다(밸류맵식).
                          -- 단가는 대지면적이 기본이고 연면적은 토글이라 둘 다 내려보낸다.
                          last_sale_ym, land_area, total_area,
-                         kind, ad_n, ad_price_min     -- 광고(0191)
+                         kind,                        -- 핀 색(주인)
+                         listing_kind AS major,       -- 전단 핀 가운데 줄 · 탐색 카드(매물유형 · 0246)
+                         trade_use,                   -- 실거래 보기: 원천 용도, 없으면 실거래 유형(0246)
+                         mk_on, mk_n,                 -- 탐색(S08): 네이버 수집일 · 그날 광고 수
+                         main_use_name                -- 가격표 첫 칸(근린 · 단독 …, 09-30 밸류맵식)
                   FROM classified WHERE lng IS NOT NULL {outer_sql}
-                  ORDER BY (kind IN ('mine','ad')) DESC, price DESC NULLS LAST, building_pk LIMIT 3000""",
+                  ORDER BY (kind IN ('mine','ad')) DESC, price DESC NULLS LAST, pnu
+                  LIMIT {15000 if body.tab == "explore" else 3000}""",
         *args,
     )
     return [dict(r) for r in rows]

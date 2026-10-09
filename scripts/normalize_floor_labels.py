@@ -46,12 +46,6 @@ async def main() -> None:
         "SELECT count(*) FROM master.floor_outline WHERE floor !~ '^(내)?(지하|옥탑|중)?[0-9]+층$'")
     print(f"정규 표기 아닌 잔여 {left:,}행 — 판정 불가라 원본 유지(2층이상·지하1층.1층 등)")
 
-    for mv in ("master.floor_est_by_floor", "master.floor_est_total"):
-        try:
-            await c.execute(f"REFRESH MATERIALIZED VIEW CONCURRENTLY {mv}")
-            print(f"  · {mv} 갱신")
-        except Exception as e:
-            print(f"  ⚠️ {mv} 갱신 실패: {e}")
     await c.close()
 
 

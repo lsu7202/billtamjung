@@ -223,14 +223,15 @@ async def load(gu: str, since: str):
     time_adjust = json.loads(tj_row) if isinstance(tj_row, str) else (tj_row or {})
     # 대상 구의 모든 상업성격 매각(타깃+comp 풀 겸용) — 컬럼 float 캐스팅
     rows = await conn.fetch(f"""
-        SELECT sh.building_pk, sh.contract_ym, sh.price::float AS price,
+        SELECT b.building_pk, sh.contract_ym, sh.price::float AS price,
                sh.total_area::float AS total_area, sh.land_area::float AS land_area,
                b.gongsi_latest::float AS gongsi_latest, b.approval_ymd, b.remodel_ymd, b.use_zone,
                b.structure, b.road_frontage, b.main_use, b.station_dist::float AS station_dist,
                pp.day_avg::float AS day_pop, pp.night_avg::float AS night_pop,
                ST_X(b.geom) AS lng, ST_Y(b.geom) AS lat
-        FROM master.sales_history sh
-        JOIN master.buildings b USING (building_pk)
+        FROM master.trade_whole sh
+        JOIN master.parcel_rep pr ON pr.pnu = sh.pnu
+        JOIN master.buildings b ON b.building_pk = pr.rep_pk
         LEFT JOIN master.building_pop pp ON pp.building_pk = b.building_pk
         WHERE b.bjd_code LIKE $1 || '%' AND sh.price > 0 AND sh.total_area > 0
           AND (b.land_use = ANY($2) OR substr(b.main_use,1,2) IN ({_MU_IN}))

@@ -62,19 +62,19 @@ async def _find_or_create(conn, provider: str, uid: str, email: str | None, name
     row = await conn.fetchrow(
         "SELECT account_id FROM app.social_accounts WHERE provider=$1 AND provider_uid=$2", provider, uid)
     if row:
-        return dict(await conn.fetchrow("SELECT id, tier FROM app.accounts WHERE id=$1", row["account_id"]))
+        return dict(await conn.fetchrow("SELECT id FROM app.accounts WHERE id=$1", row["account_id"]))
 
     acc = None
     if email:                                          # 같은 이메일 기존 계정에 연결
         acc = await conn.fetchrow(
-            "SELECT id, tier FROM app.accounts WHERE email=$1 AND deleted_at IS NULL", email)
+            "SELECT id FROM app.accounts WHERE email=$1 AND deleted_at IS NULL", email)
     if not acc and not settings.signups_open:          # 가입 차단 중 — 기존 계정 로그인만 허용
         raise HTTPException(403, "관리자만 이용 가능합니다.")
     if not acc:                                        # 신규: 계정→팀→멤버
         # 이메일 미제공(카카오 동의 거부 등) — accounts.email NOT NULL이라 대체값 생성
         acc = await conn.fetchrow(
-            """INSERT INTO app.accounts(email,name,tier,trial_started_at,trial_ends_at,terms_agreed_at)
-               VALUES($1,$2,'trial',now(),now()+interval '1 month',now()) RETURNING id, tier""",
+            """INSERT INTO app.accounts(email,name,terms_agreed_at)
+               VALUES($1,$2,now()) RETURNING id""",
             email or f"{provider}_{uid}@social.invalid", name or "소셜 사용자")
         team_id = await conn.fetchval(
             "INSERT INTO app.teams(name,owner_account_id) VALUES($1,$2) RETURNING id",

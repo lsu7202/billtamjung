@@ -1,8 +1,7 @@
 """팀 협업: 조회·팀명·초대(생성/재전송/취소/수락)·제외·탈퇴 + 담당 매물 대표 승계.
 specs S0M-마이페이지 §3.2~3.6. 한 계정=활성 팀 1개(0023 one_active_membership).
-베타: 초대는 실제 이메일/SMS 발송 없이 코드(token) 반환 — 대표가 직접 전달, 수락자가 코드 입력."""
+초대(0221): 관리자가 이름으로 중개사를 찾아 보내고, 받은 사람이 「받은 초대」에서 수락 · 거절한다."""
 import os
-import secrets
 import uuid
 import datetime as dt
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
@@ -10,7 +9,7 @@ from pydantic import BaseModel
 from ..core import storage
 from ..core.db import pool, tx
 from ..core.deps import current_user, CurrentUser
-from .auth import _issue  # 활성 멤버십 기준 access 재발급(+refresh 쿠키). 팀 이동 후 team_id 갱신
+from .auth import _issue, photo_url  # 활성 멤버십 기준 access 재발급(+refresh 쿠키). 팀 이동 후 team_id 갱신
 
 router = APIRouter(prefix="/team", tags=["team"])
 INVITE_TTL_DAYS = 7
@@ -25,12 +24,7 @@ class RenameIn(BaseModel):
 
 
 class InviteIn(BaseModel):
-    channel: str = "email"   # email|phone
-    target: str
-
-
-class AcceptIn(BaseModel):
-    token: str
+    account_id: int          # 0221 — 이름으로 찾은 중개사 계정
 
 
 # ── 승계/복귀 헬퍼 ────────────────────────────────────
@@ -47,8 +41,8 @@ async def _leave_team(conn, team_id: int, account_id: int) -> None:
         )
         if owner:  # 고아 매물 방지: 담당 매물을 대표에게 자동 귀속(specs S0M §3.5)
             await conn.execute(
-                "UPDATE app.listings SET assignee_account_id=$1, updated_at=now() "
-                "WHERE team_id=$2 AND assignee_account_id=$3",
+                "UPDATE app.listing_office o SET assignee_account_id=$1 FROM app.listings l "
+                "WHERE l.id = o.listing_id AND l.team_id=$2 AND o.assignee_account_id=$3",
                 owner, team_id, account_id,
             )
     await conn.execute(
@@ -84,7 +78,7 @@ async def get_team(user: CurrentUser = Depends(current_user)):
     """내 팀 정보 + 멤버 + (대표면)대기 초대."""
     t = await pool().fetchrow("SELECT id, name FROM app.teams WHERE id=$1", user.team_id)
     members = await pool().fetch(
-        """SELECT a.id AS account_id, a.name, a.email, tm.role, tm.joined_at
+        """SELECT a.id AS account_id, a.name, a.email, a.photo_path, a.job_title, tm.role, tm.joined_at
            FROM app.team_members tm JOIN app.accounts a ON a.id=tm.account_id
            WHERE tm.team_id=$1 AND tm.left_at IS NULL AND a.deleted_at IS NULL
            ORDER BY (tm.role='owner') DESC, a.name""",
@@ -95,19 +89,22 @@ async def get_team(user: CurrentUser = Depends(current_user)):
         "member_count": len(members),
         "members": [
             {"account_id": m["account_id"], "name": m["name"], "email": m["email"],
-             "role": m["role"], "is_me": m["account_id"] == user.account_id}
+             "role": m["role"], "is_me": m["account_id"] == user.account_id,
+             "photo": photo_url(m["account_id"], m["photo_path"]), "job_title": m["job_title"]}
             for m in members
         ],
         "invites": [],
     }
     if user.role == "owner":
         inv = await pool().fetch(
-            """SELECT id, channel::text AS channel, target, token, expires_at, created_at
-               FROM app.team_invites WHERE team_id=$1 AND status='pending'
-               ORDER BY created_at DESC""",
+            """SELECT i.id, i.invitee_account_id AS account_id, a.name, a.job_title, a.photo_path, i.expires_at, i.created_at
+               FROM app.team_invites i JOIN app.accounts a ON a.id = i.invitee_account_id
+               WHERE i.team_id=$1 AND i.status='pending' AND (i.expires_at IS NULL OR i.expires_at > now())
+               ORDER BY i.created_at DESC""",
             user.team_id,
         )
-        out["invites"] = [dict(r) for r in inv]
+        out["invites"] = [{**{k: r[k] for k in ("id", "account_id", "name", "job_title", "expires_at", "created_at")},
+                           "photo": photo_url(r["account_id"], r["photo_path"])} for r in inv]
     return out
 
 
@@ -201,51 +198,66 @@ async def del_logo(user: CurrentUser = Depends(current_user)):
     return {"ok": True}
 
 
-# ── 초대 ─────────────────────────────────────────────
-def _invite_out(rid: int, token: str, target: str, exp: dt.datetime) -> dict:
-    return {"id": rid, "token": token, "target": target, "expires_at": exp.isoformat()}
+# ── 초대(0221 · 게임 초대처럼) ─────────────────────────
+# 관리자가 이름으로 중개사를 찾아 초대한다. 받은 사람은 「받은 초대」에서 수락 · 거절한다. 코드는 없다.
+def _mask(email: str | None) -> str:
+    if not email or "@" not in email:
+        return ""
+    local, dom = email.split("@", 1)
+    return f"{local[:2]}{'*' * max(len(local) - 2, 1)}@{dom}"
+
+
+@router.get("/people")
+async def search_people(q: str, user: CurrentUser = Depends(current_user)):
+    """초대할 중개사 찾기 — 이름(또는 이메일 앞부분). 고객 · 나 · 이미 우리 팀원은 뺀다. 20명까지"""
+    t = q.strip()
+    if not t:
+        return []
+    rows = await pool().fetch(
+        """SELECT a.id, a.name, a.job_title, a.email, a.photo_path,
+                  COALESCE(t.office_name, t.name) AS office,
+                  EXISTS (SELECT 1 FROM app.team_invites i WHERE i.team_id = $1 AND i.invitee_account_id = a.id
+                           AND i.status = 'pending' AND (i.expires_at IS NULL OR i.expires_at > now())) AS invited
+             FROM app.accounts a
+             LEFT JOIN app.team_members m ON m.account_id = a.id AND m.left_at IS NULL
+             LEFT JOIN app.teams t ON t.id = m.team_id
+            WHERE a.kind = '중개사' AND a.deleted_at IS NULL AND a.id <> $2
+              AND (m.team_id IS NULL OR m.team_id <> $1)
+              AND (a.name ILIKE '%' || $3 || '%' OR a.email ILIKE $3 || '%')
+            ORDER BY (a.name = $3) DESC, (a.name ILIKE $3 || '%') DESC, a.name
+            LIMIT 20""",
+        user.team_id, user.account_id, t)
+    return [{"account_id": r["id"], "name": r["name"], "job_title": r["job_title"], "office": r["office"],
+             "email": _mask(r["email"]), "photo": photo_url(r["id"], r["photo_path"]), "invited": r["invited"]} for r in rows]
 
 
 @router.post("/invites")
 async def create_invite(body: InviteIn, user: CurrentUser = Depends(current_user)):
     if user.role != "owner":
-        raise HTTPException(403, "대표만 팀원을 초대할 수 있습니다")
-    if body.channel not in ("email", "phone"):
-        raise HTTPException(422, "channel은 email|phone")
-    target = body.target.strip()
-    if not target:
-        raise HTTPException(422, "초대 대상(이메일·전화)을 입력하세요")
-    token = secrets.token_urlsafe(9)
-    exp = _now() + dt.timedelta(days=INVITE_TTL_DAYS)
+        raise HTTPException(403, "관리자만 팀원을 초대할 수 있습니다")
+    ok = await pool().fetchval(
+        """SELECT 1 FROM app.accounts a WHERE a.id=$1 AND a.kind='중개사' AND a.deleted_at IS NULL
+             AND NOT EXISTS (SELECT 1 FROM app.team_members m WHERE m.account_id=a.id AND m.team_id=$2 AND m.left_at IS NULL)""",
+        body.account_id, user.team_id)
+    if not ok or body.account_id == user.account_id:
+        raise HTTPException(422, "초대할 수 없는 사람입니다")
+    # 만료된 대기 초대는 정리하고 새로 보낸다
+    await pool().execute(
+        """UPDATE app.team_invites SET status='expired' WHERE team_id=$1 AND invitee_account_id=$2
+             AND status='pending' AND expires_at IS NOT NULL AND expires_at <= now()""", user.team_id, body.account_id)
     rid = await pool().fetchval(
-        """INSERT INTO app.team_invites(team_id,invited_by,channel,target,token,expires_at)
-           VALUES($1,$2,$3::app.invite_channel,$4,$5,$6) RETURNING id""",
-        user.team_id, user.account_id, body.channel, target, token, exp,
-    )
-    # 베타: 발송 스텁 — 코드 반환(대표가 전달). 정식: 이메일/SMS 발송으로 교체.
-    return _invite_out(rid, token, target, exp)
-
-
-@router.post("/invites/{invite_id}/resend")
-async def resend_invite(invite_id: int, user: CurrentUser = Depends(current_user)):
-    if user.role != "owner":
-        raise HTTPException(403, "대표만 가능합니다")
-    token = secrets.token_urlsafe(9)
-    exp = _now() + dt.timedelta(days=INVITE_TTL_DAYS)
-    row = await pool().fetchrow(
-        """UPDATE app.team_invites SET token=$1, expires_at=$2, status='pending', created_at=now()
-           WHERE id=$3 AND team_id=$4 AND status='pending' RETURNING id, target""",
-        token, exp, invite_id, user.team_id,
-    )
-    if not row:
-        raise HTTPException(404, "대기 중인 초대가 아닙니다")
-    return _invite_out(row["id"], token, row["target"], exp)
+        """INSERT INTO app.team_invites(team_id, invited_by, invitee_account_id, expires_at)
+           VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id""",
+        user.team_id, user.account_id, body.account_id, _now() + dt.timedelta(days=INVITE_TTL_DAYS))
+    if rid is None:
+        raise HTTPException(409, "이미 초대했습니다")
+    return {"ok": True, "id": rid}
 
 
 @router.delete("/invites/{invite_id}")
 async def cancel_invite(invite_id: int, user: CurrentUser = Depends(current_user)):
     if user.role != "owner":
-        raise HTTPException(403, "대표만 가능합니다")
+        raise HTTPException(403, "관리자만 가능합니다")
     await pool().execute(
         "UPDATE app.team_invites SET status='cancelled' WHERE id=$1 AND team_id=$2 AND status='pending'",
         invite_id, user.team_id,
@@ -253,13 +265,33 @@ async def cancel_invite(invite_id: int, user: CurrentUser = Depends(current_user
     return {"ok": True}
 
 
-@router.post("/invites/accept")
-async def accept_invite(body: AcceptIn, resp: Response, user: CurrentUser = Depends(current_user)):
-    """초대 코드로 팀 합류. 현재 팀에서 나가고(담당 매물 승계) 새 팀에 팀원으로 합류 → 토큰 재발급."""
+@router.get("/invites/received")
+async def received_invites(user: CurrentUser = Depends(current_user)):
+    """나에게 온 대기 중 초대 — 사무소 이름 · 보낸 사람"""
+    rows = await pool().fetch(
+        """SELECT i.id, COALESCE(t.office_name, t.name) AS office, a.name AS inviter, a.id AS inviter_id, a.photo_path, i.created_at
+             FROM app.team_invites i JOIN app.teams t ON t.id = i.team_id JOIN app.accounts a ON a.id = i.invited_by
+            WHERE i.invitee_account_id=$1 AND i.status='pending' AND (i.expires_at IS NULL OR i.expires_at > now())
+            ORDER BY i.created_at DESC""", user.account_id)
+    return [{"id": r["id"], "office": r["office"], "inviter": r["inviter"], "created_at": r["created_at"],
+             "photo": photo_url(r["inviter_id"], r["photo_path"])} for r in rows]
+
+
+@router.post("/invites/{invite_id}/decline")
+async def decline_invite(invite_id: int, user: CurrentUser = Depends(current_user)):
+    await pool().execute(
+        "UPDATE app.team_invites SET status='declined' WHERE id=$1 AND invitee_account_id=$2 AND status='pending'",
+        invite_id, user.account_id)
+    return {"ok": True}
+
+
+@router.post("/invites/{invite_id}/accept")
+async def accept_invite(invite_id: int, resp: Response, user: CurrentUser = Depends(current_user)):
+    """받은 초대 수락. 지금 팀에서 나가고(담당 매물 승계) 새 팀에 팀원으로 합류 → 토큰 재발급."""
     async with tx() as conn:
         inv = await conn.fetchrow(
-            "SELECT id, team_id, status, expires_at FROM app.team_invites WHERE token=$1 FOR UPDATE",
-            body.token.strip(),
+            "SELECT id, team_id, status, expires_at FROM app.team_invites WHERE id=$1 AND invitee_account_id=$2 FOR UPDATE",
+            invite_id, user.account_id,
         )
         if not inv or inv["status"] != "pending":
             raise HTTPException(404, "유효하지 않은 초대입니다")
@@ -267,15 +299,15 @@ async def accept_invite(body: AcceptIn, resp: Response, user: CurrentUser = Depe
             await conn.execute("UPDATE app.team_invites SET status='expired' WHERE id=$1", inv["id"])
             raise HTTPException(410, "만료된 초대입니다")
         if inv["team_id"] == user.team_id:
-            raise HTTPException(409, "이미 이 팀의 멤버입니다")
-        if user.role == "owner":  # 팀원 있는 대표는 이동 불가(팀 고아화 방지)
+            raise HTTPException(409, "이미 이 팀의 팀원입니다")
+        if user.role == "owner":  # 팀원 있는 관리자는 이동 불가(팀 고아화 방지)
             others = await conn.fetchval(
                 "SELECT count(*) FROM app.team_members "
                 "WHERE team_id=$1 AND left_at IS NULL AND account_id<>$2",
                 user.team_id, user.account_id,
             )
             if others:
-                raise HTTPException(409, "팀원이 있는 대표는 다른 팀으로 이동할 수 없습니다")
+                raise HTTPException(409, "팀원이 있는 관리자는 다른 팀으로 옮길 수 없습니다. 먼저 팀원을 정리하세요")
         await _leave_team(conn, user.team_id, user.account_id)
         await conn.execute(
             """INSERT INTO app.team_members(team_id,account_id,role) VALUES($1,$2,'member')
@@ -287,7 +319,7 @@ async def accept_invite(body: AcceptIn, resp: Response, user: CurrentUser = Depe
             "UPDATE app.team_invites SET status='accepted', accepted_by=$1, accepted_at=now() WHERE id=$2",
             user.account_id, inv["id"],
         )
-    acc = await pool().fetchrow("SELECT id, tier FROM app.accounts WHERE id=$1", user.account_id)
+    acc = await pool().fetchrow("SELECT id FROM app.accounts WHERE id=$1", user.account_id)
     return await _issue(resp, dict(acc))
 
 
@@ -319,5 +351,52 @@ async def leave_team(resp: Response, user: CurrentUser = Depends(current_user)):
     async with tx() as conn:
         await _leave_team(conn, user.team_id, user.account_id)
         await _return_home(conn, user.account_id)
-    acc = await pool().fetchrow("SELECT id, tier FROM app.accounts WHERE id=$1", user.account_id)
+    acc = await pool().fetchrow("SELECT id FROM app.accounts WHERE id=$1", user.account_id)
     return await _issue(resp, dict(acc))
+
+
+# ── 사무소 홍보 사진(0236) — 홍보물 템플릿의 <bt-promo n="1"> 이 읽는다. 로고와 같은 결 ──
+_PROMO_MAX = 12
+
+
+@router.get("/office/promo")
+async def promo_list(user: CurrentUser = Depends(current_user)):
+    rows = await pool().fetch(
+        "SELECT id, sort_order, created_at FROM app.team_promo_photos WHERE team_id=$1 ORDER BY sort_order, id",
+        user.team_id)
+    return [{"id": r["id"], "n": i + 1, "created_at": r["created_at"].isoformat()} for i, r in enumerate(rows)]
+
+
+@router.post("/office/promo")
+async def promo_upload(file: UploadFile = File(...), user: CurrentUser = Depends(current_user)):
+    if user.role != "owner":
+        raise HTTPException(403, "대표만 홍보 사진을 올릴 수 있습니다")
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(422, "이미지 파일만 올릴 수 있습니다")
+    n = await pool().fetchval("SELECT count(*) FROM app.team_promo_photos WHERE team_id=$1", user.team_id)
+    if n >= _PROMO_MAX:
+        raise HTTPException(422, f"홍보 사진은 {_PROMO_MAX}장까지입니다")
+    key = f"promo/team{user.team_id}_{uuid.uuid4().hex}{os.path.splitext(file.filename or '')[1][:8] or '.jpg'}"
+    await storage.save(key, await file.read(), file.content_type or "image/jpeg")
+    pid = await pool().fetchval(
+        """INSERT INTO app.team_promo_photos(team_id, path, sort_order, uploaded_by)
+           VALUES ($1, $2, (SELECT COALESCE(max(sort_order), 0) + 1 FROM app.team_promo_photos WHERE team_id=$1), $3)
+           RETURNING id""", user.team_id, key, user.account_id)
+    return {"id": pid}
+
+
+@router.get("/office/promo/{pid}")
+async def promo_get(pid: int, user: CurrentUser = Depends(current_user)):
+    key = await pool().fetchval("SELECT path FROM app.team_promo_photos WHERE id=$1 AND team_id=$2", pid, user.team_id)
+    data = await storage.load(key) if key else None
+    if data is None:
+        raise HTTPException(404, "사진이 없습니다")
+    return Response(content=data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=300"})
+
+
+@router.delete("/office/promo/{pid}")
+async def promo_del(pid: int, user: CurrentUser = Depends(current_user)):
+    if user.role != "owner":
+        raise HTTPException(403, "대표만 홍보 사진을 지울 수 있습니다")
+    await pool().execute("DELETE FROM app.team_promo_photos WHERE id=$1 AND team_id=$2", pid, user.team_id)
+    return {"ok": True}

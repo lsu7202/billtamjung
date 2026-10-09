@@ -17,8 +17,8 @@ import statistics
 
 M2_PER_PYEONG = 3.305785
 
-# ── comp 성격(섹터) 매칭 — 배치(build_sale_est)·라이브(_fetch_comps) 공용 정본 ──
-# 여기가 단일 소스: generate_report가 import해서 쓰고, 배치도 동일 함수로 필터 → 두 경로 comp 풀 일치.
+# ── comp 성격(섹터) 매칭 — 추정가 배치(build_sale_est)와 백테스트의 공용 정본 ──
+# 라이브 보고서(generate_report)는 2026-10-07 에 지웠다. 이제 배치와 백테스트만 쓴다.
 SECTORS = {
     "commercial": {"상업용", "업무용", "상업기타"},      # 상업용 빌딩
     "mixed": {"주상용", "주상기타"},                     # 상가주택
@@ -34,7 +34,6 @@ SECTOR_MU: dict[str, set[str]] = {}
 for _c, _s in MU_SECTOR.items():
     SECTOR_MU.setdefault(_s, set()).add(_c)
 ADJACENT = {"commercial": {"mixed"}, "mixed": {"commercial"}}   # 소득형 인접(상호 comp 허용, 감점)
-ADJ_FACTOR = 0.7
 
 
 def sector_of(lu: str | None, mu: str | None = None) -> str | None:
@@ -272,18 +271,8 @@ def appraise(subject: dict, comps: list[dict],
             "comps_used": used, "breakdown": breakdown}
 
 
-def blend_income(fair_price: int | None, ann_rent: float | None, cap: float | None, beta: float) -> int | None:
-    """수익환원 블렌드: (1−β)·comp추정가 + β·(연NOI÷cap). 재료 부족하면 원값 그대로. synthesize·배치 공용."""
-    if not (fair_price and ann_rent and cap and beta):
-        return fair_price
-    return round((1 - beta) * fair_price + beta * (ann_rent / cap))
 
 
-def expected_roi(applied_total_rent: float | None, fair_price: int | None) -> float | None:
-    """F-18 예상수익률(%) = 적용 총임대료 × 12 ÷ 적정매매가 × 100."""
-    if not fair_price or not applied_total_rent:
-        return None
-    return round(applied_total_rent * 12 / fair_price * 100, 2)
 
 
 if __name__ == "__main__":  # ponytail: self-check
