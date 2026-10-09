@@ -45,9 +45,7 @@ async def parcel_ads(pnu: str, user: CurrentUser = Depends(viewer)):
                    -- 사이드바에 광고 전체가 바로 선다(대표 09-28) — 사진 전부 · 주소 · 수정일
                    (SELECT array_agg(ap.photo_id ORDER BY ap.sort, ap.photo_id) FROM app.ad_photos ap
                      WHERE ap.ad_id = a.id) AS photo_ids,
-                   (SELECT COALESCE(b.addr, v.addr) FROM (SELECT 1) x
-                      LEFT JOIN master.parcel_rep r ON r.pnu = lp.pnu LEFT JOIN master.buildings b ON b.building_pk = r.rep_pk
-                      LEFT JOIN master.vacant_parcels v ON v.pnu = lp.pnu) AS addr,
+                   app.parcel_addr(lp.pnu) AS addr,   -- 지번 주소(나대지도 · 0259)
                    a.updated_at::date AS updated_on,
                    -- 기본정보(0196) — 대장에 없는, 광고한 중개사만 아는 값. 융자금 「표시 안 함」이면 null
                    l.total_deposit AS deposit, l.total_rent AS monthly_rent,
@@ -99,11 +97,11 @@ async def ad_cards(body: CardsIn, user: CurrentUser = Depends(viewer)):
     broker = user.kind == "중개사" and user.team_id is not None
     rows = await pool().fetch(
         """SELECT n.listing_id, n.pnu, n.owner, n.office, n.price, n.rank,
-                  -- 땅 · 지번 값(나대지 포함) — 대장 칸은 대표 동, 연면적 · 층수는 지번 동 합 · 최고층
-                  COALESCE(b.addr, v.addr) AS addr, COALESCE(b.land_area, v.area)::float AS land_area,
+                  -- 땅 값은 지번 표(parcel_spot · 0259, 나대지 포함). 대지면적 · 주용도는 대표 동 대장(나대지면 토지면적),
+                  -- 연면적 · 층수는 지번 동 합 · 최고층
+                  s.addr, (CASE WHEN s.rep_pk IS NULL THEN s.parcel_area ELSE b.land_area END)::float AS land_area,
                   r.total_area::float AS total_area, r.floors_above, r.floors_below, b.main_use_name,
-                  COALESCE(ST_X(b.geom), ST_X(ST_PointOnSurface(v.geom))) AS lng,
-                  COALESCE(ST_Y(b.geom), ST_Y(ST_PointOnSurface(v.geom))) AS lat,
+                  ST_X(s.geom) AS lng, ST_Y(s.geom) AS lat,
                   lo.building_major AS use_type,
                   a.id AS ad_id, a.title, a.posted_on, a.created_at AS ad_created_at, a.price_open,
                   ac.name AS agent_name, NULLIF(ac.job_title, '') AS agent_title,
@@ -119,9 +117,9 @@ async def ad_cards(body: CardsIn, user: CurrentUser = Depends(viewer)):
                      AND f.deleted_at IS NULL ORDER BY (f.kind = 'exterior') DESC, f.sort_order, f.id LIMIT 1) END AS my_photo_id,
                   lc.seen_on AS mk_on, lc.n_ads AS mk_n
              FROM app.listings_now($2, $3) n
-             LEFT JOIN master.parcel_rep r ON r.pnu = n.pnu
-             LEFT JOIN master.buildings b ON b.building_pk = r.rep_pk
-             LEFT JOIN master.vacant_parcels v ON r.pnu IS NULL AND v.pnu = n.pnu
+             LEFT JOIN master.parcel_spot s ON s.pnu = n.pnu
+             LEFT JOIN master.parcel_rep r ON r.pkey = s.pkey
+             LEFT JOIN master.buildings b ON b.building_pk = s.rep_pk
              LEFT JOIN app.listing_office lo ON lo.listing_id = n.listing_id
              LEFT JOIN app.listing_crawl lc ON lc.listing_id = n.listing_id
              LEFT JOIN app.ads a ON a.id = n.ad_id

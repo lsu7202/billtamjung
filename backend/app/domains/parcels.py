@@ -80,13 +80,13 @@ async def get_parcel(pnu: str, user: CurrentUser = Depends(viewer)):
                "n_bldg": me["n_bldg"] or 0, "total_area": _f(me["total_area"]),
                "floors_above": me["floors_above"], "floors_below": me["floors_below"]}
 
-    # 주소 — 대표 동, 동이 없으면 나대지 목록(사람이 읽는 지번)
+    # 주소 — 지번 표(parcel_spot · 0259, 나대지 포함). 교통은 대표 동의 값
     a = await pool().fetchrow(
-        """SELECT COALESCE(b.addr, v.addr) AS addr, b.road_addr, left($1, 10) AS bjd_code,
+        """SELECT s.addr, s.road_addr, left($1, 10) AS bjd_code,
                   b.subway_json, b.bus_json, b.station_dist
              FROM (SELECT 1) x
-             LEFT JOIN master.buildings b ON b.building_pk = $2
-             LEFT JOIN master.vacant_parcels v ON v.pnu = $1""", pnu, rep)
+             LEFT JOIN master.parcel_spot s ON s.pnu = $1
+             LEFT JOIN master.buildings b ON b.building_pk = $2""", pnu, rep)
     d.update(addr=a["addr"], road_addr=a["road_addr"], bjd_code=a["bjd_code"])
 
     # 동 목록 — 연면적 큰 순(1동 = 대표). 동 칩 · 동 카드가 이 순서를 쓴다
@@ -332,11 +332,12 @@ async def nearby_trades(pnu: str, radius_m: int = 500, years: int = 5, limit: in
 
 @router.get("/{pnu}/market")
 async def parcel_market(pnu: str, _: CurrentUser = Depends(current_user)):
-    """매매시세 · 임대시세(중개사만, 0212) — 이 지번 동들의 네이버 광고, 수집한 날마다 한 줄."""
+    """매매시세 · 임대시세(중개사만, 0212) — 이 지번의 네이버 광고, 수집한 날마다 한 줄.
+    매매는 지번, 임대는 그 지번의 동들(적재는 대표 동에 몬다 · 0259)."""
     sale = await pool().fetch(
         """SELECT s.observed_on, s.price, s.posted_on, s.n_ads, s.land_area::float, s.total_area::float, s.use_type
              FROM master.market_sale s
-            WHERE s.building_pk IN (SELECT building_pk FROM master.buildings WHERE pnu = $1) OR s.building_pk = 'P' || $1
+            WHERE s.pnu = $1   -- 매매시세는 지번이 열쇠(0259)
             ORDER BY s.observed_on DESC""", pnu)
     rent = await pool().fetch(
         """SELECT r.floor, r.area_key, r.observed_on, r.contract_area::float, r.excl_area::float, r.deposit, r.rent,

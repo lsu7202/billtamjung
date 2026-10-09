@@ -151,14 +151,10 @@ async def suggest(q: str = Query(min_length=1), user: CurrentUser = Depends(view
     left = need - len(rows)
     if left > 0 and len(q) >= 2:
         biz = await pool().fetch(
-            """SELECT r.rep_pk AS building_pk, l.pnu, l.id AS listing_id, COALESCE(b.addr, vp.addr) AS addr, l.listing_no,
-                      o.name AS owner_name,
-                      COALESCE(ST_X(b.geom), ST_X(ST_PointOnSurface(vp.geom))) AS lng,
-                      COALESCE(ST_Y(b.geom), ST_Y(ST_PointOnSurface(vp.geom))) AS lat
+            """SELECT s.rep_pk AS building_pk, l.pnu, l.id AS listing_id, s.addr, l.listing_no,
+                      o.name AS owner_name, ST_X(s.geom) AS lng, ST_Y(s.geom) AS lat
                  FROM app.office_listings l
-                 LEFT JOIN master.parcel_rep r ON r.pnu = l.pnu
-                 LEFT JOIN master.buildings b ON b.building_pk = r.rep_pk
-                 LEFT JOIN master.vacant_parcels vp ON r.pnu IS NULL AND vp.pnu = l.pnu
+                 LEFT JOIN master.parcel_spot s ON s.pnu = l.pnu   -- 지번 표(나대지 포함 · 0259)
                  LEFT JOIN app.owners o ON o.id = l.owner_id AND o.deleted_at IS NULL
                 WHERE l.team_id = $1
                   AND (l.listing_no ILIKE '%' || $2 || '%' OR o.name ILIKE '%' || $2 || '%')
@@ -546,14 +542,9 @@ async def parcel_at_point(lng: float, lat: float, _: CurrentUser = Depends(viewe
     누른 필지가 어느 건물의 부속지번이면(그 필지에 대표 동이 없고 건물에 딸려 있으면) 그 건물의 지번으로 간다 —
     땅 하나에 지번 페이지 하나. 색칠은 GET /parcels/{pnu}/geom."""
     pnu = await pool().fetchval(
-        """WITH hit AS (SELECT pnu FROM master.parcels
-                         WHERE geom && ST_SetSRID(ST_MakePoint($1, $2), 4326)
-                           AND ST_Contains(geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)) LIMIT 1)
-           SELECT COALESCE((SELECT r.pnu FROM master.parcel_rep r WHERE r.pnu = hit.pnu),
-                           (SELECT b.pnu FROM master.building_parcels bp JOIN master.buildings b ON b.building_pk = bp.building_pk
-                             WHERE bp.pnu = hit.pnu AND b.pnu IS NOT NULL ORDER BY b.total_area DESC NULLS LAST LIMIT 1),
-                           hit.pnu)
-             FROM hit""", lng, lat)
+        """SELECT app.main_pnu(pnu) FROM master.parcels       -- 부속 지번 → 본 지번(매물 등록과 같은 규칙 · 0259)
+            WHERE geom && ST_SetSRID(ST_MakePoint($1, $2), 4326)
+              AND ST_Contains(geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)) LIMIT 1""", lng, lat)
     return {"pnu": pnu}
 
 
@@ -1171,7 +1162,9 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
     _keep_sold = scoped and body.sold_mine
     per_listing = scoped or body.tab in ("explore", "ad")
     n_join = ("JOIN" if (body.tab == "explore" or body.scope in ("mine", "any")) else "LEFT JOIN") \
-        + " n ON n.pnu = s.pnu" + ("" if per_listing else " AND n.rank = 1")   # 매물은 지번에(0255)
+        + " n ON n.pnu = s.pnu" + ("" if per_listing else " AND n.rank < 2")   # 매물은 지번에(0255)
+    # 「rank < 2」 = 1번 매물. 「= 1」로 쓰면 플래너가 통계 없는 CTE 열의 등호를 0.5%로 어림해(1.2만 → 14줄)
+    # 해시 대신 줄마다 훑는 길을 고른다 — 역삼동 핀 0.46s → 5.3s(10-09). 범위 조건은 33%로 어림한다
     if body.scope == "none":
         n_join = "LEFT JOIN n ON FALSE"     # 매물 아닌 땅 — 매물 칸은 비운 채로 둔다(거르기는 위 NOT EXISTS)
     # 핀 종류(S05 §2) — 주인에서 나온다: 내 매물 · 다른 사무소 광고 매물 · 수집 매물 · 매물 아님. 매물 찾기는 거래완료도
@@ -1264,7 +1257,7 @@ def _build_base(body: SearchIn, user: CurrentUser, col: str | None = None) -> tu
         LEFT JOIN master.sales_agg sa ON sa.pnu = s.pnu   -- MV(0245 · 지번 단위): 매 검색마다 재집계하던 CTE 대체
         LEFT JOIN photo_ex ph ON ph.pnu = s.pnu
         LEFT JOIN ad_agg aa ON aa.pnu = s.pnu
-{deal_join}        WHERE TRUE {poly_sql} {master_filt} {col_filt}
+{deal_join}        WHERE NOT s.public_land {poly_sql} {master_filt} {col_filt}   -- 공공지목 나대지(도로 · 하천 …)는 검색에 안 세운다(0259)
       ),
       classified AS (
         SELECT building_pk, addr, land_area, total_area, floors_above, floors_below, use_zone,

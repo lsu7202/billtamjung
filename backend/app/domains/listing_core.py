@@ -30,10 +30,13 @@ async def need_listing(team_id: int | None, listing_id: int, con=None) -> int:
 
 
 async def create_office_listing(team_id: int, pnu: str, con=None) -> int:
-    """매물 등록 — 매물 + 지번 + 관리 줄. 이미 있으면 그 번호(다시 받으면 같은 매물을 다시 연다)"""
+    """매물 등록 — 매물 + 지번 + 관리 줄. 이미 있으면 그 번호(다시 받으면 같은 매물을 다시 연다).
+    다른 건물에 딸린 필지(부속 지번)면 그 건물의 지번으로 등록한다 — 지도 클릭과 같은 규칙(app.main_pnu · 0259).
+    안 그러면 주소도 없고 검색에도 안 서는 매물이 생긴다."""
     c = con or pool()
     if not await c.fetchval("SELECT 1 FROM master.parcels WHERE pnu = $1", pnu):
         raise HTTPException(404, "그런 지번이 없습니다")
+    pnu = await c.fetchval("SELECT app.main_pnu($1)", pnu)
     lid = await listing_of_pnu(team_id, pnu, c)
     if lid is None:
         lid = await c.fetchval("INSERT INTO app.listings(team_id) VALUES ($1) RETURNING id", team_id)
