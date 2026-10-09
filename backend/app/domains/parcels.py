@@ -73,10 +73,15 @@ async def listings_of(user: CurrentUser, pnus: list[str], keep_sold: bool = Fals
 @router.get("/{pnu}", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
 async def get_parcel(pnu: str, user: CurrentUser = Depends(viewer)):
     """지번 하나 — 땅 · 지번 값 · 동 목록 · 이 땅의 매물 · 추정가 · 공시지가 · 실거래 · 대장 딸림(에너지 · 정화조 · 지역지구구역).
-    동 하나의 대장 값(건물정보 카드)은 GET /buildings/{pk}."""
+    동 하나의 대장 값(건물정보 카드)은 GET /buildings/{pk}.
+    다른 건물에 딸린 필지(부속 지번)면 값을 내지 않고 본 지번만 준다(main_pnu) — 화면은 그리로 넘어간다.
+    부속 지번은 줄이 서는 땅이 아니다(지도 클릭 · 매물 등록과 같은 규칙 · app.main_pnu)."""
+    main = await pool().fetchval("SELECT app.main_pnu($1)", pnu)
+    if main != pnu:
+        return {"pnu": pnu, "main_pnu": main}
     me = await _me(pnu)
     rep = me["rep_pk"]
-    d: dict = {"pnu": pnu, "lng": me["lng"], "lat": me["lat"], "rep_pk": rep,
+    d: dict = {"pnu": pnu, "main_pnu": pnu, "lng": me["lng"], "lat": me["lat"], "rep_pk": rep,
                "n_bldg": me["n_bldg"] or 0, "total_area": _f(me["total_area"]),
                "floors_above": me["floors_above"], "floors_below": me["floors_below"]}
 
