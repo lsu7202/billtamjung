@@ -47,7 +47,6 @@ FILES = {                 # 파일 → (DB 표, 키 컬럼)
     "parcels.csv": ("master.parcels", "pnu"),
     "building_parcels.csv": ("master.building_parcels", None),
     "gongsi_series.csv": ("master.gongsi_series", None),
-    "sales_history.csv": ("master.sales_history", None),
     "complex.csv": ("master.building_complex", "complex_pk"),
 }
 
@@ -198,13 +197,6 @@ def check_keys(d, st):
         "부속필지가 parcels 에 없다 — F-04 롤업이 과소집계된다(기준 5%)")
 
     miss = tot = 0
-    for r in _read(os.path.join(d, "sales_history.csv")):
-        tot += 1
-        if r["building_pk"] not in st["pk"]:
-            miss += 1
-    chk(miss == 0, f"sales_history → buildings 미아 {miss}/{tot:,}", "comp 가 없는 건물을 가리킨다")
-
-    miss = tot = 0
     for r in _read(os.path.join(d, "gongsi_series.csv")):
         tot += 1
         if r["pnu"] not in pnus:
@@ -272,18 +264,7 @@ def check_series(d):
     chk(len(years) >= 30, f"공시 연도 구간 {min(years)}~{max(years)} ({len(years)}개)",
         "1990~2026 전 구간이 있어야 시점보정이 산다")
 
-    n = bad_ym = bad_price = bad_area = 0
-    for r in _read(os.path.join(d, "sales_history.csv")):
-        n += 1
-        if not re.fullmatch(r"\d{6}", r["contract_ym"] or ""):
-            bad_ym += 1
-        if not _num(r["price"]) or float(r["price"]) <= 0:
-            bad_price += 1
-        if not _num(r["total_area"]) or float(r["total_area"]) <= 0:
-            bad_area += 1
-    chk(bad_ym == 0, f"실거래 계약년월 YYYYMM 아님 {bad_ym}/{n:,}", "")
-    chk(bad_price == 0, f"실거래 금액 0 이하 {bad_price}", "comp 로 쓸 수 없다")
-    chk(bad_area == 0, f"실거래 연면적 0 이하 {bad_area}", "단가를 못 낸다")
+    # 실거래(sales_history.csv) 검사는 2026-10-08 에 뺐다 — 실거래는 대장 빌드가 아니라 sales 단위(trade)다.
 
 
 def check_complex(d, st):

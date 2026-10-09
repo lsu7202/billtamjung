@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>빌탐정 앱 개발 계획서</title>
+<link rel="stylesheet" href="../모두의창업/_doc.css">
+<style>
+.sec { color:#EE7B22; font-size:9.5pt; font-weight:700; letter-spacing:1px; margin-bottom:4px; }
+table.kv th { width:24%; }
+table.kv td { background:#fff; }
+.phones { display:flex; justify-content:space-between; gap:14px; margin:12px 0 6px; break-inside:avoid; }
+.ph { flex:1; }
+.ph .cap2 { text-align:center; font-size:9.5pt; font-weight:700; color:#1F3864; margin-top:8px; }
+.dev { width:100%; aspect-ratio: 9 / 18.5; border:7px solid #191F28; border-radius:26px; overflow:hidden; background:#fff;
+  position:relative; font-family:"Apple SD Gothic Neo",sans-serif; letter-spacing:-.3px; line-height:1.35; }
+.bar { height:18px; display:flex; justify-content:space-between; align-items:center; padding:0 12px; font-size:6.5pt; font-weight:700; color:#191F28; }
+.tabs { position:absolute; left:0; right:0; bottom:0; height:34px; border-top:1px solid #E5E8EB; background:#fff; display:flex; justify-content:space-around; align-items:center; font-size:6pt; color:#8B95A1; }
+.tabs b { color:#3182F6; }
+/* ① 탐색 */
+.map { position:absolute; top:18px; left:0; right:0; bottom:34px; background:#EEF1EC;
+  background-image: linear-gradient(90deg, rgba(255,255,255,.9) 6px, transparent 6px), linear-gradient(rgba(255,255,255,.9) 6px, transparent 6px);
+  background-size: 46px 46px, 46px 46px; }
+.road { position:absolute; height:9px; background:#FFE9A8; left:-10px; right:-10px; top:40%; transform:rotate(-14deg); }
+.srch { position:absolute; top:8px; left:8px; right:8px; height:22px; border-radius:999px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.15);
+  font-size:6.5pt; color:#8B95A1; display:flex; align-items:center; padding-left:10px; }
+.pin { position:absolute; background:#191F28; color:#fff; font-size:6.5pt; font-weight:700; padding:2px 6px; border-radius:6px; }
+.pin.b { background:#3182F6; }
+.pin::after { content:""; position:absolute; left:50%; bottom:-4px; margin-left:-3px; border:3px solid transparent; border-top-color:inherit; border-top-color:#191F28; }
+.pin.b::after { border-top-color:#3182F6; }
+.sheet { position:absolute; left:0; right:0; bottom:0; height:44%; background:#fff; border-radius:14px 14px 0 0; box-shadow:0 -3px 10px rgba(0,0,0,.1); padding:6px 10px; }
+.grab { width:28px; height:3px; border-radius:3px; background:#D1D6DB; margin:0 auto 6px; }
+.sh-h { font-size:7pt; font-weight:700; color:#191F28; margin-bottom:4px; }
+.it { display:flex; gap:6px; padding:5px 0; border-bottom:1px solid #F2F4F6; }
+.it i { flex:0 0 32px; height:28px; border-radius:5px; background:#C9D0D9; }
+.it div { font-size:6pt; color:#4E5968; }
+.it b { display:block; font-size:7pt; color:#191F28; }
+.it em { font-style:normal; color:#3182F6; font-weight:700; }
+/* ② 매물 상세 */
+.top { height:22px; display:flex; align-items:center; padding:0 9px; font-size:10pt; color:#191F28; }
+.photo { height:30%; background:linear-gradient(160deg,#9AA7B6,#5F6B7A); position:relative; }
+.photo span { position:absolute; left:6px; bottom:5px; font-size:5.5pt; color:#fff; background:rgba(0,0,0,.45); padding:1px 6px; border-radius:999px; }
+.ttl { padding:7px 10px 4px; font-size:8pt; font-weight:800; color:#191F28; }
+.desc { padding:0 10px 6px; font-size:6pt; color:#4E5968; }
+.band { background:#F2F4F6; padding:7px 10px; }
+.card { background:#fff; border-radius:8px; padding:7px 8px; }
+.pill { display:inline-block; font-size:5.5pt; border:1px solid #B0B8C1; border-radius:999px; padding:0 5px; color:#4E5968; margin-bottom:3px; }
+.price { font-size:10pt; font-weight:800; color:#191F28; }
+.price em { font-style:normal; color:#3182F6; margin-right:3px; }
+.addr { font-size:6pt; color:#4E5968; }
+.rows { padding:6px 10px; }
+.rows div { display:flex; justify-content:space-between; font-size:6pt; color:#4E5968; padding:2px 0; }
+.rows b { color:#191F28; font-weight:500; }
+.cta { position:absolute; left:0; right:0; bottom:0; height:38px; border-top:1px solid #E5E8EB; background:#fff; display:flex; align-items:center; gap:6px; padding:0 9px; }
+.av { width:20px; height:20px; border-radius:999px; background:#EBF4FF; color:#3182F6; font-size:7pt; font-weight:800; display:flex; align-items:center; justify-content:center; }
+.cta div { flex:1; font-size:6pt; color:#4E5968; } .cta div b { display:block; color:#191F28; font-size:6.5pt; }
+.cta span { background:#EBF4FF; color:#3182F6; font-size:6.5pt; font-weight:700; padding:5px 9px; border-radius:6px; }
+/* ③ AI 어시스턴트 */
+.chat { position:absolute; top:40px; left:0; right:0; bottom:74px; padding:0 9px; }
+.q { margin-left:auto; max-width:78%; background:#F2F4F6; border-radius:10px 10px 2px 10px; padding:6px 8px; font-size:6.5pt; color:#191F28; margin-bottom:8px; }
+.a { font-size:6.5pt; color:#191F28; margin-bottom:6px; }
+.hit { border-top:1px solid #F2F4F6; padding:5px 0; font-size:6pt; color:#4E5968; }
+.hit b { display:block; font-size:6.5pt; color:#3182F6; }
+.inp { position:absolute; left:9px; right:9px; bottom:42px; height:24px; border-radius:999px; border:1px solid #D1D6DB; font-size:6pt; color:#8B95A1; display:flex; align-items:center; padding-left:10px; }
+.inp::after { content:"↑"; position:absolute; right:3px; top:3px; width:16px; height:16px; border-radius:999px; background:#3182F6; color:#fff; font-size:7pt; display:flex; align-items:center; justify-content:center; }
+.hd { position:absolute; top:18px; left:0; right:0; height:22px; display:flex; align-items:center; padding:0 10px; font-size:8pt; font-weight:800; color:#191F28; }
+</style></head>
+<body>
+<h1>빌탐정 앱 개발 계획서</h1>
+<div class="rule"></div>
+
+<div class="sec">01</div>
+<h2 style="margin-top:0">1. 과제명(주제)</h2>
+<div class="tw"><table class="kv"><tbody>
+<tr><th>과제명</th><td>빌탐정 모바일 앱 개발</td></tr>
+<tr><th>분야</th><td>프롭테크 · AI (상업용 부동산 탐색과 중개 업무)</td></tr>
+</tbody></table></div>
+
+<div class="sec" style="margin-top:26px">02</div>
+<h2 style="margin-top:0">2. 추진 내용과 주요 일정</h2>
+<p>지금 웹에서 제공하는 기능 중 핵심 기능을 앱으로 옮김. 고객과 중개사가 모두 쓸 수 있고, 계정 종류에 따라 쓸 수 있는 기능이 나뉨.</p>
+<ul>
+<li><b>탐색</b>: 지도에서 매물 · 실거래 · 건물을 보고, 매물 상세와 거리뷰를 봄. 고객은 중개사에게 상담요청</li>
+<li><b>AI 어시스턴트</b>: 말로 조건을 주면 맞는 건물과 매물을 찾아 줌</li>
+<li><b>AI 매물관리</b>(중개사): 어시스턴트로 매물을 조회하고 등록 · 수정함</li>
+</ul>
+<div class="tw">
+<div class="cap">표 1 | 주요 일정 (2026년 10월)</div>
+<table><colgroup><col style="width:24%"><col></colgroup>
+<thead><tr><th>기간</th><th>할 일</th></tr></thead>
+<tbody>
+<tr><th>1주차<br><span class="o">10.1 ~ 10.7</span></th><td>앱 화면 설계, 로그인 · 하단 탭 등 공통 틀, 기존 서버 연결</td></tr>
+<tr><th>2주차<br><span class="o">10.8 ~ 10.14</span></th><td>탐색: 지도 · 매물 목록 · 매물 상세 · 거리뷰 · 상담요청</td></tr>
+<tr><th>3주차<br><span class="o">10.15 ~ 10.21</span></th><td>AI 어시스턴트, AI 매물관리</td></tr>
+<tr><th>4주차<br><span class="o">10.22 ~ 10.31</span></th><td>중개사 · 고객 시험 사용과 수정, 원스토어 등록 · 심사 · 출시</td></tr>
+</tbody></table></div>
+
+<div class="pb"></div>
+<div class="sec">03</div>
+<h2 style="margin-top:0">3. 예시 화면</h2>
+<div class="phones">
+  <div class="ph"><div class="dev">
+    <div class="bar"><span>9:41</span><span>●●●</span></div>
+    <div class="map"><div class="road"></div>
+      <div class="srch">주소 또는 지명</div>
+      <div class="pin" style="top:22%;left:14%">9.5억</div>
+      <div class="pin b" style="top:30%;left:52%">34억</div>
+      <div class="pin" style="top:44%;left:30%">120억</div>
+      <div class="pin" style="top:18%;left:66%">48억</div>
+      <div class="sheet"><div class="grab"></div><div class="sh-h">매물 12개</div>
+        <div class="it"><i></i><div><b>관악구 봉천동</b><em>매매 34억</em> · 대지 210평</div></div>
+        <div class="it"><i></i><div><b>종로구 누상동</b><em>매매 9.5억</em> · 대지 11평</div></div>
+        <div class="it"><i></i><div><b>강남구 역삼동</b><em>매매 120억</em> · 대지 96평</div></div>
+      </div>
+    </div>
+    <div class="tabs"><b>탐색</b><span>매물관리</span><span>AI</span><span>일정</span><span>나</span></div>
+  </div><div class="cap2">① 탐색</div></div>
+
+  <div class="ph"><div class="dev">
+    <div class="bar"><span>9:41</span><span>●●●</span></div>
+    <div class="top">‹</div>
+    <div class="photo"><span>거리뷰 · 1 / 4</span></div>
+    <div class="ttl">역세권 코너빌딩</div>
+    <div class="desc">2호선 역 앞 코너, 1층 근생 임대 중</div>
+    <div class="band"><div class="card"><span class="pill">빌딩</span>
+      <div class="price"><em>매매</em>34억</div><div class="addr">관악구 봉천동</div></div></div>
+    <div class="rows"><div>현 보증금<b>5억원</b></div><div>현 월세<b>3,200만원</b></div><div>용도지역<b>일반상업지역</b></div></div>
+    <div class="cta"><span class="av">이</span><div><b>이승욱</b>빌탐정</div><span>상담요청</span></div>
+  </div><div class="cap2">② 매물 상세</div></div>
+
+  <div class="ph"><div class="dev">
+    <div class="bar"><span>9:41</span><span>●●●</span></div>
+    <div class="hd">AI 어시스턴트</div>
+    <div class="chat">
+      <div class="q">강남구 역세권 50억 이하 근생 빌딩 찾아줘</div>
+      <div class="a">조건에 맞는 건물 3곳을 찾았습니다.</div>
+      <div class="hit"><b>강남구 역삼동</b>매매 48억 · 역 180m</div>
+      <div class="hit"><b>강남구 논현동</b>매매 45억 · 역 240m</div>
+      <div class="hit"><b>강남구 신사동</b>매매 39억 · 역 310m</div>
+    </div>
+    <div class="inp">무엇이든 물어보세요</div>
+    <div class="tabs"><span>탐색</span><span>매물관리</span><b>AI</b><span>일정</span><span>나</span></div>
+  </div><div class="cap2">③ AI 어시스턴트</div></div>
+</div>
+<div class="src">화면은 예시이며 값은 설명을 위한 가상 값임.</div>
+
+<div class="sec" style="margin-top:26px">04</div>
+<h2 style="margin-top:0">4. Key Result</h2>
+<ul>
+<li><b>원스토어에 빌탐정 앱 출시</b></li>
+<li>탐색 · AI 어시스턴트 · AI 매물관리 세 기능이 앱에서 동작</li>
+<li>고객 계정과 중개사 계정 모두 앱에서 사용 가능</li>
+</ul>
+
+<div class="sec">05</div>
+<h2 style="margin-top:0">5. 과제수행자</h2>
+<div class="tw"><table class="kv"><tbody>
+<tr><th>학번 · 이름</th><td>202111538 이승욱</td></tr>
+</tbody></table></div>
+</body></html>
