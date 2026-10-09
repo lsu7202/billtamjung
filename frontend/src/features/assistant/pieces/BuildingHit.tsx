@@ -79,17 +79,21 @@ const join = (xs: (string | null | undefined)[]) => xs.filter(Boolean).join(" ·
 export function BuildingHit({ pin, onFocus }: { pin: Pin; onFocus?: (pin: Pin) => void }) {
   const [noRV, setNoRV] = useState(false);
   const ready = usePanoramaReady();
-  const to = pin.vacant ? `/parcels/${pin.pk}` : `/buildings/${pin.pk}`;
+  // 지번 페이지(10-08) — 건물이면 그 동을 골라 둔다
+  const to = `/parcels/${pin.pnu ?? pin.pk}${pin.vacant ? "" : `?dong=${encodeURIComponent(pin.pk)}`}`;
   const q = useQuery({
     queryKey: ["bldg", pin.pk], enabled: !pin.vacant, staleTime: 60_000,
     queryFn: () => api<Detail>(`/buildings/${pin.pk}`),
   });
   const d = q.data;
-  const price = pin.price ?? pin.sale_est;
+  // 지도 핀과 같은 규칙(0226) — 매물이면 1번 매물의 매매가(없으면 미정), 매물이 아니면 추정가. 섞지 않는다
+  const listing = pin.col != null && pin.col !== "normal";
+  const priceTxt = listing ? (pin.price != null ? wonShort(pin.price) : "미정")
+    : pin.sale_est != null ? wonShort(pin.sale_est) : null;
   const lines = pin.vacant
     ? [join([py(pin.land_area) && `대지 ${py(pin.land_area)}`]), "나대지", null]
     : [
-        join([price != null ? wonShort(price) : null,
+        join([priceTxt,
               (d?.land_area ?? pin.land_area) != null ? `대지 ${py(d?.land_area ?? pin.land_area)}` : null,
               (d?.total_area ?? pin.total_area) != null ? `연면적 ${py(d?.total_area ?? pin.total_area)}` : null]),
         join([d?.main_use_name, d?.use_zone,

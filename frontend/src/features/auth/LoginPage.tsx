@@ -65,7 +65,8 @@ export function LoginPage() {
   const setAll = (v: boolean) => setAgree({ terms: v, privacy: v, marketing: v });
 
   // 딥링크 복귀: 미인증으로 튕겨온 원래 목적지로 로그인 후 복귀(없으면 첫 화면 = 빌탐정 · 고객은 탐색)
-  const from = (loc.state as { from?: string } | null)?.from;
+  // ?next= 는 손님이 쓰기(저장 · 문의)를 눌러 넘어온 길 — client.ts 가 붙인다
+  const from = (loc.state as { from?: string } | null)?.from ?? (new URLSearchParams(loc.search).get("next") || undefined);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -78,7 +79,7 @@ export function LoginPage() {
             gender: gender || undefined, kind,
             terms_agreed: agree.terms, privacy_agreed: agree.privacy, marketing_agreed: agree.marketing,
           });
-      setAuth(res.access_token, res.tier);
+      setAuth(res.access_token);
       // 고객은 중개사 온보딩(직군 · 사무소 질문)을 건너뛰고 마이페이지 프로필로 — 의사 · 이해도를 적게
       if (tab === "signup") { nav(kind === "고객" ? "/mypage" : "/welcome", { replace: true }); return; }
       const me = await authApi.me().catch(() => null);

@@ -2,30 +2,11 @@
  *  매수자 카드(업무 탭)와 계약 창의 매수자 탭이 **같은 문장을 쓴다** — 같은 사람을
  *  두 화면에서 다르게 소개하면 어느 쪽이 맞나 헷갈린다(2026-08-19).
  */
-import type { Buyer, BuyerCondition } from "../../shared/api/endpoints";
+import type { BuyerCondition } from "../../shared/api/endpoints";
 
 type RegionPick = { label?: string };
 type Cond = { regions?: RegionPick[]; polygon?: object | null; filters?: Record<string, unknown> };
 
-export function buyerSummary(b: Buyer): { text: string; thin: boolean } {
-  const p: string[] = [];
-  const ageBand = { "2030": "20·30대", "4050": "40·50대", "6070": "60·70대", "70이상": "70대 이상" }[b.age_band ?? ""];
-  const sex = { "남": "남성", "여": "여성" }[b.gender ?? ""];
-  const age = [ageBand, sex].filter(Boolean).join(" ");
-  const src = { "소개": "소개로 연결된", "광고": "광고를 보고 온", "직접문의": "직접 문의해 온",
-                "기존고객": "오래 본 기존 고객인" }[b.source ?? ""];
-  const head = [age, src].filter(Boolean).join(" ");
-  const who = b.is_corp ? "법인" : "매수자";
-  p.push(head ? `${head} ${who}` : who);
-  const g = { A: "매수 의지가 확실합니다", B: "무난히 진행 중입니다", C: "시세를 관망하는 쪽입니다" }[b.grade ?? ""];
-  if (g) p.push(g);
-  const co = b.cooperation === "협조적" ? "협조적이고" : b.cooperation === "비협조적" ? "연락은 조심스럽게 —" : "";
-  const ki = b.kindness === "친절" ? "응대가 부드럽습니다" : b.kindness === "불친절" ? "응대가 까다로운 편입니다" : "";
-  if (co || ki) p.push([co, ki].filter(Boolean).join(" ") || co.replace(/이고$/, "적입니다"));
-  let text = p[0] + (p.length > 1 ? " — " + p.slice(1).join(". ") : "") + ".";
-  const thin = !age && !src && !b.grade && !b.cooperation && !b.kindness;
-  return { text, thin };
-}
 
 /* 조건 요약 — conditions_json을 사람 말로. 중요한 것만: 지역·가격대·면적·수익률·엘리베이터·역세권·연식. */
 export function condSummary(c: BuyerCondition): string {
@@ -44,6 +25,7 @@ export function condSummary(c: BuyerCondition): string {
   const parts: (string | null)[] = [
     (j.regions ?? []).map((r) => r.label ?? (r as unknown as { name?: string }).name).filter(Boolean).join("·") || null,
     j.polygon ? "그린 영역" : null,
+    // 매매가(0224) — 화면 어디서 걸었든 price_*
     eokR(num("price_min"), num("price_max")),
     pyR("land_area", "대지"),
     pyR("total_area", "연"),

@@ -21,11 +21,11 @@ export function LandingPage() {
     authApi.publicConfig().then((c) => setSignupsOpen(c.signups_open)).catch(() => {});
   }, []);
 
-  // 진입 즉시 이동. 세션 있으면 첫 화면(빌탐정 · 고객은 탐색), 없으면 로그인.
+  // 진입 즉시 이동. 세션 있으면 첫 화면(빌탐정 · 고객은 탐색), 없으면 손님으로 매물 찾기(10-01).
   useEffect(() => {
     setLeaving(true);
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const t = setTimeout(() => nav(authed ? homeOf(access) : "/login", { replace: true }), reduced ? 0 : 560);
+    const t = setTimeout(() => nav(authed ? homeOf(access) : "/search", { replace: true }), reduced ? 0 : 560);
     return () => clearTimeout(t);
   }, [authed, access, nav]);
 

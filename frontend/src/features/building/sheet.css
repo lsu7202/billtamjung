@@ -1,0 +1,159 @@
+/* 상세보기 = 건물 사양서(S07, 10-01) — 화면 폭을 다 쓴다. 회색 바탕 위 흰 카드, 줄은 사이드바(.dc-row)와 같다 */
+.sheet-modal { position: fixed; top: 0; bottom: 0; left: 72px; right: 0; z-index: 80; background: #F2F4F6; display: flex; flex-direction: column; }
+@media (max-width: 720px) { .sheet-modal { left: 0; bottom: 64px; } }
+/* 머리 — 왼쪽 주소 · 오른쪽 ↗ 새 탭 · X(닫기는 늘 오른쪽 위 X) */
+.sheet-top { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; height: 52px; padding: 0 10px 0 20px; background: #FFFFFF; border-bottom: 1px solid #E5E8EB; }
+.sheet-top b { font-size: 16px; font-weight: 800; color: #191F28; }
+.sheet-top .sp { flex: 1; }
+.sheet-ic { width: 40px; height: 40px; border: 0; background: none; border-radius: 10px; color: #333D4B; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+.sheet-ic:hover { background: #F2F4F6; }
+.sheet-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.sheet-page { background: #F2F4F6; min-height: 100%; }
+
+/* 그리드형(10-01 대표 「중개 플랫폼은 그리드」) — 여백 · 둥근 모서리 · 그림자 없이 칸이 선으로 붙는다 */
+.sheet { background: #FFFFFF; }
+.sheet-scroll, .sheet-page { background: #FFFFFF; }
+
+/* 미디어 — 거리뷰 크게 + 지도 작은 창(오른쪽 아래). ⇄ 로 바꾼다 */
+.sh-media { position: relative; height: 440px; background: #E5E8EB; border-bottom: 1px solid #E5E8EB; }
+.sh-media .sh-main { position: absolute; inset: 0; }
+.sh-media .sh-pip { position: absolute; right: 16px; bottom: 16px; width: 300px; height: 190px; z-index: 6; border-radius: 10px;
+  overflow: hidden; border: 2px solid #FFFFFF; box-shadow: 0 4px 16px rgba(0,19,43,.28); }
+.sh-media .panel { position: absolute; inset: 0; margin: 0; border-radius: 0; box-shadow: none; background: none; }
+.sh-media .panel > div:first-child { height: 100% !important; margin: 0 !important; border-radius: 0 !important; }
+.sh-rv { position: absolute !important; inset: 0; }
+.sh-swap { position: absolute; right: 24px; bottom: 170px; z-index: 7; width: 30px; height: 30px; border: 0; border-radius: 8px;
+  background: rgba(255,255,255,.95); color: #191F28; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+@media (max-width: 720px) { .sh-media { height: 300px; } .sh-media .sh-pip { width: 150px; height: 110px; right: 10px; bottom: 10px; } .sh-swap { right: 16px; bottom: 90px; } }
+
+/* 격자 — 칸이 줄을 꽉 채우고 칸 사이는 선 하나. 넓으면 3단, 좁으면 2단 · 1단 */
+.sh-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: row dense;
+  border-left: 1px solid #E5E8EB; }
+@media (max-width: 1280px) { .sh-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .sh-grid { grid-template-columns: 1fr; } .shc.wide { grid-column: auto; } }
+.shc { background: #FFFFFF; padding: 0; min-width: 0; border-right: 1px solid #E5E8EB; border-bottom: 1px solid #E5E8EB; }
+.shc.wide { grid-column: span 2; }
+.shc-h { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; background: #F9FAFB; border-bottom: 1px solid #E5E8EB; }
+.shc-h h3 { margin: 0; font-size: 14px; font-weight: 800; color: #191F28; white-space: nowrap; flex: 0 0 auto; }
+/* 동이 많은 지번(아파트 단지 등) — 칩이 줄을 넘기면 아래로 내린다 */
+.shc-h:has(.shc-chips) { padding-block: 6px; }
+.shc-sub { margin-left: auto; font-size: 12px; color: #8B95A1; }
+.shc-chips { margin-left: auto; display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.shc-chips button { border: 0; background: #FFFFFF; color: #6B7684; border-radius: 6px; padding: 3px 9px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.shc-chips button.on { background: #EBF4FF; color: #3182F6; }
+.shc-b { min-width: 0; padding: 6px 16px 14px; }
+/* 줄도 격자 — 이름 칸 | 값 칸, 줄마다 선 */
+.shc-b .dc-row { margin: 0 -16px; padding: 0 16px; min-height: 38px; align-items: center; border-bottom: 1px solid #F0F2F5; font-size: 13.5px; }
+.shc-b .dc-row > span { flex: 0 0 120px; padding-right: 12px; border-right: 1px solid #F0F2F5; align-self: stretch; display: flex; align-items: center; }
+.sh-sub { margin: 14px 0 4px; font-size: 13px; font-weight: 800; color: #4E5968; }
+.sh-up { color: #F04452; } .sh-down { color: #3182F6; }
+.sh-over { color: #F04452; font-weight: 700; }
+/* 다시 쓰는 부품(층별 · 입주 이력 · 공시지가 · 교통 · 유동인구)의 겉 카드와 제목을 걷는다 */
+.shc-b .bg-card, .shc-b .rv-card, .shc-b > .panel { background: none; box-shadow: none; border-radius: 0; padding: 0; border: 0; margin: 0; }
+.shc-b .bg-ttl { display: none; }
+.shc-b > .panel > .sec-head .lead { visibility: hidden; }
+.shc.c-transit .rv-k { display: none; }
+
+/* 주변 유사거래 — 기준 태그 · 정렬 · 단가 기준 · 표(맨 위는 이 건물) */
+.sim-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.sim-tags button, .sim-tags span { border: 0; background: #F2F4F6; color: #8B95A1; border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 12.5px; font-weight: 700; }
+.sim-tags button { cursor: pointer; text-decoration: line-through; }
+.sim-tags button.on { background: #EBF4FF; color: #3182F6; text-decoration: none; }
+.sim-bar { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.sim-seg { display: inline-flex; border: 1px solid #E5E8EB; border-radius: 8px; overflow: hidden; }
+.sim-seg button { border: 0; background: #FFFFFF; font: inherit; font-size: 12px; font-weight: 700; color: #8B95A1; padding: 5px 10px; cursor: pointer; }
+.sim-seg button + button { border-left: 1px solid #E5E8EB; }
+.sim-seg button.on { background: #EBF4FF; color: #3182F6; }
+
+/* 다시 쓰는 부품(층별 · 입주 이력 · 공시지가 · 교통 · 유동인구)의 겉 카드와 제목을 걷는다 — 사양서 카드가 이미 감싼다 */
+.sh-rv { position: absolute !important; inset: 0; }
+.shc-b .bg-card, .shc-b .rv-card, .shc-b > .panel { background: none; box-shadow: none; border-radius: 0; padding: 0; border: 0; margin: 0; }
+.shc-b .bg-ttl { display: none; }
+.shc-b > .panel > .sec-head .lead { visibility: hidden; }
+.shc.c-transit .rv-k { display: none; }
+
+/* 머리 — 주소 · 도로명(작게) · 매매 N억(사이드바 가격과 같은 결) */
+.sheet-top { height: 60px; }
+.sh-head { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.sh-head b { font-size: 17px; font-weight: 800; color: #191F28; white-space: nowrap; }
+.sh-head small { font-size: 12.5px; color: #8B95A1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-hp { margin-left: 8px; display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.sh-hp em { font-style: normal; font-size: 16px; font-weight: 800; color: #F04452; }
+.sh-hp strong { font-size: 20px; font-weight: 800; color: #191F28; }
+.sh-hp.est em { color: #4E5968; font-size: 14px; }
+.sh-hp.est strong { font-size: 17px; }
+
+/* 알약 금지(10-01) — 태그 · 칩 · 고르기는 붙은 네모 칸(그리드)으로 */
+.shc-chips { gap: 0; border: 1px solid #E5E8EB; }
+.shc-chips button { border-radius: 0; background: #FFFFFF; padding: 5px 10px; }
+.shc-chips button + button { border-left: 1px solid #E5E8EB; }
+.sim-tags { gap: 0; border: 1px solid #E5E8EB; display: inline-flex; flex-wrap: wrap; }
+.sim-tags button, .sim-tags span { border-radius: 0; background: #FFFFFF; padding: 6px 12px; border-right: 1px solid #E5E8EB; }
+.sim-tags > :last-child { border-right: 0; }
+.sim-tags button.on { background: #EBF4FF; }
+.sim-seg { border-radius: 0; }
+
+/* 도로명은 주소 아래 작게(10-01) */
+.sh-head { align-items: center; }
+.sh-ad { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.sh-ad small { font-size: 12px; }
+.sh-hp.est { margin-left: 16px; }
+.sh-hp.est em { color: #3182F6; font-size: 14px; font-weight: 700; }
+.sh-hp.est strong { font-size: 19px; }
+
+/* 표(10-01) — 칸마다 값 하나. 머리는 연회색 */
+.sh-tbl { margin: 0 -16px; }
+.sh-tr { display: grid; grid-template-columns: 1fr 1.2fr 1.2fr 1.2fr 1fr; min-height: 38px; align-items: stretch; border-bottom: 1px solid #F0F2F5;
+  font-size: 13.5px; color: #191F28; font-variant-numeric: tabular-nums; }
+.sh-tr > span { display: flex; align-items: center; padding: 0 16px; border-right: 1px solid #F0F2F5; }
+.sh-tr > span:last-child { border-right: 0; }
+.sh-tr.head { min-height: 34px; font-size: 12px; font-weight: 700; color: #8B95A1; background: #FBFCFD; }
+/* 펼치기 줄 — 칸 폭 전체, 누르면 아래로 */
+.sh-more { display: flex; align-items: center; justify-content: center; gap: 6px; width: calc(100% + 32px); margin: 0 -16px 0; height: 42px;
+  border: 0; border-bottom: 1px solid #F0F2F5; background: none; font: inherit; font-size: 13.5px; font-weight: 700; color: #3182F6; cursor: pointer; }
+.sh-more:hover, .sh-more.on { background: #F2F8FF; }
+.sh-more i { font-style: normal; }
+.sh-more + .sim { margin-top: 12px; }
+.sh-empty { padding: 14px 0; font-size: 13.5px; color: #8B95A1; text-align: center; border-bottom: 1px solid #F0F2F5; margin: 0 -16px; }
+.sh-tr.me { background: #F2F4F6; font-weight: 700; }
+.sh-tr.link { cursor: pointer; }
+.sh-tr.link:hover { background: #F9FAFB; }
+.sh-tr .dist { color: #3182F6; }
+.sim .sh-tbl { margin-top: 8px; border-top: 1px solid #F0F2F5; }
+.sim-bar { flex-wrap: wrap; gap: 6px; align-items: center; }
+.sim-bar .sp { flex: 1; }
+.sh-tbl.g3 .sh-tr { grid-template-columns: 1fr 1.4fr 1fr; }
+.sh-tbl.g6 .sh-tr { grid-template-columns: 0.9fr 1.2fr 1.1fr 1.1fr 1.1fr 0.9fr; }
+.shc-b .sh-tbl + .sh-more, .shc-b .trend + .sh-more { margin-top: 0; }
+.dc-row .sh-up, .sh-tr .sh-up { color: #F04452; } .dc-row .sh-down, .sh-tr .sh-down { color: #3182F6; } .dc-row .sh-over { color: #F04452; }
+
+/* 층별 현황(10-01) — 업체마다 한 줄: 층 | 업종 나무 | 업체. 머리 줄 없음. 사이드바도 같은 줄 */
+.fb { margin: 0 -16px; }
+.fb-r { display: grid; grid-template-columns: 64px minmax(0, 1fr) minmax(0, 1.2fr); min-height: 36px; align-items: center;
+  border-bottom: 1px solid #F0F2F5; font-size: 13.5px; }
+.fb-r > span { padding: 0 12px 0 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fb-f { font-weight: 700; color: #191F28; }
+.fb-c { color: #8B95A1; font-size: 12.5px; }
+.fb-n { color: #191F28; }
+.fb-room { margin-left: 8px; border: 1px solid #E5E8EB; background: #FFFFFF; font: inherit; font-size: 11.5px; font-weight: 700; color: #3182F6; padding: 2px 6px; cursor: pointer; }
+.sh-tr.sub { font-size: 12.5px; color: #4E5968; background: #FBFCFD; }
+.dc-fb .fb { margin: 0 -20px; } .dc-fb .fb-r > span:first-child { padding-left: 20px; }
+.fb .sh-tbl { margin: 0; } .fb .sh-more { width: 100%; margin: 0; }
+.fb-r { grid-template-columns: 84px minmax(0, 1fr) minmax(0, 1.2fr); } .fb-r > span.fb-f { padding-right: 6px; text-overflow: clip; }
+.th-bare { padding: 4px 0 8px; }
+.th-bare .th-f { grid-template-columns: 84px 1fr; }
+.th-ec2 { padding: 10px 0 2px; border-top: 1px solid #F0F2F4; font-size: 12.5px; color: #8B95A1; }
+.th-bare .th-r { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto; gap: 8px; }
+.th-bare .th-r > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.th-bare .th-r .du { display: none; }
+.th-bare .th-f { grid-template-columns: 64px 1fr; gap: 8px; }
+.th-bare .th-r { grid-template-columns: minmax(0, 1fr) auto; row-gap: 1px; column-gap: 10px; }
+.th-bare .th-r .nm { grid-column: 1; grid-row: 1; }
+.th-bare .th-r .bz { grid-column: 1; grid-row: 2; font-size: 11.5px; }
+.th-bare .th-r .pd { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.th-bare .th-r .bz:empty { display: none; }
+.sheet-top .sheet-unit { margin-right: 4px; }
+.sheet-top .sheet-unit { width: auto; min-width: 36px; padding: 0 8px; font: inherit; font-size: 14px; font-weight: 800; color: #333D4B; }
+.sheet-top .sheet-unit { gap: 4px; display: inline-flex; align-items: center; } .sheet-top .sheet-unit svg { color: #8B95A1; }

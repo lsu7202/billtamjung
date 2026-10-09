@@ -1,0 +1,182 @@
+/* ══ 고객 마이페이지(S09 · 10-04) — 보통의 프로필 화면 결: 머리 + 가로 카드 줄 ══ */
+.cp-page{padding:24px 40px 60px !important; max-width:none !important}
+.cp{max-width:1480px; margin:0 auto}
+.cp-head{display:flex; gap:28px; align-items:center; padding:8px 0 28px}
+.cp-av{flex:0 0 auto; width:132px; height:132px; border-radius:50%; background:#3182F6; color:#FFFFFF; display:flex; align-items:center;
+  justify-content:center; font-size:52px; font-weight:800}
+.cp-who{min-width:0}
+.cp-who h1{margin:0; font-size:34px; font-weight:800; color:#191F28; letter-spacing:-.02em}
+.cp-sub{margin-top:6px; font-size:15px; color:#6B7684; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.cp-acts{display:flex; gap:8px; margin-top:16px}
+.cp-pill{display:inline-flex; align-items:center; gap:6px; height:36px; padding:0 16px; border:0; border-radius:18px; background:#F2F4F6;
+  font:inherit; font-size:14px; font-weight:600; color:#191F28; cursor:pointer; white-space:nowrap}
+.cp-pill:hover{background:#E5E8EB}
+.cp-pill.on{background:#191F28; color:#FFFFFF}
+.cp-pill.main{background:#3182F6; color:#FFFFFF}
+.cp-pill.main:hover{background:#1B64DA}
+.cp-acc{margin:0 0 24px}
+/* 카드 줄 */
+.cp-shelf{padding:20px 0 8px; border-top:1px solid #F2F4F6}
+.cp-sh{display:flex; align-items:center; gap:8px; margin-bottom:14px}
+.cp-sh h3{margin:0; font-size:21px; font-weight:800; color:#191F28; display:flex; align-items:baseline; gap:8px}
+.cp-sh h3 .num{font-size:15px; font-weight:700; color:#8B95A1}
+.cp-sh .sp{flex:1}
+.cp-arrow{width:36px; height:36px; border:1px solid #E5E8EB; border-radius:50%; background:#FFFFFF; color:#191F28; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center}
+.cp-arrow:hover{background:#F2F4F6}
+.cp-arrow.next svg{transform:scaleX(-1)}
+.cp-row{display:grid; grid-auto-flow:column; grid-auto-columns:calc((100% - 3 * 20px) / 4); gap:20px; overflow-x:auto;
+  scroll-snap-type:x mandatory; scrollbar-width:none; padding-bottom:6px}
+.cp-row::-webkit-scrollbar{display:none}
+.cp-row.all{grid-auto-flow:row; grid-template-columns:repeat(4, 1fr); overflow:visible}
+.cp-empty{padding:18px 0 22px; font-size:14px; color:#8B95A1}
+.cp-card{scroll-snap-align:start; cursor:pointer; min-width:0}
+.cp-ph{position:relative; aspect-ratio:16 / 10; border-radius:14px; overflow:hidden; background:#F2F4F6; color:#B0B8C1;
+  display:flex; align-items:center; justify-content:center}
+.cp-ph img{width:100%; height:100%; object-fit:cover; display:block}
+.cp-card:hover .cp-ph{filter:brightness(.96)}
+.cp-badge{position:absolute; left:10px; bottom:10px; padding:3px 8px; border-radius:6px; background:rgba(25,31,40,.78); color:#FFFFFF; font-size:12px; font-weight:700}
+.cp-x{position:absolute; top:8px; right:8px; width:30px; height:30px; border:0; border-radius:50%; background:rgba(255,255,255,.92);
+  color:#4E5968; cursor:pointer; display:none; align-items:center; justify-content:center}
+.cp-card:hover .cp-x{display:inline-flex}
+.cp-x.inline{position:static; display:inline-flex; width:22px; height:22px; margin-left:6px; background:none; vertical-align:middle}
+.cp-t{display:block; margin-top:12px; font-size:16px; font-weight:700; color:#191F28; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.cp-p{margin-top:4px; font-size:15px; font-weight:700; color:#191F28}
+.cp-p em{font-style:normal; color:#F04452; margin-right:2px}
+.cp-dim{color:#8B95A1; font-weight:500}
+.cp-m{margin-top:4px; font-size:13.5px; color:#6B7684; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+/* 구해요 카드 — 사진 대신 제안 수 */
+.cp-ph.seek{flex-direction:column; gap:2px; background:#E8F7EF; color:#03B26C}
+.cp-ph.seek b{font-size:34px; font-weight:800}
+.cp-ph.seek span{font-size:13px; font-weight:700}
+.cp-card.seek.on .cp-ph{box-shadow:inset 0 0 0 3px #03B26C}
+.cp-props{margin:-2px 0 18px; border:1px solid #E5E8EB; border-radius:14px; overflow:hidden}
+.cp-props-h{display:flex; align-items:center; gap:8px; padding:12px 16px; background:#F9FAFB; font-size:14px; color:#4E5968}
+.cp-props-h b{color:#191F28}
+.cp-props-h .sp{flex:1}
+.cp-prop{display:flex; align-items:center; gap:10px; padding:12px 16px; border-top:1px solid #F2F4F6; font-size:14px}
+.cp-prop b{color:#191F28}
+.cp-prop-m{flex:1; color:#6B7684; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.cp-prop-a{display:flex; gap:6px}
+.cp-st{font-size:13px; font-weight:700; color:#3182F6}
+.cp-st.off{color:#8B95A1}
+/* 보낸 문의 줄 */
+.cp-list{border:1px solid #E5E8EB; border-radius:14px; overflow:hidden}
+.cp-li{display:flex; align-items:center; gap:14px; padding:14px 18px; border-top:1px solid #F2F4F6; cursor:pointer; font-size:14.5px}
+.cp-li:first-child{border-top:0}
+.cp-li:hover{background:#F9FAFB}
+.cp-li b{color:#191F28}
+.cp-li-d{color:#8B95A1; width:70px}
+.cp-li-o{flex:1; color:#6B7684}
+/* 내 정보 판 — 오른쪽에서 */
+.cp-dr-bg{position:fixed; inset:0; z-index:60; background:rgba(0,19,43,.18)}
+.cp-dr{position:absolute; top:0; right:0; bottom:0; width:min(560px, 100vw); background:#FFFFFF; box-shadow:-8px 0 28px rgba(0,19,43,.16);
+  display:flex; flex-direction:column}
+.cp-dr-h{flex:0 0 56px; display:flex; align-items:center; padding:0 8px 0 20px; border-bottom:1px solid #E5E8EB; font-size:17px}
+.cp-dr-h .sp{flex:1}
+.cp-dr-b{flex:1; overflow-y:auto}
+@media (max-width: 1100px){ .cp-row{grid-auto-columns:calc((100% - 20px) / 2)} .cp-row.all{grid-template-columns:repeat(2, 1fr)} }
+
+/* 내 투자(10-04) — 큰 칸 넷 + 나머지 한 줄 + 찾는 조건 */
+.cp-inv{padding:20px 0 24px; border-top:1px solid #F2F4F6}
+.cp-inv-box{border:1px solid #E5E8EB; border-radius:16px; background:#FFFFFF; overflow:hidden}
+.cp-inv-big{display:grid; grid-template-columns:repeat(4, 1fr)}
+.cp-inv-c{padding:20px 22px; cursor:pointer; display:flex; flex-direction:column; gap:6px; min-height:92px; justify-content:flex-end}
+.cp-inv-c + .cp-inv-c{border-left:1px solid #F2F4F6}
+.cp-inv-c:hover{background:#F9FAFB}
+.cp-inv-c b{font-size:22px; font-weight:800; color:#191F28; letter-spacing:-.01em; min-height:30px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.cp-inv-c span{font-size:13px; color:#8B95A1; font-weight:600}
+.cp-inv-rest{padding:12px 22px; border-top:1px solid #F2F4F6; font-size:14.5px; color:#4E5968}
+.cp-inv-cond{display:flex; gap:14px; align-items:flex-start; padding:14px 22px; border-top:1px solid #F2F4F6; background:#F9FAFB}
+.cp-inv-k{flex:0 0 auto; padding-top:8px; font-size:13.5px; font-weight:700; color:#6B7684}
+.cp-inv-chips{display:flex; flex-wrap:wrap; gap:8px}
+.cp-chip{display:inline-flex; align-items:center; gap:6px; height:36px; padding:0 8px 0 14px; border:1px solid #E5E8EB; border-radius:8px;
+  background:#FFFFFF; font:inherit; font-size:13.5px; color:#191F28; cursor:pointer; max-width:420px}
+.cp-chip:hover{border-color:#C9DFFB; background:#F2F8FF}
+.cp-chip svg{color:#3182F6; flex:0 0 auto}
+.cp-chip b{font-weight:700; white-space:nowrap}
+.cp-chip i{font-style:normal; color:#6B7684; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.cp-chip button{width:24px; height:24px; border:0; border-radius:6px; background:none; color:#B0B8C1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center}
+.cp-chip button:hover{background:#F2F4F6; color:#4E5968}
+.cp-chip.add{padding:0 14px; color:#3182F6; font-weight:700}
+@media (max-width: 900px){ .cp-inv-big{grid-template-columns:repeat(2, 1fr)} }
+
+/* 묶음 하나 화면(/mypage/…) — 제목 + X, 카드는 격자로 꽉 */
+.cp-sec-h{display:flex; align-items:center; padding:8px 0 20px}
+.cp-sec-h h2{margin:0; font-size:28px; font-weight:800; color:#191F28; display:flex; align-items:baseline; gap:10px}
+.cp-sec-h h2 .num{font-size:17px; color:#8B95A1}
+.cp-sec-h .sp{flex:1}
+.cp-shelf.full, .cp-inv.full{border-top:0; padding-top:0}
+.cp-sh h3.link{cursor:pointer}
+.cp-sh h3.link svg{transform:scaleX(-1); color:#8B95A1; align-self:center}
+.cp-sh h3.link:hover svg{color:#191F28}
+.cp-row.all{grid-template-columns:repeat(auto-fill, minmax(260px, 1fr))}
+/* 중개사 — 내 사무소 칸 셋씩 두 줄 · 팀 사람 카드 */
+.cp-inv-big.three{grid-template-columns:repeat(3, 1fr)}
+.cp-inv-big.three .cp-inv-c:nth-child(3n+1){border-left:0}
+.cp-inv-big.three .cp-inv-c:nth-child(n+4){border-top:1px solid #F2F4F6}
+.cp-people{display:flex; flex-wrap:wrap; gap:28px; padding:4px 0 8px}
+.cp-people.in{border-top:1px solid #F2F4F6; padding:16px 20px}
+.cp-person{width:112px; display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer; text-align:center}
+.cp-av.sm{width:88px; height:88px; font-size:34px}
+.cp-person b{font-size:15px; font-weight:700; color:#191F28; display:flex; align-items:center; gap:4px}
+.cp-person b i{font-style:normal; font-size:11px; font-weight:700; color:#3182F6; background:#EBF4FF; border-radius:4px; padding:1px 5px}
+.cp-person > span:last-child{font-size:13px; color:#8B95A1}
+.cp-person:hover .cp-av{filter:brightness(.95)}
+
+/* 내 중개사무소(/mypage/office) — 정보 · 팀 · 상태. 그리드 줄은 salestab.css 의 lgx-* */
+.of .cp-shelf.first{border-top:0; padding-top:0}
+.of .cp-shelf{padding-bottom:28px}
+.of-box{border:1px solid #E5E8EB; border-radius:16px; background:#FFFFFF; overflow:hidden}
+.of-box .lgx-r:last-child{border-bottom:0}
+.of-box .cxf-col .lgx-r:last-child{border-bottom:1px solid #F2F4F6}
+.of-in{width:min(320px,100%)}
+.of-logo{height:30px; max-width:140px; object-fit:contain}
+.of-person{position:relative; width:150px}
+.of-mail{font-size:12px; color:#B0B8C1; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.of-person > span.of-mail{font-size:12px}
+.of-x{position:absolute; top:0; right:18px; width:28px; height:28px; border:0; border-radius:50%; background:#FFFFFF; box-shadow:0 1px 4px rgba(0,19,43,.18);
+  color:#8B95A1; cursor:pointer; display:none; align-items:center; justify-content:center}
+.of-person:hover .of-x{display:inline-flex}
+.of-x:hover{color:#F04452}
+.of-inv{margin-top:16px}
+.of-inv .lgx-k{flex-basis:220px}
+.of-code{font-family:ui-monospace,Menlo,monospace; font-weight:500}
+@media (max-width:760px){ .of .cxf-two{grid-template-columns:1fr} .of .cxf-col + .cxf-col{border-left:0; border-top:1px solid #E5E8EB} }
+.cp-inv-c.open{cursor:default; background:#FFFFFF}
+.of-cin{height:32px; border:1px solid #3182F6; border-radius:6px; padding:0 10px; font:inherit; font-size:16px; font-weight:700; color:#191F28; width:100%; min-width:0}
+.cp-person b i.adm{color:#4E5968; background:#F2F4F6}
+.of-rows .lgx-r:last-child{border-bottom:0}
+.of-rows .lgx-k{flex-basis:160px}
+.cp-inv-box .of-rows + .cp-people.in{border-top:1px solid #E5E8EB}
+/* 초대(0221) — 찾기 결과 줄 · 대기 카드 · 받은 초대 */
+
+.of-person.wait > span:not(.of-mail){color:#3182F6}
+.of-pp{max-height:420px; overflow-y:auto}
+.of-pp-r{display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid #F2F4F6}
+.of-pp-who{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px}
+.of-pp-who b{font-size:14.5px; font-weight:700; color:#191F28}
+.of-pp-who b span{font-weight:500; color:#4E5968}
+.of-pp-who > span{font-size:12.5px; color:#8B95A1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.of-pp-go{height:32px; padding:0 14px; border:0; border-radius:8px; background:#3182F6; color:#FFFFFF; font:inherit; font-size:13px; font-weight:700; cursor:pointer}
+.of-pp-go:hover{background:#1B64DA}
+.of-pp-done{font-size:13px; color:#8B95A1}
+.of-recv{display:flex; flex-direction:column; gap:8px; margin-bottom:24px}
+.of-recv-r{display:flex; align-items:center; gap:12px; padding:14px 18px; border:1px solid #C9DFFB; border-radius:14px; background:#F2F8FF}
+.of-person.wait .cp-av{opacity:1; background:#D1D6DB}
+.cp-person{width:auto; min-width:112px}
+.cp-person b{white-space:nowrap}
+.cp-person b i{white-space:nowrap}
+
+/* 로고 · 홍보 사진(0236) — 네모 칸 줄. + 로 올리고 X 로 지운다 */
+.of-brand{display:flex; flex-wrap:wrap; gap:10px; padding:4px 0 8px}
+.of-tile{position:relative; width:120px; height:120px; border-radius:14px; overflow:hidden; background:var(--surface-2); border:1px solid var(--line)}
+.of-tile img{width:100%; height:100%; object-fit:cover; display:block}
+.of-tile.logo img{object-fit:contain; background:#fff}
+.of-add{width:100%; height:100%; border:0; background:none; color:var(--muted); cursor:pointer; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:6px; font-size:12px}
+.of-add:hover{color:var(--ink); background:var(--surface)}
+.of-tx{position:absolute; top:6px; right:6px; width:22px; height:22px; border:0; border-radius:999px; background:rgba(0,0,0,.55); color:#fff;
+  cursor:pointer; display:grid; place-items:center}
+.of-n{position:absolute; left:6px; bottom:6px; min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:rgba(0,0,0,.55);
+  color:#fff; font-size:11px; font-style:normal; display:grid; place-items:center}

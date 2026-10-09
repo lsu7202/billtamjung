@@ -1,14 +1,3 @@
-/** 주변상권 영역 — 원(중심 자유·반경) 또는 자유곡선 폴리곤. MarketBlock·PhotoPanel 공유.
- * circle.center 없으면 본매물 기준(기본값). */
-export type MarketArea =
-  | { kind: "circle"; radius_m: number; center?: { lng: number; lat: number } }
-  | { kind: "polygon"; geojson: object; area_m2: number };
-
-/** 실거래 사례 조건 — 기간(년)·가격 하한/상한(원). 리포트와 매물상세가 같은 값을 쓴다.
- *  기본은 현행 그대로(5년·무제한)라 조건을 안 건드리면 값이 안 변한다. */
-export type CompFilter = { years: number; price_min: number | null; price_max: number | null };
-export const COMP_FILTER_DEFAULT: CompFilter = { years: 5, price_min: null, price_max: null };
-
 /** 여러 영역을 한 GeoJSON으로 합친다 — 백엔드는 폴리곤 하나만 받으므로 MultiPolygon으로 넘긴다.
  *  ST_Within(b.geom, MultiPolygon)이 그대로 성립해서 서버는 손댈 것이 없다. */
 export function mergeGeo(list: object[]): object | null {
@@ -29,6 +18,9 @@ export type CompPoint = { building_pk: string; lng: number; lat: number; kind: "
 // 진짜 건물 PK 는 숫자로 시작하므로(대장 PK) 접두 'P' 와 부딪히지 않는다.
 export const openDetail = (pk: string) =>
   window.open(pk.startsWith("P") ? `/parcels/${pk.slice(1)}` : `/buildings/${pk}`, "_blank", "noopener");
+/** 지번 페이지를 새 탭으로(10-08) — 동을 고르고 들어오면 ?dong= */
+export const openParcel = (pnu: string, dong?: string | null) =>
+  window.open(`/parcels/${pnu}${dong ? `?dong=${encodeURIComponent(dong)}` : ""}`, "_blank", "noopener");
 
 /** 원(중심+반경) → GeoJSON 폴리곤(n각형 근사). 백엔드 ST_Within 필터용. */
 export function circleToGeoJSON(center: { lng: number; lat: number }, radius_m: number, n = 64): object {

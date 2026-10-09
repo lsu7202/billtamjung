@@ -15,18 +15,13 @@ import { MapPanel, type MapPin } from "../../shared/map/MapPanel";
 import { Icon } from "../../shared/ui/Icon";
 import { Loading } from "../../shared/ui/Spinner";
 import { AskBox } from "./AskBox";
-import { chats, send, type AskItem, type Ev, type Msg, type Piece, type Pin, type ToolLog } from "./api";
+import { AuthImg } from "../../shared/ui/AuthImg";
+import { BASE } from "../../shared/api/client";
+import { chats, send, uploadsApi, type AskItem, type Ev, type Msg, type Panel, type Piece, type Pin, type Template, type ToolLog } from "./api";
 import { Pieces, Tools } from "./Message";
+import { SidePanel, type SideView } from "./SidePanel";
 import "./assistant.css";
 
-/** 빈 화면에 놓는 문장 넷. 「이런 걸 물어보세요」 같은 안내가 아니라
- *  누르면 그대로 들어가는 문장 자체다(설명글씨 금지) */
-const SEEDS = [
-  "성수동1가에서 연면적 200평 넘는 건물 찾아줘",
-  "삼성동 78 어떤 건물이야",
-  "성수동2가 1층 업체 많은 건물은",
-  "구별로 건물 수 세어줘",
-];
 
 interface Err { code: string; title: string; body: string | null; action: string | null }
 
@@ -78,35 +73,72 @@ function Pane({ chatId, onCreated }: { chatId: number | null; onCreated: (id: nu
   const nav = useNavigate();
   // 아래 훅들은 이른 return(로딩) **위**에 있어야 한다 — 밑에 두면 첫 렌더에 훅 수가
   // 달라져 「Rendered fewer hooks than expected」 로 판이 죽는다(2026-09-21 화면 확인).
-  // 오른쪽 지도의 핀 — 흘러오는 답이 있으면 그것, 아니면 마지막 답의 것
+  // 본문 건물 카드는 답마다 제 핀을 읽는다(Pieces). 핀은 **판을 열지 않는다**
   const lastA = [...(q.data ?? [])].reverse().find((m) => m.role === "assistant");
-  const pins: Pin[] = live ? live.pins : (lastA?.pins ?? []);
-  const mapPins = useMemo<MapPin[]>(() => pins.map((p) => ({
-    building_pk: p.pk, addr: p.addr, lng: p.lng, lat: p.lat, col: p.col,
-    price: p.price ?? p.sale_est ?? null, sale_est: p.sale_est, price_is_est: p.price == null,
+  // 오른쪽 판(0235) — 컨테이너 하나 · 한 번에 한 화면. 판 열기 신호로만 바뀐다:
+  // 서버의 panel 조각 · 건물 카드의 지도 아이콘 · 도구 모음의 「자료 만들기」
+  const [side, setSide] = useState<SideView | null>(null);
+  const [mapPks, setMapPks] = useState<string[]>([]);
+  const [focus, setFocus] = useState<{ pin: Pin; n: number } | null>(null);   // n: 같은 걸 또 눌러도 움직이게
+  const [tpl, setTpl] = useState<Template | null>(null);                      // 고른 자료 템플릿 — 이 말 한 번뿐
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [files, setFiles] = useState<{ id: number; name: string | null }[]>([]);   // 이 말과 함께 보낼 이미지
+  const [upping, setUpping] = useState(0);
+  const fileIn = useRef<HTMLInputElement>(null);
+  const pickFiles = async (fs: FileList | null) => {
+    for (const f of Array.from(fs ?? [])) {
+      setUpping((n) => n + 1);
+      try { const u = await uploadsApi.upload(f); setFiles((xs) => [...xs, u]); }
+      catch (e) { alert((e as Error).message); }
+      finally { setUpping((n) => n - 1); }
+    }
+  };
+  const allPins = useMemo(() => {
+    const m = new Map<string, Pin>();
+    for (const x of q.data ?? []) for (const p of x.pins ?? []) m.set(p.pk, p);
+    for (const p of live?.pins ?? []) m.set(p.pk, p);
+    return m;
+  }, [q.data, live]);
+  const openPanel = (p: Panel | null | undefined) => {
+    if (!p) return;
+    if (p.view === "map") { setMapPks(p.pks); setFocus(null); setSide({ view: "map" }); }
+    else if (p.view === "artifact") setSide({ view: "artifact", id: p.id, ver: p.ver });
+    else setSide({ view: "templates" });
+  };
+  // 대화를 열면 마지막 판이 돌아오고, 새 답에 판이 있으면 그 판으로. 판 없는 답은 지금 판을 그대로 둔다
+  const lastPanelKey = lastA?.panel ? `${lastA.id}` : "";
+  useEffect(() => { if (!live && lastA?.panel) openPanel(lastA.panel); }, [lastPanelKey]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const shown: Pin[] = useMemo(() => mapPks.map((k) => allPins.get(k)).filter((p): p is Pin => !!p), [mapPks, allPins]);
+  const mapPins = useMemo<MapPin[]>(() => shown.map((p) => ({
+    // 출처를 그대로 받는다(mine · ad · market · normal, 11b) — 탐색 지도와 같은 색 규칙(kind)으로 선다
+    pnu: p.pnu ?? p.pk, building_pk: p.pk, addr: p.addr, lng: p.lng, lat: p.lat, col: p.col === "mine" ? "mine" : "normal",
+    kind: (["mine", "ad", "market", "normal"].includes(p.col) ? p.col : "normal") as MapPin["kind"],
+    // 매물은 그 땅 1번 매물의 매매가로, 매물이 아니면 추정가로 — 한 가격표에 둘을 섞지 않는다(0226)
+    ...(p.col !== "normal"
+      ? { price: p.price ?? null, sale_est: p.price ?? null, text: "미정" }
+      : { price: p.sale_est ?? null, sale_est: p.sale_est }),
     land_area: p.land_area, total_area: p.total_area,
-  })), [pins]);
+  })), [shown]);
   // 핀이 다 보이게. 핀이 바뀔 때만 움직인다 — 사람이 옮긴 지도를 되돌리지 않는다
   const centerReq = useMemo(() => {
-    if (!pins.length) return null;
-    const xs = pins.map((p) => p.lng), ys = pins.map((p) => p.lat);
+    if (!shown.length) return null;
+    const xs = shown.map((p) => p.lng), ys = shown.map((p) => p.lat);
     const c = { lng: (Math.min(...xs) + Math.max(...xs)) / 2, lat: (Math.min(...ys) + Math.max(...ys)) / 2 };
-    return pins.length === 1 ? { ...c, zoom: 17 }
+    return shown.length === 1 ? { ...c, zoom: 17 }
       : { ...c, bounds: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] as [number, number, number, number] };
-  }, [pins]);
-  // 지도는 X 로 닫는다. 다시 여는 건 카드의 로드뷰다 — 누르면 그 건물 필지로 간다(2026-09-22 대표).
-  // 새 답이 건물을 돌려주면 전체가 보이게 다시 선다
-  const [mapOn, setMapOn] = useState(true);
-  const [focus, setFocus] = useState<{ pin: Pin; n: number } | null>(null);   // n: 같은 걸 또 눌러도 움직이게
-  const pinKey = pins.map((p) => p.pk).join(",");
-  useEffect(() => { setMapOn(true); setFocus(null); }, [pinKey]);
+  }, [shown]);
   const focusReq = useMemo(() => focus ? { lng: focus.pin.lng, lat: focus.pin.lat, zoom: 18 } : null, [focus]);
-  const onFocus = (pin: Pin) => { setMapOn(true); setFocus((f) => ({ pin, n: (f?.n ?? 0) + 1 })); };
-  const openPin = (pk: string) => {
-    const p = pins.find((x) => x.pk === pk);
-    if (p) nav(p.vacant ? `/parcels/${p.pk}` : `/buildings/${p.pk}`);
+  // 건물 카드의 지도 아이콘 — 사람이 직접 연다. 그 땅 하나를 띄우고 그리로 간다
+  const onFocus = (pin: Pin) => {
+    setMapPks((ks) => (side?.view === "map" && ks.includes(pin.pk) ? ks : [pin.pk]));
+    setSide({ view: "map" });
+    setFocus((f) => ({ pin, n: (f?.n ?? 0) + 1 }));
   };
-
+  // 지도 핀은 지번으로 골라진다(10-08) — 그 지번 페이지로
+  const openPin = (pnu: string) => {
+    const p = [...allPins.values()].find((x) => (x.pnu ?? x.pk) === pnu);
+    if (p) nav(`/parcels/${p.pnu ?? p.pk}${p.vacant ? "" : `?dong=${encodeURIComponent(p.pk)}`}`);
+  };
 
   useEffect(() => { foot.current?.scrollIntoView({ block: "end" }); }, [q.data, live]);
   useEffect(() => {
@@ -114,12 +146,15 @@ function Pane({ chatId, onCreated }: { chatId: number | null; onCreated: (id: nu
     gen.current += 1;
     abort.current?.abort(); abort.current = null;
     setId(chatId); setLive(null); setErr(null); setNote(null); setDraft("");
+    setSide(null); setMapPks([]); setFocus(null); setTpl(null);
   }, [chatId]);
 
   async function go(text: string) {
     const t = text.trim();
     if (!t || busy) return;
-    setDraft(""); setErr(null); setNote(null); setLive(EMPTY);
+    const useTpl = tpl?.key ?? null;           // 고른 템플릿은 이 말 한 번에만 실린다
+    const useFiles = files;                    // 올린 이미지도 이 말 한 번에만
+    setDraft(""); setErr(null); setNote(null); setLive(EMPTY); setTpl(null); setFiles([]);
     const my = gen.current;
     const gone = () => gen.current !== my;       // 그사이 다른 대화로 옮겼나
     let cid = id;
@@ -134,7 +169,8 @@ function Pane({ chatId, onCreated }: { chatId: number | null; onCreated: (id: nu
     qc.setQueryData<Msg[]>(["ai-msgs", cid], (old) => [
       ...(old ?? []),
       { id: -Date.now(), seq: ((old && old.length ? old[old.length - 1].seq : 0)) + 1, role: "user",
-        content: [{ t: "text", v: t }], tool_calls: null, created_at: new Date().toISOString() },
+        content: [{ t: "text", v: t }, ...useFiles.map((f) => ({ t: "file" as const, id: f.id, name: f.name }))],
+        tool_calls: null, created_at: new Date().toISOString() },
     ]);
     const ac = new AbortController();
     abort.current = ac;
@@ -151,13 +187,14 @@ function Pane({ chatId, onCreated }: { chatId: number | null; onCreated: (id: nu
         else if (e.t === "tool" && e.phase === "start") { flush(); L.running = e.name; L.sent = e.input ?? {}; push(); }
         else if (e.t === "tool") { L.log = [...L.log, { name: e.name, input: L.sent ?? {}, ms: e.ms, summary: e.summary, error: null }]; L.running = null; L.sent = null; push(); }
         else if (e.t === "pins") { L.pins = [...L.pins, ...e.items]; push(); }
+        else if (e.t === "panel") { const { t: _t, ...p } = e; openPanel(p as Panel); }
         else if (e.t === "ask") { L.ask = e.물음; push(); }
         else if (e.t === "error") setErr(e);
         else if (e.t === "done") {
           if (e.title) qc.invalidateQueries({ queryKey: ["ai-chats"] });
           if (e.scrubbed?.length) setNote(`가린 것: ${e.scrubbed.join(" · ")}`);
         }
-      }, ac.signal);
+      }, ac.signal, true, useTpl, useFiles.map((f) => f.id));
     } catch { /* 중단은 오류가 아니다 */ }
     // 서버 것을 **먼저** 받고 나서 흘러오던 것을 내린다. 반대로 하면 그 틈에 답이 잠깐 사라진다
     await qc.invalidateQueries({ queryKey: ["ai-msgs", cid] });
@@ -178,16 +215,22 @@ function Pane({ chatId, onCreated }: { chatId: number | null; onCreated: (id: nu
         : null);
   const empty = msgs.length === 0 && live == null && !err;
   return (
-    <div className={`as-pane${pins.length && mapOn ? " with-map" : ""}`}>
-    <div className="as-chat">
+    <div className={`as-pane${side ? " with-side" : ""}`}>
+    {/* 새 채팅이면 입력창 하나가 화면 정 가운데에 크게 선다(10-04 대표 · 제미나이 결). 예시 질문은 없다 */}
+    <div className={`as-chat${empty ? " fresh" : ""}`}>
       <div className={`as-msgs ${empty ? "blank" : ""}`}>
-        {empty && (
-          <div className="as-seeds">
-            {SEEDS.map((t) => <button key={t} onClick={() => go(t)}>{t}</button>)}
-          </div>
-        )}
         {msgs.map((m) => m.role === "user"
-          ? <div className="as-m user" key={m.id}>{m.content.filter((p) => p.t === "text").map((p) => (p as { v: string }).v).join("\n")}</div>
+          ? (
+            <div className="as-mu" key={m.id}>
+              <div className="as-m user">{m.content.filter((p) => p.t === "text").map((p) => (p as { v: string }).v).join("\n")}</div>
+              {m.content.some((p) => p.t === "file") && (
+                <div className="as-files">{m.content.filter((p) => p.t === "file").map((p) => {
+                  const f = p as { id: number };
+                  return <AuthImg key={f.id} src={`${BASE}/ai/uploads/${f.id}`} className="as-fimg" />;
+                })}</div>
+              )}
+            </div>
+          )
           : (
             <div className="as-a" key={m.id}>
               {m.tool_calls && <Tools log={m.tool_calls} />}
@@ -209,8 +252,34 @@ function Pane({ chatId, onCreated }: { chatId: number | null; onCreated: (id: nu
 
       {pendingAsk?.length ? <AskBox items={pendingAsk} onSend={go} /> : null}
 
+      <div className="as-inrow">
+      {/* 도구 모음 — 입력창 밖 동그라미. 고르면 오른쪽 판에 그 도구의 창이 선다 */}
+      <div className="as-kit">
+        <button className={`as-tb${toolsOpen ? " on" : ""}`} title="도구" onClick={() => setToolsOpen((v) => !v)}>
+          <Icon name="settings" size={16} /></button>
+        {toolsOpen && (
+          <div className="as-tm" onMouseLeave={() => setToolsOpen(false)}>
+            <button onClick={() => { setSide({ view: "templates" }); setToolsOpen(false); }}>
+              <Icon name="report" size={15} />자료 만들기</button>
+          </div>
+        )}
+      </div>
       <div className="as-in">
-        <textarea
+        {/* 입력창 안 왼쪽 = 이미지 올리기(0237) — 자료에 넣는 용도. 파일은 바깥 모델로 안 간다 */}
+        <button className="as-up" title="이미지 올리기" onClick={() => fileIn.current?.click()}><Icon name="plus" size={16} /></button>
+        <input ref={fileIn} type="file" accept="image/*" multiple hidden onChange={(e) => { pickFiles(e.target.files); e.target.value = ""; }} />
+        {files.map((f) => (
+          <span key={f.id} className="as-fchip">
+            <AuthImg src={`${BASE}/ai/uploads/${f.id}`} />
+            <button title="빼기" onClick={() => setFiles((xs) => xs.filter((x) => x.id !== f.id))}><Icon name="close" size={10} /></button>
+          </span>
+        ))}
+        {upping > 0 && <span className="as-fchip wait" />}
+        {tpl && (
+          <span className="as-chip">{tpl.name}
+            <button title="빼기" onClick={() => setTpl(null)}><Icon name="close" size={12} /></button></span>
+        )}
+        <textarea autoFocus={empty}
           value={draft} rows={1} placeholder="무엇이든 물어보세요"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -220,16 +289,19 @@ function Pane({ chatId, onCreated }: { chatId: number | null; onCreated: (id: nu
           ? <button className="as-go stop" title="멈춤" onClick={() => abort.current?.abort()}><span className="sq" /></button>
           : <button className="as-go" title="보냄" disabled={!draft.trim()} onClick={() => go(draft)}><Icon name="send" size={15} /></button>}
       </div>
+      </div>
     </div>
-    {pins.length > 0 && mapOn && (
-      // 답이 돌려준 건물들을 한눈에 — 검색 화면의 지도 그대로다(2026-09-21 대표). 작은 검색 창.
-      <aside className="as-map">
-        <MapPanel pins={mapPins} centerReq={focusReq ?? centerReq} polygonActive={false}
-          selectedPk={focus?.pin.pk ?? null} selectedCol={focus?.pin.col ?? null}
-          fitPadding={{ top: 40, right: 40, bottom: 60, left: 40 }}
-          onPick={openPin} onPolygon={() => undefined} />
-        <button className="as-mx" title="지도 닫기" onClick={() => setMapOn(false)}><Icon name="close" size={16} /></button>
-      </aside>
+    {side && (
+      <SidePanel side={side} onClose={() => setSide(null)} chosen={tpl?.key ?? null}
+        onPick={(t) => setTpl(t)}
+        map={(
+          // 지도 도구가 고른 땅 · 카드에서 연 땅만 — 검색 화면의 지도 그대로다(2026-09-21 대표)
+          // 값은 매매가 총액으로(기본 「대지 평단가」는 대지면적 없는 핀을 「미정」으로 떨어뜨렸다)
+          <MapPanel pins={mapPins} centerReq={focusReq ?? centerReq} polygonActive={false} realView={{ basis: "total", unit: "py" }}
+            selectedPnu={focus ? (focus.pin.pnu ?? focus.pin.pk) : null} selectedCol={focus?.pin.col ?? null}
+            fitPadding={{ top: 40, right: 40, bottom: 60, left: 40 }}
+            onPick={openPin} onPolygon={() => undefined} />
+        )} />
     )}
     </div>
   );

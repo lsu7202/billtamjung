@@ -1,0 +1,12 @@
+/* 프로필 사진(0219) — 동그라미 크기는 쓰는 쪽 클래스가 정한다. 사진은 꽉 채워 자른다 */
+.face{overflow:hidden}
+.face img{width:100%; height:100%; object-fit:cover; display:block}
+.myface{position:relative; display:inline-flex; flex:0 0 auto}
+.myface-b{border:0; padding:0; background:none; cursor:pointer; border-radius:50%; position:relative; display:inline-flex}
+.myface-cam{position:absolute; inset:0; border-radius:50%; background:rgba(0,19,43,.42); color:#FFFFFF; display:none; align-items:center; justify-content:center}
+.myface-b:hover .myface-cam{display:flex}
+.myface-x{position:absolute; right:2px; bottom:2px; width:32px; height:32px; border:0; border-radius:50%; background:#FFFFFF; color:#8B95A1;
+  box-shadow:0 1px 4px rgba(0,19,43,.2); cursor:pointer; display:none; align-items:center; justify-content:center}
+.myface:hover .myface-x{display:inline-flex}
+.myface-x:hover{color:#F04452}
+.myface.busy{opacity:.6; pointer-events:none}

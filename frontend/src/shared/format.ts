@@ -44,10 +44,6 @@ export function wonAcc(n?: number | null): string {
   return neg ? `-${s}` : s;
 }
 
-/** 평당 만원: 총액(원) ÷ 평. */
-export function perPyMan(total?: number | null, areaPy?: number | null): string {
-  return total && areaPy ? `${Math.round(total / areaPy / 1e4).toLocaleString()}만/평` : "";
-}
 
 /** ㎡당 만원(원/㎡ 입력): 공시지가 등. */
 export function manPerM2(perM2?: number | null): string {
@@ -73,34 +69,13 @@ export const isoDate = (d: Date) => {
   return z.toISOString().slice(0, 10);
 };
 
-/** 오늘+plus 일의 로컬 YYYY-MM-DD. */
-export const isoDay = (plus = 0) => {
-  const d = new Date(); d.setDate(d.getDate() + plus);
-  return isoDate(d);
-};
 
-/** 일정을 낳은/일정에서 난 커밋의 한 줄 표시 — 「일정이름 · 시간 · 커밋내용」(2026-08-15).
- *  매수·매도·매물 어디서든 같은 일정 id 에서 파생하므로 이름이 어긋날 수 없다.
- *  일정을 미루면 이 표시도 따라온다(저장된 문장은 원문 그대로 남는다). */
-export const schedLine = (row: {
-  sched_title?: string | null; sched_on?: string | null; sched_at?: string | null;
-  sched_note?: string | null; note?: string | null; status?: string | null;
-}): string | null => {
-  if (!row.sched_title || !row.sched_on) return null;
-  const when = md(row.sched_on) + (row.sched_at ? ` ${row.sched_at.slice(0, 5)}` : "");
-  // 단계가 실린 줄(계약 체결 등)은 **자기 문구**가 사건의 내용이다 — 원문으로 덮지 않는다.
-  const body = row.status ? (row.note ?? row.sched_note) : (row.sched_note ?? row.note);
-  return `${row.sched_title} · ${when}` + (body ? ` · ${body}` : "");
-};
 
-/** 커밋이 적힌 시각 HH:MM — 소급 기록(다른 날을 말하고 적은 것)이면 null.
- *  자정(00:00)으로 세워진 소급 타임스탬프도 시각이 아니다 — 지어내지 않는다. */
-export const commitTime = (ts?: string | null, day?: string | null): string | null => {
-  if (!ts) return null;
-  if (day && ts.slice(0, 10) !== day.slice(0, 10)) return null;
-  const hm = ts.slice(11, 16);
-  return hm === "00:00" ? null : hm;
-};
 
 /** 제안 칩 표기(0086) — 제안 상태는 마지막 답글에 따라 「제안수락·제안거절」로 갈려 보인다.
  *  저장된 상태는 그대로다(답글은 상태가 아니다) — 표기만 갈래를 얹는다. */
+
+/** 층 이름 표기(10-01) — 화면에서는 지하를 「B1」로 쓴다. 저장값 · 맞춤 열쇠는 「지하1층」 그대로 둔다. */
+export function floorName(s?: string | null): string {
+  return (s ?? "").replace(/지하\s*(\d+)\s*층?/g, "B$1");
+}

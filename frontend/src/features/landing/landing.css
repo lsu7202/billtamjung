@@ -6,14 +6,6 @@
 .ld-sub { color: #A7A29B; font-size: 15px; margin: 12px 0 30px; text-align: center;
   opacity: 0; animation: s00-rise .6s .7s cubic-bezier(.22,1,.36,1) forwards; }
 
-.ld-cta { display: inline-flex; align-items: center; gap: 9px; border: 0; border-radius: 999px;
-  background: var(--gold); color: var(--ink); font: inherit; font-size: 16.5px; font-weight: 800;
-  letter-spacing: -.01em; padding: 15px 30px; cursor: pointer;
-  box-shadow: 0 14px 40px rgba(231,200,118,.28), 0 2px 8px rgba(0,0,0,.4);
-  opacity: 0; animation: s00-rise .7s .85s cubic-bezier(.22,1,.36,1) forwards;
-  transition: transform .12s, box-shadow .15s; }
-.ld-cta:hover { transform: translateY(-2px); box-shadow: 0 20px 52px rgba(231,200,118,.4), 0 2px 8px rgba(0,0,0,.4); }
-.ld-cta:active { transform: scale(.98); }
 .ld-note { color: #8C8A86; font-size: 12.5px; margin-top: 14px;
   opacity: 0; animation: s00-rise .7s 1s forwards; }
 

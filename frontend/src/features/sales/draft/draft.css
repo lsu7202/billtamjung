@@ -10,10 +10,6 @@
 
 .um-head{display:flex; align-items:center; gap:11px; padding:18px 24px 12px}
 .um-head b{font-size:18px; font-weight:800; letter-spacing:-.03em; color:#191F28}
-.um-st{font-size:12px; font-weight:700; padding:5px 13px; border-radius:11px; background:#FFFFFF; color:#4E5968;
-  box-shadow:0 1px 3px rgba(0,19,43,.05)}
-.um-draft{font-size:10.5px; font-weight:800; color:#8B95A1; border:1px dashed #D0D6DC;
-  border-radius:7px; padding:2px 8px; letter-spacing:.04em}
 .um-x{border:0; background:none; color:#8B95A1; font-size:15px; font-weight:700; cursor:pointer;
   width:32px; height:32px; border-radius:11px; transition:all .13s}
 .um-x:hover{background:#E8EBEE; color:#333D4B}
@@ -36,13 +32,8 @@
 .um-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap; min-height:40px}
 .um-row .k{flex:0 0 62px; font-size:11.5px; font-weight:800; color:#8B95A1}
 .um-row .dim, .um-pane .dim{color:#8B95A1; font-size:12.5px; font-weight:600}
-.um-half{display:grid; grid-template-columns:1fr 1fr; gap:0 18px}
-.um-half .um-row .k{flex:0 0 auto; min-width:62px}
-.um-big{font-size:16.5px; font-weight:800; letter-spacing:-.02em; color:#191F28}
 
 /* 부품 */
-.um-scheds{display:flex; gap:7px; margin-top:10px; flex-wrap:wrap; align-items:center}
-.um-scheds .um-chip.on{background:#EBF4FF; color:#3182F6}
 .um-ghost{border:0; background:none; font:inherit; font-size:13px; font-weight:700; color:#8B95A1; cursor:pointer;
   padding:7px 10px; border-radius:11px; transition:all .13s}
 .um-ghost:hover{background:#E8EBEE; color:#4E5968}
@@ -76,9 +67,6 @@
 .um-sub{display:flex; gap:7px; margin-top:13px; flex-wrap:wrap; align-items:center}
 
 .um-offer{padding:10px 14px}
-.bexp{display:flex; flex-direction:column; gap:6px}
-.bexp .brow{display:flex; gap:10px; align-items:center; min-height:32px; flex-wrap:wrap}
-.bexp .bk{flex:0 0 48px; font-size:11px; font-weight:800; color:#8B95A1}
 .ohist{padding:2px 14px 14px 112px; overflow-x:auto; animation:um-in .18s ease}
 .ohist table{border-collapse:collapse}
 .ohist th{font-size:11px; font-weight:700; color:#B0B8C1; text-align:left; padding:2px 22px 2px 0; white-space:nowrap}
@@ -116,11 +104,6 @@
 @media (max-width:860px){ .um-body{grid-template-columns:1fr} .um-memo{display:none}
   .ohist{padding-left:12px} .eexp{padding-left:14px} }
 
-/* 투자 가정(0133) — 조건 목록과 시뮬 가정을 가르는 작은 머리. 표가 둘인 걸 눈이 알아야 한다 */
-.um-k2{font-size:11px; font-weight:800; letter-spacing:.05em; color:#8B95A1; margin:16px 6px 7px}
-/* 값 뒤에 붙는 이름표 — 무슨 숫자인지 값 옆에서 말한다(줄 왼쪽 라벨을 다섯 줄 반복하지 않으려고) */
-.um-dim{font-style:normal; font-size:11px; font-weight:700; color:#B0B8C1; margin-left:6px}
-
 /* 문서 버튼 — 아이콘만 두니 옆 칩에 묻혔다. 이름을 붙여 세운다(2026-08-28) */
 .um-doc.wide{width:auto; padding:0 15px; gap:7px; display:inline-flex; align-items:center;
   font-size:13px; font-weight:800; letter-spacing:-.015em; white-space:nowrap}
@@ -141,4 +124,3 @@
 /* 정보 탭 구획 머리(09-29) — 가격 · 매수자 / 매물 / 확인 / 관리 */
 .um .um-h { font-size: 13px; font-weight: 700; color: #8B95A1; margin: 14px 4px 6px; }
 .um .um-h:first-child { margin-top: 2px; }
-.um .um-scals { margin: 8px 0 0; }

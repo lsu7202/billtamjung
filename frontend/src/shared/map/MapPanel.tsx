@@ -6,7 +6,7 @@ import { meters, areaM2, geoToPaths, circleToGeoJSON, conePath } from "./geo";
 import { makeRuler, Ruler } from "./ruler";
 import { Icon, type IconName } from "../ui/Icon";
 import { SourceTag } from "../ui/Notice";
-import { searchApi, newsPinsApi, type NewsPin } from "../api/endpoints";
+import { searchApi, parcelsApi, newsPinsApi, type NewsPin } from "../api/endpoints";
 import { eventIcon, MAJOR_TYPES } from "./eventIcon";
 import { NewsFilterPanel } from "./NewsFilterPanel";
 import type { RoadView } from "./Roadview";
@@ -16,32 +16,43 @@ import { AuthImg } from "../ui/AuthImg";
  * specs S01 §3.6·3.6a·3.6c, 네이버지도-연동 §1.2·3.1.
  */
 export interface MapPin {
-  building_pk: string;
+  /** 열쇠 = 지번(10-08) */
+  pnu: string;
+  /** 그 지번의 대표 동 — 동 카드를 열 때만. 매물은 listing_id 로 부른다 */
+  building_pk?: string;
   addr: string;
   lng: number;
   lat: number;
   col: "mine" | "normal";
   /** 핀 종류(S05) — 색은 이걸로 가른다. 없으면 col 로 */
-  kind?: "mine" | "ad" | "sold" | "normal";
+  kind?: "mine" | "ad" | "sold" | "normal" | "seek" | "deal" | "est" | "msale" | "mrent" | "market";
+  /** 가격표 없이 색 점으로만(구해요) — 마우스를 올리거나 고르면 가격표 */
+  dot?: boolean;
+  /** 건축물대장 주용도 — 가격표 첫 칸 */
+  main_use_name?: string | null;
   /** 이 핀만의 값 보기(실거래 핀은 real) */
   lens?: "fair" | "real";
   text?: string;
   ad_n?: number;
-  ad_price_min?: number | null;
+  /** 매매가 — 그 매물의 값 하나(0226). 없으면 null(추정가는 sale_est) */
   price: number | null;
+  /** 매물(0226) — 매물 번호 · 건물 안 순번(1 = 핀에 서는 매물) · 주인 · 주인 사무소 이름 */
+  listing_id?: number | null; rank?: number | null; owner?: "mine" | "office" | "crawl" | null; office?: string | null;
   last_sale_price?: number | null;
   sale_est?: number | null;
   roi?: number | null;
-  /** 값이 팀 매매가가 아니라 추정가로 대체됐나 — 실측 짝을 세울 수 있는지 이걸로 갈린다(0134) */
-  price_is_est?: boolean;
-  /** 순수 추정 수익률(추정임대 ÷ 추정가) — 실측 roi 와 섞지 않는다(0134) */
-  roi_est?: number | null;
   land_area?: number | null;
   total_area?: number | null;
   /** 마지막 실거래 거래년월(YYYYMM) — 핀 아랫줄과 연도 거르기에 쓴다 */
   last_sale_ym?: string | null;
   floors_above?: number | null;
   floors_below?: number | null;
+  /** 매매시세 · 임대시세 대표값 — 매매는 호가(원), 임대는 ㎡당 월세(원). askN = 그 건물 광고 수 */
+  ask?: number | null; askN?: number;
+  /** 시세 가격표 머리 · 아랫줄 글자 — 임대는 고른 층(「1층」) · 공간 수, 매매는 수집일 */
+  askHead?: string; askFoot?: string;
+  /** 매물 탐색(S08) — 네이버 매물 수집일 · 그날 광고 수 · 매물유형 */
+  mk_on?: string | null; mk_n?: number | null; major?: string | null;
 }
 
 /* 자석 올가미는 뺐다(2026-08-27) — 「드래그로 감싸면 필지 경계로 스냅」이었는데,
@@ -86,17 +97,18 @@ const fmtDist = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(2)}km` : `${Ma
 const fmtArea = (a: number) => `${a >= 10000 ? `${(a / 10000).toFixed(2)}ha` : `${Math.round(a).toLocaleString()}㎡`} (${Math.round(a / 3.3058).toLocaleString()}평)`;
 
 export function MapPanel({
-  pins, onPick, onPolygon, polygons, polygonActive, selectedPk, selectedCol, onParcelClick, centerReq, priceMode = "fair",
-  realView, fitPadding, autoFit = true, onView, rvReq, rvMedia, onRvClose,
+  pins, onPick, onPolygon, polygons, polygonActive, selectedPnu, selectedCol, onParcelClick, centerReq, priceMode = "fair",
+  realView, fitPadding, autoFit = true, onView, rvReq, rvMedia, onRvClose, drawReq, onDrawMode, noDrawTool = false, keepDraw = false,
 }: {
   pins: MapPin[];
-  onPick: (pk: string) => void;
+  onPick: (pnu: string) => void;
   onPolygon: (geojson: object | null) => void;   // 새 영역 1개(누적은 부모가) · null=전체 지우기
   polygons?: object[] | null;                 // 그려둔 영역들 — 지도에 전부 표시
   polygonActive: boolean;
-  selectedPk?: string | null;                 // 선택 건물(필지 분류색 오버레이)
-  selectedCol?: "mine" | "normal" | null;
-  onParcelClick?: (building_pk: string | null, pnu: string) => void;  // 필지 클릭(부동산플래닛식)
+  selectedPnu?: string | null;                // 고른 지번(땅 분류색 오버레이)
+  /** 고른 핀의 색 키(PIN_COLORS) — 필지를 같은 색으로 칠한다 */
+  selectedCol?: string | null;
+  onParcelClick?: (pnu: string) => void;      // 필지 클릭(부동산플래닛식) → 지번
   /** 지도 이동 요청. bounds 가 있으면 그 상자가 다 보이게(지역의 매물 전부), 없으면 한 점으로 */
   centerReq?: { lng: number; lat: number; zoom?: number; bounds?: [number, number, number, number] } | null;
   priceMode?: "fair" | "real";               // 핀 태그 가격: 추정가/실거래가
@@ -114,6 +126,14 @@ export function MapPanel({
   rvMedia?: { adId: number; ids: number[] } | null;
   /** 거리뷰를 닫을 때 마지막 자리 · 방향 — 사이드바 사진 자리가 이어받는다 */
   onRvClose?: (v: RoadView | null) => void;
+  /** 바깥(탐색 조건 화면)에서 그리기를 켜고 끈다(09-30). n 이 바뀔 때마다. mode null = 끄기 */
+  drawReq?: { mode: "free" | "poly" | "circle" | null; n: number } | null;
+  /** 지금 그리는 도구가 바뀌면 알린다 — 바깥 도구 칸이 켜짐을 그린다 */
+  onDrawMode?: (m: "free" | "poly" | "circle" | null) => void;
+  /** 오른쪽 아래 도구모음의 「영역」을 뺀다 — 그리기를 바깥 조건 화면이 맡을 때 */
+  noDrawTool?: boolean;
+  /** 도형 하나를 다 그려도 도구를 켜 둔다 — 바깥의 「적용」이 그리기를 끝낸다(탐색 그리기 화면, 09-30) */
+  keepDraw?: boolean;
 }) {
   const nav = useNavigate();
   const divRef = useRef<HTMLDivElement>(null);
@@ -128,6 +148,18 @@ export function MapPanel({
   const [mapType, setMapType] = useState<"normal" | "satellite">("normal");
   const [cadastre, setCadastre] = useState(false);
   const [drawMode, setDrawMode] = useState<DrawMode>("off");
+  // 스페이스를 누르고 있나 — 누르는 동안은 끌면 지도가 움직이고, 그리기는 시작되지 않는다(09-30)
+  const spaceRef = useRef(false);
+  useEffect(() => {
+    if (!drawReq) return;
+    setDrawMode(drawReq.mode ?? "off");
+    if (drawReq.mode) { setStreet(false); setMeasure("off"); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawReq?.n]);
+  useEffect(() => {
+    onDrawMode?.(drawMode === "free" || drawMode === "poly" || drawMode === "circle" ? drawMode : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawMode]);
   const [rulerOn, setRulerOn] = useState(false);        // 자(straightedge) 표시 — 자유곡선 스냅 가이드
   const rulerRef = useRef<Ruler | null>(null);
   const [menu, setMenu] = useState<"draw" | "measure" | null>(null);   // 열린 도구 묶음
@@ -224,6 +256,9 @@ export function MapPanel({
 
   // 핀 = 캔버스 레이어(DOM 마커 X) — 캔버스 1개에 클러스터+가격태그 그림. 수만 개도 부드러움.
   const onPickRef = useRef(onPick); onPickRef.current = onPick;
+  // 필지 클릭도 늘 최신 함수로 — 리스너는 한 번만 달리므로 그때의 함수를 들고 있으면 옛 핀 목록으로 고른다(10-04 버그:
+  // 필지를 직접 누르면 네이버 매물인데도 핀에서 못 찾아 「추정가」 카드가 섰다)
+  const onParcelRef = useRef(onParcelClick); onParcelRef.current = onParcelClick;
   useEffect(() => {
     if (!ready || !mapRef.current) return;
     const layer = makeCanvasPinLayer(window.naver, mapRef.current, (pk) => onPickRef.current(pk));
@@ -249,7 +284,7 @@ export function MapPanel({
   useEffect(() => {
     if (realView) pinLayerRef.current?.setRealView(realView);
   }, [realView?.basis, realView?.unit, ready]);
-  useEffect(() => { pinLayerRef.current?.setSelected(selectedPk ?? null); }, [selectedPk, ready]);
+  useEffect(() => { pinLayerRef.current?.setSelected(selectedPnu ?? null); }, [selectedPnu, ready]);
 
   // 선택 대상 좌표로 지도 이동. zoom을 주면 그 배율까지 확대한다.
   // 예전엔 줌을 그대로 뒀는데, 건물 하나를 골라도 줌 15면 선택 필지가 몇 픽셀이라
@@ -287,9 +322,12 @@ export function MapPanel({
     const naver = window.naver;
     const map = mapRef.current;
     const listener = naver.maps.Event.addListener(map, "click", async (e: any) => {
+      // 가격표를 눌렀으면 필지 조회를 안 한다 — 가격표는 건물 점 위로 떠 있어서, 누른 자리의 필지는 대개 **옆(위쪽) 필지**다.
+      // 두 리스너가 같이 돌면 늦게 오는 필지 조회가 가격표가 고른 건물을 덮어써, 태그를 눌러도 엉뚱한 필지가 골라졌다(10-04)
+      if (e.offset && pinLayerRef.current?.hits(e.offset.x, e.offset.y)) return;
       try {
-        const { building_pk, pnu } = await searchApi.parcelAt(e.coord.lng(), e.coord.lat());
-        onParcelClick(building_pk, pnu ?? "");   // 나대지는 pk 가 없고 pnu 만 있다 — 빈 문자열로 넘기면 아무 일도 안 났다
+        const { pnu } = await searchApi.parcelAt(e.coord.lng(), e.coord.lat());
+        if (pnu) onParcelRef.current?.(pnu);
       } catch { /* 필지 없음 무시 */ }
     });
     return () => naver.maps.Event.removeListener(listener);
@@ -469,11 +507,13 @@ export function MapPanel({
     const naver = window.naver;
     selParcelRef.current?.setMap(null);
     selParcelRef.current = null;
-    if (!selectedPk) return;
+    if (!selectedPnu) return;
     let dead = false;
-    searchApi.parcelFor(selectedPk).then(({ polygon }) => {
+    parcelsApi.geom(selectedPnu).then(({ polygon }) => {
       if (dead || !polygon) return;
-      const c = PIN_COLORS[selectedCol ?? "normal"];
+      // 흰 핀(추정가)을 고르면 필지는 검정으로 칠한다 — 흰 필지는 안 보인다
+      const c0 = PIN_COLORS[selectedCol ?? "normal"];
+      const c = c0.toUpperCase() === "#FFFFFF" ? "#191F28" : c0;
       selParcelRef.current = new naver.maps.Polygon({
         map: mapRef.current, paths: geoToPaths(naver, polygon), clickable: false,
         fillColor: c, fillOpacity: 0.35, strokeColor: c, strokeWeight: 2.2, zIndex: 60,
@@ -481,9 +521,9 @@ export function MapPanel({
     }).catch(() => { /* 필지 없음 무시 */ });
     return () => { dead = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, selectedPk, selectedCol]);
+  }, [ready, selectedPnu, selectedCol]);
 
-  // 영역 그리기(자유곡선/자석: 드래그 / 다각형: 클릭+더블클릭 닫기)
+  // 영역 그리기(자유곡선: 누른 채 끌다 떼면 끝 / 원: 중심에서 끌기 / 다각형: 점 찍고 첫 점으로 돌아와 닫기)
   useEffect(() => {
     if (!ready) return;
     const naver = window.naver;
@@ -523,14 +563,14 @@ export function MapPanel({
         onPolygon(raw);
       }
       d.pts = [];
-      setDrawMode("off");
+      if (!keepDraw) setDrawMode("off");
     };
 
     const listeners: any[] = [];
     if (drawMode === "free") {
       let down = false;
       listeners.push(
-        naver.maps.Event.addListener(map, "mousedown", (e: any) => { down = true; d.pts = [snap(e.coord)]; }),
+        naver.maps.Event.addListener(map, "mousedown", (e: any) => { if (spaceRef.current) return; down = true; d.pts = [snap(e.coord)]; }),
         naver.maps.Event.addListener(map, "mousemove", (e: any) => {
           if (!down) return;
           d.pts.push(snap(e.coord));
@@ -539,12 +579,12 @@ export function MapPanel({
             d.temp = new naver.maps.Polyline({ map, path: d.pts, strokeColor: "#3A5DA8", strokeWeight: 2 });
           }
         }),
-        naver.maps.Event.addListener(map, "mouseup", () => { down = false; finish(); }),
+        naver.maps.Event.addListener(map, "mouseup", () => { if (!down) return; down = false; finish(); }),
       );
     } else if (drawMode === "circle") {
       let cen: any = null;
       listeners.push(
-        naver.maps.Event.addListener(map, "mousedown", (e: any) => { cen = e.coord; }),
+        naver.maps.Event.addListener(map, "mousedown", (e: any) => { if (spaceRef.current) return; cen = e.coord; }),
         naver.maps.Event.addListener(map, "mousemove", (e: any) => {
           if (!cen) return;
           d.temp?.setMap(null);
@@ -561,20 +601,60 @@ export function MapPanel({
             onPolygon(geo);
           }
           cen = null;
-          setDrawMode("off");
+          if (!keepDraw) setDrawMode("off");
         }),
       );
     } else {
+      // 다각형(09-30) — 점을 찍으면 점끼리 잇는다. 첫 점 가까이(12px) 가면 자석처럼 붙고, 거기를 누르면 닫힌다
+      const dots: any[] = [];
+      let guide: any = null;
+      const px = (c: any) => map.getProjection().fromCoordToOffset(c);
+      const nearFirst = (c: any) => {
+        if (d.pts.length < 3) return false;
+        const a = px(d.pts[0]), b = px(c);
+        return Math.hypot(a.x - b.x, a.y - b.y) <= 12;
+      };
+      const dotIcon = (big: boolean) => ({
+        content: `<div style="width:${big ? 16 : 10}px;height:${big ? 16 : 10}px;border-radius:50%;background:#fff;border:2.5px solid #3A5DA8;box-sizing:border-box"></div>`,
+        anchor: new naver.maps.Point(big ? 8 : 5, big ? 8 : 5),
+      });
+      const clearAll = () => {
+        dots.forEach((m) => m.setMap(null)); dots.length = 0;
+        guide?.setMap(null); guide = null;
+      };
       listeners.push(
         naver.maps.Event.addListener(map, "click", (e: any) => {
+          if (spaceRef.current) return;
+          if (nearFirst(e.coord)) { clearAll(); finish(); return; }
           d.pts.push(e.coord);
+          dots.push(new naver.maps.Marker({ map, position: e.coord, clickable: false, icon: dotIcon(false) }));
           d.temp?.setMap(null);
           d.temp = new naver.maps.Polyline({ map, path: d.pts, strokeColor: "#3A5DA8", strokeWeight: 2 });
         }),
-        naver.maps.Event.addListener(map, "dblclick", (e: any) => { e.pointerEvent?.preventDefault?.(); finish(); }),
+        naver.maps.Event.addListener(map, "mousemove", (e: any) => {
+          if (!d.pts.length) return;
+          const snapTo = nearFirst(e.coord);
+          const end = snapTo ? d.pts[0] : e.coord;
+          guide?.setMap(null);
+          guide = new naver.maps.Polyline({ map, path: [d.pts[d.pts.length - 1], end], strokeColor: "#3A5DA8",
+            strokeWeight: 2, strokeStyle: "shortdash", clickable: false });
+          dots[0]?.setIcon(dotIcon(snapTo));   // 붙으면 첫 점이 커진다
+        }),
       );
+      listeners.push({ __clear: clearAll });
     }
-    return () => listeners.forEach((l) => naver.maps.Event.removeListener(l));
+    // Esc = 그리던 도형 버리기(도구는 그대로)
+    const esc = (ev: KeyboardEvent) => {
+      if (ev.key !== "Escape") return;
+      d.pts = []; d.temp?.setMap(null); d.temp = null;
+      listeners.forEach((l) => l?.__clear?.());
+    };
+    window.addEventListener("keydown", esc);
+    return () => {
+      window.removeEventListener("keydown", esc);
+      listeners.forEach((l) => (l?.__clear ? l.__clear() : naver.maps.Event.removeListener(l)));
+      d.temp?.setMap(null); d.temp = null; d.pts = [];
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, drawMode]);
 
@@ -620,12 +700,13 @@ export function MapPanel({
   // 도구별 커서 — 그리기·측정=크로스헤어(class+!important로 naver 기본 openhand 덮음), 그 외 기본(팬)
   useEffect(() => {
     if (!ready || !divRef.current) return;
-    const drawing = drawMode === "free" || drawMode === "poly" || drawMode === "circle" || measure !== "off";
+    const drawing = drawMode === "poly" || drawMode === "circle" || measure !== "off";
     divRef.current.classList.toggle("map-crosshair", drawing);
+    divRef.current.classList.toggle("map-pen", drawMode === "free");   // 자유곡선 = 펜 커서
   }, [ready, drawMode, measure]);
 
-  // 스페이스 팬(피그마식) — 지도 위에서 Space 누른 채 마우스 이동 = 지도가 커서를 따라 이동.
-  // 그리기 모드 중에도 동작(드로잉이 드래그를 점유해도 팬 가능). setCenter 즉시 이동(애니메이션 없음).
+  // 스페이스 팬(피그마식) — 지도 위에서 Space 누른 채 **끌면**(왼쪽 버튼) 지도가 따라 움직인다(09-30, 전엔 이동만으로 움직였다).
+  // 그리기 모드 중에도 동작 — 누르는 동안 그리기는 시작되지 않는다(spaceRef). setCenter 즉시 이동(애니메이션 없음).
   useEffect(() => {
     if (!ready || !divRef.current) return;
     const el = divRef.current;
@@ -637,14 +718,17 @@ export function MapPanel({
     const kd = (e: KeyboardEvent) => {
       if (e.code !== "Space" || isTyping(e.target)) return;
       if (over) e.preventDefault();                      // 페이지 스크롤 방지
-      if (!space) { space = true; last = null; el.classList.add("map-spacepan"); }
+      if (!space) { space = true; spaceRef.current = true; last = null; el.classList.add("map-spacepan"); }
     };
     const ku = (e: KeyboardEvent) => {
       if (e.code !== "Space") return;
-      space = false; last = null; el.classList.remove("map-spacepan");
+      space = false; spaceRef.current = false; last = null; el.classList.remove("map-spacepan");
     };
     const mm = (e: MouseEvent) => {
-      if (!space || !over) { last = null; return; }
+      if (!space || !over || !(e.buttons & 1)) { last = null; return; }
+      // 그리지 않을 땐 지도가 원래 끌려 움직인다 — 여기서 또 옮기면 두 배로 간다
+      const dm = drawingRef.current.mode;
+      if (dm === "off" || dm === "ruler") { last = null; return; }
       const m = mapRef.current;
       if (!m) return;
       if (last) {
@@ -756,7 +840,8 @@ export function MapPanel({
         )}
         {street && !roadview && <div style={hintBox("var(--ink)")}>파란 도로를 클릭하면 그 위치 로드뷰가 열립니다</div>}
         {drawMode === "ruler" && <div style={hintBox("var(--ink)")}>자를 드래그해 이동 · 양 끝(●)을 드래그해 회전 → 자유곡선으로 대고 그리세요</div>}
-        {drawMode !== "off" && drawMode !== "ruler" && (
+        {/* 바깥 그리기 화면(keepDraw)은 제 막대가 있어 안내 글씨를 안 띄운다 */}
+        {drawMode !== "off" && drawMode !== "ruler" && !keepDraw && (
           <div style={hintBox("var(--ink)")}>
             {drawMode === "poly" ? "클릭으로 꼭짓점 · 더블클릭으로 닫기"
               : drawMode === "circle" ? "중심을 누른 뒤 드래그해 반경을 정하세요"
@@ -770,7 +855,7 @@ export function MapPanel({
           지금 켜진 것은 묶음 이름 아래 뱃지로 남긴다. */}
       {!panoBig && (
         <div className="mp-bar">
-          <ToolGroup label="영역" icon="free" active={DRAW_LABEL[drawMode] ?? null}
+          {!noDrawTool && <ToolGroup label="영역" icon="free" active={DRAW_LABEL[drawMode] ?? null}
             open={menu === "draw"} onToggle={() => setMenu(menu === "draw" ? null : "draw")}>
             {([["free", "free", "자유곡선"],
                ["poly", "polygon", "다각형"],
@@ -792,7 +877,7 @@ export function MapPanel({
               <button className="bad" onClick={() => { clearPolygon(); setMenu(null); }}>
                 <Icon name="delete" size={15} /><b>영역 지우기</b></button>
             )}
-          </ToolGroup>
+          </ToolGroup>}
 
           <ToolGroup label="측정" icon="distance" active={MEASURE_LABEL[measure] ?? null}
             open={menu === "measure"} onToggle={() => setMenu(menu === "measure" ? null : "measure")}>

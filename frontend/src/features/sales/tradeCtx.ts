@@ -11,7 +11,7 @@ export interface TradeCtx {
   kind: "owner" | "buyer";
   id: number;
   label: string;
-  building_pk?: string | null;
+  listing_id?: number | null;
   addr?: string | null;
   proposal_id?: number | null;
 }

@@ -9,7 +9,7 @@ export function AuthImg({ src, className }: { src: string | null; className?: st
   useEffect(() => {
     if (!src) { setUrl(null); return; }
     let obj: string | null = null, alive = true;
-    fetch(src, { headers: { Authorization: `Bearer ${access}` } })
+    fetch(src, { headers: access ? { Authorization: `Bearer ${access}` } : {} })
       .then((res) => (res.ok ? res.blob() : Promise.reject()))
       .then((b) => { obj = URL.createObjectURL(b); if (alive) setUrl(obj); else URL.revokeObjectURL(obj); })
       .catch(() => { if (alive) setUrl(null); });

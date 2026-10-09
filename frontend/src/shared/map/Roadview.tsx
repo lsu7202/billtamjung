@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { loadNaver } from "./naver";
+import { Icon } from "../ui/Icon";
 
 /** 네이버 파노라마(로드뷰) 미니 뷰어. 사이드바 sel-card용. 좌표 최근접 파노라마 로드.
  * 커버리지 없으면 안내. specs 네이버지도-연동(로드뷰). */
@@ -67,8 +68,13 @@ export function RoadviewMini({ lng, lat, className, onExpand, onNone, view, onVi
   }, [lng, lat]);
 
   return (
-    <div className={className} style={{ position: "relative", cursor: onExpand ? "pointer" : "default" }} onClick={onExpand}>
+    // 크게 보기는 오른쪽 위 ⤢ 버튼으로만(10-02). 판 전체를 누름으로 받으면 둘러보려고 끌었다 놓기만 해도 전체화면이 된다
+    <div className={className} style={{ position: "relative" }}>
       <div ref={divRef} style={{ position: "absolute", inset: 0 }} />
+      {onExpand && !none && (
+        <button className="rv-expand" title="크게 보기" onClick={(e) => { e.stopPropagation(); onExpand(); }}>
+          <Icon name="fullscreen" size={16} /></button>
+      )}
       {none && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
         background: "linear-gradient(150deg,#8a97a6,#5f6b7a)", color: "#e7ecf2", fontSize: 12, fontWeight: 600 }}>
         이 위치 로드뷰 없음

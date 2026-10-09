@@ -38,12 +38,12 @@ function Checks({ items, show }: { items: RecoCheck[]; show: "got" | "want" }) {
   );
 }
 
-export function PickModal({ mode, buyerId, buildingPk, title, onClose, onAdded }: {
+export function PickModal({ mode, buyerId, listingId, title, onClose, onAdded }: {
   mode: Mode;
   /** mode=listing 이면 이 매수자에게 담는다 */
   buyerId?: number;
-  /** mode=buyer 면 이 매물에 담는다 */
-  buildingPk?: string;
+  /** mode=buyer 면 이 매물에 담는다(매물 번호 · 0255) */
+  listingId?: number;
   title: string;
   onClose: () => void;
   onAdded: () => void;
@@ -53,10 +53,10 @@ export function PickModal({ mode, buyerId, buildingPk, title, onClose, onAdded }
   const [busy, setBusy] = useState(false);
 
   const reco = useQuery({
-    queryKey: ["reco", mode, String(buyerId ?? buildingPk)],
+    queryKey: ["reco", mode, String(buyerId ?? listingId)],
     queryFn: async (): Promise<{ needs_condition?: boolean; items: (RecoListing | RecoBuyer)[] }> =>
       (mode === "listing" ? buyersApi.recommend(buyerId!, 40)
-        : buyersApi.recommendBuyers(buildingPk!, 300)),   // 매수자는 **명단 전부**가 한 목록이다
+        : buyersApi.recommendBuyers(listingId!, 300)),   // 매수자는 **명단 전부**가 한 목록이다
   });
   const sellers = useQuery({ queryKey: ["sellers"], queryFn: () => salesApi.sellers(),
     enabled: mode === "listing" });
@@ -67,16 +67,17 @@ export function PickModal({ mode, buyerId, buildingPk, title, onClose, onAdded }
     queryFn: () => searchApi.suggest(q.trim()),
     enabled: finding,
   });
-  // 이미 담긴 것 — 목록에 두되 못 고르게 한다(없으면 「왜 안 보이지」가 된다)
+  // 이미 담긴 것 — 목록에 두되 못 고르게 한다(없으면 「왜 안 보이지」가 된다). 매물 방향은 지번으로 잰다
   const taken = useMemo(() => new Set(
-    ((reco.data?.items ?? []) as { taken?: boolean; building_pk?: string; id?: number }[])
-      .filter((x) => x.taken).map((x) => String(x.building_pk ?? x.id))), [reco.data]);
+    ((reco.data?.items ?? []) as { taken?: boolean; pnu?: string; id?: number }[])
+      .filter((x) => x.taken).map((x) => String(x.pnu ?? x.id))), [reco.data]);
 
-  type Row = { key: string; label: string; sub?: string; checks?: RecoCheck[];
+  /** key = 고르는 값(매물 방향은 매물 번호, 매수자 방향은 매수자 번호) · pnu = 상세로 갈 지번 */
+  type Row = { key: string; pnu?: string; label: string; sub?: string; checks?: RecoCheck[];
                mine?: boolean; taken?: boolean };
-  // 주소를 누르면 그 건물 상세로 — **새 탭**이다(2026-08-20). 같은 탭에서 넘어가면
+  // 주소를 누르면 그 지번 상세로 — **새 탭**이다(2026-08-20). 같은 탭에서 넘어가면
   // 고르던 것이 통째로 날아간다. 담기는 하던 자리에 그대로 두고, 확인만 옆에서 한다.
-  const openDetail = (pk: string) => window.open(`/buildings/${pk}`, "_blank", "noopener");
+  const openDetail = (pnu: string) => window.open(`/parcels/${pnu}`, "_blank", "noopener");
   const rows: Row[] = (() => {
     if (mode === "buyer") {
       // 명단은 하나 — 추천 응답이 이미 **전원**을 점수순으로 낸다(조건 없는 사람은 뒤로)
@@ -88,13 +89,13 @@ export function PickModal({ mode, buyerId, buildingPk, title, onClose, onAdded }
       }).filter((r) => !q.trim() || r.label.includes(q.trim()));
     }
     if (finding) {
-      return (hits.data ?? []).filter((x) => x.kind === "building" && x.building_pk)
+      // 짝은 매물을 가리킨다 — 매물이 서 있는 지번만 고를 수 있다(0255)
+      return (hits.data ?? []).filter((x) => x.listing_id != null && x.pnu)
         .slice(0, 20)
-        .map((x) => ({ key: x.building_pk!, label: dongAddr(x.addr), taken: taken.has(x.building_pk!) }));
+        .map((x) => ({ key: String(x.listing_id), pnu: x.pnu!, label: dongAddr(x.addr), mine: !!x.is_mine, taken: taken.has(x.pnu!) }));
     }
-    const reco_ = (reco.data?.items ?? []).map((x) => {
-      const r = x as RecoListing;
-      return { key: r.building_pk, label: dongAddr(r.addr) || r.building_pk,
+    const reco_ = (reco.data?.items as RecoListing[] ?? []).filter((r) => r.listing_id != null).map((r) => {
+      return { key: String(r.listing_id), pnu: r.pnu, label: dongAddr(r.addr) || r.pnu,
         sub: [r.price ? wonShort(r.price) : null,
               r.roi != null ? `수익 ${r.roi}%` : null].filter(Boolean).join(" · "),
         checks: r.checks, mine: r.mine, taken: r.taken };
@@ -104,10 +105,10 @@ export function PickModal({ mode, buyerId, buildingPk, title, onClose, onAdded }
     const seen = new Set(reco_.map((r) => r.key));
     const mine = (sellers.data ?? [])
       // 팔린 매물은 담기 목록에도 안 선다(2026-08-20) — 추천에서 뺐으면 여기서도 빼야 한다
-      .filter((x) => !seen.has(x.building_pk) && x.status_name !== "완료")
-      .map((x) => ({ key: x.building_pk, label: dongAddr(x.addr) || x.building_pk,
+      .filter((x) => !seen.has(String(x.listing_id)) && x.status_name !== "완료")
+      .map((x) => ({ key: String(x.listing_id), pnu: x.pnu, label: dongAddr(x.addr) || x.pnu,
         sub: [x.owner_name, x.list_price ? wonShort(x.list_price) : null].filter(Boolean).join(" · "),
-        mine: true, taken: taken.has(x.building_pk) }));
+        mine: true, taken: taken.has(x.pnu) }));
     return [...reco_, ...mine];
   })();
 
@@ -118,8 +119,8 @@ export function PickModal({ mode, buyerId, buildingPk, title, onClose, onAdded }
     try {
       for (const k of sel) {
         await proposalsApi.upsert(mode === "listing"
-          ? { buyer_id: buyerId!, building_pk: k }
-          : { buyer_id: Number(k), building_pk: buildingPk! });
+          ? { buyer_id: buyerId!, listing_id: Number(k) }
+          : { buyer_id: Number(k), listing_id: listingId! });
       }
       setSel([]);
       onAdded();
@@ -199,7 +200,7 @@ export function PickModal({ mode, buyerId, buildingPk, title, onClose, onAdded }
               <span className="nm">
                 {mode === "listing" ? (
                   <button className="go" title="건물 상세 보기(새 탭)"
-                    onClick={(e) => { e.stopPropagation(); openDetail(r.key); }}>{r.label}</button>
+                    onClick={(e) => { e.stopPropagation(); if (r.pnu) openDetail(r.pnu); }}>{r.label}</button>
                 ) : r.label}
                 {r.mine && <em className="mine">내 매물</em>}
                 {r.taken && <em className="was">담김</em>}

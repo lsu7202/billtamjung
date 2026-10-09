@@ -1,91 +1,8 @@
 /* S01b 상세검색 — 줄 문법으로 다시 짬(2026-08-27).
    예전 틀(칩 격자 + 팝오버 + 3단 드롭다운)을 통째로 걷어냈다. 창 위에 창이 안 뜬다. */
 
-.s01b .overlay{position:fixed; inset:0; background:rgba(15,26,46,.42); z-index:190;
-  display:flex; align-items:flex-start; justify-content:center; padding:34px 16px;
-  backdrop-filter:blur(2px)}
-.s01b .modal{width:100%; max-width:900px; max-height:calc(100vh - 68px); background:#fff;
-  border-radius:20px; box-shadow:0 20px 60px rgba(0,19,43,.24); display:flex;
-  flex-direction:column; overflow:hidden}
-
-/* ── 머리 ── */
-.s01b .modal-head{display:flex; align-items:center; gap:9px; padding:15px 20px;
-  border-bottom:1px solid var(--line)}
-.s01b .modal-head h2{font-size:16px; font-weight:800; letter-spacing:-.03em; margin:0}
-.s01b .modal-head .sub{font-size:11px; font-weight:700; color:var(--muted)}
-.s01b .modal-head .sp{margin-left:auto}
-.s01b .modal-head .lnk{font-size:11.5px; font-weight:800; color:var(--ink-2);
-  padding:6px 11px; border-radius:9px; background:var(--surface-2)}
-.s01b .modal-head .lnk:hover{background:#E8EBEE; color:var(--ink)}
-
-/* ── 지역 — 조건이 아니라 범위라 목록 밖, 창 맨 위에 상주 ── */
-.s01b .rgn{display:flex; align-items:center; gap:7px; flex-wrap:wrap;
-  padding:13px 20px; border-bottom:1px solid var(--line)}
-.s01b .rgn-k{font-size:9.5px; font-weight:800; letter-spacing:.06em; color:var(--muted)}
-.s01b .rgn-c{display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700;
-  padding:5px 11px; border-radius:999px; background:#EBF4FF; color:#3182F6}
-.s01b .rgn-c .x{cursor:pointer; opacity:.5; font-size:10px}
-.s01b .rgn-c .x:hover{opacity:1}
-.s01b .rgn-add{display:inline-flex; gap:5px}
-.s01b .rgn-add select{height:29px; border-radius:9px; border:0; background:var(--surface-2);
-  font:inherit; font-size:11.5px; font-weight:700; color:var(--ink-2); padding:0 9px; cursor:pointer}
-.s01b .rgn-or{font-size:10.5px; font-weight:700; color:var(--faint, #B0B8C1); margin:0 1px}
-.s01b .rgn-draw{border:0; font:inherit; cursor:pointer; font-size:11.5px; font-weight:800;
-  padding:6px 12px; border-radius:9px; background:#EBF4FF; color:#3182F6}
-.s01b .rgn-draw:hover{background:#DCE9FD}
-
-/* ── 담은 조건 ── */
-.s01b .applied-bar{display:flex; align-items:center; gap:6px; flex-wrap:wrap;
-  padding:11px 20px; border-bottom:1px solid var(--line); min-height:44px}
-.s01b .applied-bar .albl{font-size:9.5px; font-weight:800; letter-spacing:.06em; color:var(--muted)}
-.s01b .applied-bar .empty{font-size:11.5px; font-weight:600; color:var(--faint, #B0B8C1)}
-.s01b .achip{display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700;
-  padding:5px 11px; border-radius:999px; background:#EBF4FF; color:#3182F6; max-width:280px}
-.s01b .achip .k{font-weight:800; opacity:.62; flex:0 0 auto}
-.s01b .achip .x{cursor:pointer; opacity:.5; font-size:10px; flex:0 0 auto}
-.s01b .achip .x:hover{opacity:1}
-
 /* ── 몸통 = 목록 + 줄 ── */
-.s01b .acc-title{display:none}
-.s01b .modal-body{flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden}
 .s01b .sb{flex:1; min-height:0; display:flex}
-
-.s01b .idx{flex:0 0 150px; border-right:1px solid var(--line); overflow-y:auto;
-  background:#FCFCFD; padding-bottom:10px}
-.s01b .idx-sec{display:flex; flex-direction:column}
-.s01b .idx-hd{font-size:9.5px; font-weight:800; letter-spacing:.06em; color:var(--muted);
-  padding:14px 18px 5px}
-.s01b .idx-item{display:flex; align-items:center; width:100%; border:0; background:none;
-  font:inherit; cursor:pointer; font-size:12px; font-weight:700; color:var(--ink-2);
-  padding:8px 18px; text-align:left}
-.s01b .idx-item:hover{background:var(--surface-2)}
-.s01b .idx-item.on{background:#EBF4FF; color:#3182F6; box-shadow:inset 3px 0 0 #3182F6}
-.s01b .idx-item .il{display:flex; align-items:center; min-width:0}
-.s01b .idx-item .badge{margin-left:auto; font-size:9.5px; font-weight:800; border-radius:5px;
-  padding:1px 5px; background:#3182F6; color:#fff}
-.s01b .idx-item .badge.zero{display:none}
-
-.s01b .pane{flex:1; min-width:0; overflow-y:auto; padding:4px 20px 16px}
-.s01b .fpanel{display:flex; flex-direction:column}
-/* 묶음 안 구분 — 자주 쓰는 줄이 위에 선다 */
-.s01b .fsec{font-size:9.5px; font-weight:800; letter-spacing:.06em; color:var(--muted);
-  padding:14px 0 4px}
-.s01b .fsec:first-child{padding-top:8px}
-
-/* ── 줄 ── */
-.s01b .frow{border-bottom:1px solid #F4F6F8}
-.s01b .frow:last-child{border-bottom:0}
-.s01b .fr-h{display:flex; align-items:center; gap:11px; padding:13px 0; cursor:pointer}
-.s01b .fr-k{font-size:12.5px; font-weight:800; width:116px; flex:0 0 auto; color:var(--ink)}
-.s01b .fr-v{font-size:12px; font-weight:700; color:#3182F6; min-width:0;
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.s01b .fr-v.off{color:var(--faint, #B0B8C1); font-weight:600}
-.s01b .fr-a,.s01b .fr-x{margin-left:auto; flex:0 0 auto; font-size:11px; color:var(--faint, #B0B8C1);
-  padding:3px 5px; border-radius:6px}
-.s01b .fr-x:hover{background:var(--surface-2); color:var(--ink)}
-.s01b .frow.open{background:#FBFCFD; margin:0 -20px; padding:0 20px; border-bottom-color:var(--line)}
-.s01b .frow.open .fr-k{color:#3182F6}
-.s01b .fr-b{padding:0 0 16px 116px}
 
 /* ── 계열 · 자주 ── */
 .s01b .gp{display:flex; flex-direction:column; gap:11px}
@@ -165,22 +82,6 @@
   background:var(--surface-2); color:var(--ink-2); cursor:pointer}
 .s01b .tchips .tc:hover{background:#E8EBEE}
 
-/* ── 발 ── */
-.s01b .modal-foot{display:flex; align-items:center; gap:10px; padding:13px 20px;
-  border-top:1px solid var(--line); background:#FCFCFD}
-.s01b .modal-foot .reset{border:0; background:none; font:inherit; cursor:pointer;
-  font-size:11.5px; font-weight:700; color:var(--muted)}
-.s01b .modal-foot .reset:hover{color:var(--ink)}
-.s01b .modal-foot .applied{font-size:11.5px; font-weight:700; color:var(--muted)}
-.s01b .modal-foot .applied b{color:var(--ink)}
-.s01b .modal-foot .sp{margin-left:auto}
-.s01b .modal-foot .cancel{border:0; font:inherit; cursor:pointer; font-size:12.5px; font-weight:800;
-  padding:10px 17px; border-radius:11px; background:var(--surface-2); color:var(--ink-2)}
-.s01b .modal-foot .apply{border:0; font:inherit; cursor:pointer; font-size:12.5px; font-weight:800;
-  padding:10px 21px; border-radius:11px; background:#191F28; color:#fff;
-  font-variant-numeric:tabular-nums}
-.s01b .modal-foot .apply:hover{background:#333D4B}
-
 /* ── 저장 · 불러오기 작은 창 ── */
 .s01b-mini-overlay{position:fixed; inset:0; background:rgba(15,26,46,.42); z-index:210;
   display:flex; align-items:center; justify-content:center; padding:20px}
@@ -198,13 +99,101 @@
   font-weight:800; padding:9px 16px; border-radius:10px; background:var(--surface-2); color:var(--ink-2)}
 .s01b-mini-overlay .mini-ok{border:0; font:inherit; cursor:pointer; font-size:12.5px; font-weight:800;
   padding:9px 18px; border-radius:10px; background:#191F28; color:#fff}
-.s01b-mini-overlay .srow{display:flex; align-items:center; gap:9px; padding:11px 0;
-  border-bottom:1px solid #F4F6F8; font-size:12.5px}
-.s01b-mini-overlay .srow:last-child{border-bottom:0}
-.s01b-mini-overlay .srow .nm{font-weight:800; flex:1; min-width:0; overflow:hidden;
-  text-overflow:ellipsis; white-space:nowrap}
-.s01b-mini-overlay .srow .cnt{font-size:11px; font-weight:700; color:var(--muted)}
-.s01b-mini-overlay .srow .act{display:flex; gap:6px}
-.s01b-mini-overlay .srow .act button{border:0; font:inherit; cursor:pointer; font-size:11px;
-  font-weight:800; padding:5px 10px; border-radius:8px; background:var(--surface-2); color:var(--ink-2)}
-.s01b-mini-overlay .srow .act .go{background:#EBF4FF; color:#3182F6}
+
+/* ── 조건 판(대표 09-30) — 사이드바가 통째로 조건 화면이 된다. 모달(매물관리)도 같은 본체 ── */
+.mo-panel.cond { width: 480px; display: flex; flex-direction: column; }
+.s01b.cdp { display: flex; flex-direction: column; height: 100%; min-height: 0; background: #FFFFFF; }
+.cdp .cn-top { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; height: 56px; padding: 0 10px 0 16px;
+  border-bottom: 1px solid #E5E8EB; }
+.cdp .cn-top b { font-size: 16px; font-weight: 800; color: #191F28; }
+.cdp .cn-top .sp { flex: 1; }
+.cdp .cn-ic { width: 36px; height: 36px; border: 0; background: none; border-radius: 10px; color: #4E5968; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+.cdp .cn-ic:hover { background: #F2F4F6; color: #191F28; }
+.cdp .cn-body { flex: 1; min-height: 0; overflow-y: auto; }
+/* 묶음 머리 — 색 띠 없이 굵은 글자와 가는 선만(파란 띠는 설정 판에서 「켜짐」이라는 뜻) */
+.cdp .cn-sec { padding: 18px 16px 8px; font-size: 13px; font-weight: 800; color: #191F28; border-bottom: 1px solid #E5E8EB; }
+/* 줄 — 이름 칸 + 값 칸들(그리드). 칸은 줄을 꽉 채우고 고른 칸만 연파랑 */
+.cdp .cn-row { display: flex; min-height: 44px; border-bottom: 1px solid #F0F2F5; }
+.cdp .cn-row.col { flex-direction: column; }
+.cdp .cn-k { flex: 0 0 104px; display: flex; align-items: center; padding: 0 12px 0 16px; font-size: 12.5px; font-weight: 700;
+  color: #4E5968; border-right: 1px solid #F0F2F5; }
+.cdp .cn-cells { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
+.cdp .cn-cells button { min-height: 44px; border: 0; border-left: 1px solid #F0F2F5; border-bottom: 1px solid #F0F2F5;
+  margin-bottom: -1px; background: none; font: inherit; font-size: 13px; font-weight: 600; color: #8B95A1; cursor: pointer;
+  padding: 0 8px; }
+.cdp .cn-cells button:first-child { border-left: 0; }
+.cdp .cn-cells button:hover { background: #F9FAFB; color: #4E5968; }
+.cdp .cn-cells button.on { background: #EBF4FF; color: #3182F6; font-weight: 800; }
+.cdp .cn-cells.tags { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
+.cdp .cn-h { display: flex; align-items: stretch; min-height: 44px; cursor: pointer; }
+.cdp .cn-h:hover { background: #F9FAFB; }
+.cdp .cn-v { flex: 1; min-width: 0; display: flex; align-items: center; padding: 0 14px; font-size: 13px; font-weight: 700;
+  color: #3182F6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cdp .cn-v.off { color: #B0B8C1; font-weight: 600; }
+.cdp .cn-x { flex: 0 0 44px; display: flex; align-items: center; justify-content: center; color: #8B95A1; font-size: 12px; }
+.cdp .cn-x:hover { color: #191F28; background: #F2F4F6; }
+.cdp .cn-row.open { background: #FBFCFD; }
+.cdp .cn-row.open .cn-k { color: #3182F6; }
+.cdp .cn-b { padding: 6px 16px 16px 120px; border-top: 1px solid #F0F2F5; }
+/* 지역 두 칸 — 왼쪽 구(세로), 오른쪽 그 구의 동(세 칸씩). 높이 고정, 칸마다 스크롤 */
+.cdp .rp { display: flex; height: 264px; border-bottom: 1px solid #F0F2F5; }
+.cdp .rp-gu { flex: 0 0 120px; overflow-y: auto; border-right: 1px solid #F0F2F5; }
+.cdp .rp-gu button { display: flex; align-items: center; justify-content: space-between; width: 100%; height: 44px;
+  border: 0; border-bottom: 1px solid #F0F2F5; background: none; font: inherit; font-size: 13px; font-weight: 600;
+  color: #4E5968; padding: 0 12px 0 16px; cursor: pointer; }
+.cdp .rp-gu button:hover { background: #F9FAFB; }
+.cdp .rp-gu button.cur { background: #F2F4F6; color: #191F28; font-weight: 800; }
+.cdp .rp-gu button i { font-style: normal; font-size: 11px; font-weight: 800; color: #3182F6; }
+.cdp .rp-dong { flex: 1; min-width: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); align-content: start; }
+.cdp .rp-dong button { height: 44px; border: 0; border-right: 1px solid #F0F2F5; border-bottom: 1px solid #F0F2F5;
+  background: none; font: inherit; font-size: 13px; font-weight: 600; color: #8B95A1; cursor: pointer; padding: 0 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cdp .rp-dong button:nth-child(3n) { border-right: 0; }
+.cdp .rp-dong button:hover { background: #F9FAFB; color: #4E5968; }
+.cdp .rp-dong button.on { background: #EBF4FF; color: #3182F6; font-weight: 800; }
+/* 적용 — 판 맨 아래 고정, 폭을 꽉 채운 파란 버튼 하나 */
+.cdp .cn-foot { flex: 0 0 auto; padding: 10px 12px 12px; border-top: 1px solid #E5E8EB; background: #FFFFFF; }
+.cdp .cn-apply { width: 100%; height: 52px; border: 0; border-radius: 12px; background: #3182F6; color: #FFFFFF; font: inherit;
+  font-size: 16px; font-weight: 800; cursor: pointer; }
+.cdp .cn-apply:hover { background: #1B64DA; }
+/* 모달 틀(매물관리) */
+.cdm-bg { position: fixed; inset: 0; z-index: 190; background: rgba(15,26,46,.42); display: flex; align-items: center; justify-content: center; }
+.cdm { width: 560px; max-width: calc(100vw - 32px); height: calc(100vh - 80px); border-radius: 16px; overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,19,43,.3); }
+.cdp .cn-cells.wide { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.cdp .rp-gu button { flex-direction: row; white-space: nowrap; }
+.cdp .rp-gu button i { display: inline; margin-left: 4px; }
+/* 무엇이든 담긴 구는 글자만 파랑(대표 09-30 — 개수 · 「전체」 표시 없이) */
+.cdp .rp-gu button.has { color: #3182F6; font-weight: 800; }
+.cdp .rp-gu button.cur.has { color: #3182F6; }
+/* 「지역」 머리 오른쪽 그리기 도구 — 붙은 칸 줄. 켜진 도구만 연파랑 */
+.cdp .cn-sec { display: flex; align-items: center; }
+.cdp .cn-tools { margin-left: auto; display: inline-flex; border: 1px solid #E5E8EB; border-radius: 8px; overflow: hidden; }
+.cdp .cn-tools button { border: 0; background: #FFFFFF; font: inherit; font-size: 12px; font-weight: 700; color: #6B7684;
+  padding: 6px 11px; cursor: pointer; }
+.cdp .cn-tools button + button { border-left: 1px solid #E5E8EB; }
+.cdp .cn-tools button:hover { background: #F9FAFB; }
+.cdp .cn-tools button.on { background: #EBF4FF; color: #3182F6; }
+.cdp .cn-tools button.clr { color: #F04452; }
+/* 고급을 켰을 때 새로 선 줄 — 한 번 깜빡(연파랑이 스쳤다 사라짐) */
+@keyframes cn-adv-in { 0% { background: #DCEBFF; } 35% { background: #FFFFFF; } 60% { background: #EBF4FF; } 100% { background: transparent; } }
+.cdp .cn-row.adv-in { animation: cn-adv-in .9s ease-out; }
+@media (prefers-reduced-motion: reduce) { .cdp .cn-row.adv-in { animation: none; } }
+/* 고급모드 스위치 — 글자 + 알약 스위치. 끄면 회색, 켜면 파랑 */
+.cdp .cn-adv { display: inline-flex; align-items: center; gap: 8px; border: 0; background: none; font: inherit; font-size: 12.5px;
+  font-weight: 700; color: #4E5968; cursor: pointer; padding: 6px 8px; border-radius: 10px; margin-right: 4px; }
+.cdp .cn-adv:hover { background: #F2F4F6; }
+.cdp .cn-adv i { position: relative; width: 38px; height: 22px; border-radius: 999px; background: #D1D6DB; transition: background .18s; }
+.cdp .cn-adv i b { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #FFFFFF;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform .18s; }
+.cdp .cn-adv.on { color: #3182F6; }
+.cdp .cn-adv.on i { background: #3182F6; }
+.cdp .cn-adv.on i b { transform: translateX(16px); }
+/* 조건 저장 — 붙일 고객(S09). 칸이 줄을 채우고 넘치면 줄바꿈, 고른 칸만 연파랑 */
+.mini-for{display:flex; gap:10px; align-items:flex-start; margin:10px 0 2px}
+.mini-for > span{flex:0 0 auto; font-size:13px; font-weight:600; color:#6B7684; padding-top:7px}
+.mini-for-c{display:flex; flex-wrap:wrap; max-height:120px; overflow-y:auto}
+.mini-for-c button{height:32px; border:1px solid #E5E8EB; margin:0 -1px -1px 0; background:#FFFFFF; padding:0 12px; font:inherit; font-size:13px; color:#4E5968; cursor:pointer}
+.mini-for-c button.on{background:#EBF4FF; color:#3182F6; border-color:#C9DFFB; position:relative}
+.preset .pc .pc-who{font-weight:700; color:#3182F6; margin-right:6px}

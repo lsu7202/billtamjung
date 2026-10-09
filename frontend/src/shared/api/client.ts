@@ -14,7 +14,7 @@ export async function refresh(): Promise<string | null> {
       const r = await fetch(`${BASE}/auth/refresh`, { method: "POST", credentials: "include" });
       if (!r.ok) return null;
       const j = await r.json();
-      useAuth.getState().setAuth(j.access_token, j.tier);
+      useAuth.getState().setAuth(j.access_token);
       return j.access_token as string;
     } finally {
       // 다음 만료 때 다시 시도할 수 있게 비운다(마이크로태스크 뒤 — 동시 호출자는 위에서 공유)
@@ -36,6 +36,11 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
     const t = await refresh();
     if (t) return api<T>(path, init, false);
     useAuth.getState().clear();
+    // 손님이 쓰기(저장 · 문의 · 남기기)를 눌렀다 → 로그인으로 보내고, 마치면 보던 자리로(10-01).
+    // 읽기(GET)는 조용히 실패만 한다 — 손님 화면에서 중개사 전용 칸이 하나 비는 것뿐이다
+    if ((init.method ?? "GET").toUpperCase() !== "GET" && location.pathname !== "/login") {
+      location.assign(`/login?next=${encodeURIComponent(location.pathname + location.search)}`);
+    }
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

@@ -35,7 +35,3 @@ export const EVENT_TYPES: { icon: IconName; label: string; major: boolean }[] = 
 ];
 export const MAJOR_TYPES: IconName[] = EVENT_TYPES.filter((t) => t.major).map((t) => t.icon);
 
-/** 검색 지도의 기본 핀 — 주요 종류만. 강남 한 화면(줌 15)에 163개 중 152개가 신축 인허가라 건물 핀을 덮었다(2026-09-06 실측). */
-export function isMajor(e: { kind: string; name: string | null; source: string }): boolean {
-  return MAJOR_TYPES.includes(eventIcon(e).icon);
-}

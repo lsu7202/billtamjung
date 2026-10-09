@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Icon } from "../../shared/ui/Icon";
 import { useQuery } from "@tanstack/react-query";
 import { useIsBroker } from "../store/auth";
 import { loadNaver } from "./naver";
-import { photosApi, searchApi, PHOTO_KINDS, type Photo, type PhotoKind } from "../api/endpoints";
+import { photosApi, parcelsApi, PHOTO_KINDS, type Photo, type PhotoKind } from "../api/endpoints";
 import { PhotoFitEditor, fitStyle, DEFAULT_FIT, type Fit } from "../ui/PhotoFit";
 import { useAuth } from "../store/auth";
 import { useAreaPick } from "../store/areaPick";
 import { NewsFilterPanel } from "./NewsFilterPanel";
-import { MarketArea, CompPoint, meters, areaM2, geoToPaths, fmtArea, fmtDist, openDetail, conePath } from "./geo";
-import { makeRuler, Ruler } from "./ruler";
+import { CompPoint, geoToPaths, openDetail, conePath } from "./geo";
 
 const COMP_COLOR = { sale: "var(--c-real)", rent: "var(--c-rent)" };   // 실거래=주황(시세추이와 통일) · 임대=초록 · 본매물=네이비(별도)
 
@@ -20,27 +18,18 @@ const COMP_COLOR = { sale: "var(--c-real)", rent: "var(--c-rent)" };   // 실거
  *  · 자유곡선: 그릴 때마다 폴리곤 자동 확장(자에 대면 직선), 중심 드래그로 이동, 초기화로 삭제.
  * specs S02 §3.2, 네이버지도-연동 §3.2·3.3.
  */
-type Draw = "off" | "circle" | "free" | "ruler";
-
-function centroid(naver: any, pts: any[]) {
-  let x = 0, y = 0; pts.forEach((p) => { x += p.lng(); y += p.lat(); });
-  return new naver.maps.LatLng(y / pts.length, x / pts.length);
-}
-const dotIcon = (naver: any, bg: string, cursor: string, border = "#fff") => ({
-  content: `<div style="width:15px;height:15px;border-radius:50%;background:${bg};border:3px solid ${border};box-shadow:0 1px 4px rgba(0,0,0,.45);cursor:${cursor}"></div>`,
-  anchor: new naver.maps.Point(7, 7),
-});
-/** 중심에서 정동(正東)으로 radius_m 떨어진 점(가장자리 핸들 위치). */
-function eastPoint(naver: any, c: any, radius_m: number) {
-  const lngR = radius_m / (111320 * Math.cos((c.lat() * Math.PI) / 180));
-  return new naver.maps.LatLng(c.lat(), c.lng() + lngR);
-}
-
 /** 지도에 찍는 소식 하나 — 갈래·이름은 목록이 쥐고, 지도는 자리·아이콘·빅 이벤트 여부만 안다 */
 export interface EventPin { id: number; lng: number; lat: number; icon: string; big: boolean; name: string; source_url?: string | null }
 
-export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGeom }: {
-  lng: number; lat: number; pk?: string; area?: MarketArea; onArea?: (a: MarketArea) => void; comps?: CompPoint[];
+export function PhotoPanel({ lng, lat, lid, pnu, comps, events, parcelGeom, noStrip = false, noRoad = false, pov }: {
+  /** lid = 사진 열쇠(매물 번호 · 0255) · pnu = 색칠할 땅(지번) */
+  lng: number; lat: number; lid?: number | null; pnu?: string; comps?: CompPoint[];
+  /** 사진 스트립(팀 사진)을 안 세운다 — 상세보기 사양서는 팀 자료를 안 싣는다(10-01) */
+  noStrip?: boolean;
+  /** 거리뷰 작은 창을 안 띄운다 — 상세보기 타일은 거리뷰가 따로 선다(10-01) */
+  noRoad?: boolean;
+  /** noRoad 일 때 바깥 거리뷰가 지금 서 있는 자리 · 보는 방향 — 지도에 시야 부채꼴로 그린다(10-02 연동) */
+  pov?: { lat: number; lng: number; pan: number; fov: number } | null;
   events?: EventPin[];
   /** 토지정보에서 고른 필지 하나의 폴리곤(GeoJSON). 있으면 합집합 대신 이것을 칠한다(2026-09-07) */
   parcelGeom?: unknown;
@@ -60,12 +49,6 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGe
   const [mapReady, setMapReady] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [noPano, setNoPano] = useState(false);
-  const [defining, setDefining] = useState(false);
-  const [areaInfo, setAreaInfo] = useState<string | null>(null);   // 반경/면적 표시(지도 하단 중앙)
-  const [draw, setDraw] = useState<Draw>("circle");
-  const [rulerOn, setRulerOn] = useState(false);
-  const rulerRef = useRef<Ruler | null>(null);
-  const areaRef = useRef(area); areaRef.current = area;   // 프레시 area — 자유곡선 확장·이동에서 참조
   const inited = useRef<{ map?: boolean; road?: boolean }>({});
 
   useEffect(() => {
@@ -89,7 +72,7 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGe
   // 로드뷰 인셋 + 지도 위 시야 부채꼴(S01 MapPanel의 conePath·pov_changed 재사용).
   // 로드뷰를 돌리면 부채꼴이 회전 → 로드뷰가 본매물을 향하는지 확인용(이동 없음).
   useEffect(() => {
-    if (!mapReady || !roadDiv.current) return;
+    if (!mapReady || !roadDiv.current || noRoad) return;   // 바깥 거리뷰를 쓰면 안쪽 파노라마는 안 만든다
     const naver = window.naver;
     const map = mapObj.current;
     let cancelled = false;
@@ -145,7 +128,20 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGe
       panoRef.current = null;
       if (roadDiv.current) roadDiv.current.innerHTML = "";
     };
-  }, [mapReady, lat, lng]);
+  }, [mapReady, lat, lng, noRoad]);
+
+  // 바깥 거리뷰 연동(10-02) — 상세보기는 거리뷰를 따로 크게 띄운다. 그쪽을 돌리거나 옮기면 부채꼴이 따라온다
+  useEffect(() => {
+    if (!mapReady || !noRoad || !pov) return;
+    const naver = window.naver;
+    const path = [conePath(naver, pov.lat, pov.lng, pov.pan, pov.fov)];
+    if (coneRef.current) coneRef.current.setPaths(path);
+    else coneRef.current = new naver.maps.Polygon({
+      map: mapObj.current, paths: path, clickable: false,
+      fillColor: "#3A5DA8", fillOpacity: 0.25, strokeColor: "#3A5DA8", strokeWeight: 1, zIndex: 90,
+    });
+  }, [mapReady, noRoad, pov?.lat, pov?.lng, pov?.pan, pov?.fov]);
+  useEffect(() => () => { if (noRoad) { coneRef.current?.setMap(null); coneRef.current = null; } }, [noRoad, lat, lng]);
 
   // 로드뷰 확대/축소 전환 → 컨테이너 크기 바뀌면 파노라마·지도 리사이즈(naver는 생성시 크기 고정)
   useEffect(() => {
@@ -161,7 +157,7 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGe
 
   // 본매물 필지 색칠(네이비 오버레이)
   useEffect(() => {
-    if (!mapReady || !pk) return;
+    if (!mapReady || (!pnu && !parcelGeom)) return;
     const naver = window.naver;
     let dead = false, parcel: any = null;
     const draw = (polygon: any) => {
@@ -173,9 +169,9 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGe
     };
     // 토지정보에서 필지를 골랐으면 그 필지만. 아니면 대표+부속 합집합
     if (parcelGeom) draw(parcelGeom);
-    else searchApi.parcelFor(pk).then(({ polygon }) => draw(polygon)).catch(() => {});
+    else if (pnu) parcelsApi.geom(pnu).then(({ polygon }) => draw(polygon)).catch(() => {});
     return () => { dead = true; parcel?.setMap(null); };
-  }, [mapReady, pk, parcelGeom]);
+  }, [mapReady, pnu, parcelGeom]);
 
   // 발견된 주변 매물 마커 — 실거래/임대 색 구분. 클릭=새 탭 상세.
   useEffect(() => {
@@ -196,7 +192,7 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGe
   // 주변 소식 아이콘(2026-09-06) — 기본은 빅 이벤트만. 기타까지 다 찍으면 지도가 더러워진다.
   //   목록에서 고른 것은 파랗게 차고 파문이 돈다. 아이콘을 누르면 목록이 그 줄로 간다.
   useEffect(() => {
-    if (!mapReady || defining) return;
+    if (!mapReady) return;
     const naver = window.naver;
     const shown = (events ?? []).filter((e) => evTypes.includes(e.icon as never) || e.id === evPick);
     // 마우스만 대도 이름이 뜬다(2026-09-06 대표) — 누르면 목록이 그 줄로
@@ -227,179 +223,17 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGe
       return m;
     });
     return () => { markers.forEach((m) => m.setMap(null)); info.close(); };
-  }, [mapReady, defining, events, evTypes, evPick, setEvPick]);
+  }, [mapReady, events, evTypes, evPick, setEvPick]);
 
-  // 정의 모드(전체화면) 전환 → 컨테이너 크기 변경 후 지도 리레이아웃
-  useEffect(() => {
-    if (!mapReady) return;
-    const t = setTimeout(() => window.dispatchEvent(new Event("resize")), 60);
-    return () => clearTimeout(t);
-  }, [defining, mapReady]);
-
-  // 상권 정의 = 전체화면(2026-08-26). 모달과 같은 어법으로 다룬다:
-  //   ESC 로 나가고, 그동안 뒤 화면은 스크롤을 잠근다.
-  // 잠그지 않으면 지도 위에서 휠을 굴릴 때 뒤 페이지가 같이 움직여, 나왔을 때 엉뚱한 자리에 서 있다.
-  useEffect(() => {
-    if (!defining) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setDefining(false); };
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    // 앱바(z 50)와 머리줄·하단 바(sticky)는 지도(z 1000)보다 낮은데도 위에 남는다 —
-    // 서로 다른 stacking context 라 z 를 올려도 안 덮인다. 그리는 동안만 걷어낸다.
-    document.body.classList.add("map-full");
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-      document.body.classList.remove("map-full");
-    };
-  }, [defining]);
-
-  // 자(ruler) 생성/제거 — 정의 중 rulerOn일 때. 자유곡선 스냅 가이드로 유지됨.
-  useEffect(() => {
-    if (!mapReady || !defining || !rulerOn) return;
-    rulerRef.current = makeRuler(window.naver, mapObj.current);
-    return () => { rulerRef.current?.destroy(); rulerRef.current = null; };
-  }, [mapReady, defining, rulerOn]);
-
-  // 자 조정(이동·회전) — draw==="ruler"일 때 지도 마우스로 조작(끝=회전·몸통=이동)
-  useEffect(() => {
-    if (!mapReady || !defining || draw !== "ruler" || !rulerRef.current) return;
-    const naver = window.naver, map = mapObj.current, rl = rulerRef.current;
-    rl.setInteractive(true);
-    let dragging = false;
-    const rulerUp = () => { if (dragging) { dragging = false; rl.onUp(); map.setOptions({ draggable: true }); } };
-    const ls = [
-      naver.maps.Event.addListener(map, "mousedown", (e: any) => { if (rl.onDown(e.coord)) { dragging = true; map.setOptions({ draggable: false }); } }),
-      naver.maps.Event.addListener(map, "mousemove", (e: any) => { if (dragging) rl.onMove(e.coord); }),
-      naver.maps.Event.addListener(map, "mouseup", rulerUp),
-    ];
-    window.addEventListener("mouseup", rulerUp);   // 지도 밖 release에도 팬 잠금 해제
-    return () => { window.removeEventListener("mouseup", rulerUp); ls.forEach((l) => naver.maps.Event.removeListener(l)); rl.setInteractive(false); map.setOptions({ draggable: true }); };
-  }, [mapReady, defining, draw]);
-
-  // 주변상권 표시 + (정의 중 원이면) 중심·가장자리 핸들로 이동/크기조절
-  useEffect(() => {
-    if (!mapReady || !area) return;
-    const naver = window.naver;
-    const map = mapObj.current;
-    const disp: any[] = [];
-    const clear = () => disp.forEach((o) => o.setMap(null));
-
-    if (area.kind === "polygon") {
-      const paths = geoToPaths(naver, area.geojson);
-      disp.push(new naver.maps.Polygon({ map, paths, clickable: false, fillColor: "#3A5DA8", fillOpacity: 0.09, strokeColor: "#3A5DA8", strokeWeight: 2 }));
-      setAreaInfo(fmtArea(area.area_m2));
-      if (defining && draw === "free") disp.push(new naver.maps.Marker({ position: centroid(naver, paths[0]), map, zIndex: 110, clickable: false, icon: dotIcon(naver, "#3A5DA8", "move") }));
-      return () => { clear(); setAreaInfo(null); };
-    }
-
-    // 원 — 중심 자유(area.center 없으면 본매물)
-    const cc = area.center ?? { lng, lat };
-    let c = new naver.maps.LatLng(cc.lat, cc.lng);
-    let r = area.radius_m;
-    const circle = new naver.maps.Circle({ map, center: c, radius: r, clickable: false, fillColor: "#3A5DA8", fillOpacity: 0.09, strokeColor: "#3A5DA8", strokeWeight: 2 });
-    disp.push(circle);
-    const setLabel = () => setAreaInfo(`반경 ${fmtDist(r)} · ${fmtArea(Math.PI * r ** 2)}`);
-    setLabel();
-
-    const listeners: any[] = [];
-    const cleanup = () => { listeners.forEach((l) => naver.maps.Event.removeListener(l)); map.setOptions({ draggable: true }); clear(); setAreaInfo(null); };
-    if (defining && draw === "circle" && onArea) {
-      // 시각 핸들(비드래그) — 실제 드래그는 지도 마우스 이벤트 히트테스트로 처리(팬 유지)
-      const centerH = new naver.maps.Marker({ position: c, map, zIndex: 110, clickable: false, icon: dotIcon(naver, "#3A5DA8", "move") });
-      const edgeH = new naver.maps.Marker({ position: eastPoint(naver, c, r), map, zIndex: 110, clickable: false, icon: dotIcon(naver, "#fff", "ew-resize", "#3A5DA8") });
-      disp.push(centerH, edgeH);
-      let mode: "" | "center" | "radius" = "", gdLng = 0, gdLat = 0;
-      const tol = () => Math.max(40, r * 0.18);   // 잡기 허용 반경(m)
-      const redraw = () => { circle.setCenter(c); circle.setRadius(r); centerH.setPosition(c); edgeH.setPosition(eastPoint(naver, c, r)); setLabel(); };
-      // 커밋 — 지도 안팎 어디서 놓아도 실행(naver mouseup은 지도 밖 release를 못 봄 → 확대 드래그가 저장 누락되던 버그)
-      const commitUp = () => {
-        if (!mode) return; mode = ""; map.setOptions({ draggable: true });
-        onArea({ kind: "circle", radius_m: Math.round(r), center: { lng: c.lng(), lat: c.lat() } });
-      };
-      window.addEventListener("mouseup", commitUp);
-      listeners.push(
-        naver.maps.Event.addListener(map, "mousedown", (e: any) => {
-          const dC = meters(c, e.coord);
-          if (dC <= tol()) { mode = "center"; gdLng = e.coord.lng() - c.lng(); gdLat = e.coord.lat() - c.lat(); }
-          else if (Math.abs(dC - r) <= tol()) mode = "radius";
-          else return;
-          map.setOptions({ draggable: false });   // 핸들 잡은 동안만 팬 정지
-        }),
-        naver.maps.Event.addListener(map, "mousemove", (e: any) => {
-          if (!mode) return;
-          if (mode === "center") c = new naver.maps.LatLng(e.coord.lat() - gdLat, e.coord.lng() - gdLng);
-          else r = Math.max(30, Math.round(meters(c, e.coord)));
-          redraw();
-        }),
-        naver.maps.Event.addListener(map, "mouseup", commitUp),
-      );
-      const cleanupWithDom = () => { window.removeEventListener("mouseup", commitUp); cleanup(); };
-      return cleanupWithDom;
-    }
-    return cleanup;
-  }, [mapReady, area, lat, lng, defining, draw, onArea]);
-
-  // 자유곡선 — 그릴 때마다 폴리곤 자동 확장·커밋(닫기 버튼 없음). 중심(●) 잡으면 영역 이동.
-  useEffect(() => {
-    if (!mapReady || !defining || draw !== "free" || !onArea) return;
-    const naver = window.naver;
-    const map = mapObj.current;
-    map.setOptions({ draggable: false });
-    const snap = (c: any) => (rulerRef.current ? rulerRef.current.snap(c) : c);   // 자 가장자리에 대면 직선
-    const polyRing = () => {   // 현재 폴리곤 열린 링(없으면 null)
-      const a = areaRef.current;
-      return a?.kind === "polygon" ? ((a.geojson as any).coordinates[0] as number[][]).slice(0, -1).map(([lng, lat]) => new naver.maps.LatLng(lat, lng)) : null;
-    };
-    const commit = (ring: any[]) => { if (ring.length >= 3) { const r = ring.map((p: any) => [p.lng(), p.lat()]); r.push(r[0]); onArea({ kind: "polygon", geojson: { type: "Polygon", coordinates: [r] }, area_m2: areaM2(ring) }); } };
-    const tolM = () => 26 * (156543.03 * Math.cos(lat * Math.PI / 180) / Math.pow(2, map.getZoom()));
-    let mode: "" | "draw" | "move" = "", stroke: any[] = [], base: any[] = [], temp: any = null, ring: any[] = [], gdLng = 0, gdLat = 0, ctr: any = null;
-    const freeUp = () => {
-      if (!mode) return;
-      temp?.setMap(null); temp = null;
-      if (mode === "draw") commit([...base, ...stroke]);
-      else if (mode === "move") commit(ring);
-      mode = "";
-    };
-    const ls = [
-      naver.maps.Event.addListener(map, "mousedown", (e: any) => {
-        const pr = polyRing();
-        if (pr) ctr = centroid(naver, pr);
-        if (pr && meters(ctr, e.coord) <= tolM()) { mode = "move"; ring = pr; gdLng = e.coord.lng() - ctr.lng(); gdLat = e.coord.lat() - ctr.lat(); }
-        else { mode = "draw"; base = pr ?? []; stroke = [snap(e.coord)]; }
-      }),
-      naver.maps.Event.addListener(map, "mousemove", (e: any) => {
-        if (mode === "draw") { stroke.push(snap(e.coord)); temp?.setMap(null); temp = new naver.maps.Polyline({ map, path: [...base, ...stroke], strokeColor: "#3A5DA8", strokeWeight: 2.5 }); }
-        else if (mode === "move") {
-          const dLng = (e.coord.lng() - gdLng) - ctr.lng(), dLat = (e.coord.lat() - gdLat) - ctr.lat();
-          ring = ring.map((p: any) => new naver.maps.LatLng(p.lat() + dLat, p.lng() + dLng));
-          ctr = new naver.maps.LatLng(ctr.lat() + dLat, ctr.lng() + dLng);
-          temp?.setMap(null); temp = new naver.maps.Polygon({ map, paths: [ring], fillColor: "#3A5DA8", fillOpacity: 0.09, strokeColor: "#3A5DA8", strokeWeight: 2 });
-        }
-      }),
-      naver.maps.Event.addListener(map, "mouseup", freeUp),
-    ];
-    // 지도 밖 release도 커밋(원 편집과 동일한 mouseup 누락 버그 방지)
-    window.addEventListener("mouseup", freeUp);
-    return () => { window.removeEventListener("mouseup", freeUp); ls.forEach((l) => naver.maps.Event.removeListener(l)); temp?.setMap(null); map.setOptions({ draggable: true }); };
-  }, [mapReady, defining, draw, onArea, lat]);
-
-  const resetArea = () => onArea?.({ kind: "circle", radius_m: 500 });   // 원·폴리곤 모두 기본 원으로 초기화(삭제)
-
-  const pickCircle = () => { setDraw("circle"); if (area && area.kind !== "circle") onArea?.({ kind: "circle", radius_m: 500 }); };
-
-  const mapBox: React.CSSProperties = defining
-    ? { position: "fixed", inset: 0, zIndex: 1000, margin: 0, borderRadius: 0, background: "var(--surface-2)" }
-    // 우측 칸(400px)에 선다. 본문 폭을 쓰던 때는 1,400×400 = 3.5:1 로 강남구 절반이 들어왔다.
+  // 우측 칸(400px)에 선다. 본문 폭을 쓰던 때는 1,400×400 = 3.5:1 로 강남구 절반이 들어왔다.
     // 240 이면 5:3 — 이 매물과 옆 블록이 보이는 크기고, 아래 사이드바가 첫 화면에 같이 선다.
-    : { position: "relative", height: 240, margin: 12, borderRadius: 10, background: "var(--surface-2)" };
+  const mapBox: React.CSSProperties = { position: "relative", height: 240, margin: 12, borderRadius: 10, background: "var(--surface-2)" };
 
   // 지도↔로드뷰 크기 스왑: 확대된 쪽=전체, 다른 쪽=우상단 PiP
   const bigStyle: React.CSSProperties = { position: "absolute", inset: 0, overflow: "hidden" };
   // 지도가 좁아졌으니 PiP 도 줄인다 — 264 는 400 폭의 3분의 2라 지도를 통째로 가린다
   const pipStyle: React.CSSProperties = { position: "absolute", top: 10, right: 10, width: 148, height: 96, zIndex: 7, borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 9px rgba(15,26,46,.3)", border: "2px solid #fff" };
-  const showRoad = !defining;   // 로드뷰 인셋 표시(상권 정의 중 숨김)
+  const showRoad = !noRoad;
 
   return (
     <div className="panel">
@@ -408,7 +242,7 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGe
       <div style={{ ...mapBox, overflow: "hidden" }}>
         {err && <div style={{ padding: 20, color: "var(--up)", fontSize: 13 }}>{err}</div>}
         {/* 지도 (로드뷰 확대 시 우상단 PiP로 축소) */}
-        <div style={{ ...(!roadBig || defining ? bigStyle : pipStyle), background: "var(--surface-2)" }}>
+        <div style={{ ...(!roadBig ? bigStyle : pipStyle), background: "var(--surface-2)" }}>
           <div ref={mapDiv} style={{ position: "absolute", inset: 0 }} />
         </div>
         {/* 로드뷰 (기본 PiP, 확대 시 전체) — 돌리면 지도의 시야 부채꼴이 회전 = 로드뷰가 본매물을 향하는지 확인 */}
@@ -422,31 +256,8 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGe
             <div style={{ position: "absolute", left: 8, bottom: 6, fontSize: 10, fontWeight: 700, color: "#fff", background: "rgba(15,26,46,.6)", padding: "2px 7px", borderRadius: 5, pointerEvents: "none" }}>로드뷰 · 돌려서 매물 방향 확인</div>
           )}
         </div>
-        {defining && (
-          <>
-            <div style={{ position: "absolute", top: 12, left: 12, zIndex: 5, display: "flex", gap: 2, background: "#fff", borderRadius: 10, padding: 4, boxShadow: "var(--shadow)" }}>
-              <button className={`tool-btn ${draw === "circle" ? "on" : ""}`} title="원 (반경)" onClick={pickCircle}><Icon name="circle" size={15} /></button>
-              <button className={`tool-btn ${draw === "free" ? "on" : ""}`} title="자유곡선" onClick={() => setDraw("free")}><Icon name="free" size={15} /></button>
-              <button className={`tool-btn ${draw === "ruler" ? "on" : ""}`} title="자 (직선 가이드)"
-                onClick={() => (rulerOn && draw === "ruler" ? (setRulerOn(false), setDraw("off")) : (setRulerOn(true), setDraw("ruler")))}>📏</button>
-              <span className="tool-sep" />
-              <button className="tool-btn" style={{ color: "var(--up)" }} title="초기화" onClick={resetArea}><Icon name="reset" size={13} /></button>
-            </div>
-            {/* 나가는 길을 두 개로 — 버튼과 ESC. 그린 것은 그리는 즉시 저장되므로(onArea)
-                「완료」는 저장이 아니라 나가기다. 그래서 곁말에 ESC 를 같이 적는다. */}
-            <div style={{ position: "absolute", top: 12, right: 12, zIndex: 5, display: "flex", alignItems: "center", gap: 9 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", background: "rgba(255,255,255,.9)", padding: "4px 9px", borderRadius: 7 }}>ESC 로도 나갑니다</span>
-              <button className="btn primary" style={{ padding: "6px 16px" }} onClick={() => setDefining(false)}>완료</button>
-            </div>
-            <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", zIndex: 5, background: "var(--ink)", color: "#fff", fontSize: 12, padding: "8px 16px", borderRadius: 999, whiteSpace: "nowrap" }}>
-              {draw === "ruler" ? "자를 드래그해 이동 · 양 끝(●)을 드래그해 회전"
-                : draw === "free" ? `${rulerOn ? "자에 대고 " : ""}그리면 자동 반영 · 자 옮겨 이어 그리기 · 중심(●) 드래그 = 이동`
-                : "● 중심 = 이동 · ○ 가장자리 = 크기조절 · 지도는 자유롭게 이동"}
-            </div>
-          </>
-        )}
         {/* 소식 종류 칩 — 좌하단. 켜진 종류만 찍힌다(기본 주요 일곱) */}
-        {!defining && !roadBig && (events?.length ?? 0) > 0 && (
+        {!roadBig && (events?.length ?? 0) > 0 && (
           <div style={{ position: "absolute", left: 8, bottom: 8, zIndex: 40 }}>   {/* 반경 배지·⊙ 위로 */}
             {evOpen && (
               <div style={{ position: "absolute", left: 0, bottom: 34 }}>
@@ -458,16 +269,6 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGe
             <button className={`ev-all ${evOpen ? "on" : ""}`} onClick={() => setEvOpen((v) => !v)}>소식</button>
           </div>
         )}
-        {/* 반경/면적 — 좌상단. 하단 가운데에 두면 좁은 지도(400px)에서 범례·본매물 버튼과 겹친다.
-            상권을 그리는 중(defining)엔 전체화면이라 예전처럼 하단 가운데가 넓고 잘 보인다. */}
-        {!roadBig && areaInfo && (
-          <div style={{ position: "absolute", zIndex: 6,
-            ...(defining
-              ? { bottom: 58, left: "50%", transform: "translateX(-50%)", fontSize: 12, padding: "5px 13px" }
-              : { top: 8, left: 8, fontSize: 11, padding: "4px 10px" }),
-            background: "rgba(30,90,240,.92)", color: "#fff", fontWeight: 600,
-            borderRadius: 8, whiteSpace: "nowrap", pointerEvents: "none", boxShadow: "0 2px 8px rgba(0,0,0,.25)" }}>{areaInfo}</div>
-        )}
         {!roadBig && (comps?.length ?? 0) > 0 && (
           <div style={{ position: "absolute", bottom: 12, left: 12, zIndex: 6, background: "#fff", borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,.15)", padding: "6px 10px", fontSize: 11, display: "flex", gap: 12 }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: COMP_COLOR.sale }} />실거래</span>
@@ -478,24 +279,15 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGe
           <button className="btn" title="본매물 위치로 이동" style={{ position: "absolute", bottom: 12, right: 12, zIndex: 6, padding: "6px 12px", fontSize: 12, background: "#fff", boxShadow: "0 2px 8px rgba(0,0,0,.15)" }}
             onClick={() => mapObj.current?.morph(new window.naver.maps.LatLng(lat, lng), 16)}>⌖ 본매물</button>
         )}
-        {/* 상권 정의 — 좌상단 반경 배지 아래 아이콘. 우상단은 로드뷰 PiP 자리다 */}
-        {!roadBig && !defining && onArea && (
-          <button className="btn" title="주변상권 정의하기"
-            style={{ position: "absolute", top: areaInfo ? 42 : 8, left: 8, zIndex: 6, width: 34, height: 34,
-              padding: 0, display: "grid", placeItems: "center", background: "#fff",
-              boxShadow: "0 2px 8px rgba(0,0,0,.18)" }}
-            onClick={() => { setDraw("circle"); setRoadBig(false); setDefining(true); }}>
-            <Icon name="circle" size={15} /></button>
-        )}
       </div>
 
       {/* 사진 스트립 — 보는 건 여기, 관리는 모달. 좁은 칸에는 보는 것만 둔다(2026-08-27) */}
       {/* 사진 · 서류는 팀 것이라 중개사만(S05 §1) */}
-      {pk && !defining && broker && <PhotoStrip pk={pk} onOpen={() => setPhotoOpen(true)} />}
+      {lid != null && broker && !noStrip && <PhotoStrip lid={lid} onOpen={() => setPhotoOpen(true)} />}
       {/* 포털로 body 에 그린다(2026-08-27) — 이 판이 사는 .bt-side 가 sticky 라 stacking
           context 를 만들어, 안에서 z 를 아무리 올려도 밖의 머리줄(z 20)을 못 넘었다.
           모달은 문서 맨 끝에서 떠야 화면의 모든 상주 요소 위에 선다. */}
-      {pk && photoOpen && createPortal(
+      {lid != null && photoOpen && createPortal(
         <div className="modal-bg" style={{ display: "flex", zIndex: 300 }} onClick={() => setPhotoOpen(false)}>
           {/* 뷰포트의 3/4 안쪽으로 — 88vh 는 머리줄·하단 바(sticky)와 시각적으로 부딪혔다 */}
           <div className="panel" style={{ width: "min(680px, 92vw)", maxHeight: "74vh", overflow: "auto",
@@ -506,7 +298,7 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGe
               <span style={{ flex: 1 }} />
               <button className="lnk dim2" onClick={() => setPhotoOpen(false)}>닫기 ✕</button>
             </div>
-            <UploadTab pk={pk} />
+            <UploadTab lid={lid} />
             {/* 확인 = 닫기다 — 올리는 즉시 저장되므로 따로 저장할 것이 없다.
                 그래도 이 버튼이 있어야 「다 됐다」를 누를 자리가 생긴다(✕ 만으론 끝맺음이 없다). */}
             <button className="btn primary" style={{ width: "100%", marginTop: 14, padding: "11px 0", fontSize: 14 }}
@@ -519,8 +311,8 @@ export function PhotoPanel({ lng, lat, pk, area, onArea, comps, events, parcelGe
 
 /** 지도 아래 사진 스트립 — 대표 셋 + 나머지 개수. 서류는 안 섞는다:
  *  스캔본 썸네일은 작게 보면 다 똑같이 생겨서, 세는 것 말고는 할 말이 없다. */
-function PhotoStrip({ pk, onOpen }: { pk: string; onOpen: () => void }) {
-  const q = useQuery({ queryKey: ["photos", pk], queryFn: () => photosApi.list(pk) });
+function PhotoStrip({ lid, onOpen }: { lid: number; onOpen: () => void }) {
+  const q = useQuery({ queryKey: ["photos", lid], queryFn: () => photosApi.list(lid) });
   const all = q.data ?? [];
   const pics = all.filter((p) => p.kind === "exterior" || p.kind === "interior");
   const docs = all.length - pics.length;
@@ -547,19 +339,19 @@ function PhotoStrip({ pk, onOpen }: { pk: string; onOpen: () => void }) {
 
 /** 업로드 사진·서류 — 브리핑 자료가 종류로 슬롯을 찾는다(0032).
  *  건물 사진(외관·내부)은 여러 장, 서류 3종은 한 장씩. 올릴 때 슬롯 비율에 맞춰 배치를 맞춘다. */
-export function UploadTab({ pk }: { pk: string }) {
+export function UploadTab({ lid }: { lid: number }) {
   const access = useAuth((s) => s.access);
   const [urls, setUrls] = useState<Record<number, string>>({});
   const [edit, setEdit] = useState<{ photo: Photo; fit: Fit } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const list = useQuery({ queryKey: ["photos", pk], queryFn: () => photosApi.list(pk) });
+  const list = useQuery({ queryKey: ["photos", lid], queryFn: () => photosApi.list(lid) });
   const photos: Photo[] = useMemo(() => list.data ?? [], [list.data]);
 
   useEffect(() => {
     photos.forEach((p) => {
       if (urls[p.id]) return;
-      fetch(`/api${p.url}`, { headers: { Authorization: `Bearer ${access}` } })
+      fetch(`/api${p.url}`, { headers: access ? { Authorization: `Bearer ${access}` } : {} })
         .then((res) => (res.ok ? res.blob() : Promise.reject()))
         .then((blob) => setUrls((u) => ({ ...u, [p.id]: URL.createObjectURL(blob) })))
         .catch(() => {});
@@ -584,7 +376,7 @@ export function UploadTab({ pk }: { pk: string }) {
           throw new Error(`${f.name} — 20MB가 넘습니다 (${(f.size / 1048576).toFixed(1)}MB)`);
         }
         console.log("[사진] 업로드 시작", f.name);
-        const r = await photosApi.upload(pk, f, kind);
+        const r = await photosApi.upload(lid, f, kind);
         console.log("[사진] 업로드 성공", r);
       }
       await list.refetch();
@@ -597,7 +389,7 @@ export function UploadTab({ pk }: { pk: string }) {
   }
   async function del(id: number) {
     try {
-      await photosApi.del(pk, id);
+      await photosApi.del(lid, id);
       setUrls((u) => { const n = { ...u }; delete n[id]; return n; });
       list.refetch();
     } catch (e) { setErr(String((e as Error)?.message ?? "삭제하지 못했습니다")); }
@@ -608,25 +400,24 @@ export function UploadTab({ pk }: { pk: string }) {
     const j = i + dir;
     if (j < 0 || j >= same.length) return;
     await Promise.all([
-      photosApi.patch(pk, p.id, { sort_order: same[j].sort_order }),
-      photosApi.patch(pk, same[j].id, { sort_order: p.sort_order }),
+      photosApi.patch(lid, p.id, { sort_order: same[j].sort_order }),
+      photosApi.patch(lid, same[j].id, { sort_order: p.sort_order }),
     ]);
     list.refetch();
   }
   async function saveFit() {
     if (!edit) return;
     setBusy(true);
-    try { await photosApi.patch(pk, edit.photo.id, { transform: edit.fit }); setEdit(null); list.refetch(); }
+    try { await photosApi.patch(lid, edit.photo.id, { transform: edit.fit }); setEdit(null); list.refetch(); }
     finally { setBusy(false); }
   }
 
   const card = (p: Photo, ratio: number) => (
-    <div key={p.id} style={{ position: "relative", borderRadius: 8, overflow: "hidden",
-      border: "1px solid var(--line)", background: "#fff", aspectRatio: String(ratio) }}>
+    <div key={p.id} className="upx-c" style={{ aspectRatio: String(ratio) }}>
       {urls[p.id]
         ? <img src={urls[p.id]} alt="" style={fitStyle(p.transform)} />
-        : <div style={{ display: "grid", placeItems: "center", height: "100%", color: "var(--muted)", fontSize: 11 }}>로딩…</div>}
-      <div style={{ position: "absolute", right: 4, top: 4, display: "flex", gap: 3 }}>
+        : null}
+      <div className="upx-t r">
         {urls[p.id] && (
           <button className="tool-btn" style={PB} title="배치 맞추기"
             onClick={() => setEdit({ photo: p, fit: { ...DEFAULT_FIT, ...(p.transform ?? {}) } })}>⤢</button>
@@ -634,7 +425,7 @@ export function UploadTab({ pk }: { pk: string }) {
         <button className="tool-btn" style={{ ...PB, color: "var(--up)" }} title="삭제"
           onClick={() => del(p.id)}>✕</button>
       </div>
-      <div style={{ position: "absolute", left: 4, bottom: 4, display: "flex", gap: 3 }}>
+      <div className="upx-t l">
         <button className="tool-btn" style={PB} title="앞으로" onClick={() => move(p, -1)}>‹</button>
         <button className="tool-btn" style={PB} title="뒤로" onClick={() => move(p, 1)}>›</button>
       </div>
@@ -642,10 +433,8 @@ export function UploadTab({ pk }: { pk: string }) {
   );
 
   const adder = (kind: PhotoKind, multi: boolean, ratio: number, label: string) => (
-    <label style={{ aspectRatio: String(ratio), border: "1px dashed var(--line-2)", borderRadius: 8,
-      display: "grid", placeItems: "center", cursor: busy ? "wait" : "pointer", color: "var(--muted)",
-      fontSize: 12, textAlign: "center", padding: 8, lineHeight: 1.5 }}>
-      <span>＋<br />{label}</span>
+    <label className="upx-add" style={{ aspectRatio: String(ratio), cursor: busy ? "wait" : "pointer" }}>
+      <span>+ {label}</span>
       <input type="file" accept="image/*" multiple={multi} hidden disabled={busy}
         onChange={(e) => { upload(e.target.files, kind); e.target.value = ""; }} />
     </label>
@@ -656,7 +445,7 @@ export function UploadTab({ pk }: { pk: string }) {
   return (
     /* 옛집(지도 칸)에선 absolute 로 칸을 채웠는데, 모달로 이사 오니 그 몸이 높이를 0 으로
        무너뜨렸다(2026-08-27) — 흐름 배치로 바꾼다. 스크롤은 모달 껍데기가 쥔다. */
-    <div style={{ padding: "4px 2px 2px" }}>
+    <div className="upx">
       {err && (
         <div style={{ margin: "0 0 10px", padding: "8px 11px", borderRadius: 7, fontSize: 12.5,
           background: "#FDECEC", color: "var(--up)", display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -666,10 +455,9 @@ export function UploadTab({ pk }: { pk: string }) {
       )}
       {/* 건물 사진 — 여러 장. 브리핑 사진 장(4.20x6.49) 비율에 맞춘다 */}
       {(["exterior", "interior"] as PhotoKind[]).map((k) => (
-        <div key={k} style={{ marginBottom: 14 }}>
-          <div style={SEC}>{PHOTO_KINDS.find((x) => x.k === k)!.label}
-            <span style={{ color: "var(--muted)", fontWeight: 400, marginLeft: 6 }}>여러 장 · 순서 조정</span></div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(112px,1fr))", gap: 8 }}>
+        <div key={k}>
+          <div className="upx-h">{PHOTO_KINDS.find((x) => x.k === k)!.label}</div>
+          <div className="upx-g">
             {of(k).map((p) => card(p, PHOTO_RATIO))}
             {adder(k, true, PHOTO_RATIO, "사진 추가")}
           </div>
@@ -677,13 +465,13 @@ export function UploadTab({ pk }: { pk: string }) {
       ))}
 
       {/* 서류 — 종류별 1장이면 충분(세로가 긴 스캔본) */}
-      <div style={SEC}>서류<span style={{ color: "var(--muted)", fontWeight: 400, marginLeft: 6 }}>브리핑에 그대로 실립니다</span></div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(132px,1fr))", gap: 8 }}>
+      <div className="upx-h">서류</div>
+      <div className="upx-g doc">
         {PHOTO_KINDS.filter((x) => x.doc).map(({ k, label }) => {
           const got = of(k)[0];
           return (
-            <div key={k}>
-              <div style={{ fontSize: 11.5, color: "var(--ink-2)", marginBottom: 4 }}>{label}</div>
+            <div key={k} className="upx-d">
+              <div className="upx-dl">{label}</div>
               {got ? card(got, DOC_RATIO) : adder(k, false, DOC_RATIO, "올리기")}
             </div>
           );
@@ -713,7 +501,6 @@ export function UploadTab({ pk }: { pk: string }) {
 }
 
 const PB: React.CSSProperties = { minWidth: 20, height: 20, fontSize: 11, background: "rgba(255,255,255,.92)" };
-const SEC: React.CSSProperties = { fontSize: 12.5, fontWeight: 700, color: "var(--ink)", margin: "0 0 7px" };
 // 브리핑 슬롯 비율(원본 pptx 실측) — 사진 4.20x6.49 · 서류 4.76x5.91
 const PHOTO_RATIO = 4.20 / 6.49;
 const DOC_RATIO = 4.76 / 5.91;
