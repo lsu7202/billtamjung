@@ -129,17 +129,20 @@ const GUIDE_DETAIL = [
 ];
 
 export function DocPage() {
-  const { pk = "" } = useParams();
-  const b = useQuery({ queryKey: ["doc-b", pk], queryFn: () => buildingsApi.get(pk) });
+  // 주소의 열쇠 = 매물 번호(0255). 건물 값은 그 지번의 대표 동에서
+  const { lid: lidS = "" } = useParams();
+  const lid = Number(lidS);
   const sellers = useQuery({ queryKey: ["sellers"], queryFn: () => salesApi.sellers() });
-  const props2 = useQuery({ queryKey: ["proposals", "pk", pk], queryFn: () => proposalsApi.list({ building_pk: pk }) });
+  const r = (sellers.data ?? []).find((x) => x.listing_id === lid) ?? null;
+  const pk = r?.building_pk ?? null;
+  const b = useQuery({ queryKey: ["doc-b", pk], queryFn: () => buildingsApi.get(pk!), enabled: !!pk });
+  const props2 = useQuery({ queryKey: ["proposals", "listing", lid], queryFn: () => proposalsApi.list({ listing_id: lid }) });
   const office = useQuery({ queryKey: ["draft-office"], queryFn: officeApi.get });
-  const rents = useQuery({ queryKey: ["doc-rents", pk], queryFn: () => rentsApi.list(pk) });
+  const rents = useQuery({ queryKey: ["doc-rents", lid, pk], queryFn: () => rentsApi.list(pk!, lid), enabled: !!pk });
 
   const bd = (b.data ?? {}) as Record<string, unknown>;
   const bs = (k: string) => { const x = bd[k]; return x == null ? null : String(x); };
   const bn = (k: string) => { const x = Number(bd[k]); return Number.isFinite(x) && x !== 0 ? x : null; };
-  const r = (sellers.data ?? []).find((x) => x.building_pk === pk) ?? null;
   const lead = (props2.data ?? []).find((x) => x.picked_at) ?? null;
   const of = office.data;
 
@@ -185,7 +188,7 @@ export function DocPage() {
   const [tFocus, setTFocus] = useState(false);
   /* 씨앗 우선(2026-08-23 확정) — DB가 정본인 칸은 열 때마다 현재 씨앗이 이긴다.
    * 저장본의 손 값은 씨앗이 없는 칸에서만 살아나고, 이번 세션의 손 편집(dirty)만 씨앗을 덮는다.
-   * 값을 바꾸려면 정본(계약 탭·소유자 탭·일정)에서 바꾸는 것이 원칙, 문서 편집은 그 인쇄만의 예외. */
+   * 값을 바꾸려면 정본(계약 탭·소유자 탭)에서 바꾸는 것이 원칙, 문서 편집은 그 인쇄만의 예외. */
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const mark = (k: string) => setDirty((p) => new Set(p).add(k));
 
@@ -255,15 +258,10 @@ export function DocPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [v, terms, rcpt, arts, kind, hydrated, lead?.id]);
 
-  /* 일정 — 계약·중도금·잔금 날짜와 금액의 그릇 */
-  const leadScheds: { cat: string | null; on: string; amount?: number | null }[] = (() => {
-    const x = (lead as unknown as { scheds?: unknown })?.scheds;
-    if (Array.isArray(x)) return x as { cat: string | null; on: string; amount?: number | null }[];
-    if (typeof x === "string") { try { return JSON.parse(x) ?? []; } catch { return []; } }
-    return [];
-  })();
-  const schedOn = (cat: string) => leadScheds.find((s) => s.cat === cat)?.on ?? null;
-  const schedAmt = (cat: string) => leadScheds.find((s) => s.cat === cat)?.amount ?? null;
+  /* 계약 날짜 · 중도금 — 짝 칸(0222). 예전엔 일정 줄이 그릇이었다 */
+  const L = (lead ?? {}) as unknown as Record<string, string | number | null | undefined>;
+  const DATE_KEY: Record<string, string> = { 계약: "contract_on", 중도금: "mid_on", 잔금: "balance_on" };
+  const schedOn = (cat: string) => (L[DATE_KEY[cat]] as string | null | undefined) ?? null;
 
   /* ── 돈 — 값 하나에서 한글·숫자 동시 파생. 입력은 억 단위(파서 어법 그대로) ── */
   const num = (k: string, seedN: number | null) =>
@@ -271,7 +269,7 @@ export function DocPage() {
       : seedN ?? (v[k] ? parseAmount(v[k]) : null);
   const deal = num("deal", lead?.deal_price ?? null);
   const down = num("down", lead?.down_payment ?? (deal != null ? Math.round(deal * 0.1) : null));
-  const mid = num("mid", schedAmt("중도금"));   // 중도금 = 일정이 그릇(금액 포함)
+  const mid = num("mid", (L.mid_amount as number | null | undefined) ?? null);   // 중도금 = 짝 칸(0222)
   const pre = num("pre", lead?.pre_contract_amount ?? null);
   const bal = deal != null ? deal - (down ?? 0) - (mid ?? 0) - (pre ?? 0) : null;
   const rate = v["fee_rate"] ? (Number(v["fee_rate"]) || 0.9) : (of?.fee_rate ?? 0.9);

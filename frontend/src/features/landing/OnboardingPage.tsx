@@ -47,7 +47,7 @@ export function OnboardingPage() {
     // 다음 스텝(분기 재계산 후) — 마지막이면 완료
     const next = STEPS.filter((s) => !s.when || s.when(a));
     const cur = next.findIndex((s) => s.key === step.key);
-    if (cur + 1 >= next.length) { setDone(true); setTimeout(() => nav("/search", { replace: true }), 1400); }
+    if (cur + 1 >= next.length) { setDone(true); setTimeout(() => nav("/assistant", { replace: true }), 1400); }
     else setIdx(cur + 1);
   }
 

@@ -10,14 +10,15 @@ import "./draft.css";
  *  같은 장부를 열었는데 화면마다 다르게 생겼다 — 같은 것은 같아 보여야 같은 것인 줄 안다.
  *  줄 하나 = 흰 카드(날짜·본문·쓴 사람), 입력은 pill 한 줄, Enter 가 저장의 전부다.
  */
-export function MemoLog({ target, id }: { target: "listing" | "buyer"; id: string }) {
+export function MemoLog({ target, id }: { target: "listing" | "buyer"; id: string | number }) {
   const q = useQuery({ queryKey: ["memo", target, id], queryFn: () => contactsApi.list(target, id) });
   const rows = (q.data ?? []).filter((c) => c.kind === "메모" && c.note);
   const [txt, setTxt] = useState("");
   const add = async () => {
     const t = txt.trim();
     if (!t) return;
-    await contactsApi.create({ target_type: target, target_id: id, kind: "메모", note: t });
+    await contactsApi.create({ target_type: target, kind: "메모", note: t,
+      ...(target === "listing" ? { listing_id: Number(id) } : { target_id: String(id) }) });   // 매물 장부는 매물 번호(0255)
     setTxt("");
     q.refetch();
   };

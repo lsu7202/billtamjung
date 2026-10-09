@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  listingsApi, searchApi, authApi, buildingsApi,
+  listingsApi, searchApi, authApi, parcelsApi,
 } from "../../shared/api/endpoints";
 import {dongAddr } from "../../shared/format";
 import { useEnums } from "../../shared/hooks/useEnums";
@@ -21,7 +21,7 @@ import "./sales.css";
  *  긴급도·매수의향도 없다 — 그건 의사 창(StagePane)의 것. 같은 필드가 두 창에 살면 어긋난다.
  */
 export interface ListingInit {
-  building_pk: string; addr: string | null;
+  listing_id: number; pnu: string; addr: string | null;
   assignee_account_id: number | null; urgency: string | null; intent: string | null;
   /** 소유자 — 없으면 관심 매물이다 */
   owner_name?: string | null; owner_phone?: string | null; phone_masked?: boolean;
@@ -33,24 +33,24 @@ export interface ListingInit {
 export function ListingModal({ init, preset, prefill, onClose, onSaved }: {
   /** 있으면 편집(그 매물) · 없으면 담기 */
   init?: ListingInit | null;
-  /** 담기인데 건물이 이미 정해져 있다 — 건물 상세 「업무에서 관리」로 넘어온 경우(2026-09-26) */
-  preset?: { pk: string } | null;
+  /** 담기인데 땅이 이미 정해져 있다 — 지번 상세 「매물관리에 담기」로 넘어온 경우(2026-09-26 · 0255 지번) */
+  preset?: { pnu: string } | null;
   /** 매도 문의를 고객등록할 때(S05) — 팔려는 건물 주소를 검색칸에, 문의한 사람을 소유자로 미리 채운다 */
   prefill?: { q?: string | null; name?: string | null; phone?: string | null } | null;
   onClose: () => void;
-  onSaved: (pk: string) => void;
+  onSaved: (lid: number) => void;
 }) {
   const { options } = useEnums();
   const me = useQuery({ queryKey: ["me"], queryFn: authApi.me });
-  const [pick, setPick] = useState<{ pk: string; addr: string } | null>(
-    init ? { pk: init.building_pk, addr: init.addr ?? init.building_pk }
-      : preset ? { pk: preset.pk, addr: preset.pk } : null);
-  // 미리 정해진 건물의 주소 — 나대지는 pk 가 'P'+pnu 라 필지 API 가 안다
-  const pre = useQuery({ enabled: !!preset, queryKey: ["building", preset?.pk],
-    queryFn: () => (preset!.pk.startsWith("P") ? buildingsApi.vacant(preset!.pk.slice(1)) : buildingsApi.get(preset!.pk)) });
+  const [pick, setPick] = useState<{ pnu: string; addr: string } | null>(
+    init ? { pnu: init.pnu, addr: init.addr ?? init.pnu }
+      : preset ? { pnu: preset.pnu, addr: preset.pnu } : null);
+  // 미리 정해진 땅의 주소(나대지도 같은 응답)
+  const pre = useQuery({ enabled: !!preset, queryKey: ["parcel", preset?.pnu],
+    queryFn: () => parcelsApi.get(preset!.pnu) });
   useEffect(() => {
     const a = (pre.data as { addr?: string } | undefined)?.addr;
-    if (preset && a) setPick({ pk: preset.pk, addr: a });
+    if (preset && a) setPick({ pnu: preset.pnu, addr: a });
   }, [pre.data]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [q, setQ] = useState(prefill?.q ?? "");
   // 소유자 — 이 매물에 매칭되는 사람
@@ -69,7 +69,7 @@ export function ListingModal({ init, preset, prefill, onClose, onSaved }: {
   const t = q.trim();
   const sug = useQuery({ queryKey: ["suggest", t], enabled: !init && t.length >= 2,
     queryFn: () => searchApi.suggest(t) });
-  const hits = (sug.data ?? []).filter((x) => x.kind === "building" && x.building_pk).slice(0, 6);
+  const hits = (sug.data ?? []).filter((x) => (x.kind === "building" || x.kind === "vacant") && x.pnu).slice(0, 6);
 
   const save = async () => {
     if (!pick || busy) return;
@@ -78,9 +78,12 @@ export function ListingModal({ init, preset, prefill, onClose, onSaved }: {
       // 초안 기록 → 커밋. 멈춤 상태와 무관하게(멈춰 있어도 메모는 남긴다).
       // 되돌렸으면 그 시점 자리에 표식 줄을 세운다 — 그 뒤 초안만 다시 움직임으로 센다
       // 담은 사람이 담당자다 — 새 담기 때만 나로 선점(S02 §4.1). 편집은 담당을 건드리지 않는다
+      // 매물 번호 — 편집이면 그 매물, 담기면 등록(claim)이 돌려준 번호
+      let lid = init?.listing_id ?? null;
       if (!init && me.data?.account_id) {
-        await listingsApi.claim(pick.pk, me.data.account_id);
+        lid = (await listingsApi.claim(pick.pnu, me.data.account_id)).listing_id;
       }
+      if (lid == null) return;
       const fields: Record<string, string | null> = {};
       // 이름을 넣었을 때만 사람을 만든다 — 빈 이름으로 만들면 「미지정」 유령이 생긴다
       if (oName.trim()) {
@@ -93,8 +96,8 @@ export function ListingModal({ init, preset, prefill, onClose, onSaved }: {
         // 마스킹된 번호를 그대로 저장하면 진짜 번호를 덮는다 — 손댔을 때만 보낸다
         if (!init?.phone_masked || oPhone) fields.owner_phone = oPhone || null;
       }
-      if (Object.keys(fields).length) await listingsApi.patchBiz(pick.pk, fields);
-      onSaved(pick.pk);
+      if (Object.keys(fields).length) await listingsApi.patchBiz(lid, fields);
+      onSaved(lid);
       onClose();
     } finally { setBusy(false); }
   };
@@ -114,8 +117,8 @@ export function ListingModal({ init, preset, prefill, onClose, onSaved }: {
             {hits.length > 0 && (
               <span className="gm-hits">
                 {hits.map((h) => (
-                  <button key={h.building_pk} onMouseDown={(e) => {
-                    e.preventDefault(); setPick({ pk: h.building_pk!, addr: h.addr }); setQ("");
+                  <button key={h.pnu!} onMouseDown={(e) => {
+                    e.preventDefault(); setPick({ pnu: h.pnu!, addr: h.addr }); setQ("");
                   }}><span className="gm-p owner">{dongAddr(h.addr)}</span></button>
                 ))}
               </span>

@@ -23,7 +23,7 @@ async def main():
              WHEN substr(sh.contract_ym,5,2)<='09' THEN 'Q3' ELSE 'Q4' END AS q,
              percentile_cont(0.5) WITHIN GROUP (ORDER BY sh.price/(b.gongsi_latest*sh.land_area)) AS med,
              count(*) AS n
-      FROM master.sales_history sh JOIN master.buildings b USING(building_pk)
+      FROM master.trade_whole sh JOIN master.parcel_rep pr ON pr.pnu = sh.pnu JOIN master.buildings b ON b.building_pk = pr.rep_pk
       WHERE sh.contract_ym >= '201901' AND sh.price > 0 AND sh.land_area > 0 AND b.gongsi_latest > 0
         AND (b.land_use = ANY($1) OR substr(b.main_use,1,2) IN ('03','04','05','07','09','13','14','15','16'))
       GROUP BY 1 ORDER BY 1""", SECT)

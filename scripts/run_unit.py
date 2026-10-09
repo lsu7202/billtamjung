@@ -382,7 +382,7 @@ def main() -> int:
             bump(dsn, k, u["cadence"], fingerprint(u, dsn), rows, "seeded")
             print(f"  {k:<18} {u.get('table') or '-':<28} {rows or '-'}")
         # **판을 먼저 다 찍고 그 다음에 스냅샷을 뜬다.** 거꾸로 하면 파생끼리 읽는 사슬
-        # (building_rent_est ← floor_rent_est)이 아직 판 0 으로 찍혀 곧바로 「낡음」이 된다.
+        # (parcel_sale_est ← sale_price_index 등)이 아직 판 0 으로 찍혀 곧바로 「낡음」이 된다.
         for d in DERIVES:
             bump(dsn, d["step"], "derive", None, None, "seeded")
         lg = ledger(dsn)

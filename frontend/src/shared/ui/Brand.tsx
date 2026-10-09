@@ -8,19 +8,4 @@ export function BrandMark({ size = 28, className }: { size?: number; className?:
   );
 }
 
-export function Wordmark({ className }: { className?: string }) {
-  return (
-    <span className={"bt-wordmark" + (className ? " " + className : "")}>
-      빌탐정<span className="bt-dot">.</span>
-    </span>
-  );
-}
 
-export function Logo({ markSize = 24, className }: { markSize?: number; className?: string }) {
-  return (
-    <span className={"bt-logo" + (className ? " " + className : "")} aria-label="빌탐정">
-      <BrandMark size={markSize} />
-      <Wordmark />
-    </span>
-  );
-}

@@ -105,14 +105,16 @@ UNITS: dict[str, dict] = {
                S(["scripts/activate.py"], "gis")],
         load=[S(["scripts/vworld/load_redevel_zones.py"], "gis", "data/raw/LSMD_CONT_UD602_서울"),
               S(["scripts/vworld/load_district_plans.py"], "gis", "data/raw/C_UQ161")],
-        inputs=["data/raw/LSMD_CONT_UD602_서울/*", "data/raw/C_UQ161/*"], table="master.building_redevel",
+        inputs=["data/raw/LSMD_CONT_UD602_서울/*", "data/raw/C_UQ161/*"], table="master.redevel_zone",
         verify=[
-            ("정비구역 붙은 건물 10만 동 이상",
-             "select count(*)>=100000, to_char(count(*),'999,999') from master.building_redevel"),
+            ("정비구역 폴리곤 500 이상",
+             "select count(*)>=500, to_char(count(*),'999,999') from master.redevel_zone"),
+            ("지구단위계획 폴리곤 300 이상",
+             "select count(*)>=300, to_char(count(*),'999,999') from master.district_plan"),
         ],
     ),
 
-    # 업체 명부 — 층별 임대 상호명·상권 7갈래의 재료
+    # 업체 명부 — 층별 임대 상호명의 재료
     "stores.localdata": dict(
         cadence="monthly", label="LOCALDATA 208업종",
         crawl=[S(["scripts/localdata/download_localdata.py"], "gis")],
@@ -287,22 +289,6 @@ UNITS: dict[str, dict] = {
         ],
     ),
 
-    # 상권분석서비스 — 받는 경로와 읽는 경로가 달랐다. 압축 푸는 마디를 여기 둔다(2026-09-07).
-    "trade_area": dict(
-        cadence="semiannual", label="서울시 상권분석서비스 영역(전통시장 판정)",
-        crawl=[S(["scripts/seoul_open/download_trade_area.py", "--out", "data/raw/_trade_area_dl"], "gis"),
-               S(["bash", "-c", "unzip -o -q data/raw/_trade_area_dl/*.zip"
-                  " -d 'data/raw/서울시 상권분석서비스(영역-상권)'"], "gis")],
-        load=[S(["scripts/sanggwon/load_seoul_trade_area.py"], "gis",       # psycopg(RENT_DSN)
-                "data/raw/서울시 상권분석서비스(영역-상권)/sanggwon.shp")],
-        inputs=["data/raw/서울시 상권분석서비스(영역-상권)/sanggwon.*"], table="master.trade_area",
-        verify=[
-            ("상권 1,600 이상",
-             "select count(*)>=1600, to_char(count(*),'999,999') from master.trade_area"),
-            ("갈래 넷(골목·발달·전통시장·관광특구)",
-             "select count(distinct kind)=4, string_agg(distinct kind_nm, '·') from master.trade_area"),
-        ],
-    ),
 
     # 교통 — 역사마스터·버스정류소(반기). 값이 buildings 의 칸이라 승강기처럼 되붙인다(2026-09-07).
     # 받기는 _transit_dl 에 떨어지는데 빌더·적재는 data/raw/ 바로 밑을 읽는다 — 복사 마디를 둔다.
@@ -374,35 +360,40 @@ UNITS: dict[str, dict] = {
         ],
     ),
 
-    # 실거래·지가·임대동향
+    # 실거래·지가
     "sales": dict(
         cadence="monthly", label="실거래(RTMS)",
         crawl=[S(["bash", "data/tools/download_rtms.sh"], "gis")],
-        build=[S(["data/tools/build_sales.py"], "gis"),
-               S(["pipeline/export_series.py", "data/exports/_load/gongsi_series.csv",
-                  "data/exports/_load/sales_history.csv"], "app")],
-        load=[S(["pipeline/loader.py", "--source", "sales_history",
-                 "--csv", "data/exports/_load/sales_history.csv"], "app",
-                "data/exports/_load/sales_history.csv"),
+        # 여덟 갈래 → 거래 표 + 지번 연결(2026-10-08 · 스펙 12 §1). 지번 · 건물은 살아 있는 DB 에서 읽는다
+        build=[S(["data/tools/build_trades.py", "--out", "data/exports/_load"], "gis")],
+        load=[S(["scripts/load_trades.py", "data/exports/_load"], "app", "data/exports/_load/trade.csv"),
               # 건물 표의 마지막 매각 두 칸은 대장 빌드가 굽는 값 — 실거래만 갈면 90일 묵는다(되붙임)
               S(["scripts/fill_sale_latest.py"], "app")],
-        inputs=["data/raw/실거래가/*"], table="master.sales_history",
+        inputs=["data/raw/실거래가/*"], table="master.trade",
         verify=[
-            ("11만 줄 이상",
-             "select count(*)>=110000, to_char(count(*),'999,999') from master.sales_history"),
+            ("거래 200만 줄 이상 · 여덟 갈래",
+             "select count(*)>=2000000 and count(distinct kind)=8, to_char(count(*),'9,999,999')||' · '||count(distinct kind)||'갈래' from master.trade"),
             # 2026-09-06: 2016년 원본이 오류 페이지로 받아져 한 해에서만 7,518줄이 빠졌다.
-            # 한 해라도 500건 밑이면 원본을 의심한다
-            ("건물의 마지막 매각가가 실거래 최신과 같을 것",
-             "select count(*)=0, count(*)::text||'동' from master.buildings b"
-             "  join (select distinct on (building_pk) building_pk, contract_ym, price"
-             "          from master.sales_history where price>0 order by building_pk, contract_ym desc) l"
-             "    using (building_pk)"
-             " where b.last_sale_price is distinct from l.price"),
-            ("연도별 구멍 없음(각 500건 이상)",
+            # 2026-10-08: 하루 한도 오류(66바이트)가 파일을 덮었다. 한 해라도 500건 밑이면 원본을 의심한다
+            ("통매 갈래 연도별 구멍 없음(각 500건 이상)",
              "select count(*)=0, coalesce(string_agg(yr||'('||n||')',','),'없음') from ("
-             "  select left(contract_ym,4) yr, count(*) n from master.sales_history"
-             "   where left(contract_ym,4)::int between 2007 and 2025"
+             "  select left(contract_ym,4) yr, count(*) n from master.trade"
+             "   where kind in ('단독다가구','상업업무용') and left(contract_ym,4)::int between 2007 and 2025"
              "   group by 1 having count(*)<500) z"),
+            ("아파트 지번에 붙은 비율 95% 이상",
+             "select 100.0*count(m.trade_id)/nullif(count(*),0)>=95, round(100.0*count(m.trade_id)/nullif(count(*),0),1)||'%'"
+             " from master.trade t left join master.trade_match m on m.trade_id=t.id where t.kind='아파트'"),
+            # 10-08 측정 46% · 엄격 규칙(하나라도 안 맞으면 안 붙임)
+            ("통매 지번에 붙은 비율 40% 이상",
+             "select 100.0*count(m.trade_id)/nullif(count(*),0)>=40, round(100.0*count(m.trade_id)/nullif(count(*),0),1)||'%'"
+             " from master.trade t left join master.trade_match m on m.trade_id=t.id"
+             " where t.kind in ('단독다가구','상업업무용') and coalesce(t.deal_kind,'일반')='일반'"
+             "   and coalesce(t.share,'')<>'지분' and t.canceled_on is null"),
+            ("건물의 마지막 매각가가 지번 실거래 최신과 같을 것",
+             "select count(*)=0, count(*)::text||'동' from master.buildings b"
+             "  join (select distinct on (pnu) pnu, price from master.trade_whole"
+             "         order by pnu, contract_ym desc, contract_day desc nulls last, trade_id) l on l.pnu = b.pnu"
+             " where b.last_sale_price is distinct from l.price"),
         ],
     ),
     "land_adjust": dict(
@@ -416,39 +407,6 @@ UNITS: dict[str, dict] = {
              "select count(*)>=300, to_char(count(*),'999,999') from master.land_adjust"),
         ],
     ),
-    # 상권 구획도(부동산원) — **원본을 되찾았다**(2026-09-07 대표가 손으로 받아 raw 에 둠).
-    # 자동 받기는 안 된다: 포털(15086933)이 0바이트를 준다. 같은 경로로 승강기는 33MB 가
-    # 정상으로 오니 그쪽 파일 문제다. 새 판이 나오면 포털이 바꿔 줄 테니 그때 손으로 받는다.
-    # 실측: 2024 판과 지금 표가 **겹침률 100%** — 경계가 안 바뀌었다. 갱신이 급한 원천이 아니다.
-    "sanggwon": dict(
-        cadence="yearly", label="상권 구획도(부동산원 · 받기는 손으로)",
-        load=[S(["scripts/sanggwon/load_sanggwon.py"], "gis",
-                "data/raw/상권구획도(업로드용)")],
-        inputs=["data/raw/상권구획도(업로드용)/*.shp"], table="master.sanggwon",
-        verify=[
-            ("서울 상권 72칸",
-             "select count(*)=72, count(*)::text||'칸' from master.sanggwon"),
-            ("도형이 다 있을 것",
-             "select count(*)=count(geom), count(geom)::text||'/'||count(*)::text from master.sanggwon"),
-            # 임대추정이 이름으로 임대동향 시계열과 짝짓는다 — 겹침이 줄면 매핑이 깨진다
-            ("임대동향과 이름 겹침 65 이상",
-             "select count(distinct s.nm)>=65, count(distinct s.nm)::text||'/72'"
-             " from master.sanggwon s join master.sanggwon_rent_series r on r.sanggwon = s.nm"),
-        ],
-    ),
-
-    "rent_index": dict(
-        cadence="quarterly", label="상업용 임대동향(R-ONE)",
-        crawl=[S(["scripts/rone/download_rone.py", "--out", "data/raw/_dl"], "gis")],
-        load=[S(["scripts/rent_estimate/build_series.py"], "app")],
-        inputs=["data/raw/_dl/*임대동향*", "data/raw/*임대동향*"], table="master.sanggwon_rent_series",
-        verify=[
-            ("임대동향 2만 줄 이상",
-             "select count(*)>=20000, to_char(count(*),'999,999')"
-             " from master.sanggwon_rent_series"),
-        ],
-    ),
-
     # 대장 — 유일한 전체 빌드. 디스크 여유 40GB 를 먼저 재고 시작한다(2026-09-06 ENOSPC)
     "ledger": dict(
         cadence="quarterly", label="건축HUB 대장 전체(전체 빌드)",
@@ -462,7 +420,7 @@ UNITS: dict[str, dict] = {
               for s, c in (("buildings", "buildings.csv"), ("parcels", "parcels.csv"),
                            ("building_parcels", "building_parcels.csv"),
                            ("gongsi_series", "gongsi_series.csv"),
-                           ("sales_history", "sales_history.csv"), ("complex", "complex.csv"),
+                           ("complex", "complex.csv"),
                            ("unit", "unit.csv"), ("energy", "energy.csv"), ("zone", "zone.csv"),
                            ("closed", "closed.csv"), ("basic", "basic.csv"), ("septic", "septic.csv"))]
              # 이 셋은 로더의 세대 스왑을 안 쓴다(파생 계산의 입력이라 TRUNCATE+INSERT 전용 스크립트).
@@ -500,8 +458,8 @@ UNITS: dict[str, dict] = {
         # 편 원본은 적재가 끝나면 도로 치운다 — 압축본이 그대로 남아 있으므로 잃는 것이 없다
         clean_after_load=["data/exports/_load/*.csv", "data/raw/hub_seoul/*"],
         verify=[
-            ("건물 58만 동 이상",
-             "select count(*)>=580000, to_char(count(*),'999,999') from master.buildings"),
+            ("건물 55만 동 이상(지적도에 없는 번지 뺀 뒤 · 10-07)",
+             "select count(*)>=550000, to_char(count(*),'999,999') from master.buildings"),
             ("좌표 있는 건물 90% 이상",
              "select 100.0*count(geom)/nullif(count(*),0)>=90,"
              " round(100.0*count(geom)/nullif(count(*),0),1)||'%' from master.buildings"),
@@ -520,8 +478,8 @@ UNITS: dict[str, dict] = {
              " and column_name='legal_bcr' order by table_name desc limit 1"),
             ("건물↔필지 연결 68만 이상",
              "select count(*)>=680000, to_char(count(*),'999,999') from master.building_parcels"),
-            ("표제부 원문 58만 줄 이상(AI 보유)",
-             "select count(*)>=580000, to_char(count(*),'999,999') from master.building_ledger_raw"),
+            ("표제부 원문 55만 줄 이상(AI 보유)",
+             "select count(*)>=550000, to_char(count(*),'999,999') from master.building_ledger_raw"),
             ("원문에 내진·지붕·대수선구분이 살아 있을 것",
              "select count(*)>=3, string_agg(k,'·') from ("
              "  select unnest(array['내진적용','지붕','최근대수선구분']) k) z"
@@ -546,41 +504,26 @@ DERIVES: list[dict] = [
          run=[S(["scripts/build_building_calc.py"], "app")]),
     dict(step="building_legal", label="법정 건폐·용적", reads=["ledger", "parcels"],
          run=[S(["scripts/build_building_legal.py"], "app")]),
+    # 지번 대표 동(0230) · 나대지(0131) MV — 적재기는 안 고친다. 건물↔필지 되붙임 뒤라야 해서 여기(2026-10-07)
+    dict(step="parcel_mvs", label="지번 대표 동 · 나대지 · 검색 지번 새로 고침", reads=["ledger", "parcels"],
+         run=[S(["scripts/refresh_parcel_mvs.py"], "app")]),
     dict(step="sale_price_index", label="분기 가격지수", reads=["sales", "ledger", "gongsi"],
          verify=[("분기 25개 이상",
               "select count(*)>=25, count(*)::text||'분기' from master.sale_price_index")],
          run=[S(["scripts/rent_estimate/build_price_index.py"], "app")]),
-    dict(step="floor_rent_est", label="층별 임대추정", reads=["ledger", "rent_index", "gongsi"],
-         verify=[("200만 줄 이상",
-              "select count(*)>=2000000, to_char(count(*),'999,999,999')"
-              " from master.floor_rent_est")],
-         run=[S(["scripts/rent_estimate/build_floor.py"], "app")]),
-    dict(step="building_rent_est", label="건물 임대추정", reads=["ledger", "rent_index", "floor_rent_est", "gongsi"],
-         verify=[("추정 있는 건물 18만 이상",
-              "select count(monthly_rent)>=180000, to_char(count(monthly_rent),'999,999')"
-              " from master.building_rent_est")],
-         run=[S(["scripts/rent_estimate/build_bldg.py"], "app")]),
-    dict(step="income_cap", label="구별 cap rate", reads=["sales", "building_rent_est"],
-         verify=[("서울 25구가 다 있을 것",
-              "select count(*)>=25, count(*)::text||'구' from master.income_cap")],
-         run=[S(["scripts/rent_estimate/build_income_cap.py"], "app")]),
-    dict(step="building_sale_est", label="적정가",
-         reads=["sales", "land_adjust", "income_cap", "building_rent_est", "sale_price_index", "gongsi"],
-         verify=[("적정가 15만 동 이상",
+    # 추정임대(floor_rent_est · building_rent_est)와 그 위의 구별 cap rate(income_cap)는 2026-10-07 에 지웠다.
+    # 적정가의 수익환원 재료는 다음 파이프라인에서 주변 임대매물 호가로 다시 붙인다(스펙 11d · 할일).
+    dict(step="parcel_sale_est", label="적정가",
+         reads=["sales", "land_adjust", "sale_price_index", "gongsi"],
+         verify=[("적정가 15만 지번 이상",
               "select count(sale_est)>=150000, to_char(count(sale_est),'999,999')"
-              " from master.building_sale_est")],
+              " from master.parcel_sale_est")],
          run=[S(["scripts/rent_estimate/build_sale_est.py"], "app")]),
-    dict(step="building_score", label="활용유형·매도가능성",
-         reads=["ledger", "sales", "gongsi", "news.zones", "building_calc", "building_sale_est", "parcels"],
-         verify=[("활용유형 55만 동 이상",
-              "select count(use_type)>=550000, to_char(count(use_type),'999,999')"
-              " from master.building_score")],
-         run=[S(["scripts/build_building_score.py"], "app")]),
     # 검색 파생값(0174) — 읽을 때 계산하는 값은 없다. 위 단계들이 다 끝난 뒤 마지막에 돈다.
-    dict(step="building_derived", label="검색 파생값(추정수익률·평단가·공시비율·여유·점수)",
-         reads=["ledger", "sales", "gongsi", "building_calc", "building_legal", "building_sale_est", "building_rent_est"],
-         verify=[("추정 수익률 15만 동 이상",
-              "select count(roi_est)>=150000, to_char(count(roi_est),'999,999')"
+    dict(step="building_derived", label="검색 파생값(평단가·공시비율·여유·점수)",
+         reads=["ledger", "sales", "gongsi", "building_calc", "building_legal", "parcel_sale_est"],
+         verify=[("추정가 평단가 15만 동 이상",
+              "select count(pp_total)>=150000, to_char(count(pp_total),'999,999')"
               " from master.building_derived")],
          run=[S(["scripts/build_building_derived.py"], "app")]),
 ]
@@ -630,12 +573,6 @@ DERIVE_VERIFY: dict[str, list[tuple[str, str]]] = {
         ("건물 수와 같을 것",
          "select count(*)=(select count(*) from master.buildings), to_char(count(*),'999,999')"
          " from master.building_derived"),
-        # 적정가가 있는 건물엔 추정 수익률도 있어야 한다(임대추정도 있을 때)
-        ("적정가·임대추정 둘 다 있는데 수익률 빈 건 0건",
-         "select count(*)=0, count(*)::text from master.building_derived d"
-         "  join master.building_sale_est s using (building_pk)"
-         "  join master.building_rent_est r using (building_pk)"
-         " where s.sale_est>0 and r.annual_rent>0 and d.roi_est is null"),
     ],
     "building_legal": [
         ("50만 줄 이상",
@@ -649,44 +586,18 @@ DERIVE_VERIFY: dict[str, list[tuple[str, str]]] = {
         ("분기 25개 이상",
          "select count(*)>=25, count(*)::text||'분기' from master.sale_price_index"),
     ],
-    "floor_rent_est": [
-        # 실측 125만 층 · 20.4만 동(2026-09-07). 상업 매물만 추정하므로 전 건물이 아니다
-        ("120만 층 이상",
-         "select count(*)>=1200000, to_char(count(*),'999,999,999') from master.floor_rent_est"),
-        ("건물 20만 동 이상",
-         "select count(distinct building_pk)>=200000,"
-         " to_char(count(distinct building_pk),'999,999') from master.floor_rent_est"),
-        # 지하1층이 지하3층보다 비싸야 한다 — 층 요율이 뒤집히면 층 파싱이 깨진 것이다
-        ("지하1층 요율 > 지하3층",
-         "select coalesce(max(case when seq=-1 then m end) >"
-         "                max(case when seq=-3 then m end), true), '층 요율 순서'"
-         " from (select seq, avg(rent_est) m from master.floor_rent_est"
-         "        where seq in (-1,-3) group by seq) z"),
+    "parcel_mvs": [
+        ("지번 대표 동 = 건물 지번 수",
+         "select r.n = b.n, to_char(r.n,'999,999') from (select count(*) n from master.parcel_rep) r,"
+         " (select count(distinct coalesce(pnu,'B'||building_pk)) n from master.buildings) b"),
+        ("검색 지번 ⊇ 대표 동 지번(0258)",
+         "select count(rep_pk) = (select count(*) from master.parcel_rep), to_char(count(*),'999,999')"
+         " from master.parcel_spot"),
     ],
-    "building_rent_est": [
-        ("추정 있는 건물 18만 이상",
-         "select count(monthly_rent)>=180000, to_char(count(monthly_rent),'999,999')"
-         " from master.building_rent_est"),
-    ],
-    "income_cap": [
-        # 25구 + 구를 못 고를 때 쓰는 서울 전체 기본값 `_seoul` 한 줄 = 26
-        ("25구 + 서울 기본값",
-         "select count(*) filter (where gu ~ '^[0-9]+$')=25"
-         " and count(*) filter (where gu='_seoul')=1,"
-         " count(*)::text||'줄' from master.income_cap"),
-        ("cap 이 1~6% 안에 들 것",
-         "select count(*)=0, coalesce(string_agg(gu||' '||round(cap*100,2)||'%',','),'없음')"
-         " from master.income_cap where cap not between 0.01 and 0.06"),
-    ],
-    "building_sale_est": [
-        ("적정가 15만 동 이상",
+    "parcel_sale_est": [
+        ("적정가 15만 지번 이상",
          "select count(sale_est)>=150000, to_char(count(sale_est),'999,999')"
-         " from master.building_sale_est"),
-    ],
-    "building_score": [
-        ("활용유형 55만 동 이상",
-         "select count(use_type)>=550000, to_char(count(use_type),'999,999')"
-         " from master.building_score"),
+         " from master.parcel_sale_est"),
     ],
 }
 
@@ -699,8 +610,12 @@ for _d in DERIVES:                       # 선언을 한 곳에 모아 두고 �
 # 받아졌는데 아무도 안 재서, 나흘 뒤 적재 문턱에서야 걸렸다. 그동안 그 원본으로 빌드를 돌렸다.
 # 규칙 = (이름, glob, 최소바이트, 첫 4KB 에 있어야 할 글자|None, 최소 파일 수)
 CRAWL_VERIFY: dict[str, list[tuple]] = {
-    "sales": [("실거래 CSV 42장 · 각 100KB 이상", "data/raw/실거래가/*.csv",
-               100_000, "실거래", 40)],
+    # 여덟 갈래 × 2006~ (2026-10-08). 분양입주권 · 공장창고는 해마다 몇백 건이라 작다 — 문턱을 따로 둔다.
+    # 하루 한도 오류는 66바이트 JSON 이라 「실거래」 글자 검사에서 걸린다
+    "sales": [("실거래 큰 갈래 CSV 각 100KB 이상 · 갈래마다 21장", f"data/raw/실거래가/{k}_매매_서울_*.csv",
+               100_000, "실거래", 21) for k in ("아파트", "연립다세대", "단독다가구", "오피스텔", "상업업무용", "토지")]
+             + [("실거래 작은 갈래 CSV · 갈래마다 21장", f"data/raw/실거래가/{k}_매매_서울_*.csv",
+                 500, "실거래", 21) for k in ("분양입주권", "공장창고")],
     "news.notice": [("고시 jsonl 1MB 이상", "data/raw/_urban_notice/notices.jsonl",
                      1_000_000, None, 1)],
     "news.g2b": [("나라장터 json 500KB 이상", "data/raw/_g2b/bids_cnstwk.json",
@@ -723,7 +638,6 @@ CRAWL_VERIFY: dict[str, list[tuple]] = {
     "road_width": [("도로구간 SHP", "data/raw/(도로명주소)도로구간_서울/TL_SPRD_MANAGE.Seoul.shp", 1_000_000, None, 1)],
     # 로그인 페이지가 돌아오면 HTML 이다 — zip 은 PK 로 시작한다
     "living_pop": [("생활인구 zip 5장 이상 · 각 5MB", "data/raw/_living_pop/*.zip", 5_000_000, "PK", 5)],
-    "trade_area": [("상권 SHP", "data/raw/서울시 상권분석서비스(영역-상권)/sanggwon.shp", 100_000, None, 1)],
     "transit": [("역사마스터 json", "data/raw/서울시 역사마스터 정보.json", 50_000, "DATA", 1),
                 ("버스정류소 json", "data/raw/서울시 버스정류소 위치정보.json", 1_000_000, "DATA", 1)],
     "parcels": [("지적도 SHP", "data/raw/LSMD_CONT_LDREG_5174_서울/*.shp", 100_000_000, None, 1),

@@ -6,7 +6,7 @@
   → integrated → sqlite → export(seoul·parcels·series·complex·unit)
 각 단계 실패 시 즉시 중단(입력 누락이면 여기서 드러남). --from 으로 중간 재개.
 
-    data/.venv/bin/python pipeline/build_all.py [--from build_sales] [--export-dir DIR]
+    data/.venv/bin/python pipeline/build_all.py [--from building_master] [--export-dir DIR]
 전제: scripts/activate.py 로 raw 정규경로가 채워져 있어야 함.
 근거: specs/07-architecture/05-raw-사용-원장 (입력 정합).
 """
@@ -42,7 +42,6 @@ def stages(exp):
         ("building_master",    [f"{T}/build_building_master.py"]),
         ("annex",              [f"{T}/build_annex.py", "ALL"]),
         ("transit",            [f"{T}/build_transit.py", "ALL"]),
-        ("sales",              [f"{T}/build_sales.py"]),
         ("floor_outline",      [f"{T}/build_floor_outline.py"]),
         ("road_width",         [f"{T}/build_road_width.py"]),   # 도로명주소 도로구간 → 폭원
         ("complex",            [f"{T}/build_complex.py"]),   # 총괄표제부(단지) — 0145
@@ -64,8 +63,7 @@ def stages(exp):
         ("export_seoul",       [f"{P}/export_seoul.py", "--out", f"{exp}/buildings.csv"]),
         ("export_parcels",     [f"{P}/export_parcels.py", "--parcels", f"{exp}/parcels.csv",
                                 "--annex", f"{exp}/building_parcels.csv"]),
-        ("export_series",      [f"{P}/export_series.py", f"{exp}/gongsi_series.csv",
-                                f"{exp}/sales_history.csv"]),
+        ("export_series",      [f"{P}/export_series.py", f"{exp}/gongsi_series.csv"]),
         ("export_complex",     [f"{P}/export_complex.py", "--out", f"{exp}/complex.csv"]),
         ("export_expos",       [f"{P}/export_expos.py", "--out", f"{exp}/unit.csv"]),
         ("export_energy",      [f"{P}/export_energy.py", "--out", f"{exp}/energy.csv"]),

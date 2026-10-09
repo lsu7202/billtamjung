@@ -1,61 +1,18 @@
-/* 자료에 박히는 한 벌 — 토큰 · 슬라이드 틀 · 표 스타일. 정본 10-AI-어시스턴트 §11-2.
-   굽는 HTML 머리에 인라인으로 들어간다. 모델은 이 변수와 클래스만 알면 결이 맞는다.
-
-   **브랜드가 없다**(2026-09-24 대표). 인장·로고·빌탐정 색을 안 넣는다. 중개인이 손님에게
-   주는 자료지 우리 자료가 아니다. shared/ui/tokens.css 에서 --gold·--terra·듀오톤을 뺐다. */
-:root{
-  --ink:#262320; --ink-2:#474C55; --muted:#868D97;
-  --line:#E5E8EC; --line-2:#D2D7DE; --surface:#fff; --surface-2:#F1F3F6;
-  /* 차트 계열색 넷. 뜻을 하나씩 지고 있다 — 화면과 같은 배정이라 눈이 안 헷갈린다 */
-  --c-gongsi:#2563C7;  /* 공시지가 */
-  --c-real:#C2571C;    /* 실거래 */
-  --c-rent:#0E8A5F;    /* 임대 */
-  --c-ad:#6B54E0;      /* 호가·그 밖 */
-  --radius:8px;
-  --mono:"SF Mono","JetBrains Mono",ui-monospace,Consolas,"D2Coding",monospace;
-  --sans:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
-}
+/* 자료에 박히는 틀 — slide 한 클래스뿐. 정본 10-AI-어시스턴트 §11-2.
+   굽는 HTML 머리에 인라인으로 들어간다. 색 · 글꼴 · 표 · 나눔은 없앴다(2026-10-06 대표) — 모델이 정한다.
+   남긴 것은 한 장의 크기와 인쇄 때 장 나눔뿐이다. */
 *{box-sizing:border-box}
-body{margin:0; font-family:var(--sans); color:var(--ink); background:var(--surface-2);
-  -webkit-font-smoothing:antialiased}
+body{margin:0}
 
-/* ── 슬라이드 틀 — 가로 16:9. 방향은 폭이 정한다(§11-3-1) ── */
-.slide{width:1280px; height:720px; padding:56px 64px; background:var(--surface);
-  margin:0 auto 24px; display:flex; flex-direction:column; gap:20px; overflow:hidden}
-.slide > h1{font-size:40px; font-weight:800; margin:0; letter-spacing:-.02em}
-.slide > h2{font-size:28px; font-weight:800; margin:0; letter-spacing:-.01em}
-.slide > h3{font-size:19px; font-weight:700; margin:0; color:var(--ink-2)}
-.slide p{margin:0; font-size:16px; line-height:1.65; color:var(--ink-2)}
-.slide .sub{font-size:14px; color:var(--muted)}
-.slide .grow{flex:1; min-height:0}
-.row{display:flex; gap:20px; align-items:stretch}
-.row > *{flex:1; min-width:0}
+/* 슬라이드 — 가로 16:9 */
+.slide{width:1280px; height:720px; margin:0 auto 24px; overflow:hidden; background:#fff}
 
 /* 세로 문서 — A4. 같은 HTML 이 폭만 바뀐다 */
-.doc .slide{width:794px; height:auto; min-height:1123px; padding:64px 56px}
+.doc .slide{width:794px; height:auto; min-height:1123px}
 
-/* ── 표 — 머리줄·hairline·숫자는 우정렬에 자릿수 맞춤 ── */
-table{border-collapse:collapse; width:100%; font-size:14px}
-th{text-align:left; font-weight:700; font-size:12.5px; color:var(--muted);
-  padding:9px 12px; border-bottom:1px solid var(--line-2); white-space:nowrap}
-td{padding:9px 12px; border-bottom:1px solid var(--line); color:var(--ink-2)}
-tr:last-child td{border-bottom:0}
-th.num,td.num{text-align:right; font-family:var(--mono); font-variant-numeric:tabular-nums}
-.mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
-
-/* ── 부품 둘 — 모델이 못 그리는 것만(§11-2) ── */
-.bt-map{width:100%; height:100%; min-height:220px; background:#F1F3F6;   /* SVG 바깥 여백과 같은 색 */
-  border-radius:var(--radius); overflow:hidden; display:block}
-.bt-map svg{width:100%; height:100%; display:block}
-.bt-photo{width:100%; height:100%; min-height:200px; object-fit:cover;
-  border-radius:var(--radius); display:block; background:var(--surface-2)}
-.bt-none{display:grid; place-items:center; font-size:13px; color:var(--muted);
-  background:var(--surface-2); border-radius:var(--radius); min-height:200px}
-
-/* ── 인쇄 — 머리말 없이 장마다 한 쪽(§11 PDF) ── */
+/* 인쇄 — 머리말 없이 장마다 한 쪽 */
 @media print{
-  body{background:#fff}
-  .slide{margin:0; page-break-after:always; break-after:page; box-shadow:none}
+  .slide{margin:0; page-break-after:always; break-after:page}
   .slide:last-child{page-break-after:auto; break-after:auto}
 }
 @page{size:1280px 720px; margin:0}

@@ -13,6 +13,8 @@ export interface Lane {
 }
 export interface Field {
   label: string;
+  /** 화면에 보일 이름(없으면 label). label 은 저장 조건의 열쇠라 못 바꾼다 — 이름만 바꿀 땐 이것으로 */
+  name?: string;
   ctl: Ctl;
   // slider
   min?: number; max?: number; step?: number; unit?: string;
@@ -27,12 +29,16 @@ export interface Field {
   top?: string[]; rest?: string[];
   // text
   ph?: string; tchips?: string[];
+  /** 고급 조건(09-30) — 조건 화면 머리의 「고급」을 켜야 선다. 누구나 켤 수 있다(중개사 전용 아님) */
+  adv?: boolean;
   // pair — 같은 지표를 값 출처별로 나란히
   lanes?: Lane[];
 }
 export interface Group { t: string; reps: Field[]; body: Field[] }
 
 const S = (label: string, o: Partial<Field> = {}): Field => ({ label, ctl: "slider", ...o });
+/** 고급 조건으로 표시 */
+const A = (f: Field): Field => ({ ...f, adv: true });
 const M = (label: string, opts: string[]): Field => ({ label, ctl: "ms", opts });
 /** 계열 — 묶음을 먼저 고르고 그 안에서 낱개. presets 는 계열을 가로지르는 빠른선택. */
 const G = (label: string, series: Field["series"], presets?: Field["presets"]): Field =>
@@ -70,122 +76,116 @@ const 주용도자주 = ["단독주택", "공동주택", "제2종근린생활시
 // 지목 — 「대」 하나가 92.8%다. 상위 셋이 98.4%
 const 지목자주 = ["대", "도로", "임야"];
 const 지목 = ["전", "답", "과수원", "임야", "대", "공장용지", "학교용지", "주차장", "주유소용지", "창고용지", "도로", "철도용지", "제방", "하천", "구거", "유지", "수도용지", "공원", "체육용지", "유원지", "종교용지", "사적지", "묘지", "잡종지"];
-const 이용상황섹터 = [
-  { name: "상업용 빌딩", items: ["상업용", "업무용", "상업기타"] },
-  { name: "상가주택", items: ["주상용", "주상기타"] },
-  { name: "주거", items: ["단독", "연립", "다세대", "아파트", "주거기타"] },
-  { name: "공업·산업", items: ["공업용", "공업기타"] },
-  { name: "신축부지", items: ["주거나지", "상업나지", "주상나지", "공업나지", "주차장등"] },
-  { name: "특수·기타시설", items: ["전", "과수원", "전기타", "전창고", "전축사", "답기타", "답창고", "조림", "자연림", "토지임야", "임야기타", "골프장 회원제", "여객자동차터미널", "콘도미니엄", "공항", "고속도로휴게소", "발전소", "물류터미널", "특수기타", "도로등", "하천등", "공원등", "운동장등", "위험시설", "유해.혐오시설", "기타"] },
-];
-const 디벨롭 = ["단독", "연립", "다세대", "주거기타", "공업용", "공업기타", "상업용", "업무용", "상업기타", "주상용", "주상기타"];
+export const 디벨롭 = ["단독", "연립", "다세대", "주거기타", "공업용", "공업기타", "상업용", "업무용", "상업기타", "주상용", "주상기타"];
 const 형상 = ["정방형", "가로장방", "세로장방", "사다리형", "부정형", "자루형"];
 const 주용도주 = ["단독주택", "다가구주택", "공동주택", "제1종근린생활시설", "제2종근린생활시설", "판매시설", "의료시설", "교육연구시설", "노유자시설", "운동시설", "업무시설", "숙박시설", "위락시설", "공장", "창고시설", "자동차관련시설"];
 const 주용도부 = ["문화및집회시설", "종교시설", "운수시설", "수련시설", "위험물저장및처리시설", "동물및식물관련시설", "자원순환관련시설", "교정및군사시설", "국방,군사시설", "방송통신시설", "발전시설", "묘지관련시설", "관광휴게시설", "장례시설", "야영장시설", "분뇨.쓰레기처리시설", "가설건축물", "근린생활시설", "판매및영업시설", "교육연구및복지시설", "공공용시설"];
 
-/** 매물 유형 — 빌딩 · 상가주택 · 공장·창고 · 숙박 · 기타(대표 09-28). 기본은 기타만 끈다 */
-export const KINDS = ["빌딩", "상가주택", "공장·창고", "숙박", "기타"] as const;
-export const DEFAULT_KINDS: string[] = ["빌딩", "상가주택", "공장·창고", "숙박"];
+/** 매물 유형(0246 · ref.enums building_major) — 팀이 고른 대분류, 없으면 네이버 유형. 기본은 전부(빈 목록) */
+export const KINDS = ["상업용건물", "상가/사무실", "단독/다가구", "연립/다세대", "오피스텔", "토지", "공장/창고", "숙박시설", "기타건물"] as const;
+export const DEFAULT_KINDS: string[] = [];
+/** 실거래 유형(0246 · ref.enums trade_type) — 신고 갈래. 매물 유형과 다른 칸이다. 이름이 같아도 섞지 않는다 */
+export const TRADE_TYPES = ["상업용건물", "상가/사무실", "단독/다가구", "연립/다세대", "오피스텔", "토지", "공장/창고", "숙박시설", "기타건물"] as const;
 
 export const GROUPS: Group[] = [
-  { t: "입지",
-    reps: [S("역과의거리", { min: 0, max: 1000, unit: "m", inf: true, handle: "right", ticks: "0,500", le: "이내", chips: [["도보5분↓", 0, 350], ["도보10분↓", 0, 700]] })],
-    // 실측이므로 명수로 고른다. 「매우높음」 다섯 칸은 우리가 정한 분위라 무엇을 고르는지 알 수 없었다.
-    body: [S("유동인구", { min: 0, max: 5000, unit: "명", inf: true, ticks: "0,1500,3000",
-      chips: [["번화가", 3000, ""], ["한적", "", 500]] })] },
-  { t: "건물",
-    reps: [
-      // 매물 유형(0193) — 사이드 판 유형 칩과 같은 값. 광고 · 매물관리 대분류와 같은 낱말
-      M("매물 유형", [...KINDS]),
-      S("대지면적", { min: 0, max: 300, unit: "평", inf: true, ticks: "0,100,200" }),
-      S("연면적", { min: 0, max: 500, unit: "평", inf: true, ticks: "0,150,300" }),
-      S("건축면적", { min: 0, max: 200, unit: "평", inf: true, ticks: "0,50,100" }),
-      S("엘리베이터", { min: 0, max: 6, unit: "대", inf: true, handle: "left", ticks: "0,2,4" }),
-      S("주차", { min: 0, max: 20, unit: "대", inf: true, handle: "left", ticks: "0,5,10" }),
-      S("사용승인일", { min: 0, max: 30, unit: "년", inf: true, ticks: "0,10,20", ge: "이상", le: "이하", chips: [["신축 5년↓", 0, 5], ["준신축 10년↓", 0, 10], ["구옥 20년↑", 20, ""]] }),
-    ],
-    body: [
-      S("용적산정 연면적", { min: 0, max: 500, unit: "평", inf: true, ticks: "0,150,300" }),
-      S("건폐율", { min: 0, max: 100, unit: "%", inf: true, ticks: "0,50,60,80" }),
-      S("법정 건폐율", { min: 0, max: 100, unit: "%", inf: true, ticks: "0,50,60,80" }),
-      S("용적률", { min: 0, max: 1000, unit: "%", inf: true, ticks: "0,300,600" }),
-      S("법정 용적률", { min: 0, max: 1000, unit: "%", inf: true, ticks: "0,300,600" }),
-      S("건폐율 여유분", { min: 0, max: 100, unit: "%", inf: true, handle: "left", ticks: "0,20,40", chips: [["여유 10%↑", 10, ""], ["여유 20%↑", 20, ""]] }),
-      S("용적률 여유분", { min: 0, max: 500, unit: "%", inf: true, handle: "left", ticks: "0,100,200", chips: [["여유 100%↑", 100, ""], ["여유 200%↑", 200, ""]] }),
-      S("지상 층수", { min: 0, max: 30, unit: "층", inf: true, handle: "left", ticks: "0,10,20" }),
-      S("지하 층수", { min: 0, max: 10, unit: "층", inf: true, handle: "left", ticks: "0,3,6" }),
-      S("대수선 및 리모델링 경과", { min: 0, max: 30, unit: "년", inf: true, handle: "right", le: "이하", ticks: "0,10,20" }),
-      TOP("주용도", 주용도자주, [...주용도주, ...주용도부].filter((x) => !주용도자주.includes(x))),
-      X("기타용도", "건축물대장 기타용도 · 부분일치", ["근린생활시설", "사무소", "업무시설", "단독주택", "다가구주택", "소매점", "판매시설", "상가"]),
-      // 대장 용도가 아니라 **실제로 든 업체**로 거른다(0170). 「병원 건물」을 주용도로 찾으면
-      // 통째로 병원인 건물만 잡힌다 — 성수동2가에서 2동, 실제로 의료 업체가 든 건 177동이다.
-      X("입주 업종", "영업 중 업체 기준 · 갈래나 낱말", ["의료", "먹자", "판매", "업무", "교육", "생활서비스", "카페", "학원"]),
-    ] },
-  { t: "토지",
-    reps: [G("용도지역", 용도지역계열)],
-    body: [
-      S("토지면적", { min: 0, max: 300, unit: "평", inf: true, ticks: "0,100,200" }),
-      TOP("지목", 지목자주, 지목.filter((x) => !지목자주.includes(x))),
-      G("토지이용상황", 이용상황섹터, [{ name: "디벨롭", items: 디벨롭 }]),
-      M("지형/형상", 형상), G("도로접면", 도로계열),
-      M("지세", ["저지", "평지", "완경사", "급경사", "고지"]),
-      // 공시지가는 땅값이라 토지에 산다
-      S("최신 공시지가", { min: 0, max: 5000, unit: "만원/㎡", inf: true, ticks: "0,1000,3000" }),
-      S("공시지가 상승률 5년", { min: 0, max: 100, unit: "%", inf: true, handle: "left", ticks: "0,30,60" }),
-      S("공시지가 상승률 10년", { min: 0, max: 200, unit: "%", inf: true, handle: "left", ticks: "0,50,100" }),
-      S("공시지가 기준", { min: 0, max: 200, unit: "억", inf: true, ticks: "0,50,100,150" }),
-    ] },
   { t: "금액",
+    // 09-30 대표: 추정으로 거는 조건은 뺐다(모델과 맞춤). 두 갈래 줄은 팀이 적은 값만 남는다(매물관리).
+    // 탐색은 화면마다 한 줄씩 — 매물 찾기 = 「매매가」(내 매물 · 빌탐정 광고 · 네이버 가운데 하나라도, 0224), 구해요 = 「추정가」
     // 값의 출처가 갈리는 항목은 **두 갈래**로 세운다(2026-08-27). 위가 추정, 아래가 팀이 적은 값.
     // 처음 쓰는 사람은 익숙한 「매매가」를 고르는데, 담은 매물이 없으면 0건이 나와 필터가
     // 고장난 것으로 읽혔다. 위에 추정가를 두고 아래 갈래에 모수를 적어 그 일을 막는다.
     //
     // 임대료·보증금도 같은 문법이다(2026-08-28) — 추정이 20.1만동에 있는데 필터로는 못 찾았다.
     reps: [
+      S("매매가", { min: 0, max: 200, unit: "억", inf: true, ticks: "0,50,100,150",
+        chips: [["~50억", 0, 50], ["50~100", 50, 100], ["100억~", 100, ""]] }),
+      S("추정가", { min: 0, max: 200, unit: "억", inf: true, ticks: "0,50,100,150",
+        chips: [["~50억", 0, 50], ["50~100", 50, 100], ["100억~", 100, ""]] }),
       P("금액", [
-        { key: "est", name: "추정가", tone: "est" },
-        { key: "team", name: "매매가", tone: "team", hint: "내 매물" },
+        { key: "team", name: "매매가", tone: "team", hint: "" },
       ], { min: 0, max: 200, unit: "억", inf: true, ticks: "0,50,100,150",
            chips: [["~50억", 0, 50], ["50~100", 50, 100], ["100억~", 100, ""]] }),
       P("수익률", [
-        { key: "est", name: "추정", tone: "est" },
         { key: "team", name: "실제", tone: "team", hint: "내 매물" },
       ], { min: 0, max: 8, step: 0.1, unit: "%", inf: true, handle: "left", ticks: "0,2,4,6",
            chips: [["3%↑", 3, ""], ["4%↑", 4, ""], ["5%↑", 5, ""]] }),
       P("임대료", [
-        { key: "est", name: "추정", tone: "est" },
         { key: "team", name: "실제", tone: "team", hint: "내 매물" },
       ], { min: 0, max: 10000, unit: "만원", inf: true, ticks: "0,2000,5000",
            chips: [["1,000만↑", 1000, ""], ["3,000만↑", 3000, ""], ["5,000만↑", 5000, ""]] }),
-      S("실거래가", { min: 0, max: 200, unit: "억", inf: true, ticks: "0,50,100" }),
     ],
     body: [
       P("보증금", [
-        { key: "est", name: "추정", tone: "est" },
         { key: "team", name: "실제", tone: "team", hint: "내 매물" },
       ], { min: 0, max: 100000, unit: "만원", inf: true, ticks: "0,10000,30000,50000" }),
       P("대지 평단가", [
-        { key: "est", name: "추정가", tone: "est" },
-        { key: "team", name: "매매가", tone: "team", hint: "내 매물" },
+        { key: "team", name: "매매가", tone: "team", hint: "" },
       ], { min: 0, max: 30000, unit: "만원", inf: true, ticks: "0,5000,10000,20000" }),
       P("연면적 평단가", [
-        { key: "est", name: "추정가", tone: "est" },
-        { key: "team", name: "매매가", tone: "team", hint: "내 매물" },
+        { key: "team", name: "매매가", tone: "team", hint: "" },
       ], { min: 0, max: 15000, unit: "만원", inf: true, ticks: "0,3000,6000,10000" }),
       P("공시총액 비율", [
-        { key: "est", name: "추정가", tone: "est" },
-        { key: "team", name: "매매가", tone: "team", hint: "내 매물" },
+        { key: "team", name: "매매가", tone: "team", hint: "" },
       ], { min: 0, max: 200, unit: "%", inf: true, ticks: "0,50,100" }),
       S("관리비", { min: 0, max: 5000, unit: "만원", inf: true, ticks: "0,1000,3000" }),
       // 「수익률(공실제외)」를 뺐다(0180). 층별 줄에 공실이 없어져 수익률과 같은 값이 됐다
       SM("공실", ["있음", "없음"]),
-      S("실거래일", { min: 0, max: 30, unit: "년", inf: true, ticks: "0,10,20", ge: "이상", le: "이내", chips: [["최근 5년↓", 0, 5], ["최근 10년↓", 0, 10], ["10년↑ 미거래", 10, ""]] }),
-      S("실거래손익", { min: -50, max: 200, unit: "%", inf: true, inflo: true, ticks: "-50,0,50,100" }),
-      S("실거래횟수", { min: 0, max: 10, unit: "건", inf: true, handle: "left", ticks: "0,3,6" }),
+      A(S("실거래일", { min: 0, max: 30, unit: "년", inf: true, ticks: "0,10,20", ge: "이상", le: "이내", chips: [["최근 5년↓", 0, 5], ["최근 10년↓", 0, 10], ["10년↑ 미거래", 10, ""]] })),
+      A(S("실거래손익", { min: -50, max: 200, unit: "%", inf: true, inflo: true, ticks: "-50,0,50,100" })),
+      A(S("실거래횟수", { min: 0, max: 10, unit: "건", inf: true, handle: "left", ticks: "0,3,6" })),
     ] },
+  { t: "건물",
+    reps: [
+      // 매물 유형(0193) — 사이드 판 유형 칩과 같은 값. 광고 · 매물관리 대분류와 같은 낱말
+      M("매물 유형", [...KINDS]),
+      S("대지면적", { min: 0, max: 300, unit: "평", inf: true, ticks: "0,100,200" }),
+      S("연면적", { name: "연면적(건물면적)", min: 0, max: 500, unit: "평", inf: true, ticks: "0,150,300" }),
+      A(S("건축면적", { min: 0, max: 200, unit: "평", inf: true, ticks: "0,50,100" })),
+      S("엘리베이터", { min: 0, max: 6, unit: "대", inf: true, handle: "left", ticks: "0,2,4" }),
+      S("주차", { min: 0, max: 20, unit: "대", inf: true, handle: "left", ticks: "0,5,10" }),
+      S("사용승인일", { min: 0, max: 30, unit: "년", inf: true, ticks: "0,10,20", ge: "이상", le: "이하", chips: [["신축 5년↓", 0, 5], ["준신축 10년↓", 0, 10], ["구옥 20년↑", 20, ""]] }),
+    ],
+    body: [
+      A(S("용적산정 연면적", { min: 0, max: 500, unit: "평", inf: true, ticks: "0,150,300" })),
+      A(S("건폐율", { min: 0, max: 100, unit: "%", inf: true, ticks: "0,50,60,80" })),
+      A(S("법정 건폐율", { min: 0, max: 100, unit: "%", inf: true, ticks: "0,50,60,80" })),
+      A(S("용적률", { min: 0, max: 1000, unit: "%", inf: true, ticks: "0,300,600" })),
+      A(S("법정 용적률", { min: 0, max: 1000, unit: "%", inf: true, ticks: "0,300,600" })),
+      // 법정 대비 = 현재 − 법정(09-04 규칙 · 09-30 조건). 넘으면 +, 남으면 −. 옛 「여유분」(법정 − 현재)을 뒤집었다
+      A(S("법정 대비 건폐율", { min: -60, max: 40, unit: "%", inf: true, inflo: true, ticks: "-40,-20,0,20" })),
+      A(S("법정 대비 용적률", { min: -500, max: 300, unit: "%", inf: true, inflo: true, ticks: "-300,-100,0,100" })),
+      S("지상 층수", { min: 0, max: 30, unit: "층", inf: true, handle: "left", ticks: "0,10,20" }),
+      S("지하 층수", { min: 0, max: 10, unit: "층", inf: true, handle: "left", ticks: "0,3,6" }),
+      A(S("대수선 및 리모델링 경과", { min: 0, max: 30, unit: "년", inf: true, handle: "right", le: "이하", ticks: "0,10,20" })),
+      A(TOP("주용도", 주용도자주, [...주용도주, ...주용도부].filter((x) => !주용도자주.includes(x)))),
+      // 대장 용도가 아니라 **실제로 든 업체**로 거른다(0170). 「병원 건물」을 주용도로 찾으면
+      // 통째로 병원인 건물만 잡힌다 — 성수동2가에서 2동, 실제로 의료 업체가 든 건 177동이다.
+      X("입주 업종", "영업 중 업체 기준 · 갈래나 낱말", ["의료", "먹자", "판매", "업무", "교육", "생활서비스", "카페", "학원"]),
+    ] },
+  { t: "토지",
+    // 토지 묶음은 지목 · 도로접면만 기본(09-30)
+    reps: [A(G("용도지역", 용도지역계열))],
+    body: [
+      A(S("토지면적", { min: 0, max: 300, unit: "평", inf: true, ticks: "0,100,200" })),
+      TOP("지목", 지목자주, 지목.filter((x) => !지목자주.includes(x))),
+      A(M("지형/형상", 형상)), G("도로접면", 도로계열),
+      A(S("전면 도로폭", { min: 0, max: 30, unit: "m", inf: true, handle: "left", ticks: "0,8,12,20" })),
+      // 규제(토지이용계획) — 이름 311개. 목록은 화면이 서버에서 받아 넣는다(Conditions)
+      A(TOP("규제", [], [])),
+      A(M("지세", ["저지", "평지", "완경사", "급경사", "고지"])),
+      // 공시지가는 땅값이라 토지에 산다
+      A(S("최신 공시지가", { min: 0, max: 5000, unit: "만원/㎡", inf: true, ticks: "0,1000,3000" })),
+      A(S("공시지가 상승률 5년", { min: 0, max: 100, unit: "%", inf: true, handle: "left", ticks: "0,30,60" })),
+      A(S("공시지가 상승률 10년", { min: 0, max: 200, unit: "%", inf: true, handle: "left", ticks: "0,50,100" })),
+      A(S("공시지가 기준", { min: 0, max: 200, unit: "억", inf: true, ticks: "0,50,100,150" })),
+    ] },
+  { t: "교통",
+    reps: [S("역과의거리", { min: 0, max: 1000, unit: "m", inf: true, handle: "right", ticks: "0,500", le: "이내", chips: [["도보5분↓", 0, 350], ["도보10분↓", 0, 700]] })],
+    // 유동인구는 조건에서 뺐다(09-30, 모델과 맞춤) — 250m 격자 추정이라 거르면 맞는 건물이 조용히 빠진다
+    body: [] },
   { t: "매물",
     // 「건물용도(수익률·신축용·사옥용·리모델링용)」를 뺐다(2026-08-27). 우리가 추측한 값이고,
-    // 같은 개념을 배치 점수(building_score.use_type)가 또 만들어 이름이 둘로 갈려 있었다.
+    // 같은 개념을 배치 점수(활용유형, 0240 에서 지움)가 또 만들어 이름이 둘로 갈려 있었다.
     // 건축물대장 용어인 주용도·기타용도가 용도의 정본이다.
     //
     // 「등급」·「입지」도 뺐다 — 업무 탭 매물 모달이 그 칸을 안 쓴다(쓰는 건 매수자 등급뿐).
@@ -221,7 +221,8 @@ export const GROUPS: Group[] = [
  *  그래서 **되살릴 때만** 모르는 칸을 떨군다. 새로 거는 조건은 그대로 서버로 보내 422 로
  *  드러나게 둔다 — 오타를 잡아내던 그물은 남긴다. */
 const SERVER_FILTER_KEYS = new Set([
-  "bjd_code", "building_pk", "use_zones", "jimoks", "road_frontages", "shapes", "slopes", "kinds",
+  "bjd_code", "building_pk", "use", "biz_dnf", "regulations", "road_front_min", "road_front_max", "bcr_over_min", "bcr_over_max", "far_over_min", "far_over_max",
+  "use_zones", "jimoks", "road_frontages", "shapes", "slopes", "kinds",
   "land_uses", "main_uses", "etc_use", "biz", "biz_min", "land_area_min", "land_area_max", "total_area_min",
   "total_area_max", "build_area_min", "build_area_max", "floors_above_min", "floors_above_max",
   "floors_below_min", "floors_below_max", "bcr_min", "bcr_max", "far_min", "far_max",
@@ -231,10 +232,9 @@ const SERVER_FILTER_KEYS = new Set([
   "far_area_min", "far_area_max", "remodel_years_min", "remodel_years_max",
   "legal_bcr_min", "legal_bcr_max", "legal_far_min", "legal_far_max",
   "bcr_slack_min", "bcr_slack_max", "far_slack_min", "far_slack_max",
-  "price_min", "price_max", "sale_est_min", "sale_est_max", "roi_est_min", "roi_est_max",
-  "rent_est_min", "rent_est_max", "deposit_est_min", "deposit_est_max",
-  "pp_land_team_min", "pp_land_team_max", "pp_total_team_min", "pp_total_team_max",
-  "gongsi_ratio_team_min", "gongsi_ratio_team_max", "roi_min", "roi_max",
+  "price_min", "price_max", "sale_est_min", "sale_est_max",
+  "pp_land_sale_min", "pp_land_sale_max", "pp_total_sale_min", "pp_total_sale_max",
+  "gongsi_ratio_sale_min", "gongsi_ratio_sale_max", "roi_min", "roi_max",
   "pp_land_min", "pp_land_max", "pp_total_min", "pp_total_max",
   "deposit_total_min", "deposit_total_max", "rent_total_min", "rent_total_max",
   "mgmt_total_min", "mgmt_total_max", "vacant", "gongsi_total_min", "gongsi_total_max",
@@ -254,8 +254,7 @@ const SERVER_FILTER_KEYS = new Set([
  *  화면에 아무 표시가 없어** 「안 걸렸다」로 읽힌다(2026-09-05 지적).
  *  걸린 것은 무엇이든 칩으로 세운다 — 조용히 거르지 않는다. */
 const FILTER_NAME: Record<string, string> = {
-  price: "매매가", sale_est: "추정가", roi: "수익률", roi_est: "추정 수익률",
-  rent_est: "추정 임대료", deposit_est: "추정 보증금", rent_total: "총 월 임대료",
+  price: "매매가", sale_est: "추정가", roi: "수익률", rent_total: "총 월 임대료",
   deposit_total: "총 보증금", mgmt_total: "총 월 관리비",
   land_area: "대지면적", total_area: "연면적", build_area: "건축면적", parcel_area: "필지면적",
   floors_above: "지상층", floors_below: "지하층", bcr: "건폐율", far: "용적률",

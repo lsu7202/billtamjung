@@ -13,7 +13,6 @@ class CurrentUser:
     account_id: int
     team_id: int | None      # 고객은 None. current_user 를 거치면 늘 int 다
     role: str | None
-    tier: str
     kind: str = "중개사"     # 중개사 · 고객 — 권한의 기준(S05 §1)
 
 
@@ -27,7 +26,6 @@ def _decode(cred: HTTPAuthorizationCredentials) -> CurrentUser:
             account_id=int(payload["sub"]),
             team_id=int(tid) if tid is not None else None,
             role=payload.get("role"),
-            tier=payload["tier"],
             kind=payload.get("kind") or "중개사",   # 0191 이전 토큰엔 kind 가 없다 = 중개사
         )
     except (jwt.PyJWTError, KeyError, ValueError):
@@ -49,3 +47,15 @@ def any_user(cred: HTTPAuthorizationCredentials = Depends(_bearer)) -> CurrentUs
 
 def is_broker(u: CurrentUser) -> bool:
     return u.kind == "중개사" and u.team_id is not None
+
+
+_bearer_opt = HTTPBearer(auto_error=False)
+GUEST = CurrentUser(account_id=0, team_id=None, role=None, kind="손님")
+
+
+def viewer(cred: HTTPAuthorizationCredentials | None = Depends(_bearer_opt)) -> CurrentUser:
+    """보기 전용 라우트 — 로그인 안 해도 지나간다(10-01 대표). 토큰이 없으면 손님(account_id=0 · 팀 없음).
+    account_id=0 은 어떤 줄과도 안 맞으니 내 것 · 저장 · 숨김 칸은 저절로 빈다. 쓰기 라우트는 any_user 그대로."""
+    if cred is None:
+        return GUEST
+    return _decode(cred)

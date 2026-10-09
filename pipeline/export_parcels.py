@@ -103,12 +103,18 @@ def main() -> int:
     pnu_to_bldg: dict[str, tuple[str, str]] = {}   # pnu → (building_pk, role)
     for pnu, pk in rep_to_pk.items():
         pnu_to_bldg[pnu] = (pk, "대표")
-    n_annex = 0
+    # 지적도에 없는 필지로 가는 줄은 싣지 않는다(2026-10-07 대표). 대장 부속지번 표가 합필 · 지번 변경으로
+    # 사라진 번지를 그대로 적고 있다(통인동 113-1 건물의 부속 113-3 · 디스코는 옛 지적도라 뜨고
+    # 부동산플래닛은 갱신해서 안 뜬다). 최신 지적도에 맞춘다. _land_master 가 현 지적도 필지 전부다.
+    n_annex = n_gone = 0
     with open(args.annex, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["building_pk", "pnu", "role"])
         for pk, rel in annex.items():
             for pnu in rel.get("전체", []):
+                if pnu not in land:
+                    n_gone += 1
+                    continue
                 role = "대표" if pnu == rel.get("대표") else "부속"
                 w.writerow([pk, pnu, role])
                 if role == "부속" and pnu not in pnu_to_bldg:
@@ -116,10 +122,10 @@ def main() -> int:
                 n_annex += 1
         # 단일필지 건물(annex에 없음)도 관계 1행
         for pnu, pk in rep_to_pk.items():
-            if pk not in annex:
+            if pk not in annex and pnu in land:
                 w.writerow([pk, pnu, "대표"])
                 n_annex += 1
-    print(f"2) annex CSV {n_annex:,}행")
+    print(f"2) annex CSV {n_annex:,}행 · 지적도에 없는 필지 뺌 {n_gone:,}")
 
     print("3) 필지 폴리곤 + 조인 → CSV…")
     import shapefile

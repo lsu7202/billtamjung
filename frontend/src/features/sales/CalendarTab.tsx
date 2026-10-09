@@ -108,7 +108,7 @@ function SchedItem({ row: r, canEdit, canToggle, run, onGo }: {
             base={r.people[0] && r.people[0].kind !== "guest"
               ? { kind: r.people[0].kind, ref_id: r.people[0].ref_id!, label: r.people[0].label ?? "" }
               : null}
-            addr={dongAddr(r.addr)} buildingPk={r.building_pk}
+            addr={dongAddr(r.addr)} listingId={r.listing_id}
             onCancel={() => setFull(false)}
             onSkip={() => setFull(false)}
             onFinish={canToggle ? () => {
@@ -136,7 +136,7 @@ function SchedItem({ row: r, canEdit, canToggle, run, onGo }: {
 
 export function CalendarTab({ onBuyer, onSeller }: {
   onBuyer: (id: number) => void;
-  onSeller: (pk: string) => void;
+  onSeller: (lid: number) => void;
 }) {
   const qc = useQueryClient();
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -162,7 +162,7 @@ export function CalendarTab({ onBuyer, onSeller }: {
     const on = adding; setAdding(null);
     if (!on) return;
     const p = sf.people.find((x) => x.kind !== "guest" && x.ref_id);
-    const target = sf.building_pk ? { target_type: "listing", target_id: sf.building_pk }
+    const target = sf.listing_id != null ? { target_type: "listing", listing_id: sf.listing_id }
       : p ? { target_type: p.kind, target_id: String(p.ref_id) } : null;
     const sched = {
       title: sf.title, on: sf.on, at: sf.at ?? null, place: sf.place ?? null,
@@ -171,7 +171,7 @@ export function CalendarTab({ onBuyer, onSeller }: {
     // 매물이나 사람에 붙으면 그 장부에도 줄이 선다. 아무 데도 안 붙는 일(사무실 청소)은
     // 붙일 장부가 없으니 일정만 만든다(2026-08-25).
     if (target) await contactsApi.create({ ...target, schedule: sched });
-    else await schedulesApi.create({ ...sched, building_pk: sf.building_pk ?? null });
+    else await schedulesApi.create({ ...sched, listing_id: sf.listing_id ?? null });
     qc.invalidateQueries({ queryKey: ["cal"] });
     qc.invalidateQueries({ queryKey: ["sales-today"] });
   };
@@ -226,7 +226,7 @@ export function CalendarTab({ onBuyer, onSeller }: {
   };
 
   const go = (r: ScheduleRow) =>
-    r.side === "buy" && r.buyer_id != null ? onBuyer(r.buyer_id) : onSeller(r.building_pk);
+    r.side === "buy" && r.buyer_id != null ? onBuyer(r.buyer_id) : r.listing_id != null && onSeller(r.listing_id);
 
   const move = (n: number) => setYm(new Date(ym.getFullYear(), ym.getMonth() + n, 1));
 
@@ -354,7 +354,7 @@ export function CalendarTab({ onBuyer, onSeller }: {
       {adding && (
         <SchedModal
           init={{ title: "", on: adding, at: null, place: null, hint: "", category: "일반" } as never}
-          base={null} addr={null} buildingPk={null}
+          base={null} addr={null} listingId={null}
           onCancel={() => setAdding(null)} onSkip={() => setAdding(null)} onDone={createSched} />
       )}
     </div>

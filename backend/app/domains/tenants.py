@@ -40,9 +40,25 @@ def _floor(n: int | None, base: bool) -> str | None:
     return f"지하{abs(n)}층" if base or n < 0 else f"{n}층"
 
 
+async def rep_dongs(building_pk: str) -> list[str] | None:
+    """**업체는 대표 동에 몬다**(2026-10-08 대표). 어느 업체가 지번의 어느 동 것인지 알 길이 없다 —
+    크롤링 업체는 지번 위 동 전부에 똑같이 걸려 있고, 원장은 필지로만 붙는다.
+    그래서 대표 동이면 그 지번의 동 번호 전부(업체를 모을 그물)를, 다른 동이면 None(업체 없음)을 준다."""
+    r = await pool().fetchrow(
+        """SELECT r.rep_pk,
+                  CASE WHEN b.pnu IS NULL THEN ARRAY[b.building_pk]
+                       ELSE ARRAY(SELECT b2.building_pk FROM master.buildings b2 WHERE b2.pnu = b.pnu) END AS pks
+             FROM master.buildings b JOIN master.parcel_rep r ON r.pkey = COALESCE(b.pnu, 'B' || b.building_pk)
+            WHERE b.building_pk = $1""", building_pk)
+    return list(r["pks"]) if r and r["rep_pk"] == building_pk else None
+
+
 async def tenant_ledger(building_pk: str) -> list[dict]:
     """업체 원장(인허가+상가정보)을 이름으로 접은 목록. GET /buildings/{pk}/floors 가 쓴다(2026-09-17).
-    예전 /tenants 라우트는 여기로 흡수됐다 — 화면은 넷을 따로 받아 합치지 않는다."""
+    예전 /tenants 라우트는 여기로 흡수됐다 — 화면은 넷을 따로 받아 합치지 않는다.
+    대표 동이 아니면 빈 목록(업체는 대표 동에 몬다 · rep_dongs)."""
+    if await rep_dongs(building_pk) is None:
+        return []
     rows = await pool().fetch(
         """WITH pc AS (SELECT p.pnu, p.geom FROM master.building_parcels bp
                         JOIN master.parcels p ON p.pnu = bp.pnu
@@ -123,9 +139,12 @@ _ECOMMERCE = "ecommerce_businesses"
 
 
 async def history_rows(building_pk: str) -> tuple[list[dict], dt.date | None]:
-    """이 건물 필지 안의 인허가 전부(폐업 포함)와 사용승인일. 입주 이력과 층 빌려오기가 같이 쓴다."""
+    """이 건물 필지 안의 인허가 전부(폐업 포함)와 사용승인일. 입주 이력과 층 빌려오기가 같이 쓴다.
+    대표 동이 아니면 인허가는 없다(업체는 대표 동에 몬다 · rep_dongs)."""
     appr = await pool().fetchval(
         "SELECT approval_ymd FROM master.buildings WHERE building_pk=$1", building_pk)
+    if await rep_dongs(building_pk) is None:
+        return [], appr
     return [dict(r) for r in await pool().fetch(_HIST_SQL, building_pk)], appr
 
 
@@ -160,14 +179,19 @@ async def biz_for(building_pk: str) -> dict | None:
 
     그 건물을 한 번도 수집하지 않았으면 None(모른다) — 부르는 쪽이 원장(인허가·상가정보)으로 대신한다.
     수집했는데 업체가 없으면 빈 목록이다(단독주택 등). 건물은 필지로 붙였다(building_pks, 검색과 같은 규칙).
-    화면을 열 때마다 카카오에 묻던 places_for 를 대신한다 — 링크는 저장하지 않는다(§7)."""
+    화면을 열 때마다 카카오에 묻던 places_for 를 대신한다 — 링크는 저장하지 않는다(§7).
+    **업체는 대표 동에 몬다**(rep_dongs) — 대표 동이면 지번 위 어느 동에 걸린 업체든 다 모으고,
+    다른 동이면 빈 목록(원장으로 대신하지도 않는다 — 모르는 게 아니라 대표 동에 있다)."""
+    pks = await rep_dongs(building_pk)
+    if pks is None:
+        return {"items": [], "checked_on": None}
     try:
         rows = await pool().fetch(
             """SELECT name, floor, phone, cat_nodes, last_seen FROM master.biz
-                WHERE $1 = ANY(building_pks) AND gone_on IS NULL
-                ORDER BY floor NULLS LAST, name""", building_pk)
+                WHERE building_pks && $1::text[] AND gone_on IS NULL
+                ORDER BY floor NULLS LAST, name""", pks)
         seen = await pool().fetchval(
-            "SELECT max(crawl_day) FROM master.place_crawl_log WHERE $1 = ANY(pks)", building_pk)
+            "SELECT max(crawl_day) FROM master.place_crawl_log WHERE pks && $1::text[]", pks)
     except asyncpg.exceptions.UndefinedTableError:    # 적재 전 환경 — 모른다
         return None
     if not rows and seen is None:

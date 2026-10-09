@@ -1,10 +1,13 @@
 import { useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useUnit } from "../../shared/hooks/useUnit";
+import { mergeGeo } from "../../shared/map/geo";
 import { useQuery } from "@tanstack/react-query";
 import { searchApi, savedApi, listingsApi, buyersApi, type AttrFilters } from "../../shared/api/endpoints";
 import { GROUPS, type Field, type Group } from "./filterConfig";
 import "./filter.css";
 import { Icon } from "../../shared/ui/Icon";
-import { Segmented } from "../../shared/ui/Segmented";
+import { useIsBroker } from "../../shared/store/auth";
 
 /* S01b 상세검색 필터 — 목업 S01b.html 정본. 7카테고리·60필드·컨트롤 8종·vchip/팝오버·지역 캐스케이드·저장/불러오기. */
 
@@ -321,30 +324,31 @@ export function toFilters(v: Values, members: { account_id: number; name: string
   const seg1 = (label: string) => { const a = ms(label); return a.length === 1 ? a[0] : null; };  // 있음/없음 단일 선택만
   const la = sl("대지면적"), ta = sl("연면적"), ba = sl("건축면적"), pa = sl("토지면적"), fla = sl("용적산정 연면적");
   const fa = sl("지상 층수"), fb = sl("지하 층수"), bc = sl("건폐율"), fr = sl("용적률");
-  const lbc = sl("법정 건폐율"), lfr = sl("법정 용적률"), bslk = sl("건폐율 여유분"), fslk = sl("용적률 여유분");
-  const pop = sl("유동인구");
+  const lbc = sl("법정 건폐율"), lfr = sl("법정 용적률"), bov = sl("법정 대비 건폐율"), fov = sl("법정 대비 용적률");
   const st = sl("역과의거리"), age = sl("사용승인일"), rm = sl("대수선 및 리모델링 경과"), el = sl("엘리베이터"), pkg = sl("주차");
   // 팀 값과 추정값은 **다른 항목**이다(2026-08-27). 매매가 칸에 추정가를 채워 넣던 걸
   // 걷어냈으니, 추정가로 찾고 싶으면 추정가 항목으로 찾는다.
   // 값·수익률·평단가·공시총액 비율은 한 줄 안에서 갈래로 갈린다(2026-08-27).
-  const price = pr("금액", "team"), est = pr("금액", "est");
-  const roi = pr("수익률", "team"), roiEst = pr("수익률", "est");
+  const price = pr("금액", "team"), est = sl("추정가"), listing = sl("매매가"), road = sl("전면 도로폭");
+  const roi = pr("수익률", "team");
   const ppl = pr("대지 평단가", "est"), pplTeam = pr("대지 평단가", "team");
   const ppt = pr("연면적 평단가", "est"), pptTeam = pr("연면적 평단가", "team");
-  const dep = pr("보증금", "team"), depEst = pr("보증금", "est");
-  const rent = pr("임대료", "team"), rentEst = pr("임대료", "est");
+  const dep = pr("보증금", "team");
+  const rent = pr("임대료", "team");
   const mgmt = sl("관리비");
-  const realPrice = sl("실거래가"), deal = sl("실거래일"), pnl = sl("실거래손익"), scnt = sl("실거래횟수");
+  const deal = sl("실거래일"), pnl = sl("실거래손익"), scnt = sl("실거래횟수");
   const gongsi = sl("최신 공시지가"), up5 = sl("공시지가 상승률 5년"), up10 = sl("공시지가 상승률 10년");
   const gratio = pr("공시총액 비율", "est"), gratioTeam = pr("공시총액 비율", "team"), gtot = sl("공시지가 기준"), recv = sl("접수일");
   const zones = ms("용도지역").map(toZone).filter(Boolean);
   const assignees = ms("담당자").map((nm) => members.find((m) => m.name === nm)?.account_id).filter((x): x is number => x != null);
   return {
-    use_zones: arr(zones), jimoks: arr(ms("지목")), land_uses: arr(ms("토지이용상황")),
+    use_zones: arr(zones), jimoks: arr(ms("지목")),
     shapes: arr(ms("지형/형상")), road_frontages: arr(ms("도로접면")), slopes: arr(ms("지세")), kinds: arr(ms("매물 유형")),
-    main_uses: arr(ms("주용도")),                          // DB main_use_name과 직접 일치
-    etc_use: txt("기타용도"),
-    biz: txt("입주 업종"),
+    // 주용도 · 입주 업종은 모델과 같은 칸으로(09-30) — use(부분일치, 바깥 OR) · biz_dnf(업체 표)
+    use: ms("주용도").length ? ms("주용도").map((u) => [u]) : null,
+    biz_dnf: txt("입주 업종") ? [[txt("입주 업종")!]] : null,
+    regulations: arr(ms("규제")),
+    road_front_min: num(road.lo), road_front_max: num(road.hi),
     land_area_min: area(la.lo), land_area_max: area(la.hi),
     total_area_min: area(ta.lo), total_area_max: area(ta.hi),
     build_area_min: area(ba.lo), build_area_max: area(ba.hi),
@@ -358,22 +362,21 @@ export function toFilters(v: Values, members: { account_id: number; name: string
     far_min: num(fr.lo), far_max: num(fr.hi),
     legal_bcr_min: num(lbc.lo), legal_bcr_max: num(lbc.hi),
     legal_far_min: num(lfr.lo), legal_far_max: num(lfr.hi),
-    bcr_slack_min: num(bslk.lo), bcr_slack_max: num(bslk.hi),
-    far_slack_min: num(fslk.lo), far_slack_max: num(fslk.hi),
+    // 법정 대비 = 현재 − 법정(09-30). 옛 여유분(bcr_slack · 법정 − 현재)은 화면에서 안 건다
+    bcr_over_min: num(bov.lo), bcr_over_max: num(bov.hi),
+    far_over_min: num(fov.lo), far_over_max: num(fov.hi),
     station_dist_max: num(st.hi),
     age_min: num(age.lo), age_max: num(age.hi),
     remodel_years_min: num(rm.lo), remodel_years_max: num(rm.hi),
     // 금액·수익
-    price_min: eok(price.lo), price_max: eok(price.hi),
+    // 매매가(0224) — 매물 찾기 「매매가」 줄과 매물관리 「금액」 줄은 화면마다 하나만 서고 같은 칸으로 간다
+    price_min: eok(listing.lo ?? price.lo), price_max: eok(listing.hi ?? price.hi),
     sale_est_min: eok(est.lo), sale_est_max: eok(est.hi),
-    rent_est_min: man(rentEst.lo), rent_est_max: man(rentEst.hi),
-    deposit_est_min: man(depEst.lo), deposit_est_max: man(depEst.hi),
     roi_min: num(roi.lo), roi_max: num(roi.hi),
-    roi_est_min: num(roiEst.lo), roi_est_max: num(roiEst.hi),
     pp_land_min: man(ppl.lo), pp_land_max: man(ppl.hi),
-    pp_land_team_min: man(pplTeam.lo), pp_land_team_max: man(pplTeam.hi),
+    pp_land_sale_min: man(pplTeam.lo), pp_land_sale_max: man(pplTeam.hi),
     pp_total_min: man(ppt.lo), pp_total_max: man(ppt.hi),
-    pp_total_team_min: man(pptTeam.lo), pp_total_team_max: man(pptTeam.hi),
+    pp_total_sale_min: man(pptTeam.lo), pp_total_sale_max: man(pptTeam.hi),
     deposit_total_min: man(dep.lo), deposit_total_max: man(dep.hi),
     rent_total_min: man(rent.lo), rent_total_max: man(rent.hi),
     mgmt_total_min: man(mgmt.lo), mgmt_total_max: man(mgmt.hi),
@@ -383,13 +386,11 @@ export function toFilters(v: Values, members: { account_id: number; name: string
     gongsi_up5_min: num(up5.lo), gongsi_up5_max: num(up5.hi),
     gongsi_up10_min: num(up10.lo), gongsi_up10_max: num(up10.hi),
     gongsi_ratio_min: num(gratio.lo), gongsi_ratio_max: num(gratio.hi),
-    gongsi_ratio_team_min: num(gratioTeam.lo), gongsi_ratio_team_max: num(gratioTeam.hi),
+    gongsi_ratio_sale_min: num(gratioTeam.lo), gongsi_ratio_sale_max: num(gratioTeam.hi),
     gongsi_total_min: eok(gtot.lo), gongsi_total_max: eok(gtot.hi),
-    last_sale_min: eok(realPrice.lo), last_sale_max: eok(realPrice.hi),
     last_sale_years_min: num(deal.lo), last_sale_years_max: num(deal.hi),
     sale_pnl_min: num(pnl.lo), sale_pnl_max: num(pnl.hi),
     sale_count_min: num(scnt.lo), sale_count_max: num(scnt.hi),
-    pop_day_min: num(pop.lo), pop_day_max: num(pop.hi),   // 실측 생활인구(주간 평균, 명)
     // 업무(listings)
     urgencies: arr(ms("긴급도")),
     owner_types: arr(ms("소유자타입")), relations: arr(ms("관계")), cooperations: arr(ms("협조도")), kindnesses: arr(ms("친절도")),
@@ -405,15 +406,15 @@ export function toFilters(v: Values, members: { account_id: number; name: string
 /** 저장한 조건 → /search/pins 몸통. 새 조건은 request 를 싣고, 옛 조건은 화면 값에서 다시 만든다
  *  (탐색 화면이 적용할 때와 같은 길: 지역은 첫 구 · 매물 유형은 kinds). 매물관리 「저장한 조건」이 쓴다 */
 export function condRequest(c: Record<string, unknown>, members: { account_id: number; name: string }[] = []):
-  { bjd_code?: string; polygon?: object; filters: AttrFilters } {
-  const req = c.request as { bjd_code?: string; polygon?: object; filters?: AttrFilters } | undefined;
+  { bjd_code?: string | string[]; polygon?: object; filters: AttrFilters } {
+  const req = c.request as { bjd_code?: string | string[]; polygon?: object; filters?: AttrFilters } | undefined;
   if (req) return { ...req, filters: req.filters ?? {} };
   const values = (c.values ?? {}) as Values;
   const { ["매물 유형"]: mk, ...rest } = values as Record<string, unknown>;
   const regions = (c.regions ?? []) as RegionPick[];
   const filters: AttrFilters = { ...(c.filters as AttrFilters | undefined ?? toFilters(rest as Values, members)) };
   if (Array.isArray(mk) && mk.length) (filters as Record<string, unknown>).kinds = mk;
-  return { bjd_code: c.polygon ? undefined : regions[0]?.bjd_code, polygon: (c.polygon as object | null) ?? undefined, filters };
+  return { bjd_code: c.polygon || !regions.length ? undefined : regions.map((r) => r.bjd_code), polygon: (c.polygon as object | null) ?? undefined, filters };
 }
 
 export function activeCount(v: Values, regions: RegionPick[]): number {
@@ -429,108 +430,201 @@ export function conditionChips(v: Values): { label: string; text: string }[] {
   return out;
 }
 
-export function FilterModal({
-  initialValues, initialRegions, initialPolygon, initialHidden, onApply, onClose, onDraw,
+/** 팀이 적는 값뿐인 줄 — 건물 조건만 볼 때 뺀다 */
+const TEAM_ONLY = ["관리비", "공실"];
+
+/** 지역 두 칸 고르기(대표 09-30) — 왼쪽 구, 오른쪽 그 구의 동. 여러 구 · 여러 동을 담는다.
+ *  구를 누르면 동이 뜬다. 「전체」를 누르면 구 전체, 동을 누르면 그 동들(전체는 풀린다).
+ *  구 = sgg_code 5자리, 동 = bjd_code 10자리 — 서버는 둘 다 접두로 받는다(여럿이면 OR). */
+function RegionPicker({ data, regions, setRegions }: {
+  data: Record<string, { sgg_code: string; dongs: { bjd_code: string; dong: string; count: number }[] }>;
+  regions: RegionPick[]; setRegions: (r: RegionPick[]) => void;
+}) {
+  const gus = Object.keys(data);
+  const [cur, setCur] = useState<string | null>(() => {
+    const hit = gus.find((g) => regions.some((r) => r.bjd_code.startsWith(data[g].sgg_code)));
+    return hit ?? null;
+  });
+  const inGu = (g: string) => regions.filter((r) => r.bjd_code.startsWith(data[g].sgg_code));
+  const whole = (g: string) => regions.some((r) => r.bjd_code === data[g].sgg_code);
+  const others = (g: string) => regions.filter((r) => !r.bjd_code.startsWith(data[g].sgg_code));
+  // 구를 누르면 그 구의 동이 뜰 뿐 아무것도 담지 않는다(09-30 — 자동 전체 담기 기각). 전체도 동도 사람이 고른다
+  const pickGu = (g: string) => setCur(g);
+  const toggleAll = (g: string) =>
+    setRegions(whole(g) ? others(g) : [...others(g), { bjd_code: data[g].sgg_code, label: `${g} 전체` }]);
+  const toggleDong = (g: string, d: { bjd_code: string; dong: string }) => {
+    const mine = inGu(g).filter((r) => r.bjd_code !== data[g].sgg_code);   // 전체를 빼고 남은 동들
+    const on = mine.some((r) => r.bjd_code === d.bjd_code);
+    const next = on ? mine.filter((r) => r.bjd_code !== d.bjd_code) : [...mine, { bjd_code: d.bjd_code, label: `${g} ${d.dong}` }];
+    setRegions([...others(g), ...next]);
+  };
+  const c = cur ? data[cur] : null;
+  return (
+    <div className="rp">
+      <div className="rp-gu">
+        {gus.map((g) => {
+          const n = inGu(g).length;
+          return (
+            <button key={g} className={`${cur === g ? "cur" : ""} ${n ? "has" : ""}`} onClick={() => pickGu(g)}>
+              {g}
+            </button>
+          );
+        })}
+      </div>
+      <div className="rp-dong">
+        {c && cur && (
+          <>
+            <button className={whole(cur) ? "on" : ""} onClick={() => toggleAll(cur)}>전체</button>
+            {c.dongs.map((d) => (
+              <button key={d.bjd_code} className={regions.some((r) => r.bjd_code === d.bjd_code) ? "on" : ""}
+                onClick={() => toggleDong(cur, d)}>{d.dong}</button>
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 조건 본체(대표 09-30) — 사이드바(탐색)와 모달(매물관리)이 같이 쓴다.
+ *  머리: 제목 · ☆저장한 조건 · ↺초기화 · ✕닫기. 몸: 지역(두 칸) · 영역 · 묶음별 줄을 위에서 아래로.
+ *  발: 판 맨 아래 고정 「적용 (N건)」 — 「N건 적용」은 조건 N개로 읽혀서 바꿨다(10-02). 적용을 눌렀을 때만 걸린다. 평/㎡ 는 앱 전체 값(useUnit)을 따른다 */
+export function Conditions({
+  initialValues, initialRegions, initialPolygon, initialHidden, onApply, onClose, countTab, hideLabels = [], baseFilters,
+  profile, draw, extra, onReset,
 }: {
   initialValues?: Values; initialRegions?: RegionPick[]; initialPolygon?: object | null;
   initialHidden?: string[];
-  onApply: (r: FilterResult) => void; onClose: () => void; onDraw?: () => void;
+  onApply: (r: FilterResult) => void; onClose: () => void;
+  /** 건수를 셀 기준 — 매물 찾기는 매물(ad), 구해요는 모든 건물(all). 없으면 예전 방식(지역 없으면 내 매물) */
+  /** 건수를 어느 목록 기준으로 세나 — 매물 찾기 ad(빌탐정 매물만) · 구해요 all · 매물 탐색 explore(세 원천, S08) */
+  countTab?: "ad" | "all" | "explore";
+  /** 판 밖에서 이미 고르는 줄(예: 사이드바의 매물 유형) — 여기선 안 세운다 */
+  hideLabels?: string[];
+  /** 판 밖에서 걸린 조건(사이드바 매물 유형 등) — 건수를 셀 때 같이 건다. 그래야 적용 뒤 목록 수와 맞는다 */
+  baseFilters?: AttrFilters;
+  /** 어느 화면의 조건인가(09-30). 없으면 매물관리(팀 값 · 업무 조건까지).
+   *  sale = 매물 찾기: 건물 조건 + 매매가(매물). seek = 구해요: 건물 조건 + 추정가.
+   *  탐색 둘 다 매물 묶음 · 팀이 적은 값(두 갈래 줄 · 관리비 · 공실)은 없다 */
+  profile?: "sale" | "seek";
+  /** 판 맨 위에 끼우는 줄(매물관리 10-02) — 표에서 바로 거르는 매물 줄(상태 · 확인일 · 담당 …). 누르면 곧바로 걸린다 */
+  extra?: React.ReactNode;
+  /** ↺ 를 누르면 extra 쪽 값도 지운다 */
+  onReset?: () => void;
+  /** 그리기 도구(탐색) — 「지역」 머리 오른쪽에 자유곡선 · 다각형 · 원. 그린 영역은 부모가 쥐고 있다가 적용 때 걸린다 */
+  draw?: {
+    polygons: object[]; mode: "free" | "poly" | "circle" | null;
+    onMode: (m: "free" | "poly" | "circle" | null) => void; onClear: () => void;
+  };
 }) {
   const regionsQ = useQuery({ queryKey: ["regions"], queryFn: searchApi.regions });
   const saved = useQuery({ queryKey: ["saved"], queryFn: savedApi.list });
-  // 매수자 조건도 같은 목록에 선다(2026-08-16) — 조건이 두 곳에 흩어져 있으면
-  // 「저장했는데 불러오기에 없다」가 된다. 여기서는 **불러오기만**(고치기·삭제는 그 사람 화면에서).
-  const buyerConds = useQuery({ queryKey: ["buyers"], queryFn: () => buyersApi.list() });
-  const bcList = (buyerConds.data ?? []).flatMap((b) =>
-    (b.conditions ?? []).map((c) => ({ id: c.id, who: b.name, name: c.name,
-      conditions_json: c.conditions_json as Record<string, unknown> })));
-  const membersQ = useQuery({ queryKey: ["team-members"], queryFn: listingsApi.members });
-  // 담당자 옵션 = 내 팀 멤버(런타임 주입). 하드코딩 대체.
+  // 저장한 조건 = 내 조건 + 우리 팀 고객에 붙은 조건(S09 · 0214) — 한 목록에 고객 이름이 같이 선다.
+  // 저장할 때 고객을 고르면 그 고객에 붙는다(중개사만). 고객 계정이 저장한 조건은 그 고객의 프로필 조건이다
+  const broker = useIsBroker();
+  const buyersQ = useQuery({ queryKey: ["buyers"], queryFn: () => buyersApi.list(), enabled: broker });
+  const [saveFor, setSaveFor] = useState<number | null>(null);
+  const membersQ = useQuery({ queryKey: ["team-members"], queryFn: listingsApi.members, enabled: !profile });
+  const regsQ = useQuery({ queryKey: ["regulations"], queryFn: searchApi.regulationNames, staleTime: Infinity });
+  // 기본 · 고급(09-30) — 기본은 누구나 아는 것만, 고급은 중개사가 쓰는 깊은 조건. 누구나 켤 수 있다. 사람마다 기억한다
+  const [adv, setAdvRaw] = useState<boolean>(() => { try { return localStorage.getItem("bt_cond_adv") === "1"; } catch { return false; } });
+  const [advFlash, setAdvFlash] = useState(0);   // 켤 때마다 새로 선 줄이 한 번 깜빡인다
+  const setAdv = (v: boolean) => {
+    setAdvRaw(v); if (v) setAdvFlash((n) => n + 1);
+    try { localStorage.setItem("bt_cond_adv", v ? "1" : "0"); } catch { /* 사생활 모드 */ }
+  };
+  // 담당자 옵션 = 내 팀 멤버(런타임 주입)
   const groups = useMemo<Group[]>(() => {
     const names = (membersQ.data ?? []).map((m) => m.name);
-    const inject = (f: Field) => (f.label === "담당자" ? { ...f, opts: names } : f);
-    return GROUPS.map((g) => ({ ...g, reps: g.reps.map(inject), body: g.body.map(inject) }));
-  }, [membersQ.data]);
-  const [unit, setUnit] = useState<"평" | "㎡">("평");
-  const [tab, setTab] = useState<"all" | number>("all");
+    const regs = (regsQ.data ?? []).map((r) => r.name);
+    const inject = (f: Field) => (f.label === "담당자" ? { ...f, opts: names }
+      : f.label === "규제" ? { ...f, top: regs.slice(0, 10), rest: regs.slice(10) } : f);
+    // 화면별로 빼는 줄 — 매물 찾기엔 추정가가, 구해요엔 매매가가, 매물관리엔 둘 다 없다
+    const off = (f: Field): boolean => {
+      if (!profile) return f.label === "매매가" || f.label === "추정가";
+      if (f.label === (profile === "sale" ? "추정가" : "매매가")) return true;
+      return TEAM_ONLY.includes(f.label) || f.ctl === "pair";   // 두 갈래 줄은 이제 팀 값뿐
+    };
+    const keep = (fs: Field[]) => fs.map(inject).filter((f) => !off(f) && !hideLabels.includes(f.label) && (adv || !f.adv));
+    return GROUPS.filter((g) => !(profile && g.t === "매물"))
+      .map((g) => ({ ...g, reps: keep(g.reps), body: keep(g.body) }))
+      .filter((g) => g.reps.length + g.body.length > 0);
+  }, [membersQ.data, regsQ.data, hideLabels, profile, adv]);
+  const { unit: gu } = useUnit();
+  const unit: "평" | "㎡" = gu === "py" ? "평" : "㎡";
   const [values, setValues] = useState<Values>(initialValues ?? {});
   const [regions, setRegions] = useState<RegionPick[]>(initialRegions ?? []);
-  const [pgon] = useState<object | null>(initialPolygon ?? null);   // 그린 영역(필터·저장 대상) — 그리기는 지도에서 한다
-  const [gu, setGu] = useState("");
+  const [pgon0] = useState<object | null>(initialPolygon ?? null);
+  // 그린 영역 — 그리기 도구가 있으면 부모가 쥔 목록(지도에 그리는 대로 쌓인다), 없으면 받은 것 그대로
+  const pgon = draw ? mergeGeo(draw.polygons) : pgon0;
   const [openRow, setOpenRow] = useState<string | null>(null);
-  /* 조건을 만질 때마다 건수를 다시 센다(2026-08-27) — 닫기 전에 결과 크기를 알 수 있게.
-     목록 조회는 무거워서 building_pk 만 세는 가벼운 요청을 따로 쓴다. */
+  /* 조건을 만질 때마다 건수를 다시 센다 — 적용 전에 결과 크기를 알 수 있게 */
   const liveFilters = useMemo(() => toFilters(values, membersQ.data ?? []), [values, membersQ.data]);
+  const codes = regions.map((r) => r.bjd_code);
   const hitQ = useQuery({
-    // 지역이 여러 개면 키도 여러 개여야 한다 — regions[0] 만 넣으면 둘째를 담아도 안 다시 센다
-    queryKey: ["fcount", regions.map((r) => r.bjd_code).join(","), pgon, liveFilters],
+    queryKey: ["fcount", codes.join(","), pgon, liveFilters, countTab, baseFilters],
     queryFn: () => searchApi.count({
-      bjd_code: pgon ? undefined : regions[0]?.bjd_code,
-      polygon: pgon ?? undefined, filters: liveFilters,
-      mine_only: !regions.length && !pgon,
+      bjd_code: pgon || !codes.length ? undefined : codes,
+      polygon: pgon ?? undefined, filters: { ...liveFilters, ...(baseFilters ?? {}) }, tab: countTab,
+      // 매물 찾기는 중개사도 빌탐정 매물만 본다(S08 §7) — 건수도 같은 기준으로
+      chip: countTab === "ad" ? "ads" : undefined,
+      mine_only: !countTab && !regions.length && !pgon,
     }),
     placeholderData: (prev) => prev,
   });
   const hitCount = hitQ.data?.total ?? null;
   const [showSave, setShowSave] = useState(false); const [showLoad, setShowLoad] = useState(false);
   const [saveName, setSaveName] = useState(""); const [saveWarn, setSaveWarn] = useState("");
-  const [renameId, setRenameId] = useState<number | null>(null);   // 저장조건 이름 편집 중인 항목
+  const [renameId, setRenameId] = useState<number | null>(null);
   const [renameVal, setRenameVal] = useState("");
 
-  /** 조건을 확정해 부모로 넘긴다. '적용'과 '불러오기'가 같은 길을 타야 결과가 어긋나지 않는다.
-   *  구만 고르고 동을 안 고른 경우 = 구 전체로 자동 등록 — 지역 없이 적용되면 검색이
-   *  조용히 안 돌아서(enabled 게이트) 모든 필터가 "안 먹는" 것처럼 보이는 함정을 막는다. */
+  /** 조건을 확정해 부모로 넘긴다. '적용'과 '불러오기'가 같은 길을 탄다. */
   function apply(v: Values, rs: RegionPick[], pg: object | null, hid?: string[]) {
-    let regs = rs;
-    const sgg = gu ? regionsQ.data?.[gu]?.sgg_code : null;
-    if (sgg && !rs.some((r) => r.bjd_code.startsWith(sgg))) regs = [...rs, { bjd_code: sgg, label: `${gu} 전체` }];
-    // **조건을 손대면 접어둔 것이 다시 나온다**(2026-08-29). 접기는 「이 조건에서 안 본다」인데
-    // 조건이 달라졌으면 그 판단의 전제가 사라진 것이다. 저장 조건을 불러올 때만(hid) 딸려 온다.
-    // 저장 조건 자체를 덮어쓰는 것은 조건을 손댄 게 아니라 갱신이라 접기가 유지된다.
+    // **조건을 손대면 접어둔 것이 다시 나온다**(2026-08-29). 저장 조건을 불러올 때만(hid) 딸려 온다.
     const changed = JSON.stringify(v) !== JSON.stringify(initialValues ?? {})
-      || JSON.stringify(regs) !== JSON.stringify(initialRegions ?? [])
+      || JSON.stringify(rs) !== JSON.stringify(initialRegions ?? [])
       || JSON.stringify(pg ?? null) !== JSON.stringify(initialPolygon ?? null);
-    onApply({ values: v, regions: regs, filters: toFilters(v, membersQ.data ?? []), polygon: pg,
+    onApply({ values: v, regions: rs, filters: toFilters(v, membersQ.data ?? []), polygon: pg,
       hidden: hid ?? (changed ? [] : initialHidden ?? []) });
     onClose();
   }
 
-  const guList = Object.keys(regionsQ.data ?? {});
-  const dongs = gu && regionsQ.data ? regionsQ.data[gu]?.dongs ?? [] : [];
   const count = activeCount(values, regions);
-
   const setVal = (label: string, val: Val) => setValues((s) => ({ ...s, [label]: val }));
   const clearVal = (label: string) => setValues((s) => { const n = { ...s }; delete n[label]; return n; });
-  const addRegion = (val: string) => {               // 법정동 선택 즉시 조건 추가(목업)
-    if (!gu || !val) return;
-    let pick: RegionPick | null = null;
-    if (val === "ALL") {                               // 구 전체 = sgg_code 5자리 prefix
-      const sgg = regionsQ.data?.[gu]?.sgg_code;
-      if (sgg) pick = { bjd_code: sgg, label: `${gu} 전체` };
-    } else {
-      const d = dongs.find((x) => x.bjd_code === val);
-      if (d) pick = { bjd_code: val, label: `${gu} ${d.dong}` };
-    }
-    if (pick && !regions.some((r) => r.bjd_code === pick!.bjd_code)) setRegions([...regions, pick]);
-  };
 
-  /* 줄 문법(2026-08-27) — 줄엔 라벨과 현재 값만. 누르면 그 자리에서 펼쳐진다.
-     예전엔 칩을 누르면 창 위에 창(팝오버)이 떠서 좌표를 화면 밖으로 안 밀리게 계산해야 했다. */
+  /* 줄 — 이름 칸 + 값 칸. 고르는 값이 적으면(열 개 이하) 칸을 바로 늘어놓고, 그 밖은 누르면 그 자리에서 열린다 */
   const row = (f: Field) => {
-    const active = !isEmpty(f, values[f.label]);
+    const v = values[f.label];
+    const active = !isEmpty(f, v);
+    const flat = (f.ctl === "ms" || f.ctl === "segmulti") && (f.opts ?? []).length <= 10;
+    const fx = f.adv && advFlash ? " adv-in" : "";
+    const k = f.adv ? `${f.label}~${advFlash}` : f.label;   // 켤 때마다 다시 붙어 애니메이션이 다시 돈다
+    if (flat) {
+      const arr = (v as string[] | undefined) ?? [];
+      return (
+        <div key={k} className={`cn-row${fx}`}>
+          <span className="cn-k">{f.name ?? f.label}</span>
+          <div className="cn-cells">
+            {(f.opts ?? []).map((o) => (
+              <button key={o} className={arr.includes(o) ? "on" : ""}
+                onClick={() => setVal(f.label, arr.includes(o) ? arr.filter((x) => x !== o) : [...arr, o])}>{o}</button>
+            ))}
+          </div>
+        </div>
+      );
+    }
     const on = openRow === f.label;
     return (
-      <div key={f.label} className={`frow ${on ? "open" : ""}`}>
-        <div className="fr-h" onClick={() => setOpenRow(on ? null : f.label)}>
-          <span className="fr-k">{f.label}</span>
-          <span className={`fr-v ${active ? "" : "off"}`}>{summary(f, values[f.label], unit)}</span>
-          {active
-            ? <span className="fr-x" onClick={(e) => { e.stopPropagation(); clearVal(f.label); }}>✕</span>
-            : <span className="fr-a">{on ? "▴" : "▾"}</span>}
+      <div key={k} className={`cn-row col ${on ? "open" : ""}${fx}`}>
+        <div className="cn-h" onClick={() => setOpenRow(on ? null : f.label)}>
+          <span className="cn-k">{f.name ?? f.label}</span>
+          <span className={`cn-v ${active ? "" : "off"}`}>{summary(f, v, unit)}</span>
+          {active && <span className="cn-x" title="지우기" onClick={(e) => { e.stopPropagation(); clearVal(f.label); }}>✕</span>}
         </div>
         {on && (
-          <div className="fr-b" onClick={(e) => e.stopPropagation()}>
-            <Control f={f} value={values[f.label]} onChange={(val) => setVal(f.label, val)} unit={unit} />
+          <div className="cn-b" onClick={(e) => e.stopPropagation()}>
+            <Control f={f} value={v} onChange={(val) => setVal(f.label, val)} unit={unit} />
           </div>
         )}
       </div>
@@ -538,129 +632,89 @@ export function FilterModal({
   };
 
   return (
-    <div className="s01b">
-      <div className="overlay" onClick={onClose}>
-        <div className="modal" onClick={(e) => e.stopPropagation()}>
-          {/* 헤더 */}
-          <div className="modal-head">
-            <h2>상세검색</h2><span className="sp" />
-            <Icon name="unit" size={15} style={{ verticalAlign: "-3px", marginRight: 4 }} />
-            <Segmented value={unit} onChange={setUnit} size="sm" options={[{ value: "평", label: "평" }, { value: "㎡", label: "㎡" }]} />
-            <button className="lnk" onClick={() => setShowLoad(true)}><Icon name="load" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />불러오기</button>
-            <button className="lnk" onClick={() => setShowSave(true)}><Icon name="save" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />조건저장</button>
-          </div>
+    <div className="s01b cdp">
+      <div className="cn-top">
+        <b>조건</b>
+        <span className="sp" />
+        {/* 고급모드 스위치 — 끄면 회색, 켜면 파랑 */}
+        <button className={`cn-adv ${adv ? "on" : ""}`} role="switch" aria-checked={adv} onClick={() => setAdv(!adv)}>
+          고급모드<i><b /></i></button>
+        <button className="cn-ic" title="저장한 조건" onClick={() => setShowLoad(true)}><Icon name="star" size={17} /></button>
+        <button className="cn-ic" title="초기화" onClick={() => { setValues({}); setRegions([]); onReset?.(); }}><Icon name="reset" size={17} /></button>
+        <button className="cn-ic" title="닫기" onClick={onClose}><Icon name="close" size={17} /></button>
+      </div>
 
-          <div className="modal-body">
-            {/* 지역 — 조건이 아니라 **범위**다(2026-08-27). 다른 모든 조건이 그 안에서 걸린다.
-                그래서 묶음 목록에 넣지 않고 창 맨 위에 둔다.
-                3단 드롭다운을 칩으로 바꿨다: 여러 개를 담을 수 있고, 구만 고르고 동을 안 골라
-                검색이 조용히 안 도는 함정이 없어진다. */}
-            <div className="rgn">
-              <span className="rgn-k">지역</span>
-              {regions.map((r) => (
-                <span key={r.bjd_code} className="rgn-c">{r.label}
-                  <span className="x" onClick={() => setRegions(regions.filter((x) => x.bjd_code !== r.bjd_code))}>✕</span></span>
+      <div className="cn-body">
+        {extra}
+        <div className="cn-sec">지역
+          {draw && (
+            <span className="cn-tools">
+              {([["free", "자유곡선"], ["poly", "다각형"], ["circle", "원"]] as const).map(([k, t]) => (
+                <button key={k} className={draw.mode === k ? "on" : ""} onClick={() => draw.onMode(draw.mode === k ? null : k)}>{t}</button>
               ))}
-              <span className="rgn-add">
-                <select value={gu} onChange={(e) => setGu(e.target.value)}>
-                  <option value="">＋ 구</option>
-                  {guList.map((g) => <option key={g}>{g}</option>)}
-                </select>
-                {gu && (
-                  <select value="" onChange={(e) => addRegion(e.target.value)}>
-                    <option value="">＋ 동</option>
-                    <option value="ALL">{gu} 전체</option>
-                    {dongs.map((d) => <option key={d.bjd_code} value={d.bjd_code}>{d.dong} ({d.count.toLocaleString()})</option>)}
-                  </select>
-                )}
-              </span>
-              <span className="rgn-or">또는</span>
-              <button className="rgn-draw" onClick={onDraw}>
-                <Icon name="polygon" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />지도에서 영역 그리기</button>
-            </div>
-
-            {/* 적용 조건 칩바 */}
-            <div className="applied-bar">
-              <span className="albl">적용된 조건</span>
-              {count === 0 && <span className="empty">아직 없음 — 카테고리에서 조건을 지정하세요</span>}
-              {regions.map((r) => <span key={r.bjd_code} className="achip"><span className="k">지역</span>{r.label}<span className="x" onClick={() => setRegions(regions.filter((x) => x.bjd_code !== r.bjd_code))}>×</span></span>)}
-              {groups.flatMap((g) => [...g.reps, ...g.body]).filter((f) => !isEmpty(f, values[f.label])).map((f) => (
-                <span key={f.label} className="achip"><span className="k">{f.label}</span>{summary(f, values[f.label], unit)}<span className="x" onClick={() => clearVal(f.label)}>×</span></span>
-              ))}
-            </div>
-
-            {/* 인덱스 + 패널 */}
-            <div className="acc-title">검색 조건 · 카테고리</div>
-            <div className="sb">
-              <div className="idx">
-                <button className={`idx-item ${tab === "all" ? "on" : ""}`} onClick={() => setTab("all")}><span className="il"><Icon name="star" size={13} style={{verticalAlign:"-2px",marginRight:3}} />자주 찾는 조건</span><span className="badge zero">{count}</span></button>
-                {groups.map((g, i) => {
-                  const c = [...g.reps, ...g.body].filter((f) => !isEmpty(f, values[f.label])).length;
-                  return <button key={g.t} className={`idx-item ${tab === i ? "on" : ""}`}
-                    onClick={() => { setTab(i); setOpenRow(null); }}>
-                    <span className="il">{g.t}</span>
-                    <span className={`badge ${c ? "" : "zero"}`}>{c}</span></button>;
-                })}
-              </div>
-              <div className="pane">
-                {tab === "all" && (
-                  <div className="fpanel on">{groups.flatMap((g) => g.reps).map(row)}</div>
-                )}
-                {typeof tab === "number" && (
-                  /* 묶음 안에서 한 번 더 가른다(2026-08-28) — 열두 줄이 같은 무게로 늘어서면
-                     자주 쓰는 줄을 매번 눈으로 찾아야 한다. */
-                  <div className="fpanel on">
-                    <div className="fsec">자주</div>
-                    {groups[tab].reps.map(row)}
-                    {groups[tab].body.length > 0 && <div className="fsec">그 밖에</div>}
-                    {groups[tab].body.map(row)}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* 하단 */}
-          <div className="modal-foot">
-            <button className="reset" onClick={() => { setValues({}); setRegions([]); }}><Icon name="reset" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />전체 초기화</button>
-            <span className="applied">적용 조건 <b>{count}</b>개</span>
-            <span className="sp" />
-            <button className="cancel" onClick={onClose}>취소</button>
-            {/* 「적용」과 「닫기」가 하나다 — 닫기 전에 결과 크기를 알 수 있게 건수를 적는다 */}
-            <button className="apply" onClick={() => apply(values, regions, pgon)}>
-              {hitCount != null ? `${hitCount.toLocaleString()}건 보기` : "적용"}</button>
-          </div>
+              {draw.polygons.length > 0 && <button className="clr" onClick={draw.onClear}>지우기</button>}
+            </span>
+          )}
         </div>
+        {regionsQ.data && <RegionPicker data={regionsQ.data} regions={regions} setRegions={setRegions} />}
+        {/* 순서(09-30): 지역 → 금액 → 건물 · 토지 · 교통(· 매물) */}
+        {groups.filter((g) => g.t === "금액").map((g) => (
+          <div key={g.t}>
+            <div className="cn-sec">{g.t}</div>
+            {[...g.reps, ...g.body].map(row)}
+          </div>
+        ))}
+        {groups.filter((g) => g.t !== "금액").map((g) => (
+          <div key={g.t}>
+            <div className="cn-sec">{g.t}</div>
+            {[...g.reps, ...g.body].map(row)}
+          </div>
+        ))}
+
+      </div>
+
+      {/* 적용 — 판 맨 아래에 늘 붙어 있다. 글자가 곧 건수 */}
+      <div className="cn-foot">
+        <button className="cn-apply" onClick={() => apply(values, regions, pgon)}>
+          {hitCount != null ? `적용 (${hitCount.toLocaleString()}건)` : "적용"}</button>
       </div>
 
       {/* 조건 저장 */}
       {showSave && (
         <div className="s01b-mini-overlay show" onClick={() => setShowSave(false)}>
           <div className="mini" onClick={(e) => e.stopPropagation()}>
-            <h3>조건 저장</h3><p className="mini-sub">현재 설정한 조건 <b>{count}</b>개를 이름을 붙여 저장</p>
+            <h3>조건 저장</h3><p className="mini-sub">지금 조건 <b>{count}</b>개를 이름을 붙여 저장</p>
             <input className="mini-input" value={saveName} placeholder="예: 강남 수익형 5%↑" onChange={(e) => setSaveName(e.target.value)} />
+            {/* 붙일 고객 — 고르면 그 고객의 조건(팀 전체가 본다), 안 고르면 내 조건. 고른 칸 재클릭 = 내 조건 */}
+            {broker && (buyersQ.data ?? []).length > 0 && (
+              <div className="mini-for">
+                <span>고객</span>
+                <div className="mini-for-c">{(buyersQ.data ?? []).map((b) => (
+                  <button key={b.id} className={saveFor === b.id ? "on" : ""} onClick={() => setSaveFor(saveFor === b.id ? null : b.id)}>{b.name}</button>
+                ))}</div>
+              </div>
+            )}
             <div className="mini-warn">{saveWarn}</div>
             <div className="mini-foot"><button className="mini-cancel" onClick={() => setShowSave(false)}>취소</button>
               <button className="mini-ok" onClick={async () => {
                 if (!saveName.trim()) { setSaveWarn("이름을 입력하세요"); return; }
                 if (count === 0 && !pgon) { setSaveWarn("저장할 조건이 없습니다"); return; }
                 await savedApi.save(saveName.trim(), { values, regions, polygon: pgon, hidden: initialHidden ?? [],
-                  filters: toFilters(values, membersQ.data ?? []) } as Record<string, unknown>);
-                setShowSave(false); setSaveName(""); setSaveWarn(""); saved.refetch();
+                  filters: toFilters(values, membersQ.data ?? []) } as Record<string, unknown>, saveFor);
+                setShowSave(false); setSaveName(""); setSaveWarn(""); setSaveFor(null); saved.refetch(); buyersQ.refetch();
               }}><Icon name="save" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />저장</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 조건 불러오기 */}
+      {/* 저장한 조건 — 불러오기 · 이름 · 덮어쓰기 · 삭제, 맨 아래 「지금 조건 저장」 */}
       {showLoad && (
         <div className="s01b-mini-overlay show" onClick={() => setShowLoad(false)}>
           <div className="mini" onClick={(e) => e.stopPropagation()}>
-            <h3>저장된 조건 불러오기</h3>
+            <h3>저장한 조건</h3>
             <div className="preset-list">
-              {(saved.data ?? []).length === 0 && bcList.length === 0
-                && <div className="preset-empty">저장된 조건이 없습니다</div>}
+              {(saved.data ?? []).length === 0 && <div className="preset-empty">저장된 조건이 없습니다</div>}
               {(saved.data ?? []).map((p) => {
                 const c = p.conditions_json as { values?: Values; regions?: RegionPick[]; polygon?: object | null; hidden?: number[] };
                 const editing = renameId === p.id;
@@ -679,41 +733,37 @@ export function FilterModal({
                             }}
                             onBlur={() => setRenameId(null)} />
                         : <div className="pn">{p.name}</div>}
-                      <div className="pc">조건 {activeCount(c.values ?? {}, c.regions ?? [])}개{c.polygon ? " · 영역" : ""}</div>
+                      <div className="pc">{p.buyer_name ? <b className="pc-who">{p.buyer_name}</b> : null}조건 {activeCount(c.values ?? {}, c.regions ?? [])}개{c.polygon ? " · 영역" : ""}</div>
                     </div>
                     <span className="sp" />
-                    {/* 불러오기 = 그 자리에서 적용. 모달 값만 채워두고 「적용」을 또 누르게 하면
-                        불러왔는데 아무 일도 안 일어난 것처럼 보인다. */}
+                    {/* 불러오기 = 그 자리에서 적용 */}
                     <button className="pload" onClick={() => apply(c.values ?? {}, c.regions ?? [], c.polygon ?? null, (c.hidden ?? []).map(String))}><Icon name="load" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />불러오기</button>
                     <button className="pdel" title="이름 바꾸기"
                       onMouseDown={(e) => { e.preventDefault(); setRenameId(p.id); setRenameVal(p.name); }}><Icon name="edit" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />이름</button>
-                    {/* 덮어쓰기 — 저장조건을 고쳐 쓰는 가장 흔한 길. 지우고 다시 저장하지 않아도 된다. */}
-                    <button className="pdel" title="지금 화면의 조건으로 덮어쓰기"
+                    <button className="pdel" title="지금 조건으로 덮어쓰기"
                       onClick={async () => { await savedApi.update(p.id, { conditions: { values, regions, polygon: pgon, hidden: initialHidden ?? [],
                         filters: toFilters(values, membersQ.data ?? []) } as Record<string, unknown> }); saved.refetch(); }}><Icon name="save" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />덮어쓰기</button>
                     <button className="pdel" onClick={async () => { await savedApi.remove(p.id); saved.refetch(); }}><Icon name="trash" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />삭제</button>
                   </div>
                 );
               })}
-              {bcList.map((p) => {
-                const c = p.conditions_json as { values?: Values; regions?: RegionPick[]; polygon?: object | null; hidden?: number[] };
-                return (
-                  <div key={`b${p.id}`} className="preset">
-                    <div style={{ minWidth: 0 }}>
-                      <div className="pn">{p.name}</div>
-                      <div className="pc">{p.who} · 조건 {activeCount(c.values ?? {}, c.regions ?? [])}개{c.polygon ? " · 영역" : ""}</div>
-                    </div>
-                    <span className="sp" />
-                    <button className="pload" onClick={() => apply(c.values ?? {}, c.regions ?? [], c.polygon ?? null, (c.hidden ?? []).map(String))}>
-                      <Icon name="load" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />불러오기</button>
-                  </div>
-                );
-              })}
             </div>
-            <div className="mini-foot"><button className="mini-cancel" onClick={() => setShowLoad(false)}>닫기</button></div>
+            <div className="mini-foot">
+              <button className="mini-ok" onClick={() => { setShowLoad(false); setShowSave(true); }}>
+                <Icon name="save" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />지금 조건 저장</button>
+              <button className="mini-cancel" onClick={() => setShowLoad(false)}>닫기</button></div>
           </div>
         </div>
       )}
     </div>
   );
+}
+
+/** 모달 틀(매물관리) — 본체는 사이드바와 같다 */
+export function FilterModal(p: Parameters<typeof Conditions>[0]) {
+  return createPortal((
+    <div className="cdm-bg" onClick={p.onClose}>
+      <div className="cdm" onClick={(e) => e.stopPropagation()}><Conditions {...p} /></div>
+    </div>
+  ), document.body);
 }

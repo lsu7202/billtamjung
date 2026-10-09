@@ -59,15 +59,9 @@ body {
 @keyframes bt-radar-in { from { opacity: 0; transform: scale(.55); } to { opacity: 1; transform: scale(1); } }
 /* S02 리포트 요약 — 아래서 위로 순차 등장 */
 @keyframes rv-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-.rv-in { animation: rv-rise .55s cubic-bezier(.22,1,.36,1) both; animation-delay: var(--rvd, 0ms); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0s !important; }
 }
-
-/* 브랜드 로고(ㅂ 심볼 + 워드마크) */
-.bt-logo { display: inline-flex; align-items: center; gap: 8px; }
-.bt-wordmark { font-family: "Pretendard", sans-serif; font-weight: 800; letter-spacing: -.035em; color: var(--ink); line-height: 1; font-size: 19px; }
-.bt-dot { color: var(--gold); }
 
 /* 패널·버튼·입력 */
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }   /* 플랫: 그림자 없음, hairline 경계만 */
@@ -82,7 +76,6 @@ body {
 .input:focus { outline: 2px solid var(--signal-bg); border-color: var(--signal); }
 
 /* 자동완성 */
-.ac-wrap { position: relative; }
 .ac-drop { position: absolute; top: calc(100% + 5px); left: 0; right: 0; z-index: 60; background: #fff; border: 1px solid var(--line-2); border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); overflow: hidden; }
 .ac-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 13px; }
 .ac-item:hover, .ac-item.active { background: var(--signal-bg); }
@@ -91,29 +84,15 @@ body {
 .tag { font-size: 11px; font-weight: 700; border-radius: 4px; padding: 2px 8px; }
 .tag.mine { background: var(--blue-bg); color: var(--blue); }
 .tag.ad { background: var(--green-bg); color: var(--green); }
-.tag.stale { background: var(--up-bg); color: var(--up); }
 .tag.fresh { background: var(--green-bg); color: var(--green); }
 
 /* 선택 칩(.chips-in) 은 shared/ui/row.css 가 정본이다(2026-08-25).
    여기 있던 흰 알약·먹색 선택 규칙은 나중에 실려 모달 결(연파랑)을 덮고 있었다 — 옮겼다. */
 
 /* KV 그리드(S02) */
-.kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; padding: 6px 14px 12px; }
 .kv { display: flex; justify-content: space-between; gap: 12px; padding: 9px 2px; border-bottom: 1px solid var(--line); }
 .kv .k { color: var(--ink-2); }
 .kv .v { font-weight: 700; font-variant-numeric: tabular-nums; }
-.kv .v.edited { color: var(--signal-ink); }
-/* 실측 도로폭 — 전/측/후 세 값을 한 줄에. 라벨이 줄바꿈되면 칸이 늘어난다. */
-.kv .rw-row { display: flex; gap: 3px; align-items: center; justify-content: flex-end; white-space: nowrap; }
-.kv .rw { color: var(--muted); font-size: 11px; }
-
-/* 영업에서 쌓인 답 — 금액정보 아래 한 줄. 제안이 없으면 아예 안 그린다. */
-.rn { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px;
-  margin: 0 14px 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; }
-.rn .k { color: var(--muted); }
-.rn b { font-variant-numeric: tabular-nums; }
-.rn .t { color: var(--ink-2); }
-.rn .w { margin-left: auto; color: var(--up); font-variant-numeric: tabular-nums; }
 
 .sec-head { font-weight: 800; font-size: 14px; padding: 13px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); letter-spacing: -.01em; }
 table.wf { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -128,7 +107,6 @@ table.wf .num { text-align: right; font-family: var(--mono); font-variant-numeri
 .srail { flex: 0 0 72px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 0 16px;
   background: #fff; border-right: 1px solid var(--line); z-index: 50; }
 .srail .sp { flex: 1; }
-.srail-logo { display: inline-flex; margin-bottom: 14px; }
 .srail-nav { display: flex; flex-direction: column; gap: 4px; align-items: center; }
 .srail-a { width: 62px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 0 7px; border-radius: 12px;
   color: #4E5968; text-decoration: none; }
@@ -139,21 +117,67 @@ table.wf .num { text-align: right; font-family: var(--mono); font-variant-numeri
 .srail-a.on span { font-weight: 700; }
 .srail-dot { position: absolute; top: -5px; right: -9px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: #F04452;
   color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; font-style: normal; box-shadow: 0 0 0 2px #fff; }
-.srail-out { width: 40px; height: 40px; border: 0; border-radius: 10px; background: none; color: #8B95A1; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center; margin-bottom: 6px; }
-.srail-out:hover { background: #F2F4F6; color: #4E5968; }
-.srail-me { width: 38px; height: 38px; border-radius: 999px; background: #3182F6; color: #fff; font-size: 15px; font-weight: 700;
-  display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
-.srail-me.on { box-shadow: 0 0 0 3px #EBF4FF, 0 0 0 4px #3182F6; }
-body.map-full .srail { display: none !important; }
 /* 폰 — 레일이 아래 탭 줄로 눕는다 */
 @media (max-width: 720px) {
   .shell { flex-direction: column-reverse; }
   .srail { flex: 0 0 auto; flex-direction: row; padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px)); border-right: 0; border-top: 1px solid var(--line); }
-  .srail-logo, .srail .sp, .srail-out { display: none; }
+  .srail .sp { display: none; }
+  /* 폰에도 ☰ 는 남긴다 — 최근 대화 · 로그아웃은 펼친 판에만 있다(2026-09-30 검토) */
+  .srail-menu { margin: 0; height: 44px; flex: 0 0 auto; }
   .srail-nav { flex-direction: row; flex: 1; justify-content: space-around; gap: 0; }
   .srail-a { width: auto; padding: 6px 6px 4px; }
-  .srail-me { width: 30px; height: 30px; font-size: 13px; }
+  .srail-me { width: 24px; height: 24px; font-size: 12px; }
 }
-.srail-me { position: relative; }
-.srail-me .srail-dot { top: -4px; right: -6px; }
+
+/* 레일 개편(2026-09-30, 유튜브 결) — ☰ · 빌탐정 · 탐색 / 아래 매물관리 · 고객관리 · 일정 · 프로필 */
+.srail-menu { width: 44px; height: 40px; border: 0; border-radius: 10px; background: none; color: #333D4B; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+.srail-menu:hover { background: #F2F4F6; }
+.srail-brand i { height: 21px; align-items: center; }
+.srail-me { width: 24px; height: 24px; border-radius: 999px; background: #3182F6; color: #fff; font-size: 12px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; font-style: normal; }
+.srail-me.sm { width: 22px; height: 22px; font-size: 11px; }
+/* 펼친 판 — 화면 위에 덮는다 */
+.sdraw-bg { position: fixed; inset: 0; z-index: 200; background: rgba(15,20,27,.32); }
+.sdraw { position: absolute; left: 0; top: 0; bottom: 0; width: 248px; background: #fff; display: flex; flex-direction: column;
+  padding: 14px 12px 16px; box-shadow: 8px 0 24px rgba(15,26,46,.12); overflow-y: auto; }
+.sdraw .sp { flex: 1; }
+.sdraw-top { display: flex; align-items: center; gap: 6px; margin: 0 0 10px -2px; }
+.sdraw-top .srail-menu { margin: 0; }
+.sdraw-logo { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: #191F28; }
+.sdraw-logo b { font-size: 17px; font-weight: 800; letter-spacing: -.03em; }
+.sdraw-grp { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.sdraw-grp.last { border-bottom: 0; border-top: 1px solid var(--line); }
+.sdraw-a { display: flex; align-items: center; gap: 14px; padding: 10px 12px; border-radius: 10px; color: #333D4B; text-decoration: none;
+  font: inherit; font-size: 14px; font-weight: 600; border: 0; background: none; cursor: pointer; text-align: left; width: 100%; }
+.sdraw-a i { position: relative; display: inline-flex; width: 22px; justify-content: center; font-style: normal; }
+.sdraw-a:hover { background: #F2F4F6; }
+.sdraw-a.on { background: #EBF4FF; color: #3182F6; }
+.sdraw-h { font-size: 12px; font-weight: 700; color: #8B95A1; padding: 6px 12px 4px; }
+.sdraw-c { display: flex; align-items: center; gap: 6px; padding: 7px 8px 7px 48px; border-radius: 10px; font-size: 13px; color: #4E5968; cursor: pointer; }
+.sdraw-c span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sdraw-c:hover { background: #F2F4F6; color: #191F28; }
+.sdraw-c.on { background: #EBF4FF; color: #3182F6; font-weight: 700; }
+.sdraw-c button { width: 22px; height: 22px; border: 0; border-radius: 999px; background: none; color: #8B95A1; cursor: pointer;
+  display: none; align-items: center; justify-content: center; flex: 0 0 auto; }
+.sdraw-c:hover button { display: inline-flex; }
+.sdraw-c button:hover { background: #FDEBEA; color: #F04452; }
+
+/* 글자 네모(대표 09-30) — 매물 찾기 빨강 · 구해요 초록. 지도 핀 색과 같은 뜻 */
+.srail-w { padding: 6px 0; }
+.srail-word { width: 46px; height: 46px; border-radius: 12px; color: #FFFFFF; flex-direction: column; align-items: center;
+  justify-content: center; line-height: 1.15; }
+.srail-word b { font-size: 12.5px; font-weight: 800; letter-spacing: -.04em; }
+.srail-word.sale { background: #F04452; }
+.srail-word.seek { background: #03B26C; }
+.srail-w.on { background: #F2F4F6; }
+.srail-w:not(.on) .srail-word { opacity: .78; }
+.srail-w:hover .srail-word { opacity: 1; }
+.sdraw-sq { width: 18px; height: 18px; border-radius: 5px; display: inline-block; }
+.sdraw-sq.sale { background: #F04452; }
+.sdraw-sq.seek { background: #03B26C; }
+@media (max-width: 720px) { .srail-word { width: 40px; height: 40px; } .srail-word b { font-size: 11px; } }
+/* 펼친 판 「내 페이지 ›」 머리(S09) — 누르면 프로필 전체. 유튜브 결: 글자가 크고 오른쪽 화살표 */
+.sdraw-h.link { display: flex; align-items: center; gap: 4px; padding: 10px 12px 6px; font-size: 15px; font-weight: 700; color: #191F28; text-decoration: none; border-radius: 8px; }
+.sdraw-h.link svg { transform: scaleX(-1); color: #8B95A1; }
+.sdraw-h.link:hover, .sdraw-h.link.on { background: #F2F4F6; }

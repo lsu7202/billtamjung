@@ -12,6 +12,8 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { historyApi, type TenancyStint } from "../../shared/api/endpoints";
+import { floorName } from "../../shared/format";
+import "./bldgtab.css";
 
 const ym = (d: string | null) => (d ? d.slice(0, 7).replace("-", ".") : null);
 
@@ -29,46 +31,57 @@ export function useTenancyHistory(pk: string) {
   return useQuery({ queryKey: ["history", pk], queryFn: () => historyApi.get(pk) });
 }
 
-export function TenancyHistory({ pk, id }: { pk: string; id?: string }) {
+export function TenancyHistory({ pk, id, bare = false }: { pk: string; id?: string; /** 층별 현황 안 「과거 입주 이력 보기」 — 카드 · 제목 없이 */ bare?: boolean }) {
   const q = useTenancyHistory(pk);
   const items = q.data?.items ?? [];
   const ec = q.data?.ecommerce ?? 0;
-  if (!items.length && !ec) return null;
+  if (q.isLoading) return null;
+  if (!items.length && !ec) return bare ? <div className="sh-empty">과거 입주 이력 없음</div> : null;
 
   // 서버 순서(1층부터 위로 · 지하 · 층 미상)를 지키며 층으로 묶는다
   const groups: [string, TenancyStint[]][] = [];
   for (const r of items) {
-    const f = r.floor ?? "—";
+    const f = r.floor ?? "-";
     const g = groups.find(([k]) => k === f);
     if (g) g[1].push(r); else groups.push([f, [r]]);
   }
 
+  const list = (
+    <div className="th">
+      {groups.map(([floor, rows]) => (
+        <div className="th-f" key={floor}>
+          <b className={floor === "-" ? "off" : ""}>{floorName(floor)}</b>
+          <div className="th-rows">
+            {rows.map((r, i) => {
+              const closed = r.state === "폐업";
+              const cls = closed ? "off" : r.now ? "now" : "unk";
+              return (
+                <div className={`th-r ${cls}`} key={`${r.name}-${r.open_on}-${i}`}>
+                  <span className="nm">{r.name}</span>
+                  <span className="bz">{r.biz ?? ""}</span>
+                  <span className="pd">{ym(r.open_on) ?? ""} ~ {closed ? (ym(r.close_on) ?? "") : ""}</span>
+                  <span className="du">{r.state === "휴업" ? "휴업" : (span(r) ?? "")}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+  if (bare) return (
+    <div className="th-bare">
+      {list}
+      {ec > 0 && <div className="th-ec2">통신판매업 {ec.toLocaleString()}곳</div>}
+    </div>
+  );
+
   return (
     <div className="bg-card" id={id}>
-      <div className="bg-ttl">입주 이력
+      <div className="bg-ttl">과거 입주 이력
         {ec > 0 && <span className="th-ec">통신판매업 {ec.toLocaleString()}곳</span>}
       </div>
-      <div className="th">
-        {groups.map(([floor, rows]) => (
-          <div className="th-f" key={floor}>
-            <b className={floor === "—" ? "off" : ""}>{floor}</b>
-            <div className="th-rows">
-              {rows.map((r, i) => {
-                const closed = r.state === "폐업";
-                const cls = closed ? "off" : r.now ? "now" : "unk";
-                return (
-                  <div className={`th-r ${cls}`} key={`${r.name}-${r.open_on}-${i}`}>
-                    <span className="nm">{r.name}</span>
-                    <span className="bz">{r.biz ?? ""}</span>
-                    <span className="pd">{ym(r.open_on) ?? "—"} ~ {closed ? (ym(r.close_on) ?? "—") : r.now ? "" : "—"}</span>
-                    <span className="du">{r.state === "휴업" ? "휴업" : (span(r) ?? "")}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
+      {list}
     </div>
   );
 }

@@ -1,30 +1,5 @@
 /* S01 매물 통합검색 — 목업 S01.html page <style> 이식(정본). */
 
-/* 3열 리스트: 이음새 병합(마진 없이 한 블록) */
-.result-cols.s01 { gap: 0; }
-.result-cols.s01 .col-card { border-radius: 0; }
-.result-cols.s01 .col-card:first-child { border-radius: var(--radius) 0 0 var(--radius); }
-.result-cols.s01 .col-card:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
-.result-cols.s01 .col-card:not(:first-child) { border-left: 0; }
-
-/* 남는 높이 채우기 + 열별 내부 스크롤(접기 시 확장) */
-.result-cols.s01 { flex: 1; min-height: 0; align-items: stretch; }
-.result-cols.s01 .col-card { display: flex; flex-direction: column; min-height: 0; }
-.result-cols.s01 .col-body { flex: 1; min-height: 0; overflow-y: auto; }
-
-/* 행 그리드: ★ 20 · 주소 1fr · 매매가 58 · 수익률 48 (components.css 기본 3열 override) */
-.result-cols.s01 .wf-head, .result-cols.s01 .wf-row { grid-template-columns: minmax(0,1fr) 52px 52px 42px; }
-.wf-head .est { font-size: 10px; color: #aab2bf; font-weight: 600; margin-left: 3px; }
-.wf-row .dash { color: #c0c6d0; }
-
-.col-empty { padding: 34px 16px; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.6; }
-.col-empty small { display: block; margin-top: 5px; color: #aab2bf; font-size: 12px; }
-
-.col-pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 9px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
-.col-pager button { border: 1px solid var(--line-2); background: #fff; border-radius: 6px; width: 26px; height: 26px; cursor: pointer; color: var(--ink-2); font-size: 13px; line-height: 1; }
-.col-pager button:disabled { opacity: .4; cursor: default; }
-.col-pager .pg { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-
 /* ── 지도 뷰: 좌 사이드바(선택카드+미니리스트) / 우 지도 (목업 .map-split) ── */
 /* 지도 한 장(2026-08-27) — 지도가 바탕을 다 덮고 검색 패널이 그 위에 뜬다.
    예전엔 좌 360px + 우 지도로 칸을 나눠서, 패널을 접어도 지도가 안 넓어졌다. */
@@ -37,28 +12,7 @@
 .mo-panel { position: absolute; left: 0; top: 0; bottom: 0; width: 400px; z-index: 7;
   background: #FFFFFF; border-right: 1px solid var(--line);
   display: flex; flex-direction: column; overflow: hidden; }
-.mo-top { display: flex; align-items: center; gap: 7px; padding: 9px 11px;
-  border-bottom: 1px solid var(--line); flex: 0 0 auto; }
-.mo-top .sp { margin-left: auto; }
-/* 실거래 견주기 줄 — 총액·단가 · 분모 · 단위 · 거래 시기. 실거래가일 때만 선다. */
-.mo-real { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 7px 11px;
-  border-bottom: 1px solid var(--line); flex: 0 0 auto; }
-.mo-real .yr { display: inline-flex; gap: 4px; margin-left: auto; }
-.mo-real .yr button { border: 0; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700;
-  padding: 4px 9px; border-radius: 999px; color: var(--ink-2); background: var(--surface-2); }
-.mo-real .yr button:hover { background: #E8EBEE; }
-.mo-real .yr button.on { background: var(--blue-bg); color: var(--blue); }
-/* 연도 고르기 팝오버 — 눌러야 열린다(1990~올해). 늘 펴 두면 이 줄이 화면을 먹는다 */
-.mo-real .yr { position: relative; }
 /* 넉 줄이면 패널(352px) 안에 들어온다 — 다섯 줄로 뒀더니 마지막 칸이 잘렸다 */
-.yr-pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 20;
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; width: 188px;
-  max-height: 216px; overflow-y: auto; padding: 7px; border-radius: 12px;
-  background: var(--panel); box-shadow: 0 8px 28px rgba(0,19,43,.18); }
-.yr-pop button { font-variant-numeric: tabular-nums; padding: 4px 0; }
-.mo-lg { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700;
-  color: var(--muted); white-space: nowrap; }
-.mo-lg b { width: 8px; height: 8px; border-radius: 50%; display: block; }
 .mo-fold, .mo-open { border: 0; font: inherit; cursor: pointer; font-size: 13px; font-weight: 800;
   color: var(--ink-2); width: 24px; height: 24px; border-radius: 8px; background: var(--surface-2);
   flex: 0 0 auto; }
@@ -66,50 +20,23 @@
 .mo-open { position: absolute; left: 12px; top: 12px; z-index: 6; width: 32px; height: 32px;
   background: rgba(255,255,255,.96); box-shadow: 0 4px 16px rgba(0,19,43,.18); }
 .mo-body { flex: 1; min-height: 0; overflow-y: auto; }
-.mo-back { border: 0; font: inherit; cursor: pointer; display: block; width: 100%; text-align: left;
-  padding: 10px 14px; font-size: 11.5px; font-weight: 800; color: var(--ink-2);
-  background: none; border-bottom: 1px solid var(--line); }
-.mo-back:hover { color: var(--ink); background: var(--surface-2); }
 
 /* 선택 매물 요약 카드 */
-.sel-card { border-bottom: 8px solid var(--surface-2); }
 .sel-road { height: 260px; position: relative; background: linear-gradient(150deg, #8a97a6, #5f6b7a); }
 .sel-road::after { content: "로드뷰"; position: absolute; left: 10px; bottom: 8px; font-size: 10px; font-weight: 700; color: #fff; background: rgba(15,26,46,.55); padding: 2px 8px; border-radius: 5px; }
-.sel-body { padding: 13px 15px; }
-.sel-addr { font-size: 15px; font-weight: 800; letter-spacing: -.02em; display: flex; align-items: center; gap: 7px; }
-.sel-addr .star { font-size: 17px; margin-left: auto; cursor: pointer; }
 /* 바닥 두 갈래 — 상세보기가 주인공이라 폭을 갖고, 접어두기는 곁에 붙는다(2026-08-29).
    접기는 「이건 아니다」라는 판단이고, 그 판단은 골라서 들여다본 뒤에 난다. */
-.sel-acts { display: flex; gap: 8px; margin-top: 15px; }
-.sel-detail { flex: 1; text-align: center; background: #191F28; color: #fff; border: 0; border-radius: 12px; padding: 12px; font-size: 13.5px; font-weight: 800; cursor: pointer; }
-.sel-detail:hover { background: #333D4B; }
-.sel-hide { flex: none; display: inline-flex; align-items: center; gap: 5px; background: #fff;
-  color: #8B95A1; border: 1px solid #E5E8EB; border-radius: 12px; padding: 12px 14px;
-  font-size: 13px; font-weight: 700; cursor: pointer; }
-.sel-hide:hover { border-color: #3182F6; color: #3182F6; background: #EBF4FF; }
 .sel-empty { padding: 34px 16px; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.6; }
 
 /* 미니 리스트(핀 동기) */
 .ml-head { padding: 10px 14px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); position: sticky; top: 0; background: #fff; font-weight: 600; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.ml-pager { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
-.ml-pager button { border: 1px solid var(--line-2); background: #fff; border-radius: 6px; width: 22px; height: 22px; cursor: pointer; color: var(--ink-2); font-size: 12px; line-height: 1; }
-.ml-pager button:disabled { opacity: .4; cursor: default; }
-.ml-pager .pg { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 11px; }
 .ml-row { padding: 10px 14px; border-bottom: 1px solid #f0f2f5; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .ml-row:hover { background: var(--signal-bg); }
 .ml-row.on { background: var(--signal-bg); box-shadow: inset 3px 0 0 var(--signal); }
 .ml-row .ml-a { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
-.ml-row .ml-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
-/* 핀과 같은 뜻(S05) — 내 매물 파랑 · 광고 검정 · 거래완료 회색 */
-.ml-tag.ad { background: #191F28; } .ml-tag.mine { background: #3182F6; } .ml-tag.sold { background: #B0B8C1; } .ml-tag.normal { background: var(--muted); }
-.sel-addr .ml-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
+/* 핀과 같은 뜻(S06, 09-30) — 매물(내 매물 · 광고) 빨강 · 거래완료 회색 */
 .ml-row .ml-nums { font-size: 12px; color: var(--ink); text-align: right; white-space: nowrap; font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 700; }
 .ml-row .ml-nums small { color: var(--muted); font-weight: 600; }
-
-/* 지도 범례 */
-.map-legend { position: absolute; left: 14px; top: 14px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 7px 11px; font-size: 12px; display: flex; gap: 14px; box-shadow: var(--shadow); font-weight: 600; z-index: 4; }
-.map-legend b { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
-
 
 /* 매수자 조건 편집 바 — 지도 위에서 조건을 다듬는 중임을 알린다 */
 .bc-bar { display: flex; align-items: center; gap: 8px; margin: 0 2px 8px; padding: 8px 12px;
@@ -157,49 +84,6 @@
 .mp-menu button.bad b{color:#F04452}
 .mp-menu button.bad:hover{background:#FDEBEA}
 
-/* 선택 카드 — 건물 상세 머리줄·실거래 탭과 **같은 문법**(2026-08-27).
-   원본은 bldgtab.css/report.css 에 있지만 그 파일들은 건물 상세에서만 실린다.
-   같은 얼굴을 쓰되 좁은 칸(340px)에 맞춰 한 치수 줄인 사본을 여기 둔다. */
-.sel-pills{display:flex; gap:6px; flex-wrap:wrap; margin:11px 0 0}
-.sel-pills .pill{flex:0 0 auto; background:#F2F4F6; border-radius:10px; padding:5px 10px;
-  display:flex; align-items:baseline; gap:6px}
-.sel-pills .pill i{font-style:normal; font-size:10px; font-weight:700; color:#8B95A1; white-space:nowrap}
-.sel-pills .pill b{font-size:13.5px; font-weight:800; letter-spacing:-.02em; white-space:nowrap;
-  font-variant-numeric:tabular-nums; color:#191F28}
-.sel-pills .pill.hero{background:#EBF4FF}
-.sel-pills .pill.hero i{color:#6BA3F0}
-.sel-pills .pill.hero b{color:#3182F6; font-size:15px}
-.sel-pills .pill.hero em{font-style:normal; font-size:9px; font-weight:800; color:#fff;
-  background:#8BB6F5; border-radius:5px; padding:1px 4px}
-
-/* 주변 실거래 — 실거래 탭의 「중앙값 하나 + 이 건물이 어디쯤」 */
-.sel-near{margin-top:14px; padding-top:13px; border-top:1px solid var(--line)}
-.sel-near .k{font-size:11px; font-weight:800; letter-spacing:.05em; color:#8B95A1; margin-bottom:7px;
-  display:flex; justify-content:space-between; align-items:baseline}
-.sel-near .k span{font-weight:700; color:#C4CBD3; letter-spacing:0}
-.sel-near .rv-pv{font-size:22px; font-weight:800; letter-spacing:-.035em; color:#191F28;
-  font-variant-numeric:tabular-nums; display:flex; align-items:baseline; gap:9px}
-.sel-near .rv-pv .side{margin-left:auto; font-size:11.5px; font-weight:700; color:#B0B8C1}
-.sel-near .rv-pg{position:relative; height:12px; border-radius:5px; background:#F2F4F6; margin-top:11px}
-.sel-near .rv-pg i{display:block; height:100%; border-radius:5px; background:#3182F6}
-.sel-near .rv-pg u{position:absolute; top:-3px; width:3px; height:18px; border-radius:2px; background:#4E5968}
-.sel-near .rv-pn{margin-top:9px; font-size:12.5px; font-weight:700; color:#8B95A1;
-  font-variant-numeric:tabular-nums}
-
-/* 값 묶음 — 건물 상세 머리줄과 같은 문법(0134). 좁은 칸이라 한 치수 줄인다.
-   bldgtab.css 의 .hd-grp 는 건물 상세에서만 실리므로 여기 사본을 둔다. */
-.sel-pills .hd-grp{display:flex; align-items:center; gap:1px; flex:0 0 auto;
-  border-radius:11px; padding:0 3px}
-.sel-pills .hd-grp .pill{background:none; padding:5px 7px}
-.sel-pills .hd-grp.est{background:#EBF4FF}
-.sel-pills .hd-grp.est .pill i{color:#6BA3F0}
-.sel-pills .hd-grp.est .pill b{color:#3182F6; font-size:15px}
-.sel-pills .hd-grp.est .pill.off b{color:#A9C9F5}
-.sel-pills .hd-grp.real{background:#F2F4F6}
-.sel-pills .hd-grp .hd-badge{font-style:normal; font-size:9px; font-weight:800; color:#fff;
-  background:#3182F6; border-radius:5px; padding:1px 4px; margin-right:3px; flex:0 0 auto}
-.sel-pills .pill.off b{color:#C4CBD3}
-
 /* 값의 출처를 색으로 가른다(2026-08-27) — 연파랑은 빌탐정 추정가, 검정은 팀이 적은 매매가.
    낱말을 안 붙여도 갈리고, 필터·카드·머리줄이 같은 신호를 쓴다. */
 .ml-row .ml-nums.est{color:#3182F6}
@@ -234,13 +118,6 @@
 .mo-search .ac-p{font-size:11.5px; color:var(--muted); flex:0 0 auto}
 .mo-search .ac-none{color:var(--muted); cursor:default}
 
-.mo-chips{display:flex; gap:5px; flex-wrap:wrap; padding:9px 11px; border-bottom:1px solid var(--line);
-  flex:0 0 auto}
-.mo-chips .chip{display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700;
-  padding:4px 10px; border-radius:999px; background:#EBF4FF; color:#3182F6}
-.mo-chips .chip .x{cursor:pointer; opacity:.5; font-size:9.5px}
-.mo-chips .chip .x:hover{opacity:1}
-
 .ml-head{display:flex; align-items:center; gap:8px}
 
 /* 접어두기 — 「봤는데 필요 없다」(2026-08-28).
@@ -255,32 +132,16 @@
   font-size:11.5px; font-weight:700; letter-spacing:-.01em; cursor:pointer; white-space:nowrap}
 .hid-pill b{color:#191F28}
 .hid-pill:hover{border-color:#3182F6; color:#3182F6}
-.hid-undo{margin-left:5px; padding-left:7px; border-left:1px solid #E5E8EB; color:#3182F6; font-weight:800}
 
 /* ── 검색 탭 · 사이드 판(S05, 2026-09-28) ── */
-.mo-chips2 { display: inline-flex; gap: 4px; }
-.mo-chips2 button { border: 0; background: #F2F4F6; color: #4E5968; border-radius: 999px; padding: 4px 10px;
-  font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; }
-.mo-chips2 button.on { background: #EBF4FF; color: #3182F6; }
-/* ③ 크롤링 매물(중개사만) */
-.sel-crawl { margin: 11px 0 0; background: #F9FAFB; border-radius: 12px; padding: 9px 12px; }
-.sel-crawl .sc-h { font-size: 12px; font-weight: 700; color: #4E5968; margin-bottom: 4px; }
-.sel-crawl .sc-h b { color: #191F28; margin-left: 2px; }
-.sel-crawl .sc-row { display: grid; grid-template-columns: 34px 44px 52px 1fr; gap: 6px; font-size: 12px; color: #333D4B; padding: 2px 0; }
-.sel-crawl .sc-row .d { color: #8B95A1; }
-.sel-crawl .sc-row .v { text-align: right; }
-.sel-crawl .sc-more { font-size: 11px; color: #8B95A1; text-align: right; margin-top: 2px; }
 
 /* ── 탐색 판(S05 · 2026-09-28, 밸류맵 결) ── */
-/* 보기 — 켜고 끄는 칩 셋(여러 개 같이) */
-.mo-layers { display: flex; gap: 6px; padding: 10px 11px 4px; }
-.mo-layers button { flex: 1; border: 0; border-radius: 10px; padding: 8px 0; font: inherit; font-size: 13px; font-weight: 700;
-  background: #F2F4F6; color: #8B95A1; cursor: pointer; }
-.mo-layers button.on { background: #3182F6; color: #FFFFFF; }
-.mo-hint { font-size: 11.5px; color: #8B95A1; padding: 2px 13px 6px; }
-.mo-here { display: flex; align-items: center; gap: 5px; margin: 6px auto 4px; border: 0; background: #191F28; color: #FFFFFF;
-  border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
-.mo-here b { color: #FFFFFF; }
+/* 현재 위치 매물 — 칩이 아니라 판 너비를 꽉 채운 줄(매물 유형 줄과 같은 그리드 결, 대표 09-30) */
+.mo-here { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 44px; margin: 0;
+  border: 0; border-bottom: 1px solid #F0F2F5; border-radius: 0; background: #FFFFFF; color: #3182F6; font: inherit;
+  font-size: 13.5px; font-weight: 700; cursor: pointer; }
+.mo-here:hover { background: #F2F8FF; }
+.mo-here b { color: #3182F6; }
 .ml-head.sub { margin-top: 10px; border-top: 6px solid #F2F4F6; }
 /* 목록 카드 — 사진 · 가격 · 용도·주소 · 대지·연·층 · 중개사 */
 .lc { position: relative; display: flex; gap: 10px; padding: 11px 13px; border-bottom: 1px solid #F2F4F6; cursor: pointer; }
@@ -291,63 +152,21 @@
 .lc-b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .lc-t { display: flex; align-items: center; gap: 5px; }
 .lc-t b { font-size: 15px; font-weight: 800; color: #191F28; }
-.lc-t .ml-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
 .lc-a { font-size: 12.5px; color: #333D4B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lc-s { font-size: 11.5px; color: #8B95A1; }
-.lc-g { font-size: 11.5px; color: #4E5968; }
 .lc .ml-hide { position: absolute; right: 8px; top: 8px; }
 /* 상세 — 머리 고정 + 탭 고정, 본문 스크롤 */
 .mo-body.sd-wrap { overflow: hidden; display: flex; flex-direction: column; }
 .sd { display: flex; flex-direction: column; min-height: 0; flex: 1; }
-.sd-head { padding: 4px 13px 0; border-bottom: 1px solid #F2F4F6; }
-.sd-addr { font-size: 16px; font-weight: 800; color: #191F28; display: flex; align-items: center; gap: 6px; margin-top: 2px; }
-.sd-addr .ml-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
-.sd-road { font-size: 12px; color: #8B95A1; margin-top: 2px; min-height: 16px; }
-.sd-tabs { display: flex; margin-top: 8px; }
-.sd-tabs button { flex: 1; border: 0; background: none; font: inherit; font-size: 13px; font-weight: 700; color: #8B95A1;
-  padding: 8px 0 9px; border-bottom: 2px solid transparent; cursor: pointer; }
-.sd-tabs button.on { color: #191F28; border-bottom-color: #191F28; }
 .sd-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 13px 16px; position: relative; }
 .sd-body section { padding-top: 16px; }
 .sd-body h4 { margin: 0 0 8px; font-size: 14px; font-weight: 800; color: #191F28; }
-.sd-none { font-size: 12.5px; color: #8B95A1; background: #F9FAFB; border-radius: 10px; padding: 14px; text-align: center; }
-.sd-link { margin-top: 8px; border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 700; color: #3182F6; cursor: pointer; padding: 0; }
-.sd-price { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
-.sd-price > div { background: #F2F4F6; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; }
-.sd-price > div.est { background: #EBF4FF; }
-.sd-price i { font-style: normal; font-size: 11.5px; color: #8B95A1; }
-.sd-price b { font-size: 17px; font-weight: 800; color: #191F28; }
-.sd-price .est b { color: #3182F6; }
-.sd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #F2F4F6; border-radius: 12px; overflow: hidden; }
-.sd-c { background: #FFFFFF; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
-.sd-c i { font-style: normal; font-size: 11px; color: #8B95A1; }
-.sd-c b { font-size: 13px; font-weight: 700; color: #191F28; }
-.sd-floors { display: flex; flex-direction: column; }
-.sd-fl { display: flex; gap: 10px; font-size: 12.5px; padding: 5px 2px; border-bottom: 1px solid #F7F8FA; }
-.sd-fl b { flex: 0 0 48px; color: #191F28; }
-.sd-fl span { color: #333D4B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sd-fl .off { font-style: normal; color: #B0B8C1; }
 /* 목록 카드의 접어두기 — 줄에 올렸을 때만(목록 줄과 같은 어법) */
 .lc .ml-hide { width: 26px; height: 26px; display: none; align-items: center; justify-content: center; border: 0;
   border-radius: 999px; background: #FFFFFF; color: #8B95A1; cursor: pointer; }
 .lc:hover .ml-hide { display: inline-flex; }
 .lc .ml-hide:hover { color: #3182F6; background: #EBF4FF; }
-/* 보기 칩 안의 실거래 기간 — 켜진 칩에 「3년」이 붙고 ▾ 로 고른다 */
-.mo-layers .ly { flex: 1; display: flex; border-radius: 10px; background: #F2F4F6; overflow: hidden; }
-.mo-layers .ly.on { background: #3182F6; }
-.mo-layers .ly button { flex: 1; background: none; color: #8B95A1; border-radius: 0; }
-.mo-layers .ly.on button { color: #FFFFFF; }
-.mo-layers .ly button small { font-size: 10.5px; font-weight: 600; opacity: .8; margin-left: 4px; }
-.mo-layers .ly .ly-cv { flex: 0 0 24px; font-size: 10px; border-left: 1px solid rgba(255,255,255,.25); }
-.mo-yr { margin: 4px 11px 6px; background: #FFFFFF; box-shadow: 0 4px 16px rgba(0,0,0,.10); border-radius: 12px; padding: 8px; }
-.mo-yr button { border: 0; background: #F2F4F6; color: #4E5968; border-radius: 999px; padding: 4px 10px; font: inherit;
-  font-size: 12px; font-weight: 600; cursor: pointer; }
-.mo-yr button.on { background: #EBF4FF; color: #3182F6; }
-.mo-yr .yr-q { display: flex; gap: 4px; margin-bottom: 6px; }
-.mo-yr .yr-y { display: flex; flex-wrap: wrap; gap: 4px; max-height: 96px; overflow-y: auto; }
 /* 총액 · 단가 — 지도 오른쪽 위 */
-.map-unit { position: absolute; top: 12px; right: 12px; z-index: 6; display: flex; gap: 6px; align-items: center;
-  background: #FFFFFF; border-radius: 12px; padding: 4px; box-shadow: 0 2px 10px rgba(0,0,0,.10); }
 /* 교통 — 호선 알약 · 역 · 거리 */
 .sd-tr { display: flex; flex-direction: column; gap: 6px; }
 .sd-trr { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
@@ -355,21 +174,8 @@
 .sd-trr .lb.bus { background: #8B95A1; }
 .sd-trr b { color: #191F28; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sd-trr .num { margin-left: auto; color: #8B95A1; }
-/* 매물 유형 — 보기 칩 아래 한 줄(여러 개 같이) */
-.mo-kinds { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 11px 6px; }
-.mo-kinds button { border: 0; background: #F2F4F6; color: #8B95A1; border-radius: 999px; padding: 4px 10px;
-  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
-.mo-kinds button.on { background: #EBF4FF; color: #3182F6; }
-/* 내 매물 · 광고만으로 좁힌 동안 — 실거래 · 전체 건물은 켜져 있어도 흐리게(지도에서 내려감) */
-.mo-layers .ly.mute { opacity: .45; }
-/* 시세 세 칸 — 매매가(검정) · 최근 실거래(회색) · 추정가(연파랑) */
-.sd-price.three { grid-template-columns: 1fr 1fr 1fr; }
-.sd-price.three b { font-size: 15.5px; }
-.sd-price > div.sale { background: #FFFFFF; box-shadow: inset 0 0 0 1.5px #191F28; }
 /* 상세를 열면 판 전체를 상세가 쓴다 */
-.mo-panel.detail .mo-search, .mo-panel.detail .mo-chips, .mo-panel.detail .mo-layers,
-.mo-panel.detail .mo-kinds, .mo-panel.detail .mo-hint, .mo-panel.detail .mo-yr { display: none; }
-.mo-panel.detail .sd-head { padding-top: 10px; }
+.mo-panel.detail .mo-search, .mo-panel.detail .mo-type { display: none; }
 /* 사진 넘김 — 거리뷰가 첫 장 */
 .sd-gal { position: relative; margin: 0 -13px; background: #F2F4F6; }
 .sd-gal .sel-road { height: 240px; }
@@ -380,10 +186,6 @@
 .sd-gal .adf-cnt { position: absolute; right: 8px; bottom: 8px; background: rgba(25,31,40,.6); color: #FFFFFF; font-size: 11px;
   border-radius: 999px; padding: 2px 8px; z-index: 3; }
 /* 아래 고정 줄 — 중개사 + 상담요청 */
-.sd-bar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 10px 13px; border-top: 1px solid #F2F4F6; background: #FFFFFF; }
-.sd-bar-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.sd-bar-t b { font-size: 14px; color: #191F28; }
-.sd-bar-t span { font-size: 12px; color: #4E5968; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sd-bar-ask { border: 0; border-radius: 10px; background: #EBF4FF; color: #3182F6; padding: 9px 16px; font: inherit; font-size: 13.5px;
   font-weight: 700; cursor: pointer; }
 /* 목록 카드(디스코식, 09-28) — 윗줄 중개사 · 아래 글(유형 · 주소 · 매매가 · 규모) + 오른쪽 정사각 썸네일 */
@@ -391,13 +193,12 @@
 .lc-top { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid #F2F4F6; }
 .lc-top .adf-av { width: 28px; height: 28px; font-size: 12px; }
 .lc-top b { font-size: 13px; color: #191F28; }
-.lc-top .lc-off { font-size: 12px; color: #8B95A1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .lc-top .lc-ago { margin-left: auto; font-size: 11.5px; color: #8B95A1; flex: 0 0 auto; padding-right: 26px; }
 .lc-main { display: flex; gap: 12px; align-items: flex-start; }
 .lc-main .lc-b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .lc-tag { font-size: 12px; color: #8B95A1; min-height: 14px; }
 .lc-t { display: flex; align-items: baseline; gap: 6px; }
-.lc-t em { font-style: normal; font-size: 16px; font-weight: 800; color: #3182F6; }
+.lc-t em { font-style: normal; font-size: 16px; font-weight: 800; color: #F04452; }
 .lc-t b { font-size: 17px; font-weight: 800; color: #191F28; }
 .lc-main .lc-ph { flex: 0 0 84px; height: 84px; border-radius: 10px; }
 .lc-main .lc-ph img { width: 100%; height: 100%; object-fit: cover; }
@@ -426,46 +227,12 @@
 .dc-gal .sel-road { height: 260px; }
 .dc-gal .sel-road::after { content: none; }
 .dc-gal .adf-cnt { left: 10px; right: auto; display: inline-flex; align-items: center; gap: 3px; }
-.dc-full { position: absolute; right: 10px; top: 10px; z-index: 20; width: 34px; height: 34px; border: 0; border-radius: 8px;
-  background: rgba(25,31,40,.55); color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
-.dc-full:hover { background: rgba(25,31,40,.75); }
 
 .dc-intro { padding: 22px 20px 20px; }
 .dc-intro h2 { margin: 0 0 12px; font-size: 18px; font-weight: 800; color: #191F28; letter-spacing: -.02em; text-wrap: balance; }
 .dc-intro p { margin: 0; font-size: 14.5px; line-height: 1.75; color: #333D4B; white-space: pre-wrap; word-break: keep-all; }
 
-.dc-band { background: #F2F4F6; padding: 16px 20px 18px; }
-.dc-card { background: #FFFFFF; border-radius: 12px; padding: 16px 16px 14px; }
-.dc-pills { display: flex; gap: 6px; margin-bottom: 8px; }
-.dc-pill { font-size: 12px; color: #4E5968; border: 1px solid #B0B8C1; border-radius: 999px; padding: 2px 10px; }
-.dc-pill.blue { color: #3182F6; border-color: #3182F6; }
-.dc-price { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
-.dc-price em { font-style: normal; font-size: 20px; font-weight: 800; color: #3182F6; }
-.dc-price em.gray { color: #4E5968; font-size: 16px; }
-.dc-price b { font-size: 24px; font-weight: 800; color: #191F28; letter-spacing: -.02em; }
-.dc-price b.gray { color: #8B95A1; font-size: 20px; }
-.dc-price small { font-size: 12.5px; color: #4E5968; }
-.dc-addr { margin-top: 6px; font-size: 14px; color: #4E5968; display: flex; align-items: center; gap: 6px; }
-.dc-addr .ml-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
-.dc-road { font-size: 12px; color: #8B95A1; margin-top: 2px; }
-.dc-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 14px; padding: 0 4px; }
-.dc-stats div { display: flex; flex-direction: column; gap: 6px; }
-.dc-stats div:nth-child(2) { align-items: center; }
-.dc-stats div:nth-child(3) { align-items: flex-end; }
-.dc-stats span { font-size: 13px; color: #4E5968; }
-.dc-stats b { font-size: 17px; font-weight: 800; color: #3182F6; }
-
-.dc-agent { padding: 18px 20px 20px; }
-.dc-ag { display: flex; align-items: center; gap: 12px; }
-.dc-ag .adf-av { width: 44px; height: 44px; font-size: 17px; }
-.dc-ag div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.dc-ag b { font-size: 15.5px; font-weight: 700; color: #191F28; }
-.dc-ag span { font-size: 13px; color: #3182F6; }
-.dc-q { margin-top: 16px; padding-top: 14px; border-top: 1px solid #F2F4F6; font-size: 15px; font-weight: 700; color: #191F28; }
-.dc-call { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; background: #EBF4FF; border-radius: 10px;
-  padding: 8px 8px 8px 16px; text-decoration: none; }
-.dc-call span { font-size: 18px; font-weight: 700; color: #3182F6; letter-spacing: .02em; }
-.dc-call i { width: 36px; height: 36px; border-radius: 8px; background: #3182F6; color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; }
+/* 매매 = 매물 빨강 */
 
 .dc-gap { height: 10px; background: #F2F4F6; }
 .dc-fold { border-bottom: 1px solid #F2F4F6; padding: 0 20px; }
@@ -480,19 +247,14 @@
 .dc-row span { color: #4E5968; flex: 0 0 auto; }
 .dc-row b { font-weight: 500; color: #191F28; text-align: right; }
 .dc-none { font-size: 13px; color: #8B95A1; padding: 4px 0; }
+/* 매매시세 · 임대시세 — 줄 끝 수집일은 회색 작게, 지난 날짜 값은 한 단계 옅게 */
+.dc-mk .dc-row span i { font-style: normal; font-size: 12px; color: #B0B8C1; margin-left: 6px; }
+.dc-mk .dc-row.past { padding: 2px 0 4px; font-size: 12.5px; }
+.dc-mk .dc-row.past span, .dc-mk .dc-row.past b { color: #8B95A1; }
 .dc-fb .sd-tr { margin: 0; }
 
 .dc-sec { padding: 18px 20px 14px; }
 .dc-sec h4 { margin-bottom: 8px; }
-.dc-link { width: 100%; display: flex; align-items: center; gap: 12px; border: 0; background: none; font: inherit; padding: 12px 0;
-  border-bottom: 1px solid #F2F4F6; cursor: pointer; text-align: left; }
-.dc-link:last-of-type { border-bottom: 0; }
-.dc-link i { width: 32px; height: 32px; border-radius: 8px; background: #F2F4F6; color: #4E5968; display: inline-flex; align-items: center; justify-content: center; }
-.dc-link span { flex: 1; font-size: 15px; color: #191F28; }
-.dc-link span b { color: #3182F6; margin-left: 2px; }
-.dc-link em { font-style: normal; font-size: 20px; color: #4E5968; }
-.dc-crawl { padding: 0 0 8px 44px; }
-.dc-crawl .dc-row { font-size: 13px; padding: 4px 0; }
 
 .dc-sec:has(.dc-reg) { background: #F2F4F6; padding-bottom: 20px; }
 .dc-reg { background: #FFFFFF; border-radius: 12px; padding: 16px; }
@@ -500,7 +262,6 @@
 .dc-reg dt { color: #8B95A1; }
 .dc-reg dd { margin: 0; text-align: right; color: #333D4B; }
 .dc-when { margin-top: 10px; font-size: 12px; color: #8B95A1; text-align: right; }
-.dc .sd-bar { padding: 12px 16px; box-shadow: 0 -4px 12px rgba(15,26,46,.05); }
 
 .dc-detail { width: 100%; border: 0; border-radius: 12px; background: #F2F4F6; color: #333D4B; padding: 14px; font: inherit;
   font-size: 15px; font-weight: 700; cursor: pointer; }
@@ -520,6 +281,209 @@
   font-size: 13px; font-weight: 700; color: #3182F6; cursor: pointer; text-align: left; }
 .dc-ic.on { color: #3182F6; }
 .dc-menu button.bad { color: #F04452; }
-.ml-keep { width: 26px; height: 26px; border: 0; border-radius: 8px; background: none; color: #8B95A1; cursor: pointer;
+
+/* ── S06 매물 찾기 · 구해요(09-30) ─────────────────────────── */
+/* 매물 유형 · 거래 유형 — 이름 한 칸 + 「빌딩 | 상가주택 | …」 한 줄(대표 09-30).
+   칩이 아니라 칸이 줄 높이 · 너비를 꽉 채우고, 칸 사이는 세로줄. 고른 칸은 바탕까지 꽉 차게 칠한다.
+   넘치면 줄바꿈 없이 가로로 민다 */
+.mo-type { border-bottom: 1px solid #F0F2F5; }
+.mo-type .mt-row { display: flex; align-items: stretch; height: 44px; }
+.mo-type .mt-row + .mt-row { border-top: 1px solid #F0F2F5; }
+.mo-type .mt-row > span { flex: 0 0 76px; display: flex; align-items: center; padding-left: 14px; font-size: 12.5px;
+  font-weight: 700; color: #4E5968; border-right: 1px solid #F0F2F5; }
+.mo-type .mt-btns { flex: 1; min-width: 0; display: flex; overflow-x: auto; scrollbar-width: none; }
+.mo-type .mt-btns::-webkit-scrollbar { display: none; }
+.mo-type .mt-btns button { flex: 1 0 auto; border: 0; border-radius: 0; background: none; font: inherit; font-size: 14px;
+  font-weight: 600; color: #8B95A1; cursor: pointer; white-space: nowrap; padding: 0 12px; }
+.mo-type .mt-btns button + button { border-left: 1px solid #F0F2F5; }
+.mo-type .mt-btns button:hover { background: #F9FAFB; color: #4E5968; }
+.mo-type .mt-btns button.on { background: #EBF4FF; color: #3182F6; font-weight: 800; }
+/* 구해요 목록 — 전체 | 구해요 탭. 구해요의 색은 초록(대표 09-30) */
+.ml-tabs { display: inline-flex; gap: 14px; }
+.ml-tabs button { border: 0; background: none; font: inherit; font-size: 14px; font-weight: 700; color: #8B95A1; padding: 2px 0;
+  cursor: pointer; display: inline-flex; gap: 5px; align-items: baseline; border-bottom: 2px solid transparent; }
+.ml-tabs button b { font-size: 12px; font-weight: 700; }
+.ml-tabs button.on { color: #191F28; border-bottom-color: #191F28; }
+.sk-b { border-bottom: 1px solid #F0F2F5; }
+.sk-b .ml-row { border-bottom: 0; }
+.ml-row.sk .sk-l { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.sk-sub { font-size: 11.5px; color: #8B95A1; display: inline-flex; gap: 6px; align-items: center; }
+.sk-sub em { font-style: normal; color: #03B26C; font-weight: 700; }
+.sk-line { display: flex; align-items: center; gap: 8px; padding: 7px 14px 7px 24px; font-size: 12px; }
+.sk-line:last-child { padding-bottom: 11px; }
+.sk-line .sk-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sk-who { color: #333D4B; font-weight: 700; }
+.sk-me { font-style: normal; color: #03B26C; margin-right: 6px; }
+.sk-note { color: #6B7684; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sk-meta { color: #8B95A1; font-size: 11.5px; white-space: nowrap; }
+.sk-meta.full { color: #F04452; }
+.sk-our { font-size: 11.5px; color: #03B26C; font-weight: 700; white-space: nowrap; }
+.sk-act { width: 28px; height: 28px; flex: none; border: 1px solid #E5E8EB; background: #FFFFFF; border-radius: 8px; color: #4E5968;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.sk-act:hover { border-color: #03B26C; color: #03B26C; background: #E6F8F0; }
+.lc-int { font-size: 11.5px; color: #8B95A1; margin-top: 2px; }
+/* 상세 — 관심 정도 · 구해요 칸 */
+.dc-seek { padding: 14px 16px 6px; }
+.dc-seek-h { display: flex; gap: 6px; align-items: baseline; font-size: 15px; margin-bottom: 4px; }
+.dc-seek-h span { font-size: 13px; color: #03B26C; font-weight: 700; }
+.dc-seek .sk-line { padding-left: 0; padding-right: 0; }
+/* 창 — 제안 보내기 */
+.sk-q { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: #4E5968; }
+.sk-q b { color: #191F28; }
+.sk-pick { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.sk-find { display: flex; align-items: center; gap: 6px; background: #F2F4F6; border-radius: 999px; padding: 6px 12px; color: #8B95A1; }
+.sk-find input { border: 0; background: none; font: inherit; font-size: 13px; outline: none; flex: 1; color: #191F28; }
+.sk-chips { display: flex; flex-wrap: wrap; gap: 4px; max-height: 120px; overflow-y: auto; }
+.sk-addr { font-size: 13.5px; }
+.ml-row.sk .ml-nums.est { color: #191F28; }
+
+/* 가격지표 도구바(대표 09-30) — 오른쪽 위 모서리에 딱 붙은 세로 그리드. 마진 · 둥근 모서리 · 칸 사이 틈 없음 */
+.mp-bar.top { top: 0; right: 0; bottom: auto; padding: 0; gap: 0; border-radius: 0; background: #FFFFFF;
+  box-shadow: -1px 1px 0 #E5E8EB, 0 4px 14px rgba(0,19,43,.10); backdrop-filter: none; }
+.mp-bar.top .mp-t { width: 60px; height: 44px; padding: 0; border-radius: 0; justify-content: center; font-size: 12px;
+  color: #4E5968; }
+.mp-bar.top .mp-t + .mp-t { border-top: 1px solid #F0F2F5; }
+.mp-bar.top .mp-t.set { color: #333D4B; }
+.mp-bar.top .mp-t.set svg { width: 19px; height: 19px; }
+.mp-bar.top .mp-t:hover { background: #F9FAFB; }
+.mp-t.ind-deal.on, .mp-bar.top .mp-t.ind-deal.on:hover { background: #3182F6; color: #FFFFFF; }
+.mp-t.ind-deal.on i { color: #3182F6; }
+.mp-t.ind-msale.on, .mp-bar.top .mp-t.ind-msale.on:hover { background: #7B5CF0; color: #FFFFFF; }
+.mp-t.ind-mrent.on, .mp-bar.top .mp-t.ind-mrent.on:hover { background: #F08C00; color: #FFFFFF; }
+.mp-t.ind-msale.on i { color: #7B5CF0; }
+.mp-t.ind-mrent.on i { color: #F08C00; }
+.mp-t.mute { opacity: .5; }
+/* 설정 판 — 오른쪽 끝에서 덮는다(왼쪽 ☰ 판과 같은 방식). 칸은 매물 유형 줄과 같은 그리드 */
+.iset-bg { position: fixed; inset: 0; z-index: 60; background: rgba(0,19,43,.18); }
+.iset { position: absolute; top: 0; right: 0; bottom: 0; width: 400px; max-width: 100vw; background: #FFFFFF;
+  box-shadow: -8px 0 28px rgba(0,19,43,.16); overflow-y: auto; }
+.iset-top { display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 12px 0 16px;
+  border-bottom: 1px solid #E5E8EB; }
+.iset-top b { font-size: 16px; color: #191F28; }
+.iset-x { width: 36px; height: 36px; border: 0; background: none; border-radius: 10px; color: #4E5968; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; }
-.ml-keep:hover { background: #EBF4FF; color: #3182F6; }
+.iset-x:hover { background: #F2F4F6; }
+.iset-h { padding: 14px 16px 6px; font-size: 13px; font-weight: 800; color: #191F28; background: #F9FAFB;
+  border-bottom: 1px solid #F0F2F5; }
+.iset .mo-type { border-bottom: 1px solid #E5E8EB; }
+
+/* 줄바꿈 격자(연도) — 스크롤 대신 다섯 칸씩 아래로 내린다. 칸 사이 줄은 그대로 */
+.mo-type .mt-row.wrap { height: auto; }
+.mo-type .mt-btns.wrap { display: grid; grid-template-columns: repeat(5, 1fr); overflow: visible; }
+.mo-type .mt-btns.wrap button { height: 44px; border-left: 1px solid #F0F2F5; border-top: 1px solid #F0F2F5; }
+.mo-type .mt-btns.wrap button:nth-child(5n+1) { border-left: 0; }
+.mo-type .mt-btns.wrap button:nth-child(-n+5) { border-top: 0; }
+/* 세 칸 격자(매물 유형 · 실거래 유형 아홉 칸, 0246) — 3 × 3 */
+.mo-type .mt-btns.wrap.g3 { grid-template-columns: repeat(3, 1fr); }
+.mo-type .mt-btns.wrap.g3 button { border-left: 1px solid #F0F2F5; border-top: 1px solid #F0F2F5; }
+.mo-type .mt-btns.wrap.g3 button:nth-child(3n+1) { border-left: 0; }
+.mo-type .mt-btns.wrap.g3 button:nth-child(-n+3) { border-top: 0; }
+
+/* 설정 판 묶음 머리(실거래 · 추정가) = 켜고 끄기. 켜면 파랑으로 차고, 끄면 아래 줄 전체 회색 */
+.iset-h.tg { display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid #F0F2F5; font: inherit;
+  font-size: 13px; font-weight: 800; cursor: pointer; background: #F2F4F6; color: #8B95A1; }
+.iset-h.tg:hover { background: #E8EBEE; }
+.iset-h.tg.on { background: #3182F6; color: #FFFFFF; }
+.iset .mo-type.off { filter: grayscale(1); opacity: .4; pointer-events: none; }
+.mp-bar.top .mp-t small { font-size: 10px; font-weight: 600; opacity: .75; }
+
+/* 그리기 화면(09-30) — 사이드바 · 도구바를 숨기고 지도를 살짝 어둡게. 누름은 지도로 간다 */
+.map-one.drawing .mp-bar { display: none; }
+.draw-dim { position: absolute; inset: 0; z-index: 5; background: rgba(0,19,43,.16); pointer-events: none; }
+.draw-bar { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 8; display: flex; align-items: center;
+  gap: 10px; background: #FFFFFF; border-radius: 16px; padding: 8px; box-shadow: 0 10px 30px rgba(0,19,43,.25); }
+.draw-bar .db-tools { display: inline-flex; border: 1px solid #E5E8EB; border-radius: 10px; overflow: hidden; }
+.draw-bar .db-tools button { border: 0; background: #FFFFFF; font: inherit; font-size: 13.5px; font-weight: 700; color: #6B7684;
+  padding: 10px 16px; cursor: pointer; }
+.draw-bar .db-tools button + button { border-left: 1px solid #E5E8EB; }
+.draw-bar .db-tools button.on { background: #EBF4FF; color: #3182F6; }
+.draw-bar .db-tools button.clr { color: #F04452; }
+.draw-bar .db-apply { border: 0; border-radius: 10px; background: #3182F6; color: #FFFFFF; font: inherit; font-size: 15px;
+  font-weight: 800; padding: 11px 36px; cursor: pointer; }
+.draw-bar .db-apply:hover { background: #1B64DA; }
+
+/* 아래 고정 줄 버튼(09-30) — 문의하기 · 구해요 둘 다 초록 */
+.sd-bar-seek { flex: 1; height: 48px; border: 0; border-radius: 12px; background: #03B26C; color: #FFFFFF; font: inherit;
+  font-size: 16px; font-weight: 800; cursor: pointer; }
+.sd-bar-seek:hover { background: #029A5D; }
+
+/* 목록 카드 글자(10-01) — 디스코 결: 태그 회색 작게 · 제목 진하게 · 가격이 가장 크게 · 사양은 본문 회색.
+   숫자도 고딕(고정폭 모노 대신 tabular-nums)으로 — 모노는 카드 안에서 혼자 튄다 */
+.lc { padding: 16px 16px 14px; gap: 10px; }
+.lc .num { font-family: inherit; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.lc-top b { font-size: 14px; font-weight: 700; }
+.lc-top .lc-ago { font-size: 12px; color: #B0B8C1; }
+.lc-main { gap: 14px; }
+.lc-main .lc-b { gap: 4px; }
+.lc-tag { font-size: 12.5px; font-weight: 500; color: #8B95A1; }
+.lc-a { font-size: 15px; font-weight: 600; color: #333D4B; letter-spacing: -.02em; }
+.lc-t { margin-top: 1px; }
+.lc-t em { font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
+.lc-t b { font-size: 21px; font-weight: 800; color: #191F28; letter-spacing: -.03em; }
+.lc-s { font-size: 13px; font-weight: 500; color: #4E5968; }
+.lc-int { font-size: 12px; color: #B0B8C1; }
+.lc-main .lc-ph { flex: 0 0 96px; height: 96px; border-radius: 10px; }
+
+/* 아래 고정 줄(10-01) — 목록과 같은 매물 카드 + 문의하기. 카드는 눌리지 않는다 */
+.sd-dock { flex: 0 0 auto; border-top: 1px solid #E5E8EB; background: #FFFFFF; box-shadow: 0 -4px 12px rgba(0, 19, 43, .04); }
+.sd-dock .lc { cursor: default; border-bottom: 0; padding-bottom: 8px; }
+.sd-dock .lc:hover { background: transparent; }
+.sd-dock .lc-top .lc-ago { padding-right: 0; }
+.lc-t em.gray { color: #8B95A1; }
+.dc-reg dl:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+
+/* 고정 줄 카드 줄인 꼴(10-02) — 윗줄 중개사 · 전화, 아래 한 줄 사진 · 가격 · 문의하기 */
+.lc.compact { gap: 8px; padding: 10px 14px 12px; }
+.lc.compact .lc-top { padding-bottom: 8px; }
+.lc.compact .lc-top .lc-ago { font-size: 13px; font-weight: 700; color: #191F28; letter-spacing: .02em; }
+.lc-mini { display: flex; align-items: center; gap: 12px; }
+.lc-mini .lc-ph { flex: 0 0 48px; width: 48px; height: 48px; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #F2F4F6; color: #B0B8C1; }
+.lc-mini .lc-ph img { width: 100%; height: 100%; object-fit: cover; }
+.lc-mini .lc-t { flex: 1; min-width: 0; }
+.lc-mini .sd-bar-ask { flex: 0 0 auto; border: 0; border-radius: 10px; background: #03B26C; color: #FFFFFF; font: inherit; font-size: 14px; font-weight: 800; padding: 11px 20px; cursor: pointer; }
+.lc-mini .sd-bar-ask:hover { background: #029A5D; }
+.lc-mini .sd-bar-seek { flex: 0 0 auto; width: auto; height: 42px; padding: 0 22px; }
+.sd-dock .lc.compact { padding-bottom: 12px; }
+/* 고정 줄은 그리드 결(10-02) — 칸이 판 끝까지 붙는다. 문의하기는 오른쪽 칸을 통째로 채우는 네모, 마진 없음 */
+.sd-dock .lc.compact { padding: 0; gap: 0; }
+.sd-dock .lc.compact .lc-top { padding: 10px 14px; margin: 0; }
+.sd-dock .lc-mini { gap: 0; align-items: stretch; min-height: 64px; }
+.sd-dock .lc-mini .lc-ph { align-self: center; margin: 0 12px 0 14px; }
+.sd-dock .lc-mini .lc-t { align-self: center; }
+.sd-dock .lc-mini .sd-bar-ask, .sd-dock .lc-mini .sd-bar-seek { align-self: stretch; height: auto; border-radius: 0; margin: 0; padding: 0 30px; border-left: 1px solid #F2F4F6; }
+/* 카드 윗줄(10-02) — 사무소명 · 이름 직급을 진하고 크게. 사무소명이 길면 사무소명만 줄인다 */
+.lc-top .lc-who { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 14.5px; font-weight: 800; color: #191F28; }
+.lc-top .lc-who span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.lc-top .lc-who span:last-child { flex: 0 0 auto; }
+/* 사진 · 거리뷰 같은 높이(10-02) — 토글로 오갈 때 판이 출렁이지 않게 */
+.dc-gal .sd-gal-img { height: 300px; max-height: none; object-fit: cover; }
+.dc-gal .sel-road { height: 300px; }
+/* 건축물대장 버튼(10-02) — 그리드 결. 판 폭 전체, 둥글기 · 마진 없음 */
+.dc-sec.flush { padding: 0; }
+.dc-sec.flush .dc-detail { border-radius: 0; height: 52px; padding: 0; border-top: 1px solid #E5E8EB; border-bottom: 1px solid #E5E8EB; font-weight: 700; }
+.dc-sec.flush .dc-detail { background: #FFFFFF; color: #191F28; }
+.dc-sec.flush .dc-detail:hover { background: #F9FAFB; }
+.mp-t.mp-unit { display: inline-flex; align-items: center; justify-content: center; gap: 3px; } .mp-t.mp-unit svg { color: #8B95A1; }
+.mp-bar .mp-t.mp-unit { flex-direction: row; white-space: nowrap; }
+.dc-intro .dc-tag{font-size:13px; font-weight:600; color:#8B95A1; margin-bottom:6px}
+
+/* 매물 탐색(S08) 목록 묶음 머리 — 내 매물 · 빌탐정 매물 · 네이버 매물 */
+.ml-grp { display: flex; align-items: baseline; gap: 6px; padding: 14px 16px 8px; font-size: 13px; font-weight: 700; color: #4E5968;
+  background: #F9FAFB; border-bottom: 1px solid #F2F4F6; }
+.ml-grp b { color: #191F28; }
+.mt-btns button b { font-weight: 700; margin-left: 2px; }
+/* 탐색 고정 칸 — 담기(채택 = 파랑) · 매물관리에서 열기(흰 칸) */
+.sd-dock .lc-mini .sd-bar-ask.claim { background: #3182F6; }
+.sd-dock .lc-mini .sd-bar-ask.claim:hover { background: #1B64DA; }
+.sd-dock .lc-mini .sd-bar-ask.open { background: #FFFFFF; color: #191F28; }
+.sd-dock .lc-mini .sd-bar-ask.open:hover { background: #F2F4F6; }
+/* 고정 칸 가격 줄은 한 줄 — 「매매시세 206억 5,000만」이 두 줄로 깨지지 않게(10-04) */
+.sd-dock .lc-mini .lc-t { white-space: nowrap; min-width: 0; }
+.sd-dock .lc-mini .lc-t em, .sd-dock .lc-mini .lc-t b { white-space: nowrap; }
+
+/* 같은 지번의 매물 칩(10-08) — 고른 매물 = 연파랑 바탕 · 파란 글자 */
+.dc-lst{display:flex; flex-wrap:wrap; gap:6px; padding:12px 20px 0}
+.dc-lst button{display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 12px; border:0; border-radius:15px; background:#F2F4F6; color:#4E5968; font:inherit; font-size:13px; font-weight:600; cursor:pointer}
+.dc-lst button b{font-weight:700; color:#191F28}
+.dc-lst button.on{background:#EBF4FF; color:#3182F6}
+.dc-lst button.on b{color:#3182F6}

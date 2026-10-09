@@ -453,15 +453,24 @@ def shrink(mart):
     arc_dir = os.path.join(ROOT, "data", "raw", "_archive", "hub_seoul")
     os.makedirs(arc_dir, exist_ok=True)
     tar = os.path.join(arc_dir, f"{mart}.tar.zst")
+    new, prev = tar + ".new", tar + ".prev"
     before = sum(os.path.getsize(os.path.join(src, f)) for f in os.listdir(src))
-    if os.path.exists(tar):
-        os.remove(tar)                 # 새로 받은 판이 정본이다
+    # **옛 판을 먼저 지우지 않는다**(2026-10-07). 예전엔 os.remove(tar) 뒤에 새로 만들어, 부분 실패한 판
+    # (노원구 상계동이 통째로 빠진 대장, 09-02)이 온전한 어제 판을 덮어쓰고 되돌릴 길이 없었다.
+    # 새 판을 .new 로 다 만든 뒤에야 옛 판을 .prev 로 한 세대 밀어 두고 바꿔 단다.
+    if os.path.exists(new):
+        os.remove(new)                 # 지난번에 중간에 죽은 찌꺼기
     r = subprocess.run(
-        f'cd "{OUT}" && tar --use-compress-program="zstd -10 -T0" -cf "{tar}" "{mart}"',
+        f'cd "{OUT}" && tar --use-compress-program="zstd -10 -T0" -cf "{new}" "{mart}"',
         shell=True, capture_output=True, text=True)
     if r.returncode != 0:
-        print(f"    ⚠ {mart}: 압축 실패 — 원본을 그대로 둡니다 ({r.stderr.strip()[:80]})")
+        if os.path.exists(new):
+            os.remove(new)
+        print(f"    ⚠ {mart}: 압축 실패 — 원본 · 옛 압축본을 그대로 둡니다 ({r.stderr.strip()[:80]})")
         return
+    if os.path.exists(tar):
+        os.replace(tar, prev)          # 한 세대만 남긴다(그 전 .prev 는 덮인다)
+    os.replace(new, tar)
     shutil.rmtree(src)
     after = os.path.getsize(tar)
     print(f"    ↳ 압축 {before/2**30:.2f}GB → {after/2**30:.2f}GB "

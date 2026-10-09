@@ -13,15 +13,6 @@
 .dp-ic:hover{background:#3182F6; color:#fff}
 .dp-ic.ok{background:#3182F6; color:#fff}
 .dp-ic.off{opacity:.4; pointer-events:none}
-.dp-exp{position:relative; display:inline-flex}
-.dp-menu{position:absolute; top:42px; right:0; background:#FFFFFF; border-radius:14px; padding:6px;
-  display:flex; flex-direction:column; gap:4px; box-shadow:0 12px 32px rgba(0,19,43,.16); z-index:5; min-width:132px}
-.dp-menu .dp-chip{box-shadow:none; text-align:left}
-.dp-add{border:0; background:#FFFFFF; border-radius:999px; padding:8px 15px; font:inherit; font-size:12.5px;
-  outline:none; color:#191F28; flex:1; min-width:180px; box-shadow:0 1px 3px rgba(0,19,43,.05)}
-.dp-add::placeholder{color:#B0B8C1}
-.dp-add:focus{box-shadow:0 0 0 2px #3182F6}
-.bank{width:210mm; max-width:96vw; margin:0 auto 14px; display:flex; gap:6px; flex-wrap:wrap; align-items:center}
 .dp-rk{display:flex; gap:6px; justify-content:center; margin:0 0 6mm}
 
 .dp .sheet{width:210mm; max-width:96vw; min-height:297mm; background:#fff; margin:14px auto; padding:14mm 12mm;
@@ -131,7 +122,7 @@
   .fullview{height:auto !important; overflow:visible !important; display:block !important}
   body{background:#fff !important}
   .dp{background:#fff; padding:0; height:auto !important; min-height:0 !important; overflow:visible !important}
-  .dp-bar,.bank,.tbank,.dp-rk,.tdel,.tl.tin,.aacts,.adel,.pn,.apen{display:none}
+  .dp-bar, .tbank, .dp-rk, .tdel, .tl.tin, .aacts, .adel, .pn, .apen{display:none}
   .hidep{display:none}   /* 빈 융자금·합의금·중도금 줄 — 값이 없으면 그 돈이 없다는 뜻이니 종이에 안 나온다 */
   /* 쪽은 우리가 나눈다(.pgbrk) — @page 여백은 0(브라우저 머리말·꼬리말이 설 자리가 없다).
      종이 여백은 시트 패딩(첫 쪽)과 나눔 블록의 패딩(다음 쪽 머리)이 새긴다. */

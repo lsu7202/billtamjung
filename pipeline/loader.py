@@ -63,15 +63,6 @@ SOURCES = {
                      ON CONFLICT (building_pk, pnu) DO NOTHING""",
         "checks": ["pk_rows"],
     },
-    "sales_history": {   # 매각 이력(0007)
-        "columns": ["building_pk", "contract_ym", "price", "total_area", "land_area"],
-        "table": "sales_history",
-        "insert": """INSERT INTO {new} (building_pk, contract_ym, price, total_area, land_area)
-                     SELECT building_pk, contract_ym, price::bigint,
-                            NULLIF(total_area,'')::numeric, NULLIF(land_area,'')::numeric
-                     FROM {tmp} WHERE building_pk <> '' AND price <> ''""",
-        "checks": ["pk_rows"],
-    },
     "complex": {         # 총괄표제부 = 단지(0145). 동(buildings)과 단위가 다르다 — 섞지 않는다
         "columns": ["complex_pk", "ledger_kind", "pnu", "addr", "addr_full", "road_addr", "name",
                     "sgg_code", "bjd_code",
@@ -254,8 +245,11 @@ async def swap_view(conn, view: str, new_tbl: str) -> None:
 
     `CREATE OR REPLACE VIEW` 는 열 이름·순서가 같을 때만 된다. 새 세대에 칸이 **중간에** 끼면
     (2026-09-06 `elevator_ext` 가 그랬다) 여기서 엎어지고, 한 시간 빌드가 스왑 한 줄에서 죽는다.
-    그럴 땐 뷰에 딸린 것(구체화 뷰·뷰)의 정의와 색인을 먼저 받아 두고 CASCADE 로 지운 뒤 다시 세운다.
-    딸린 것은 region_index(자동완성)·vacant_parcels(나대지) 둘 — 어느 쪽도 못 잃는다.
+    그럴 땐 뷰에 딸린 것(구체화 뷰·뷰)을 **끝까지 따라가** 정의 · 색인 · 권한 · 설명을 받아 두고
+    CASCADE 로 지운 뒤 차례대로 다시 세운다.
+
+    예전엔 **바로 딸린 것만** 받았다(region_index · vacant_parcels). 뷰 위에 선 뷰(모델용 층 2, 스펙 11d)와
+    `GRANT` 는 CASCADE 에 조용히 같이 사라졌다 — 2026-10-07 점검에서 찾았다.
     """
     try:
         async with conn.transaction():          # 저장점 — 실패해도 바깥 트랜잭션은 산다
@@ -263,10 +257,27 @@ async def swap_view(conn, view: str, new_tbl: str) -> None:
         return
     except asyncpg.PostgresError as e:
         print(f"  · 뷰 열이 달라 다시 세운다: {str(e).splitlines()[0]}")
+    # 딸린 것 전부를 깊이 순으로(얕은 것이 먼저 서야 깊은 것이 선다)
     deps = await conn.fetch(
-        """SELECT DISTINCT c.oid::regclass::text AS name, c.relkind::text AS relkind, pg_get_viewdef(c.oid, true) AS def
-             FROM pg_depend d JOIN pg_rewrite r ON d.objid = r.oid JOIN pg_class c ON r.ev_class = c.oid
-            WHERE d.refobjid = $1::regclass AND c.oid <> $1::regclass""", view)
+        """WITH RECURSIVE d(oid, depth) AS (
+             SELECT DISTINCT r.ev_class, 1
+               FROM pg_depend x JOIN pg_rewrite r ON x.objid = r.oid
+              WHERE x.refobjid = $1::regclass AND r.ev_class <> $1::regclass
+             UNION
+             SELECT r.ev_class, d.depth + 1
+               FROM d JOIN pg_depend x ON x.refobjid = d.oid
+               JOIN pg_rewrite r ON x.objid = r.oid
+              WHERE r.ev_class <> d.oid)
+           SELECT c.oid::regclass::text AS name, c.relkind::text AS relkind,
+                  pg_get_viewdef(c.oid, true) AS def, max(d.depth) AS depth,
+                  obj_description(c.oid, 'pg_class') AS note,
+                  COALESCE((SELECT array_agg(format('GRANT %s ON %s TO %I', a.privilege_type, c.oid::regclass,
+                                                    pg_get_userbyid(a.grantee)))
+                              FROM aclexplode(c.relacl) a
+                             WHERE a.grantee <> c.relowner AND a.grantee <> 0), '{}') AS grants
+             FROM d JOIN pg_class c ON c.oid = d.oid
+            GROUP BY c.oid, c.relkind
+            ORDER BY max(d.depth)""", view)
     idx: dict[str, list[str]] = {}
     for d in deps:
         sch, nm = d["name"].split(".", 1)
@@ -279,7 +290,11 @@ async def swap_view(conn, view: str, new_tbl: str) -> None:
         await conn.execute(f"CREATE {kind} {d['name']} AS {d['def']}")
         for ix in idx[d["name"]]:
             await conn.execute(ix)
-        print(f"  · 딸린 {kind.lower()} 다시 세움: {d['name']} (색인 {len(idx[d['name']])})")
+        for g in d["grants"]:
+            await conn.execute(g)
+        if d["note"]:
+            await conn.execute(f"COMMENT ON {kind} {d['name']} IS $${d['note']}$$")
+        print(f"  · 딸린 {kind.lower()} 다시 세움: {d['name']} (깊이 {d['depth']} · 색인 {len(idx[d['name']])} · 권한 {len(d['grants'])})")
 
 
 async def main() -> int:
@@ -391,6 +406,15 @@ async def main() -> int:
                 await conn.execute(f"CREATE INDEX ON {new_tbl} USING GIST (geom)")
                 await conn.execute(f"CREATE INDEX ON {new_tbl} USING GIST ((geom::geography))")
                 print("  · buildings 공간 GIST 인덱스 생성(geom, geom::geography)")
+        # parcels 미터 반경 인덱스(geom::geography) — 모델 쿼리의 `반경()`(스펙 11d)이 타는 것.
+        # 세대 표에 손으로 만들면 다음 교체 때 사라진다. 없으면 여기서 만든다(새 세대는 LIKE 로 물려받는다).
+        if args.source == "parcels":
+            has_geog = await conn.fetchval(f"""
+                SELECT count(*) FROM pg_indexes
+                 WHERE schemaname || '.' || tablename = '{new_tbl}' AND indexdef ILIKE '%geography%'""")
+            if not has_geog:
+                await conn.execute(f"CREATE INDEX ON {new_tbl} USING GIST ((geom::geography))")
+                print("  · parcels 미터 반경 인덱스 생성(geom::geography)")
 
         # 3) 검증 게이트(§2.5)
         rows_live = await conn.fetchval(f"SELECT count(*) FROM {live_tbl}")
@@ -472,11 +496,8 @@ async def main() -> int:
 
         # 4-b) 지역 집계 MV 갱신(0028) — 자동완성·필터 지역목록이 이걸 읽는다.
         # 스왑 후에 돌려야 새 데이터가 반영된다. CONCURRENTLY라 조회를 막지 않는다.
-        for mv, srcs in (("master.region_index", ("buildings",)),
-                         ("master.sales_agg", ("sales_history",)),
-                         # 0030 — 검색 수익률이 층 기준 하이브리드라 층 추정이 바뀌면 함께 굴린다.
-                         ("master.floor_est_by_floor", ("floor_outline", "floor_rent_est")),
-                         ("master.floor_est_total", ("floor_outline", "floor_rent_est"))):
+        # sales_agg 는 2026-10-08 부터 지번 단위로 trade 위에 선다 — load_trades.py 가 고친다
+        for mv, srcs in (("master.region_index", ("buildings",)),):
             if args.source not in srcs:
                 continue
             try:

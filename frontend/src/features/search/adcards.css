@@ -1,24 +1,8 @@
 /* 광고 카드(S05) — 탐색 사이드 판 · 건물 상세가 같이 쓴다 */
 /* ① 광고 카드 */
 .sel-ads { display: flex; flex-direction: column; gap: 6px; margin: 11px 0 0; }
-.sel-ad { background: #FFFFFF; box-shadow: inset 0 0 0 1px #E5E8EB; border-radius: 12px; padding: 10px 12px; }
-.sel-ad.sold { background: #F9FAFB; }
-.sel-ad.sold .ad-top b, .sel-ad.sold .ad-title { color: #8B95A1; }
-.sel-ad .ad-top { display: flex; align-items: center; gap: 6px; }
-.sel-ad .ad-top b { font-size: 15px; font-weight: 800; color: #191F28; }
-.sel-ad .ad-tag { font-size: 10.5px; font-weight: 700; color: #3182F6; background: #EBF4FF; border-radius: 4px; padding: 1px 6px; }
-.sel-ad .ad-tag.gray { color: #4E5968; background: #F2F4F6; }
-.sel-ad .ad-title { font-size: 12.5px; color: #333D4B; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sel-ad .ad-agent { font-size: 11.5px; color: #8B95A1; margin-top: 3px; }
-.sel-ad { position: relative; }
-.sel-ad .ad-ph { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 8px; display: block; }
-.sel-ad .ad-ask { margin-top: 8px; width: 100%; border: 0; border-radius: 10px; background: #191F28; color: #FFFFFF;
-  padding: 8px 0; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .iq-done { padding: 18px 2px; font-size: 14px; color: #191F28; }
 .ad-err { color: #F04452; font-size: 12.5px; padding: 6px 2px 0; }
-.sel-ad .ad-body-t { font-size: 12.5px; color: #4E5968; line-height: 1.55; margin-top: 4px; white-space: pre-line; cursor: pointer;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.sel-ad .ad-body-t.open { display: block; }
 
 /* ── 광고 전체(대표 09-28) — 사진 · 매매가 · 주소 · 제목 · 설명 · 중개사 · 상담요청이 한 판에 ── */
 .adf { background: #FFFFFF; border-radius: 14px; box-shadow: inset 0 0 0 1px #E5E8EB; overflow: hidden; }
@@ -38,11 +22,6 @@
 .adf-addr { font-size: 12.5px; color: #4E5968; }
 .adf-title { font-size: 14px; font-weight: 700; color: #191F28; }
 .adf-body { font-size: 13px; color: #333D4B; line-height: 1.6; white-space: pre-line; }
-.adf-ag { margin-top: 4px; padding-top: 10px; border-top: 1px solid #F2F4F6; display: flex; flex-direction: column; gap: 3px; }
-.adf-ag1 { display: flex; align-items: baseline; gap: 6px; font-size: 13px; }
-.adf-ag1 b { color: #191F28; font-weight: 700; }
-.adf-ag1 span { color: #4E5968; }
-.adf-ag2 { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11.5px; color: #8B95A1; }
 .adf .ad-ask { margin-top: 6px; }
 /* 중개 등록정보 카드(디스코식) */
 .adf-when { font-size: 11.5px; color: #8B95A1; }

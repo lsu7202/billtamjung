@@ -7,7 +7,8 @@
   H4  제안을 지워도 그 제안의 일정이 유령으로 남는다
   H5  캘린더에서 참석자를 편집하면 거울이 안 선다/안 걷힌다
   H6  캘린더에서 일정을 지워도 참석자 거울·근거 커밋이 남는다
-  H7  계약의 캘린더 표가 근거 커밋 삭제에도 남는다
+  H7  계약의 캘린더 표가 근거 커밋 삭제에도 남는다(0222 이후 계약은 표를 안 만든다)
+  C1~C6  일정 ↔ 매물 선이 끊겼나(0222) — 짝 · 매물 장부에서 일정이 안 서고, 일정 완료가 매물로 안 넘어간다
 
 수치는 200 OK 가 아니라 **DB 행 수**로 확인한다 — 거울은 화면이 아니라 장부의 사실이다.
 실행: python3 backend/tests/qa_mirror.py   (api·db 컨테이너 떠 있어야 함)
@@ -137,112 +138,49 @@ async def main():
             "SELECT count(*) FROM app.contacts WHERE team_id=$1 AND id=$2", team, cid))
         chk("캘린더 삭제 → 영희 거울 0 (H6)", 0 == await mirrors(bid_b))
 
-        print("\n[H4] 제안 삭제 — 그 제안의 일정·거울이 함께 간다")
-        pk = await db.fetchval(
-            "SELECT building_pk FROM master.buildings WHERE building_pk NOT IN "
-            "(SELECT building_pk FROM app.listings WHERE team_id=$1) LIMIT 1", team)
+        # ── 일정 ↔ 매물 선은 끊겼다(0222) ── 일정은 매물 · 짝에 아무것도 쓰지 않는다.
+        # 매물은 지번으로 등록하고(0255) 그 뒤로는 매물 번호로만 부른다
+        pnu = await db.fetchval(
+            "SELECT pr.pnu FROM master.parcel_rep pr WHERE pr.pnu IS NOT NULL AND NOT EXISTS "
+            "(SELECT 1 FROM app.listing_parcels lp WHERE lp.team_id=$1 AND lp.pnu=pr.pnu) LIMIT 1", team)
+
+        async def listing_auto(lid):
+            return await db.fetchval(
+                "SELECT count(*) FROM app.contacts WHERE team_id=$1 AND listing_id=$2 "
+                "AND auto AND src_schedule_id IS NOT NULL", team, lid)
+
+        # 짝은 매물에 담는다(0226 · 0227) — 매물은 등록으로만 생긴다
+        me_id = (await c.get("/auth/me", headers=H)).json()["account_id"]
+        lid = (await c.put("/listings/claim", headers=H, json={"pnu": pnu, "assignee_account_id": me_id})).json()["listing_id"]
+
+        print("\n[C1] 짝을 고쳐도 일정이 안 선다 — 약속을 실어 보내도 무시")
         pid = (await c.post("/proposals", headers=H, json={
-            "buyer_id": bid_a, "building_pk": pk, "note": MARK})).json()["id"]
-        await c.patch(f"/proposals/{pid}", headers=H, json={
+            "buyer_id": bid_a, "listing_id": lid, "note": MARK})).json()["id"]
+        r = await c.patch(f"/proposals/{pid}", headers=H, json={
             "note": f"{MARK} 내일 3시 현장", "schedule": {"title": "현장", "on": tomorrow, "at": "15:00"}})
-        n_sched = await db.fetchval(
-            "SELECT count(*) FROM app.schedules WHERE team_id=$1 AND proposal_id=$2", team, pid)
-        chk("제안 일정 1", 1 == n_sched, f"={n_sched}")
-        await c.delete(f"/proposals/{pid}", headers=H)
-        chk("제안 삭제 → 일정 0 (H4)", 0 == await db.fetchval(
+        chk("저장 200", r.status_code == 200, f"={r.status_code} {r.text[:80]}")
+        chk("짝 일정 0", 0 == await db.fetchval(
             "SELECT count(*) FROM app.schedules WHERE team_id=$1 AND proposal_id=$2", team, pid))
 
-        print("\n[H7] 계약 거울 — 커밋과 함께 서고 함께 걷힌다")
+        print("\n[C2] 매물 장부의 계약 — 일정은 안 서고, 계약 거울(매물 ↔ 짝 장부)은 그대로")
         cid = (await c.post("/contacts", headers=H, json={
-            "target_type": "listing", "target_id": pk, "note": f"{MARK} 계약 체결", "status": "계약"}))
-        cid = cid.json()["id"]
-        chk("계약·완료 일정이 캘린더에 섰다", 1 == await db.fetchval(
-            "SELECT count(*) FROM app.schedules WHERE team_id=$1 AND contact_id=$2"
-            "   AND category='계약' AND state='완료'", team, cid))
-        await c.delete(f"/contacts/{cid}", headers=H)
-        chk("커밋 삭제 → 표 0 (H7)", 0 == await db.fetchval(
+            "target_type": "listing", "listing_id": lid, "note": f"{MARK} 계약 체결", "status": "계약",
+            "schedule": {"title": "계약일", "on": tomorrow}})).json()["id"]
+        chk("일정 0(계약 사건 표 · 약속 둘 다)", 0 == await db.fetchval(
             "SELECT count(*) FROM app.schedules WHERE team_id=$1 AND contact_id=$2", team, cid))
-        chk("계약 기록은 채택을 켜지 않는다(0199)", 0 == await db.fetchval(
-            "SELECT count(*) FROM app.proposals WHERE team_id=$1 AND building_pk=$2 "
-            "  AND picked_at IS NOT NULL", team, pk))
-
-        print("\n[H8] 한 사건 = 한 표 — 「계약일」 약속과 계약이 표 하나로")
-        # 문장 하나가 약속(계약일)과 계약을 같이 품는다 → 표는 하나, 이름은 사람이 붙인 것
-        pid = (await c.post("/proposals", headers=H, json={
-            "buyer_id": bid_a, "building_pk": pk, "note": MARK})).json()["id"]
-        cid = (await c.post("/contacts", headers=H, json={
-            "target_type": "listing", "target_id": pk, "note": f"{MARK} 내일 계약일에 계약 체결",
-            "status": "계약", "occurred_on": tomorrow,
-            "schedule": {"title": "계약일", "on": tomorrow, "at": "11:00"}})).json()["id"]
-        scheds = await db.fetch(
-            "SELECT id, title, state FROM app.schedules WHERE team_id=$1 AND building_pk=$2", team, pk)
-        chk("표가 하나다", 1 == len(scheds), f"={[(r['title'], r['state']) for r in scheds]}")
-        chk("이름은 「계약일」·상태는 완료", scheds and scheds[0]["title"] == "계약일"
-            and scheds[0]["state"] == "완료")
-        sid = scheds[0]["id"] if scheds else None
-        ppl = await db.fetch(
-            "SELECT ref_kind FROM app.schedule_people WHERE schedule_id=$1 ORDER BY ref_kind", sid)
-        chk("매수자·매도자가 같은 표에 앉는다", ["buyer", "owner"] == [r["ref_kind"] for r in ppl]
-            or ["buyer"] == [r["ref_kind"] for r in ppl])   # owner 없는 매물이면 buyer 만
-
-        print("\n[H9] 거울 장부줄 — 장부는 하나다(0141), 합본엔 한 줄")
-        tl = (await c.get(f"/sales/timeline?building_pk={pk}", headers=H)).json()
+        chk("짝 장부에 계약 거울 1", 1 == await db.fetchval(
+            "SELECT count(*) FROM app.contacts WHERE team_id=$1 AND target_type='buyer' "
+            "AND target_id=$2::text AND auto AND status='계약'", team, str(bid_a)))
+        tl = (await c.get(f"/sales/timeline?listing_id={lid}", headers=H)).json()
         chk("합본엔 계약이 **한 줄**", 1 == sum(1 for r in tl if r["status"] == "계약"),
             f"={[(r['side'], r['note']) for r in tl if r['status'] == '계약']}")
-
-        print("\n[H10] 계약 줄 삭제 — 짝의 죽음도 풀리고, 완료시킨 일정은 예정으로")
+        chk("계약 기록은 채택을 켜지 않는다(0199)", None is await db.fetchval(
+            "SELECT picked_at FROM app.proposals WHERE id=$1", pid))
         await c.delete(f"/contacts/{cid}", headers=H)
-        left = await db.fetch(
-            "SELECT title, state FROM app.schedules WHERE team_id=$1 AND building_pk=$2", team, pk)
-        chk("표는 사라졌다(커밋이 낳은 표)", 0 == len(left), f"={[dict(r) for r in left]}")
-        print("\n[H11] 두 단계 — 「계약일」을 먼저 잡고 나중에 계약을 적으면 완료, 되돌리면 예정")
-        day2 = (dt.date.today() + dt.timedelta(days=2)).isoformat()
-        cid1 = (await c.post("/contacts", headers=H, json={
-            "target_type": "listing", "target_id": pk, "note": f"{MARK} 모레 계약일 잡음",
-            "schedule": {"title": "계약일", "on": day2}})).json()["id"]
-        cid2 = (await c.post("/contacts", headers=H, json={
-            "target_type": "listing", "target_id": pk, "note": f"{MARK} 계약 체결",
-            "status": "계약", "occurred_on": day2})).json()["id"]
-        scheds = await db.fetch(
-            "SELECT title, state, contact_id FROM app.schedules WHERE team_id=$1 AND building_pk=$2",
-            team, pk)
-        chk("표는 여전히 하나(새 표 없음)", 1 == len(scheds),
-            f"={[(r['title'], r['state']) for r in scheds]}")
-        chk("「계약일」이 완료로", scheds and scheds[0]["title"] == "계약일"
-            and scheds[0]["state"] == "완료")
-        await c.delete(f"/contacts/{cid2}", headers=H)
-        scheds = await db.fetch(
-            "SELECT title, state FROM app.schedules WHERE team_id=$1 AND building_pk=$2", team, pk)
-        chk("계약 취소 → 「계약일」은 예정으로(표는 남는다)",
-            [("계약일", "예정")] == [(r["title"], r["state"]) for r in scheds],
-            f"={[dict(r) for r in scheds]}")
-        print("\n[H12] 날짜 없이 「계약 체결」 — 잡혀 있던 계약일이 곧 그 날(날짜 유지)")
-        # 계약일은 모레(day2)로 잡혀 있고, 계약은 오늘 적는다 — 계약은 계약일에 한 것이다
-        cid2 = (await c.post("/contacts", headers=H, json={
-            "target_type": "listing", "target_id": pk, "note": f"{MARK} 계약 체결",
-            "status": "계약"})).json()["id"]
-        scheds = await db.fetch(
-            "SELECT title, state, on_date::text AS d FROM app.schedules WHERE team_id=$1 AND building_pk=$2",
-            team, pk)
-        chk("표 하나 · 「계약일」 완료 · 날짜는 계약일 그대로",
-            [("계약일", "완료", day2)] == [(r["title"], r["state"], r["d"]) for r in scheds],
-            f"={[dict(r) for r in scheds]}")
-        await c.delete(f"/contacts/{cid2}", headers=H)
-        scheds = await db.fetch(
-            "SELECT title, state FROM app.schedules WHERE team_id=$1 AND building_pk=$2", team, pk)
-        chk("되돌리면 다시 예정(0082 링크)",
-            [("계약일", "예정")] == [(r["title"], r["state"]) for r in scheds],
-            f"={[dict(r) for r in scheds]}")
-        await c.delete(f"/contacts/{cid1}", headers=H)
-        await c.delete(f"/proposals/{pid}", headers=H)
-        await db.execute("DELETE FROM app.listings WHERE team_id=$1 AND building_pk=$2", team, pk)
 
-        print("\n[H13] 사람 장부의 약속 — 참석자가 매물을 하나로 가리키면 그 매물의 것")
+        print("\n[C3] 사람 장부의 약속 — 참석자로 매물을 추론하지 않는다")
         oid = (await c.post("/owners", json={"name": f"{MARK}매도자"}, headers=H)).json()["id"]
-        await c.put(f"/owners/{oid}/listings", json={"building_pk": pk}, headers=H)
-        pid = (await c.post("/proposals", headers=H, json={
-            "buyer_id": bid_a, "building_pk": pk, "note": MARK})).json()["id"]
-        # 매수자 화면(사람 장부)에서: 「계약일」 약속 + 참석자 = 매수자·매도자
+        await c.put(f"/owners/{oid}/listings", json={"pnu": pnu}, headers=H)
         cidp = (await c.post("/contacts", headers=H, json={
             "target_type": "buyer", "target_id": str(bid_a), "note": f"{MARK} 계약서 쓰기로함",
             "schedule": {"title": "계약일", "on": tomorrow, "at": "10:00",
@@ -250,148 +188,59 @@ async def main():
                              {"kind": "buyer", "ref_id": bid_a, "label": f"{MARK}철수"},
                              {"kind": "owner", "ref_id": oid, "label": f"{MARK}매도자"}]}})).json()["id"]
         sch = await db.fetchrow(
-            "SELECT id, building_pk, proposal_id, title FROM app.schedules WHERE contact_id=$1", cidp)
-        chk("약속이 매물에 닻을 내렸다", sch and sch["building_pk"] == pk and sch["proposal_id"] == pid,
+            "SELECT id, proposal_id FROM app.schedules WHERE contact_id=$1", cidp)
+        chk("일정은 선다 · 짝 없음(일정엔 매물 칸이 없다)", sch is not None and sch["proposal_id"] is None,
             f"={dict(sch) if sch else None}")
-        chk("매물 장부에 자동 한 줄(합본에 뜬다)", 1 == await db.fetchval(
-            "SELECT count(*) FROM app.contacts WHERE team_id=$1 AND target_type='listing' "
-            "AND target_id=$2 AND auto AND src_schedule_id=$3", team, pk, sch["id"]))
-        tl = (await c.get(f"/sales/timeline?building_pk={pk}", headers=H)).json()
-        chk("합본에서 보인다 — **한 줄만**",
-            1 == sum(1 for r in tl if "계약일" in (r["note"] or "")),
-            f"={[r['note'] for r in tl if '계약일' in (r['note'] or '')]}")
-        # 이제 매물에서 「계약 체결」 — 잡아 둔 그 계약일이 곧 체결일이다
-        cidk = (await c.post("/contacts", headers=H, json={
-            "target_type": "listing", "target_id": pk, "note": f"{MARK} 계약 체결",
-            "status": "계약"})).json()["id"]
-        chk("계약일이 완료로(새 표 없음)",
-            "완료" == await db.fetchval("SELECT state FROM app.schedules WHERE id=$1", sch["id"])
-            and 1 == await db.fetchval(
-                "SELECT count(*) FROM app.schedules WHERE team_id=$1 AND building_pk=$2", team, pk))
-        # 원본 커밋 삭제 → 약속·매물 줄·거울 전부 걷힘
-        await c.delete(f"/contacts/{cidk}", headers=H)
-        await c.delete(f"/contacts/{cidp}", headers=H)
-        chk("원본 삭제 → 일정·매물 줄 0", (0, 0) == (
-            await db.fetchval("SELECT count(*) FROM app.schedules WHERE id=$1", sch["id"]),
-            await db.fetchval("SELECT count(*) FROM app.contacts WHERE team_id=$1 "
-                              "AND src_schedule_id=$2", team, sch["id"])))
-        await c.delete(f"/proposals/{pid}", headers=H)
-        await db.execute("DELETE FROM app.listings WHERE team_id=$1 AND building_pk=$2", team, pk)
-
-        print("\n[H14] 제안 장부의 일정 문장 — 단계 안 찍히고, 매도자 참석자에게 거울")
-        pid = (await c.post("/proposals", headers=H, json={
-            "buyer_id": bid_a, "building_pk": pk, "note": MARK})).json()["id"]
-        await c.patch(f"/proposals/{pid}", headers=H, json={
-            "note": f"{MARK} 일정 내일 두시 계약 스타벅스에서",
-            "schedule": {"title": "계약", "on": tomorrow, "at": "14:00", "place": "스타벅스",
-                         "people": [
-                             {"kind": "buyer", "ref_id": bid_a, "label": f"{MARK}철수"},
-                             {"kind": "owner", "ref_id": oid, "label": f"{MARK}매도자"}]}})
-        ev = await db.fetchrow(
-            """SELECT id, status, proposal_id FROM app.contacts WHERE team_id=$1
-                AND target_type='buyer' AND proposal_id=$2 ORDER BY id DESC LIMIT 1""", team, pid)
-        chk("문장은 그 매수자 장부에 서되 단계가 없다(메모)",
-            ev is not None and ev["status"] is None, f"={dict(ev) if ev else None}")
-        sid = await db.fetchval(
-            "SELECT id FROM app.schedules WHERE team_id=$1 AND proposal_id=$2", team, pid)
-        chk("일정이 짝에 매달려 섰다", sid is not None)
-        chk("매도자 참석자 장부에 거울 1", 1 == await db.fetchval(
+        chk("매물 장부 자동 줄 0", 0 == await listing_auto(lid))
+        chk("매도자 참석자 장부엔 거울 1(사람 장부는 남는다)", 1 == await db.fetchval(
             "SELECT count(*) FROM app.contacts WHERE team_id=$1 AND target_type='owner' "
-            "AND target_id=$2::text AND auto AND src_schedule_id=$3", team, str(oid), sid))
-        await c.delete(f"/contacts/{ev['id']}", headers=H)
-        chk("문장 삭제 → 일정·매도자 거울 걷힘", (0, 0) == (
-            await db.fetchval("SELECT count(*) FROM app.schedules WHERE id=$1", sid),
-            await db.fetchval("SELECT count(*) FROM app.contacts WHERE team_id=$1 "
-                              "AND src_schedule_id=$2", team, sid)))
-        await c.delete(f"/proposals/{pid}", headers=H)
-        await db.execute("DELETE FROM app.listings WHERE team_id=$1 AND building_pk=$2", team, pk)
+            "AND target_id=$2::text AND auto AND src_schedule_id=$3", team, str(oid), sch["id"]))
+        await c.delete(f"/contacts/{cidp}", headers=H)
 
-        print("\n[H15] 매물에서 만든 약속 — 매수자 참석자 거울은 그 사람 장부로(0141)")
-        pid = (await c.post("/proposals", headers=H, json={
-            "buyer_id": bid_a, "building_pk": pk, "note": MARK})).json()["id"]
-        cid = (await c.post("/contacts", headers=H, json={
-            "target_type": "listing", "target_id": pk, "note": f"{MARK} 계약일정 잡음",
-            "schedule": {"title": "계약일정", "on": tomorrow, "at": "10:00",
-                         "people": [{"kind": "buyer", "ref_id": bid_a, "label": f"{MARK}철수"}]}})).json()["id"]
-        sid = await db.fetchval("SELECT id FROM app.schedules WHERE contact_id=$1", cid)
-        chk("매수자 거울이 그 사람 장부에", 1 == await mirrors(bid_a))
-        await c.delete(f"/contacts/{cid}", headers=H)
-        chk("원본 삭제 → 거울도 걷힘", 0 == await db.fetchval(
-            "SELECT count(*) FROM app.contacts WHERE team_id=$1 AND src_schedule_id=$2",
-            team, sid))
-        await c.delete(f"/proposals/{pid}", headers=H)
-        await db.execute("DELETE FROM app.listings WHERE team_id=$1 AND building_pk=$2", team, pk)
-
-        print("\n[H16] 계약일정 ✓ — 거울 · 승격은 서고, 채택 · 상태는 사람이 고른다(0199)")
-        pid = (await c.post("/proposals", headers=H, json={
-            "buyer_id": bid_a, "building_pk": pk, "note": MARK})).json()["id"]
-        cid = (await c.post("/contacts", headers=H, json={
-            "target_type": "listing", "target_id": pk, "note": f"{MARK} 계약일 잡음",
-            "schedule": {"title": "계약일", "on": tomorrow, "at": "11:00"}})).json()["id"]
-        sid = await db.fetchval("SELECT id FROM app.schedules WHERE contact_id=$1", cid)
-        await c.patch(f"/schedules/{sid}", json={"state": "완료"}, headers=H)
-        chk("✓ 는 채택을 켜지 않는다", None is await db.fetchval(
-            "SELECT picked_at FROM app.proposals WHERE id=$1", pid))
-        chk("✓ 는 매물 상태를 바꾸지 않는다", None is await db.fetchval(
-            "SELECT status_id FROM app.listings WHERE team_id=$1 AND building_pk=$2", team, pk))
-        chk("그 ✓ 가 낳은 계약 기록이 표에 걸린다", None is not await db.fetchval(
-            "SELECT promoted_by_contact_id FROM app.schedules WHERE id=$1", sid))
-        await c.patch(f"/schedules/{sid}", json={"state": "예정"}, headers=H)
-        chk("해제 → 표는 약속으로", "약속" == await db.fetchval(
-            "SELECT kind FROM app.schedules WHERE id=$1", sid))
-        await c.delete(f"/contacts/{cid}", headers=H)
-        await c.delete(f"/proposals/{pid}", headers=H)
-        await db.execute("DELETE FROM app.listings WHERE team_id=$1 AND building_pk=$2", team, pk)
-
-        print("\n[H17] 일정 종류는 모달 토글이 정본(0088) — 이름이 뭐든 지정하면 ✓=체결")
-        pid = (await c.post("/proposals", headers=H, json={
-            "buyer_id": bid_a, "building_pk": pk, "note": MARK})).json()["id"]
-        # 「도장 찍는 날」 — 제목 규칙으로는 계약이 아니지만, 사람이 계약으로 지정했다
-        cid = (await c.post("/contacts", headers=H, json={
-            "target_type": "listing", "target_id": pk, "note": f"{MARK} 도장 날 잡음",
-            "schedule": {"title": "도장 찍는 날", "on": tomorrow, "category": "계약"}})).json()["id"]
-        sid = await db.fetchval("SELECT id FROM app.schedules WHERE contact_id=$1", cid)
-        chk("종류 저장", "계약" == await db.fetchval(
-            "SELECT category FROM app.schedules WHERE id=$1", sid))
-        await c.patch(f"/schedules/{sid}", json={"state": "완료"}, headers=H)
-        chk("계약 종류 ✓ 도 채택을 켜지 않는다(0199)", None is await db.fetchval(
-            "SELECT picked_at FROM app.proposals WHERE id=$1", pid))
-        await c.patch(f"/schedules/{sid}", json={"state": "예정"}, headers=H)
-        # 반대: 제목은 「계약일」인데 사람이 일반으로 지정 — ✓는 그냥 완료 로그
-        await c.patch(f"/schedules/{sid}", json={"category": "일반", "title": "계약일"}, headers=H)
-        await c.patch(f"/schedules/{sid}", json={"state": "완료"}, headers=H)
-        chk("일반 지정이면 ✓는 체결 아님", None is await db.fetchval(
-            "SELECT picked_at FROM app.proposals WHERE id=$1", pid))
-        await c.delete(f"/contacts/{cid}", headers=H)
-        await c.delete(f"/proposals/{pid}", headers=H)
-        await db.execute("DELETE FROM app.listings WHERE team_id=$1 AND building_pk=$2", team, pk)
-
-        print("\n[H18] 창에서 붙인 매물(명시 닻) — 추론이 못 좁혀도 그 매물이다")
-        pk2 = await db.fetchval(
-            "SELECT building_pk FROM master.buildings WHERE building_pk NOT IN "
-            "(SELECT building_pk FROM app.listings WHERE team_id=$1) AND building_pk != $2 LIMIT 1",
-            team, pk)
-        # 매수자가 매물 둘에 제안 — 참석자 추론으로는 하나로 못 좁힌다
-        pid1 = (await c.post("/proposals", headers=H, json={
-            "buyer_id": bid_a, "building_pk": pk, "note": MARK})).json()["id"]
-        await c.post("/proposals", headers=H, json={
-            "buyer_id": bid_a, "building_pk": pk2, "note": MARK})
+        print("\n[C4] 창에서 붙인 매물 — 매도자만 앉히고 매물에는 아무것도 안 쓴다(0222 · 0255)")
         cid = (await c.post("/contacts", headers=H, json={
             "target_type": "buyer", "target_id": str(bid_a), "note": f"{MARK} 내일 보기로",
-            "schedule": {"title": "미팅", "on": tomorrow, "building_pk": pk,
+            "schedule": {"title": "미팅", "on": tomorrow, "listing_id": lid,
                          "people": [{"kind": "buyer", "ref_id": bid_a, "label": f"{MARK}철수"}]}})).json()["id"]
-        sch = await db.fetchrow(
-            "SELECT building_pk, proposal_id FROM app.schedules WHERE contact_id=$1", cid)
-        chk("명시 닻이 그대로 선다", sch and sch["building_pk"] == pk and sch["proposal_id"] == pid1,
-            f"={dict(sch) if sch else None}")
+        sch = await db.fetchrow("SELECT id, proposal_id FROM app.schedules WHERE contact_id=$1", cid)
+        chk("일정은 선다 · 짝 없음", sch is not None and sch["proposal_id"] is None, f"={dict(sch) if sch else None}")
+        chk("매물 장부 자동 줄 0", 0 == await listing_auto(lid))
         await c.delete(f"/contacts/{cid}", headers=H)
-        for r in await db.fetch("SELECT id FROM app.proposals WHERE team_id=$1 AND buyer_id=$2", team, bid_a):
-            await c.delete(f"/proposals/{r['id']}", headers=H)
-        await db.execute("DELETE FROM app.listings WHERE team_id=$1 AND building_pk IN ($2,$3)", team, pk, pk2)
+
+        print("\n[C5] 매물 이름표가 붙은 계약 일정 ✓ — 매물 장부 · 짝으로 안 넘어간다")
+        r = await c.post("/schedules", headers=H, json={
+            "title": "도장 찍는 날", "on": tomorrow, "category": "계약", "listing_id": lid})
+        sid = r.json().get("id")
+        chk("종류 저장", "계약" == await db.fetchval("SELECT category FROM app.schedules WHERE id=$1", sid))
+        await c.patch(f"/schedules/{sid}", json={"state": "완료"}, headers=H)
+        chk("매물 장부 줄 0", 0 == await db.fetchval(
+            "SELECT count(*) FROM app.contacts WHERE team_id=$1 AND listing_id=$2", team, lid))
+        chk("짝 장부 계약 거울 0", 0 == await db.fetchval(
+            "SELECT count(*) FROM app.contacts WHERE team_id=$1 AND target_type='buyer' "
+            "AND target_id=$2::text AND src_schedule_id=$3", team, str(bid_a), sid))
+        chk("채택 안 켜짐", None is await db.fetchval("SELECT picked_at FROM app.proposals WHERE id=$1", pid))
+        await c.delete(f"/schedules/{sid}", headers=H)
+
+        print("\n[C6] 계약 날짜는 짝 칸 — 저장 · 지우기, 일정은 그대로")
+        n0 = await db.fetchval("SELECT count(*) FROM app.schedules WHERE team_id=$1", team)
+        day2 = (dt.date.today() + dt.timedelta(days=2)).isoformat()
+        r = await c.patch(f"/proposals/{pid}/deal", headers=H, json={
+            "contract_on": tomorrow, "mid_on": day2, "mid_amount": 300000000, "balance_on": day2})
+        chk("저장 200", r.status_code == 200, f"={r.status_code} {r.text[:80]}")
+        row = await db.fetchrow(
+            "SELECT contract_on::text c, mid_on::text m, mid_amount a, balance_on::text b FROM app.proposals WHERE id=$1", pid)
+        chk("네 칸이 선다", (row["c"], row["m"], row["a"], row["b"]) == (tomorrow, day2, 300000000, day2), f"={dict(row)}")
+        await c.patch(f"/proposals/{pid}/deal", headers=H, json={"clear": ["mid_on", "mid_amount"]})
+        chk("중도금 지우기", (None, None) == tuple(await db.fetchrow(
+            "SELECT mid_on, mid_amount FROM app.proposals WHERE id=$1", pid)))
+        chk("일정 수 그대로", n0 == await db.fetchval("SELECT count(*) FROM app.schedules WHERE team_id=$1", team))
+        await c.delete(f"/proposals/{pid}", headers=H)
+        await db.execute("DELETE FROM app.listings WHERE team_id=$1 AND id=$2", team, lid)
 
         print("\n[H19] 안 산다 = 사람이 누른다(dropped_at) · 되살릴 수 있다(0199)")
+        lid = (await c.put("/listings/claim", headers=H, json={"pnu": pnu, "assignee_account_id": me_id})).json()["listing_id"]
         pid = (await c.post("/proposals", headers=H, json={
-            "buyer_id": bid_a, "building_pk": pk, "note": MARK})).json()["id"]
+            "buyer_id": bid_a, "listing_id": lid, "note": MARK})).json()["id"]
         await c.patch(f"/proposals/{pid}/deal", headers=H, json={"brief_how": ["전화"]})
         r = await c.patch(f"/proposals/{pid}", headers=H, json={"dropped": True})
         chk("안 산다 저장 200", r.status_code == 200, f"={r.status_code} {r.text[:80]}")
@@ -407,26 +256,7 @@ async def main():
             "SELECT count(*) FROM app.field_events WHERE team_id=$1 AND target_type='proposal' "
             "AND target_id=$2 AND field='hope_price'", team, str(pid)))
         await c.delete(f"/proposals/{pid}", headers=H)
-        await db.execute("DELETE FROM app.listings WHERE team_id=$1 AND building_pk=$2", team, pk)
-
-        print("\n[H20] 일정 종류(0088) — 종류는 저장되고, 잔금 ✓ 는 계약 체결이 아니다")
-        pid = (await c.post("/proposals", headers=H, json={
-            "buyer_id": bid_a, "building_pk": pk, "note": MARK})).json()["id"]
-        cid = (await c.post("/contacts", headers=H, json={
-            "target_type": "listing", "target_id": pk, "note": f"{MARK} 잔금일",
-            "schedule": {"title": "잔금", "on": tomorrow}})).json()["id"]
-        chk("제목에서 종류 추정 — 잔금", "잔금" == await db.fetchval(
-            "SELECT category FROM app.schedules WHERE contact_id=$1", cid))
-        sid = await db.fetchval("SELECT id FROM app.schedules WHERE contact_id=$1", cid)
-        await c.patch(f"/schedules/{sid}", headers=H, json={"category": "중도금"})
-        chk("모달 토글이 정본 — 중도금", "중도금" == await db.fetchval(
-            "SELECT category FROM app.schedules WHERE id=$1", sid))
-        await c.patch(f"/schedules/{sid}", headers=H, json={"state": "완료"})
-        chk("중도금 ✓ 는 상대 확정이 아니다", None is await db.fetchval(
-            "SELECT picked_at FROM app.proposals WHERE id=$1", pid))
-        await c.delete(f"/contacts/{cid}", headers=H)
-        await c.delete(f"/proposals/{pid}", headers=H)
-        await db.execute("DELETE FROM app.listings WHERE team_id=$1 AND building_pk=$2", team, pk)
+        await db.execute("DELETE FROM app.listings WHERE team_id=$1 AND id=$2", team, lid)
 
         print("\n[불변식] 팀 전체 — 고아 거울·유령 일정이 없다")
         audits = {

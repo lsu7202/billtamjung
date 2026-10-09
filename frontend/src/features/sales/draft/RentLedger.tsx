@@ -1,238 +1,199 @@
-import { MarketAsks } from "../../building/MarketAsks";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { rentsApi, type FloorRent, type LedgerFloor } from "../../../shared/api/endpoints";
+import { rentsApi, type FloorRent } from "../../../shared/api/endpoints";
 import { Icon } from "../../../shared/ui/Icon";
-import { wonAcc } from "../../../shared/format";
-import "../../building/bldgtab.css";
+import { floorName, wonAcc } from "../../../shared/format";
+import { parseAmount } from "../../building/KV";
+import { useUnit } from "../../../shared/hooks/useUnit";
 
-/** 임대 내역(내 매물) — 팀 호실 줄을 층별로 고친다(0185, 2026-09-26 대표).
+/** 임대 내역 — 자유로운 시트(10-02 대표). 한 줄 = 호실 하나, 칸이 곧 입력칸(엑셀처럼).
  *
- *  호실 = **업체 단위** 한 줄. 상태는 저장하지 않는다 — 상호가 있거나 임대료가 적혀 있으면 임대중,
- *  둘 다 없으면 공실(서버 판정 `occupied`). 호실이 하나도 없는 층은 모름이다.
- *  매물 등록 때 원장 업체가 한 번 복사돼 들어와 있고, 그 뒤로는 여기서만 바뀐다.
- *  층을 모르는 업체(층 미상)는 층 칩을 눌러 옮긴다. 문 닫은 업체는 지운다.
- */
+ *  우리가 아는 것은 미리 채운다 — 원장 업체(층 · 업체, 매물 등록 때 복사)와,
+ *  대장에는 있는데 호실이 없는 층(층만 채운 줄 — 다른 줄과 똑같이 보인다. 치면 그 줄이 저장된다).
+ *  맨 아래는 늘 빈 줄 하나. 「+ 행」 단추는 두지 않는다(누르기만 하고 층을 안 친다) — Enter 로 줄이 이어진다. 층 순서(1층부터 위로 → 옥탑 → 지하 → 층 모름)로 저절로 정렬된다.
+ *  칸을 벗어나면 그 줄을 저장한다. 돈은 만원(5000 · 5000만 · 1.5억), 면적은 앱 단위(평/㎡).
+ *  상태는 저장하지 않는다 — 업체도 임대료도 없으면 공실(서버 판정 occupied). */
 
 const P = 3.305785;
-/** 보증금 — 1억5천은 「1.5억」(대표). 표기는 공용 wonAcc 하나 */
-const eokMan = (v?: number | null) => (v ? wonAcc(v) : null);
-/** 월 임대료·관리비는 늘 만 단위 — 억으로 끊으면 월세가 1억2천처럼 읽힌다 */
-const manOnly = (v?: number | null) => (v ? `${Math.round(v / 1e4).toLocaleString()}만` : null);
-const py = (m2?: number | null) => (m2 == null ? null : `${(m2 / P).toFixed(1)}평`);
+// 업종은 내역에 안 싣는다(10-02 대표) — 원장에서 복사해 온 업종(cat_nodes)은 저장값으로 그대로 둔다
+const COLS = ["floor", "tenant_name", "unit_no", "contract_area", "excl_area", "deposit", "rent", "maintenance"] as const;
+type Col = (typeof COLS)[number];
 
-/** 돈 한 칸 — 눌러서 그 자리에서 고친다. 입력은 만원, 비우면 모름(null) */
-function Money({ v, onSave, man }: { v?: number | null; onSave: (won: number | null) => void; man?: boolean }) {
-  const [ed, setEd] = useState(false);
-  const [t, setT] = useState("");
-  if (ed) return (
-    <input className="um-in num" autoFocus value={t} inputMode="numeric" style={{ width: 110, padding: "4px 8px", fontSize: 13 }}
-      onChange={(e) => setT(e.target.value.replace(/[^\d.]/g, ""))}
-      onBlur={() => { setEd(false); if (!t.trim()) { onSave(null); return; } const n = parseFloat(t); if (!Number.isNaN(n)) onSave(Math.round(n * 1e4)); }}
-      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEd(false); }} />
-  );
-  const s = man ? manOnly(v) : eokMan(v);
-  return (
-    <button className="um-vp" onClick={() => { setT(v ? String(Math.round(v / 1e4)) : ""); setEd(true); }}>
-      <b className={`num ${s ? "" : "off"}`}>{s ?? "—"}</b></button>
-  );
+/** 층 정렬 열쇠 — 앱 전체와 같은 순서: 1층부터 위로 → 옥탑 → 지하(B1, B2 …) → 모르면 맨 뒤 */
+function floorRank(f: string | null | undefined): number {
+  if (!f) return 1e6;
+  const s = f.replace(/\s/g, "");
+  let m = s.match(/^(?:지하|B)(\d+)/i); if (m) return 2000 + Number(m[1]);
+  m = s.match(/^(?:옥탑|R)(\d*)/i); if (m) return 1000 + Number(m[1] || 1);
+  m = s.match(/(\d+)/); if (m) return Number(m[1]);
+  return 5e5;
 }
 
-/** 글자 한 칸 — 눌러서 그 자리에서. 비우면 null */
-function Txt({ v, w, onSave, num }: { v: string; w: number; onSave: (v: string) => void; num?: boolean }) {
-  const [ed, setEd] = useState(false);
-  const [t, setT] = useState("");
-  if (ed) return (
-    <input className={`um-in ${num ? "num" : ""}`} autoFocus value={t} style={{ width: w, padding: "4px 8px", fontSize: 13 }}
-      onChange={(e) => setT(e.target.value)}
-      onBlur={() => { setEd(false); if (t !== v) onSave(t.trim()); }}
-      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEd(false); }} />
-  );
-  return (
-    <button className="um-vp" style={{ maxWidth: w }} onClick={() => { setT(v); setEd(true); }}>
-      <b className={`${num ? "num" : ""} ${v ? "" : "off"}`}>{v || "—"}</b></button>
-  );
-}
+type Row = { key: string; u: FloorRent | null; floor: string | null; virtual: boolean };
 
-type Cat = { path: string[]; name: string; depth: number };
-
-/** 업종 고르기 — 칩 세 줄(대 → 중 → 소)과 찾기 한 줄. 어디서 멈춰도 저장되고, 고른 칩을 다시 누르면 그 단이 빠진다.
- *  목록은 크롤링 업종 나무(가나다순, /biz-cats). 드롭다운이 아니라 칩이다(CLAUDE.md UI 어법) */
-function CatPicker({ cur, cats, onPick }: { cur: string[]; cats: Cat[]; onPick: (p: string[] | null) => void }) {
-  const [q, setQ] = useState("");
-  const kids = (parent: string[]) => cats.filter((c) => c.depth === parent.length + 1
-    && parent.every((p, i) => c.path[i] === p));
-  const pick = (c: Cat) => {
-    const same = cur.length === c.depth && c.path.every((p, i) => cur[i] === p);
-    const next = same ? c.path.slice(0, -1) : c.path;
-    onPick(next.length ? next : null);
-  };
-  const row = (parent: string[]) => {
-    const list = kids(parent);
-    if (!list.length) return null;
-    return (
-      <span className="chips-in" key={parent.join(">") || "root"}>
-        {list.map((c) => (
-          <button key={c.name} className={cur[c.depth - 1] === c.name ? "on" : ""} onClick={() => pick(c)}>{c.name}</button>
-        ))}
-      </span>
-    );
-  };
-  const hits = q.trim() ? cats.filter((c) => c.name.includes(q.trim())).slice(0, 20) : [];
-  return (
-    <div className="rl-cp">
-      <input className="um-in" autoFocus placeholder="찾기" value={q} onChange={(e) => setQ(e.target.value)} />
-      {q.trim() ? (
-        <span className="chips-in">
-          {hits.map((c) => <button key={c.path.join(">")} onClick={() => { onPick(c.path); setQ(""); }}>{c.path.join(" › ")}</button>)}
-          {!hits.length && <span className="off">없음</span>}
-        </span>
-      ) : (
-        <>{row([])}{cur[0] && row(cur.slice(0, 1))}{cur[1] && row(cur.slice(0, 2))}</>
-      )}
-    </div>
-  );
-}
-
-export function RentLedger({ pk, onSaved }: { pk: string; onSaved: () => void }) {
-  const q = useQuery({ queryKey: ["rent-ledger", pk], queryFn: () => rentsApi.list(pk) });
-  const catsQ = useQuery({ queryKey: ["biz-cats"], queryFn: rentsApi.cats, staleTime: 10 * 60_000 });
-  const [catOpen, setCatOpen] = useState<number | null>(null);   // 업종을 고르는 호실
-  const floors: LedgerFloor[] = q.data?.floors ?? [];
-  const unknown: FloorRent[] = q.data?.unknown ?? [];   // 층 미상 호실
-  const total = q.data?.total;
+/** dongs = 매물 지번 위 동이 둘 이상이면 칩으로 고른다(임대 줄은 (매물, 동)마다 · 0255) */
+export function RentLedger({ pk, lid, dongs, onDong, onSaved }: {
+  pk: string; lid: number; dongs?: { building_pk: string; name: string }[]; onDong?: (pk: string) => void; onSaved: () => void;
+}) {
+  const q = useQuery({ queryKey: ["rent-ledger", lid, pk], queryFn: () => rentsApi.list(pk, lid) });
+  const { unit } = useUnit();
+  const per = unit === "py" ? P : 1;
   const [busy, setBusy] = useState(false);
-  const [pick, setPick] = useState<string | null>(null);         // 층 이름 · 「?」 = 층 미상
-  const curUn = pick === "?" ? unknown.length > 0 : !floors.length && unknown.length > 0;
-  const cur = curUn ? null : floors.find((g) => g.floor === pick) ?? floors[0] ?? null;
+  const [draft, setDraft] = useState<Record<string, Partial<Record<Col, string>>>>({});   // 치는 중인 글자(줄 열쇠 → 칸)
+  const total = q.data?.total;
+  const tableRef = useRef<HTMLDivElement>(null);
 
-  const done = async () => { await q.refetch(); onSaved(); };
-  /** 호실 한 줄 저장 — 줄 전체를 보낸다(서버는 id 로 고친다) */
-  async function put(u: FloorRent, patch: Partial<FloorRent>) {
-    if (busy) return;
+  /* 줄 — 저장된 호실 + 호실 없는 대장 층(회색, virtual) + 맨 아래 빈 줄. 층 순서로 */
+  const rows: Row[] = useMemo(() => {
+    const floors = q.data?.floors ?? [];
+    const saved: Row[] = [...floors.flatMap((g) => g.units), ...(q.data?.unknown ?? [])]
+      .map((u) => ({ key: `u${u.id}`, u, floor: u.floor, virtual: false }));
+    const ghosts: Row[] = floors.filter((g) => !g.units.length)
+      .map((g) => ({ key: `g${g.floor}`, u: null, floor: g.floor, virtual: true }));
+    const all = [...saved, ...ghosts].sort((a, b) => floorRank(a.floor) - floorRank(b.floor) || (a.u?.id ?? 0) - (b.u?.id ?? 0));
+    // 엑셀처럼 줄을 깔아 둔다 — 100줄(미리 채운 줄이 많으면 빈 줄 하나 이상은 늘 남긴다)
+    const blanks = Math.max(1, 100 - all.length);
+    return [...all, ...Array.from({ length: blanks }, (_, i) => ({ key: `n${i}`, u: null, floor: null, virtual: true }))];
+  }, [q.data]);
+  useEffect(() => { setDraft({}); }, [pk, lid]);
+
+  /** 칸에 보일 글자 — 치는 중이면 그 글자, 아니면 저장값 */
+  const shown = (r: Row, c: Col): string => {
+    const d = draft[r.key]?.[c];
+    if (d !== undefined) return d;
+    const u = r.u;
+    if (c === "floor") return r.floor ? floorName(r.floor) : "";
+    if (!u) return "";
+    switch (c) {
+      case "tenant_name": return u.tenant_name ?? "";
+      case "unit_no": return u.unit_no ?? "";
+      case "contract_area": return u.contract_area != null ? String(Math.round((u.contract_area / per) * 10) / 10) : "";
+      case "excl_area": return u.excl_area != null ? String(Math.round((u.excl_area / per) * 10) / 10) : "";
+      // 보증금은 억 단위 표기(1.5억 · 5,000만), 월 임대료 · 관리비는 만원(10-02 대표)
+      case "deposit": return u.deposit != null ? wonAcc(u.deposit) : "";
+      case "rent": case "maintenance": {
+        const v = u[c]; return v != null ? Math.round(v / 1e4).toLocaleString() : "";
+      }
+    }
+  };
+  const setCell = (r: Row, c: Col, v: string) => setDraft((d) => ({ ...d, [r.key]: { ...d[r.key], [c]: v } }));
+
+  /** 줄 저장 — 칸을 벗어날 때. 바뀐 칸이 없으면 안 보낸다. 회색 · 빈 줄은 무엇이든 치면 새 호실 */
+  async function commit(r: Row) {
+    const d = draft[r.key];
+    if (!d || !Object.keys(d).length || busy) return;
+    const u = r.u;
+    const num = (t: string | undefined) => { const n = parseFloat((t ?? "").replace(/,/g, "")); return Number.isFinite(n) ? n : null; };
+    // 단위 없이 치면 — 보증금은 억(1.5 → 1.5억), 월 임대료 · 관리비는 만원(300 → 300만). 단위를 붙이면 그 값
+    const money = (t: string | undefined, base: number) => (t == null || !t.trim() ? null : parseAmount(t, base));
+    const has = (c: Col) => d[c] !== undefined;
+    const base: FloorRent = {
+      id: u?.id, floor: u?.floor ?? r.floor ?? null, unit_no: u?.unit_no ?? "",
+      contract_area: u?.contract_area ?? null, excl_area: u?.excl_area ?? null,
+      tenant_name: u?.tenant_name ?? null, cat_nodes: u?.cat_nodes ?? null,
+      deposit: u?.deposit ?? null, rent: u?.rent ?? null, maintenance: u?.maintenance ?? null,
+      vacant: u?.vacant ?? false,
+    };
+    if (has("floor")) base.floor = d.floor!.trim() || null;
+    if (has("tenant_name")) base.tenant_name = d.tenant_name!.trim() || null;
+    if (has("unit_no")) base.unit_no = d.unit_no!.trim();
+    if (has("contract_area")) { const n = num(d.contract_area); base.contract_area = n != null ? n * per : null; }
+    if (has("excl_area")) { const n = num(d.excl_area); base.excl_area = n != null ? n * per : null; }
+    if (has("deposit")) base.deposit = money(d.deposit, 1e8);
+    for (const c of ["rent", "maintenance"] as const) if (has(c)) base[c] = money(d[c], 1e4);
+    // 엑셀처럼 — 칸을 다 비운 줄은 지운다(지우기 단추 없음). 층만 있어도 값이 있는 줄이다
+    const empty = !base.floor && !base.vacant && !base.tenant_name && !base.unit_no && base.contract_area == null && base.excl_area == null
+      && base.deposit == null && base.rent == null && base.maintenance == null;
+    if (empty) {
+      setDraft((x) => { const n = { ...x }; delete n[r.key]; return n; });
+      if (u?.id != null) await del(u);
+      return;
+    }
     setBusy(true);
     try {
-      await rentsApi.upsert(pk, {
-        id: u.id, floor: u.floor, unit_no: u.unit_no ?? "",
-        contract_area: u.contract_area ?? null, excl_area: u.excl_area ?? null,
-        tenant_name: u.tenant_name ?? null, cat_nodes: u.cat_nodes ?? null,
-        deposit: u.deposit ?? null, rent: u.rent ?? null, maintenance: u.maintenance ?? null,
-        ...patch,
-      } as FloorRent);
-      await done();
-    } finally { setBusy(false); }
+      await rentsApi.upsert(pk, lid, base); await q.refetch(); onSaved();
+      // 맨 아래 빈 줄에서 쳤으면 — 저장된 줄은 층 자리로 가고, 새 빈 줄의 첫 칸으로 이어서 친다
+      if (r.key.startsWith("n")) setTimeout(() => tableRef.current?.querySelector<HTMLInputElement>(".rsx-r.blank input")?.focus(), 0);
+    }
+    finally {
+      setBusy(false);
+      setDraft((x) => { const n = { ...x }; delete n[r.key]; return n; });
+    }
   }
-  async function addUnit(floor: string) {
+  /** 공실 체크 — 누르면 바로 저장. 빈 줄 · 층만 있는 줄에서 누르면 그 층의 공실 호실이 생긴다 */
+  async function toggleVacant(r: Row) {
     if (busy) return;
+    const u = r.u;
+    const floor = draft[r.key]?.floor !== undefined ? (draft[r.key]!.floor!.trim() || null) : (u?.floor ?? r.floor ?? null);
     setBusy(true);
-    try { await rentsApi.upsert(pk, { floor, unit_no: "" } as FloorRent); await done(); } finally { setBusy(false); }
+    try {
+      await rentsApi.upsert(pk, lid, u ? { ...u, floor, vacant: !u.vacant } : { floor, unit_no: "", vacant: true } as FloorRent);
+      await q.refetch(); onSaved();
+    } finally { setBusy(false); }
   }
   async function del(u: FloorRent) {
     if (busy || u.id == null) return;
     setBusy(true);
-    try { await rentsApi.del(pk, u.id); await done(); } finally { setBusy(false); }
+    try { await rentsApi.del(pk, lid, u.id); await q.refetch(); onSaved(); } finally { setBusy(false); }
   }
-  const [addFloor, setAddFloor] = useState(false);
-  const [nf, setNf] = useState("");
 
-  const unitCard = (u: FloorRent, moving?: boolean) => (
-    <div className="fl2-u" key={u.id}>
-      <div className="fl2-uh">
-        {u.tenant_name ? <b>{u.tenant_name}</b> : <b className="off">—</b>}
-        <span className={`rl-st ${u.occupied ? "" : "vac"}`}>{u.occupied ? "임대중" : "공실"}</span>
-        <button className="mini bad" title="이 호실 지움" onClick={() => del(u)}><Icon name="trash" size={12} /></button>
-      </div>
-      {moving && (
-        <div className="fl2-fl">
-          {floors.map((g) => (
-            <button key={g.floor} disabled={busy} onClick={() => put(u, { floor: g.floor })}>{g.floor}</button>
-          ))}
-        </div>
-      )}
-      <div className="fl2-g">
-        <span className="dk">상호명</span><span className="dv"><Txt v={u.tenant_name ?? ""} w={220} onSave={(v) => put(u, { tenant_name: v || null })} /></span>
-        <span className="dk">업종</span><span className="dv">
-          <button className="um-vp" onClick={() => setCatOpen(catOpen === u.id ? null : u.id ?? null)}>
-            <b className={u.cat_nodes?.length ? "" : "off"}>{u.cat_nodes?.length ? u.cat_nodes.join(" › ") : "—"}</b></button>
-        </span>
-        {catOpen === u.id && (
-          <div className="rl-cpw"><CatPicker cur={u.cat_nodes ?? []} cats={catsQ.data ?? []}
-            onPick={(p) => put(u, { cat_nodes: p })} /></div>
-        )}
-        <span className="dk">호수</span><span className="dv"><Txt v={u.unit_no ?? ""} w={110} onSave={(v) => put(u, { unit_no: v })} /></span>
-        <span className="dk">계약면적</span><span className="dv"><Txt num v={u.contract_area != null ? (u.contract_area / P).toFixed(1) : ""} w={110}
-          onSave={(v) => { const n = parseFloat(v.replace(/[^\d.]/g, "")); put(u, { contract_area: Number.isFinite(n) ? n * P : null }); }} /></span>
-        <span className="dk">전용면적</span><span className="dv"><Txt num v={u.excl_area != null ? (u.excl_area / P).toFixed(1) : ""} w={110}
-          onSave={(v) => { const n = parseFloat(v.replace(/[^\d.]/g, "")); put(u, { excl_area: Number.isFinite(n) ? n * P : null }); }} /></span>
-        <span className="dk">보증금</span><span className="dv"><Money v={u.deposit} onSave={(w) => put(u, { deposit: w })} /></span>
-        <span className="dk">월 임대료</span><span className="dv"><Money man v={u.rent} onSave={(w) => put(u, { rent: w })} /></span>
-        <span className="dk">월 관리비</span><span className="dv"><Money man v={u.maintenance} onSave={(w) => put(u, { maintenance: w })} /></span>
-      </div>
-    </div>
-  );
+  /** Enter = 아래 칸, Esc = 치던 것 버리기. Tab 은 브라우저 기본(오른쪽 칸) */
+  const onKey = (e: React.KeyboardEvent<HTMLInputElement>, ri: number, ci: number, r: Row) => {
+    if (e.key === "Escape") { setDraft((x) => { const n = { ...x }; delete n[r.key]; return n; }); (e.target as HTMLInputElement).blur(); }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const next = tableRef.current?.querySelector<HTMLInputElement>(`input[data-r="${ri + 1}"][data-c="${ci}"]`);
+      if (next) next.focus(); else (e.target as HTMLInputElement).blur();
+    }
+  };
 
+  const unitLab = unit === "py" ? "평" : "㎡";
   return (
-    <div className="bg-card rl">
-      <div className="bg-ttl">임대 내역
-        {addFloor
-          ? <input className="um-in" autoFocus value={nf} style={{ width: 78, padding: "3px 9px", fontSize: 13 }} placeholder="예: 3층"
-              onChange={(e) => setNf(e.target.value)}
-              onBlur={async () => { const f = nf.trim(); setNf(""); setAddFloor(false); if (f) { await addUnit(f); setPick(f); } }}
-              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setNf(""); setAddFloor(false); } }} />
-          : <button className="rst add" onClick={() => setAddFloor(true)}>+ 층</button>}
+    <div className="rsx" ref={tableRef}>
+      {/* 초기화 — 첫 상태(원장 업체만 복사된 상태)로 되돌린다 */}
+      <div className="rsx-bar">
+        {dongs && dongs.length > 1 && (
+          <span className="lgx-pc rsx-dongs">{dongs.map((d) => (
+            <button key={d.building_pk} className={d.building_pk === pk ? "on" : ""} onClick={() => onDong?.(d.building_pk)}>{d.name}</button>
+          ))}</span>
+        )}
+        <span className="sp" />
+        <button disabled={busy} onClick={async () => {
+          if (!confirm(`${dongs && dongs.length > 1 ? `${dongs.find((d) => d.building_pk === pk)?.name ?? ""} ` : ""}임대내역을 첫 상태로 되돌립니다. 적은 값이 모두 지워집니다.`)) return;
+          setBusy(true);
+          try { await rentsApi.reset(pk, lid); setDraft({}); await q.refetch(); onSaved(); } finally { setBusy(false); }
+        }}><Icon name="reset" size={14} />초기화</button>
       </div>
-      <div className="fl2">
-        <div className="fl2-l">
-          <div className="fl2-lh"><span>층</span><span>호실</span></div>
-          {unknown.length > 0 && (
-            <button className={`fl2-i ${curUn ? "on" : ""}`} onClick={() => setPick("?")}>
-              <b className="off">—</b>
-              <span className="nm">{unknown[0].tenant_name ?? "—"}{unknown.length > 1 ? ` 외 ${unknown.length - 1}` : ""}</span>
-              <span className="bz">{unknown.length}곳</span>
-            </button>
-          )}
-          {/* 호실마다 한 줄(층 이름은 되풀이). 호실이 없는 층은 한 줄 「—」(모름) */}
-          {floors.flatMap((g) => (g.units.length ? g.units : [null]).map((u, i) => (
-            <button key={`${g.floor}-${u?.id ?? i}`} className={`fl2-i ${!curUn && cur?.floor === g.floor ? "on" : ""}`}
-              onClick={() => setPick(g.floor)}>
-              <b>{g.floor}</b>
-              <span className="nm">{u ? (u.tenant_name ?? (u.occupied ? "—" : <i className="off">공실</i>)) : <i className="off">—</i>}</span>
-            </button>
-          )))}
-        </div>
-
-        <div className="fl2-r">
-          {curUn && (
-            <>
-              <div className="fl2-rh"><b className="off">층 미상</b><span>{unknown.length}곳</span></div>
-              <div className="fl2-fll">층 선택하기</div>
-              {unknown.map((u) => unitCard(u, true))}
-            </>
-          )}
-          {cur && (
-            <>
-              <div className="fl2-rh"><b>{cur.floor}</b></div>
-              <div className="fl2-sec">호실</div>
-              {cur.units.map((u) => unitCard(u))}
-              <button className="addu" disabled={busy} onClick={() => addUnit(cur.floor)}>+ 호실</button>
-            </>
-          )}
-        </div>
+      <div className="rsx-r h">
+        <span>층</span><span>업체</span><span>호수</span>
+        {/* 단위(평 · 만원)는 머리에서 뺐다(10-02 대표) — 칸 폭을 업체 · 업종에 준다 */}
+        <span className="n">계약면적</span><span className="n">전용면적</span>
+        <span className="n">보증금</span><span className="n">월 임대료</span><span className="n">월 관리비</span><span className="c">공실</span>
       </div>
-      {total && (
-        <div className="fl-sum">
-          <span>합계{total.vacant_area != null ? ` · 공실 ${py(total.vacant_area)}` : ""}</span>
-          <span style={{ flex: 1 }} />
-          <span className="fm">
-            <span>{eokMan(total.deposit) ?? "—"}</span>
-            <span>{manOnly(total.rent) ?? "—"}</span>
-            <span>{manOnly(total.maintenance) ?? "—"}</span>
-          </span>
-          <span className="okpad" />
+      {rows.map((r, ri) => (
+        <div key={r.key} className={`rsx-r ${r.key.startsWith("n") ? "blank" : ""}`}
+          // 줄 안에서 칸을 옮기는 동안은 저장하지 않는다 — 줄을 벗어날 때 한 번
+          onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) commit(r); }}>
+          {COLS.map((c, ci) => (
+            <input key={c} className={["contract_area", "excl_area", "deposit", "rent", "maintenance"].includes(c) ? "n" : ""}
+              data-r={ri} data-c={ci} value={shown(r, c)}
+              inputMode={["contract_area", "excl_area"].includes(c) ? "decimal" : undefined}
+              onChange={(e) => setCell(r, c, e.target.value)}
+              onKeyDown={(e) => onKey(e, ri, ci, r)} />
+          ))}
+          {/* 공실 — 체크 = 공실, 업체 있음 = 임대중, 둘 다 아님 = 모름(0208) */}
+          <button className={`vk ${r.u?.vacant ? "on" : ""}`} tabIndex={-1} title={r.u?.vacant ? "공실 해제" : "공실"}
+            onClick={() => toggleVacant(r)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></button>
         </div>
-      )}
-      {/* 시장 호가(크롤링) — 임대 내역 옆 참고 줄(S05 §7) */}
-      <MarketAsks pk={pk} />
+      ))}
+      {/* 합계 — 맨 아래에 붙어 스크롤해도 보인다 */}
+      <div className="rsx-r sum">
+        <span>합계</span><span /><span />
+        <span className="n">{total?.vacant_area != null ? `공실 ${Math.round((total.vacant_area / per) * 10) / 10}${unitLab}` : ""}</span><span />
+        <span className="n">{total?.deposit ? wonAcc(total.deposit) : ""}</span>
+        <span className="n">{total?.rent ? `${Math.round(total.rent / 1e4).toLocaleString()}만` : ""}</span>
+        <span className="n">{total?.maintenance ? `${Math.round(total.maintenance / 1e4).toLocaleString()}만` : ""}</span><span />
+      </div>
     </div>
   );
 }

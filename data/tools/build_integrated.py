@@ -26,7 +26,10 @@ def main():
          '공시지가','용도지역','용도지역_대표','개발제한비중'])
     transit=load_by_pnu("data/tools/_transit_ALL.jsonl",
         ['역과의거리','주변지하철','주변버스'])
-    aplus=json.load(open("data/tools/_sales_est.json"))    # PK → 추정 매각이력
+    # 옛 추정 매각이력(build_sales.py)은 2026-10-08 에 지웠다 — 실거래는 trade · trade_match(지번)로 가고
+    # 건물의 마지막 매각 두 칸은 적재 뒤 fill_sale_latest.py 가 채운다. 파일이 없으면 비운다.
+    import os as _os
+    aplus=json.load(open("data/tools/_sales_est.json")) if _os.path.exists("data/tools/_sales_est.json") else {}
 
     out=open("data/tools/_integrated.jsonl","w")
     N=0; hl=ht=hboth=0

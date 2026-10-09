@@ -1,8 +1,10 @@
-"""매물 사진 업로드(사적·팀 공유). specs S02 §3.2. 저장=core.storage(GCS/로컬 자동)."""
+"""매물 사진 업로드(사적·팀 공유). specs S02 §3.2. 저장=core.storage(GCS/로컬 자동).
+사진은 매물의 것이다 — 열쇠는 매물 번호(0255). 어느 동을 찍었는지는 칸이 없다(종류 · 설명으로)."""
 import json
 import mimetypes
 import os
 import uuid
+from .listing_core import need_listing
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
 from fastapi.responses import Response
@@ -13,11 +15,11 @@ from ..core.deps import current_user, CurrentUser
 # 브리핑 슬롯이 찾는 서류 종류(0032). 원본 브리핑 7장에서 실제로 쓰인 것들.
 KINDS = ("exterior", "interior", "land_use", "building_ledger", "cadastral", "etc")
 
-router = APIRouter(prefix="/buildings/{building_pk}/photos", tags=["photos"])
+router = APIRouter(prefix="/listings/{listing_id}/photos", tags=["photos"])
 
 
 @router.get("", openapi_extra={"x-ai": "read"})   # media 부품의 재료. 파일 자체는 /{photo_id} 라 안 연다
-async def list_photos(building_pk: str, user: CurrentUser = Depends(current_user)):
+async def list_photos(listing_id: int, user: CurrentUser = Depends(current_user)):
     """종류별 정렬(0032). 브리핑이 서류 슬롯을 종류로 찾는다.
 
     ORDER BY 는 `photos.kind` 로 못박는다. 그냥 `kind` 라고 쓰면 SELECT 의 출력 컬럼
@@ -28,15 +30,16 @@ async def list_photos(building_pk: str, user: CurrentUser = Depends(current_user
     rows = await pool().fetch(
         """SELECT id, kind::text, caption, sort_order, transform
            FROM app.photos
-           WHERE building_pk=$1 AND team_id=$2 AND deleted_at IS NULL
+           WHERE listing_id=$1 AND team_id=$2 AND deleted_at IS NULL
            ORDER BY photos.kind, sort_order, id""",
-        building_pk, user.team_id)
-    return [{**dict(r), "url": f"/buildings/{building_pk}/photos/{r['id']}"} for r in rows]
+        listing_id, user.team_id)
+    return [{**dict(r), "url": f"/listings/{listing_id}/photos/{r['id']}"} for r in rows]
 
 
 @router.post("")
-async def upload(building_pk: str, file: UploadFile = File(...), kind: str = Form("exterior"),
+async def upload(listing_id: int, file: UploadFile = File(...), kind: str = Form("exterior"),
                  caption: str | None = Form(None), user: CurrentUser = Depends(current_user)):
+    await need_listing(user.team_id, listing_id)   # 등록한 매물에만 적는다(0226)
     if not (file.content_type or "").startswith("image/"):
         raise HTTPException(422, "이미지 파일만 업로드할 수 있습니다")
     if kind not in KINDS:
@@ -54,14 +57,14 @@ async def upload(building_pk: str, file: UploadFile = File(...), kind: str = For
     path = key
     seq = await pool().fetchval(
         """SELECT COALESCE(max(sort_order), -1) + 1 FROM app.photos
-           WHERE building_pk=$1 AND team_id=$2 AND kind=$3::app.photo_kind AND deleted_at IS NULL""",
-        building_pk, user.team_id, kind)
+           WHERE listing_id=$1 AND team_id=$2 AND kind=$3::app.photo_kind AND deleted_at IS NULL""",
+        listing_id, user.team_id, kind)
     pid = await pool().fetchval(
-        """INSERT INTO app.photos(building_pk,team_id,file_path,uploaded_by,kind,caption,sort_order)
+        """INSERT INTO app.photos(listing_id,team_id,file_path,uploaded_by,kind,caption,sort_order)
            VALUES($1,$2,$3,$4,$5::app.photo_kind,$6,$7) RETURNING id""",
-        building_pk, user.team_id, path, user.account_id, kind, (caption or "").strip() or None, seq,
+        listing_id, user.team_id, path, user.account_id, kind, (caption or "").strip() or None, seq,
     )
-    return {"id": pid, "kind": kind, "sort_order": seq, "url": f"/buildings/{building_pk}/photos/{pid}"}
+    return {"id": pid, "kind": kind, "sort_order": seq, "url": f"/listings/{listing_id}/photos/{pid}"}
 
 
 class PhotoPatch(BaseModel):
@@ -72,7 +75,7 @@ class PhotoPatch(BaseModel):
 
 
 @router.patch("/{photo_id}")
-async def patch_photo(building_pk: str, photo_id: int, body: PhotoPatch,
+async def patch_photo(listing_id: int, photo_id: int, body: PhotoPatch,
                       user: CurrentUser = Depends(current_user)):
     if body.kind is not None and body.kind not in KINDS:
         raise HTTPException(422, f"알 수 없는 종류: {body.kind}")
@@ -85,15 +88,16 @@ async def patch_photo(building_pk: str, photo_id: int, body: PhotoPatch,
     if not sets:
         return {"ok": True}
     await pool().execute(
-        f"UPDATE app.photos SET {', '.join(sets)} WHERE id=$1 AND team_id=$2 AND deleted_at IS NULL", *args)
+        f"UPDATE app.photos SET {', '.join(sets)} WHERE id=$1 AND team_id=$2 AND listing_id=${len(args) + 1} AND deleted_at IS NULL",
+        *args, listing_id)
     return {"ok": True}
 
 
 @router.get("/{photo_id}")
-async def get_photo(building_pk: str, photo_id: int, user: CurrentUser = Depends(current_user)):
+async def get_photo(listing_id: int, photo_id: int, user: CurrentUser = Depends(current_user)):
     path = await pool().fetchval(
-        "SELECT file_path FROM app.photos WHERE id=$1 AND team_id=$2 AND deleted_at IS NULL",
-        photo_id, user.team_id,
+        "SELECT file_path FROM app.photos WHERE id=$1 AND team_id=$2 AND listing_id=$3 AND deleted_at IS NULL",
+        photo_id, user.team_id, listing_id,
     )
     data = await storage.load(path) if path else None
     if data is None:
@@ -103,8 +107,8 @@ async def get_photo(building_pk: str, photo_id: int, user: CurrentUser = Depends
 
 
 @router.delete("/{photo_id}")
-async def delete_photo(building_pk: str, photo_id: int, user: CurrentUser = Depends(current_user)):
+async def delete_photo(listing_id: int, photo_id: int, user: CurrentUser = Depends(current_user)):
     await pool().execute(
-        "UPDATE app.photos SET deleted_at=now() WHERE id=$1 AND team_id=$2", photo_id, user.team_id
+        "UPDATE app.photos SET deleted_at=now() WHERE id=$1 AND team_id=$2 AND listing_id=$3", photo_id, user.team_id, listing_id
     )
     return {"ok": True}

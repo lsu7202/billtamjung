@@ -85,17 +85,9 @@ export function StatusChips({ kind, value, onPick, sold, reason }: {
 /** 매물 상태 저장 — 목록 · 모달이 같이 쓴다 */
 export function useSetListingStatus() {
   const qc = useQueryClient();
-  return async (pk: string, id: number | null, extra?: StatusExtra) => {
-    await statusesApi.setListing(pk, { status_id: id, ...(extra ?? {}) });
+  return async (lid: number, id: number | null, extra?: StatusExtra) => {
+    await statusesApi.setListing(lid, { status_id: id, ...(extra ?? {}) });
     qc.invalidateQueries({ queryKey: ["sellers"] });
     qc.invalidateQueries({ queryKey: ["statuses", "listing"] });
-  };
-}
-export function useSetBuyerStatus() {
-  const qc = useQueryClient();
-  return async (id: number, sid: number | null, extra?: StatusExtra) => {
-    await statusesApi.setBuyer(id, sid, extra?.hold_reason);
-    qc.invalidateQueries({ queryKey: ["buyers"] });
-    qc.invalidateQueries({ queryKey: ["statuses", "buyer"] });
   };
 }

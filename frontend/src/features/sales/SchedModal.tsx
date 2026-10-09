@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { authApi, contactsApi, salesApi, buyersApi, proposalsApi, teamApi } from "../../shared/api/endpoints";
 import { dongAddr } from "../../shared/format";
-import { recentPks } from "./recent";
+import { recentListings } from "./recent";
 import { Icon } from "../../shared/ui/Icon";
 /** 약속 한 건 — 창이 들고 다니는 모양. 규칙 파서가 있던 시절엔 파서가 이 타입을
  *  만들어 줬는데(parseEntry), 파서를 걷어내면서(2026-08-29) 창이 정본이 됐다. */
@@ -46,8 +46,8 @@ export interface SchedFinal extends Sched {
    *  종류에 따라 캘린더 색과 체크리스트가 갈린다. 정본은 이 토글(파서는 기본값만). */
   category?: Cat;
   /** 창에서 붙인 매물 — 맥락 없이 연 창(전체 탭·대시보드)에서도 매물을 지정할 수 있다.
-   *  명시 닻은 참석자 추론보다 세다(모달이 본 기능). */
-  building_pk?: string | null;
+   *  명시 닻은 참석자 추론보다 세다(모달이 본 기능). 매물 번호(0255) */
+  listing_id?: number | null;
 }
 
 export type Cat = "일반" | "브리핑" | "임장" | "계약금 일부" | "계약" | "중도금" | "잔금";
@@ -131,13 +131,13 @@ function DateLine({ label, on, at, autoAt, onOn, onAt, onAsk, onClear }: {
   );
 }
 
-export function SchedModal({ init, base, addr, buildingPk, note, lockCat, initExtras,
+export function SchedModal({ init, base, addr, listingId, note, lockCat, initExtras,
                             onCancel, onSkip, onDone, onFinish, onRemove }: {
   init: Sched;
   /** 입력줄에 친 문장 — 이 약속의 기록이 된다 */
   note?: string;
-  /** 이 커밋이 난 매물 — 여기 얽힌 사람들이 참석자 후보로 뜬다 */
-  buildingPk?: string | null;
+  /** 이 커밋이 난 매물(매물 번호) — 여기 얽힌 사람들이 참석자 후보로 뜬다 */
+  listingId?: number | null;
   /** 커밋이 난 자리의 상대 — 기본 참석자로 미리 들어가 있다. 여럿이면 배열
    *  (매수자 이름으로 잡은 약속이라도 매물이 좁혀지면 그 소유자도 같이 온다·2026-08-16) */
   base?: { kind: "buyer" | "owner"; ref_id: number; label: string }
@@ -179,36 +179,36 @@ export function SchedModal({ init, base, addr, buildingPk, note, lockCat, initEx
   // 이 매물에 얽힌 사람들 — 계약 자리엔 매도자와 매수자가 같이 온다.
   // 이름을 몰라 못 찾는 경우가 많으니 **먼저 보여 주고** 고르게 한다.
   // 창에서 붙인 매물 — 프리필(커밋이 난 자리)이 있으면 그것이 사실이고, 없을 때만 고른다
-  const [bld, setBld] = useState<{ pk: string; addr: string } | null>(null);
+  const [bld, setBld] = useState<{ lid: number; addr: string } | null>(null);
   const [openBld, setOpenBld] = useState(false);
   const [bq, setBq] = useState("");
-  const livePk = buildingPk ?? bld?.pk ?? null;
-  const sellers = useQuery({ queryKey: ["sellers"], enabled: !buildingPk,
+  const liveLid = listingId ?? bld?.lid ?? null;
+  const sellers = useQuery({ queryKey: ["sellers"], enabled: listingId == null,
     queryFn: () => salesApi.sellers() });
   const base1 = Array.isArray(base) ? base[0] : base;
   const myProps = useQuery({
-    queryKey: ["sched-props", base1?.kind, base1?.ref_id], enabled: !buildingPk && base1?.kind === "buyer",
+    queryKey: ["sched-props", base1?.kind, base1?.ref_id], enabled: listingId == null && base1?.kind === "buyer",
     queryFn: () => proposalsApi.list({ buyer_id: base1!.ref_id }) });
   // 대상 사람의 매물이 우선 후보 — 매수자면 담아 둔 제안 매물, 매도자면 소유 매물
-  const bldCands: { pk: string; addr: string }[] = !buildingPk && !bld
+  const bldCands: { lid: number; addr: string }[] = listingId == null && !bld
     ? (base1?.kind === "buyer"
-        ? (myProps.data ?? []).map((x) => ({ pk: x.building_pk, addr: x.addr ?? x.building_pk }))
+        ? (myProps.data ?? []).map((x) => ({ lid: x.listing_id, addr: x.addr ?? "" }))
         : (sellers.data ?? []).filter((x) => base1?.kind === "owner" ? x.owner_id === base1.ref_id : false)
-            .map((x) => ({ pk: x.building_pk, addr: x.addr ?? x.building_pk })))
+            .map((x) => ({ lid: x.listing_id, addr: x.addr ?? "" })))
     : [];
   const bt = bq.trim();
   /** 최근 들락날락한 순 — 이름을 몰라 못 찾는 일이 잦다. 그래서 **먼저 보여 주고** 고르게 한다.
-   *  기준은 이 창이 아니라 사용자가 매물을 연 차례다(recentPk). */
-  const recent = recentPks();
+   *  기준은 이 창이 아니라 사용자가 매물을 연 차례다(recentListings). */
+  const recent = recentListings();
   const myBld = (sellers.data ?? [])
-    .map((x) => ({ pk: x.building_pk, addr: x.addr ?? x.building_pk }))
+    .map((x) => ({ lid: x.listing_id, addr: x.addr ?? "" }))
     .sort((a, b) => {
-      const ia = recent.indexOf(a.pk), ib = recent.indexOf(b.pk);
+      const ia = recent.indexOf(a.lid), ib = recent.indexOf(b.lid);
       return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
     });
   const bldHits = (bt ? myBld.filter((x) => x.addr.includes(bt)) : myBld).slice(0, 7);
-  const near = useQuery({ queryKey: ["sched-people", livePk], enabled: !!livePk,
-    queryFn: () => contactsApi.people(livePk) });
+  const near = useQuery({ queryKey: ["sched-people", liveLid], enabled: liveLid != null,
+    queryFn: () => contactsApi.people(liveLid) });
   const cand = (near.data ?? []).filter(
     (x) => !s.people.some((p) => p.kind === x.kind && p.ref_id === x.ref_id));
 
@@ -389,7 +389,7 @@ export function SchedModal({ init, base, addr, buildingPk, note, lockCat, initEx
                   <button onClick={() => { setBld(null); }}>×</button></span>
               ) : (<>
                 {bldCands.slice(0, 4).map((c) => (
-                  <button key={c.pk} className="gm-cand owner" onClick={() => setBld(c)}>
+                  <button key={c.lid} className="gm-cand owner" onClick={() => setBld(c)}>
                     + {dongAddr(c.addr)}</button>
                 ))}
                 {openBld ? (
@@ -405,7 +405,7 @@ export function SchedModal({ init, base, addr, buildingPk, note, lockCat, initEx
                     {bldHits.length > 0 && (
                       <span className="gm-hits wide">
                         {bldHits.map((h) => (
-                          <button key={h.pk} onMouseDown={(e) => { e.preventDefault(); setBld(h); setBq(""); }}>
+                          <button key={h.lid} onMouseDown={(e) => { e.preventDefault(); setBld(h); setBq(""); }}>
                             <span className="gm-p owner">{dongAddr(h.addr)}</span></button>
                         ))}
                       </span>
@@ -456,7 +456,7 @@ export function SchedModal({ init, base, addr, buildingPk, note, lockCat, initEx
           <button className="gm-save" disabled={!s.on} onClick={() => onDone({
             ...s,
             method: cat === "브리핑" ? (s.method ?? "만나서") : s.method,
-            category: cat, building_pk: buildingPk ?? bld?.pk ?? null,
+            category: cat, listing_id: listingId ?? bld?.lid ?? null,
             extras: cat !== "계약" ? undefined
               : (["계약금 일부", "중도금", "잔금"] as const).flatMap((k) => {
                   const v = extra[k];

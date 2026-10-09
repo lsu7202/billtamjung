@@ -1,51 +1,72 @@
-/* AI 어시스턴트 — 좌 목록 · 우 대화. 정본 10-AI-어시스턴트
-   폰 폭(390px)이 처음부터 기준의 하나다(§20). 좁으면 목록이 위로 눕는다 */
-.as{display:grid; grid-template-columns:232px 1fr; height:100%; min-height:0; background:var(--bg)}
-/* 목록은 접힌다. 접으면 대화가 폭을 다 쓰고, 펴는 손잡이만 왼쪽 위에 남는다 */
-.as.side-off{grid-template-columns:1fr}
-.as.side-off .as-l{display:none}
-.as-side{width:24px; height:24px; border:0; border-radius:999px; background:none; color:var(--muted);
-  cursor:pointer; display:grid; place-items:center; flex:0 0 auto}
-.as-side:hover{background:var(--surface-2); color:var(--ink-2)}
-.as-side.float{position:absolute; left:10px; top:10px; z-index:3; background:var(--paper);
-  border:1px solid var(--line); box-shadow:var(--shadow); transform:scaleX(-1)}
-
-/* ── 왼쪽 · 대화 목록 ─────────────────────────────── */
-.as-l{border-right:1px solid var(--line); background:var(--panel); overflow:auto; padding:8px}
-.as-lh{display:flex; align-items:center; gap:6px; padding:6px 8px 10px;
-  font-size:12px; font-weight:800; color:var(--muted)}
-.as-lh span{flex:1}
-.as-new{width:24px; height:24px; border:0; border-radius:999px; background:var(--surface-2);
-  color:var(--ink-2); cursor:pointer; display:grid; place-items:center}
-.as-new:hover{background:var(--blue-bg); color:var(--blue)}
-
-.as-i{display:flex; align-items:center; gap:6px; padding:8px 10px; border-radius:10px;
-  font-size:13px; color:var(--ink-2); cursor:pointer}
-.as-i:hover{background:var(--surface-2)}
-.as-i.on{background:var(--blue-bg); color:var(--blue); font-weight:700}
-.as-i .tx{flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.as-i .off{color:var(--muted); font-style:normal}
-.as-x{width:22px; height:22px; border:0; border-radius:999px; background:none; color:var(--muted);
-  cursor:pointer; opacity:0; display:grid; place-items:center; flex:0 0 auto}
-.as-i:hover .as-x{opacity:1}
-.as-x:hover{background:var(--red-t); color:var(--red)}
+/* AI 어시스턴트 — 대화 한 판. 정본 10-AI-어시스턴트
+   폰 폭(390px)이 처음부터 기준의 하나다(§20) */
+.as{display:grid; grid-template-columns:1fr; height:100%; min-height:0; background:var(--bg)}  /* 대화 목록은 레일 펼친 판으로(2026-09-30) */
+.as-in{display:flex; align-items:flex-end; gap:6px; margin:0 auto 18px; padding:7px 7px 7px 8px;
+  width:calc(100% - 40px); max-width:760px; background:var(--paper); border:1px solid var(--line);
+  border-radius:22px; box-shadow:var(--shadow)}
+.as-in:focus-within{border-color:var(--blue)}
+.as-in textarea{flex:1; border:0; outline:0; resize:none; background:none; font:inherit;
+  font-size:14.5px; line-height:1.6; color:var(--ink); padding:6px 0; max-height:160px}
+.as-in textarea::placeholder{color:var(--muted)}
 
 /* ── 오른쪽 · 한 대화 ─────────────────────────────── */
 .as-r{display:flex; flex-direction:column; min-height:0; min-width:0; position:relative}
-/* 한 판 = 대화 | 지도. 지도는 답이 건물을 돌려줬을 때만 선다(2026-09-21 · 제미나이 결) */
+/* 한 판 = 대화 | 오른쪽 판(0235). 오른쪽 판은 컨테이너 하나 · 한 번에 한 화면(지도 · 자료 · 템플릿).
+   판 열기 신호로만 선다 — 핀이 있다고 열지 않는다(2026-10-06 대표) */
 .as-pane{flex:1; min-height:0; display:grid; grid-template-columns:1fr; height:100%}
-/* 지도는 절반이 안 되게(44%), 꽉 차지 않고 여백·테두리·둥근 모서리를 두른다. X 로 닫는다 */
-.as-pane.with-map{grid-template-columns:1fr 44%}
+/* 절반이 안 되게(44%), 꽉 차지 않고 여백·테두리·둥근 모서리를 두른다. X 로 닫는다 */
+.as-pane.with-side{grid-template-columns:1fr 44%}
 .as-chat{display:flex; flex-direction:column; min-height:0; min-width:0; position:relative}
-.as-map{min-width:0; min-height:0; position:relative; margin:16px 16px 16px 0;
+.as-side{min-width:0; min-height:0; position:relative; margin:16px 16px 16px 0;
   border:1px solid var(--line); border-radius:20px; overflow:hidden; background:var(--paper)}
+.sp-body{position:absolute; inset:0; display:flex; flex-direction:column; min-height:0}
 .as-mx{position:absolute; top:12px; right:12px; z-index:5; width:36px; height:36px; border:0;
   border-radius:999px; background:var(--paper); color:var(--ink-2); cursor:pointer;
   display:grid; place-items:center; box-shadow:0 2px 8px rgba(0,0,0,.14)}
 .as-mx:hover{color:var(--ink)}
+/* 판 머리 — 이름 · 아이콘(닫기 X 자리를 비워 둔다) */
+.sp-bar{display:flex; align-items:center; gap:8px; height:60px; padding:0 64px 0 20px; flex:0 0 auto; border-bottom:1px solid var(--line)}
+.sp-bar b{flex:1; min-width:0; font-size:15px; font-weight:700; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.sp-ic{width:34px; height:34px; border:0; border-radius:999px; background:none; color:var(--ink-2); cursor:pointer; display:grid; place-items:center}
+.sp-ic:hover{background:var(--surface-2); color:var(--ink)}
+.sp-err{padding:40px 20px; color:var(--muted); font-size:14px}
+/* 지면을 판 폭에 맞춰 줄인다(SidePanel.FitFrame) */
+.sp-fit{flex:1; min-height:0; position:relative; overflow:hidden; background:var(--surface-2)}
+.sp-fit iframe{position:absolute; top:0; left:0; border:0; transform-origin:0 0; background:transparent}
+/* 템플릿 고르기 — 갈래 칩 · 설명 한 줄 · 미리보기 · 고르기 */
+.sp-tpl{display:flex; gap:8px; padding:14px 20px; flex-wrap:wrap}
+.sp-tc{display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:10px 14px; border:1px solid var(--line);
+  border-radius:14px; background:var(--paper); cursor:pointer; min-width:120px; text-align:left}
+.sp-tc b{font-size:14px; color:var(--ink)}
+.sp-tc span{font-size:12px; color:var(--muted)}
+.sp-tc.on{border-color:var(--blue); background:var(--blue-bg)}
+.sp-tc.off{cursor:default; opacity:.5}
+.sp-go{flex:0 0 auto; display:flex; justify-content:flex-end; padding:12px 20px; border-top:1px solid var(--line)}
+.sp-pick{height:40px; padding:0 22px; border:0; border-radius:999px; background:var(--blue); color:#fff; font-size:14px; font-weight:700; cursor:pointer}
+.sp-pick.on{background:var(--blue-bg); color:var(--blue)}
+/* 입력줄 왼쪽 — 도구 모음(동그라미) · 고른 템플릿 칩 */
+/* 입력줄 = 도구 모음(밖) + 입력창. 입력창은 지금 폭 그대로 가운데, 도구 모음은 그 왼쪽 바깥에 붙는다 */
+.as-inrow{position:relative; width:calc(100% - 40px); max-width:760px; margin:0 auto}
+.as-inrow .as-in{width:100%}
+.as-kit{position:absolute; left:-46px; bottom:22px}
+.as-up{width:32px; height:32px; flex:0 0 auto; border:0; border-radius:999px; background:none; color:var(--ink-2);
+  cursor:pointer; display:grid; place-items:center}
+.as-up:hover:not(:disabled){background:var(--surface-2); color:var(--ink)}
+.as-up:disabled{color:var(--line-2); cursor:default}
+.as-tb{width:36px; height:36px; border:1px solid var(--line); border-radius:999px; background:var(--paper); color:var(--ink-2);
+  cursor:pointer; display:grid; place-items:center}
+.as-tb:hover, .as-tb.on{background:var(--surface-2); color:var(--ink)}
+.as-tm{position:absolute; bottom:40px; left:0; z-index:20; min-width:170px; padding:6px; background:var(--paper);
+  border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow)}
+.as-tm button{display:flex; align-items:center; gap:8px; width:100%; height:38px; padding:0 10px; border:0; border-radius:10px;
+  background:none; color:var(--ink); font-size:14px; cursor:pointer}
+.as-tm button:hover{background:var(--surface-2)}
+.as-chip{flex:0 0 auto; align-self:center; display:inline-flex; align-items:center; gap:4px; height:28px; padding:0 6px 0 12px;
+  border-radius:999px; background:var(--blue-bg); color:var(--blue); font-size:13px; font-weight:700}
+.as-chip button{width:20px; height:20px; border:0; border-radius:999px; background:none; color:var(--blue); cursor:pointer; display:grid; place-items:center}
 @media (max-width:1100px){
-  .as-pane.with-map{grid-template-columns:1fr; grid-template-rows:1fr 320px}
-  .as-map{margin:0 16px 16px}
+  .as-pane.with-side{grid-template-columns:1fr; grid-template-rows:1fr 420px}
+  .as-side{margin:0 16px 16px}
 }
 /* 글이 가리킨 건물 카드 — 제미나이 장소 카드 결. 왼쪽 큰 로드뷰, 오른쪽 네 줄.
    상자·테두리·바탕이 없다. 대화와 경계 없이 그대로 녹는다(2026-09-21 대표) */
@@ -106,13 +127,6 @@
 .ab-go:disabled{background:var(--surface-2); color:var(--muted); cursor:default}
 
 /* ── 입력 pill ────────────────────────────────────── */
-.as-in{display:flex; align-items:flex-end; gap:6px; margin:0 auto 18px; padding:7px 7px 7px 15px;
-  width:calc(100% - 40px); max-width:760px; background:var(--paper); border:1px solid var(--line);
-  border-radius:22px; box-shadow:var(--shadow)}
-.as-in:focus-within{border-color:var(--blue)}
-.as-in textarea{flex:1; border:0; outline:0; resize:none; background:none; font:inherit;
-  font-size:14.5px; line-height:1.6; color:var(--ink); padding:6px 0; max-height:160px}
-.as-in textarea::placeholder{color:var(--muted)}
 .as-go{width:32px; height:32px; flex:0 0 auto; border:0; border-radius:999px; cursor:pointer;
   background:var(--blue); color:#fff; display:grid; place-items:center}
 .as-go:disabled{background:var(--surface-2); color:var(--muted); cursor:default}
@@ -120,12 +134,15 @@
 .as-go .sq{width:10px; height:10px; border-radius:2px; background:#fff}
 
 /* ── 빈 화면 ──────────────────────────────────────── */
-/* 「이런 걸 물어보세요」 같은 안내를 안 쓴다. 누르면 그대로 들어가는 문장만 놓는다 */
-.as-msgs.blank{justify-content:center; align-items:center}
-.as-seeds{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; max-width:520px}
-.as-seeds button{border:1px solid var(--line); background:var(--paper); color:var(--ink-2);
-  font:inherit; font-size:13px; padding:9px 14px; border-radius:999px; cursor:pointer}
-.as-seeds button:hover{border-color:var(--blue); color:var(--blue); background:var(--blue-bg)}
+/* 새 채팅 — 대화 자리는 접고 입력창만 정 가운데에 크게(10-04 대표, 제미나이 결). 예시 질문 없음 */
+.as-chat.fresh{justify-content:center}
+.as-chat.fresh .as-msgs{flex:0 0 auto; padding:0}
+.as-chat.fresh .as-inrow{max-width:820px}
+.as-chat.fresh .as-kit{bottom:calc(12vh + 14px)}
+.as-chat.fresh .as-in{max-width:820px; margin:0 auto 12vh; padding:14px 14px 14px 14px; border-radius:32px; align-items:center;
+  box-shadow:0 6px 24px rgba(0,19,43,.08)}
+.as-chat.fresh .as-in textarea{font-size:17px; padding:8px 0}
+.as-chat.fresh .as-go{width:40px; height:40px}
 
 /* ── 마크다운 — 모델 글. 표는 제 그릇 안에서만 옆으로 밀린다 ── */
 .as-m.assistant.md{white-space:normal}
@@ -169,9 +186,26 @@
 
 /* ── 폰 ───────────────────────────────────────────── */
 @media (max-width:720px){
-  .as{grid-template-columns:1fr; grid-template-rows:auto 1fr}
-  .as-l{border-right:0; border-bottom:1px solid var(--line); max-height:34vh}
-  .as-msgs{padding:16px 14px 8px}
   .as-in{width:calc(100% - 24px); margin-bottom:12px}
+  .as-msgs{padding:16px 14px 8px}
   .as-m.user{max-width:88%}
 }
+
+/* 좁은 화면 — 바깥 자리가 없으니 도구 모음을 입력줄 안쪽 왼편으로 들인다 */
+@media (max-width:900px){
+  .as-inrow{padding-left:44px; width:calc(100% - 24px)}
+  .as-kit{left:0}
+}
+
+/* 올린 이미지(0237) — 입력줄 칩 · 내 말 아래 작은 사진 */
+.as-mu{align-self:flex-end; display:flex; flex-direction:column; align-items:flex-end; gap:6px; max-width:78%}
+.as-mu .as-m.user{max-width:100%}
+.as-files{display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end}
+.as-fimg{width:96px; height:96px; object-fit:cover; border-radius:12px; border:1px solid var(--line); display:block}
+.as-fchip{position:relative; flex:0 0 auto; align-self:center; width:36px; height:36px; border-radius:10px; overflow:hidden;
+  background:var(--surface-2); border:1px solid var(--line)}
+.as-fchip img{width:100%; height:100%; object-fit:cover; display:block}
+.as-fchip button{position:absolute; top:1px; right:1px; width:16px; height:16px; border:0; border-radius:999px;
+  background:rgba(0,0,0,.6); color:#fff; cursor:pointer; display:grid; place-items:center; padding:0}
+.as-fchip.wait{animation:as-pulse 1s ease-in-out infinite}
+@keyframes as-pulse{50%{opacity:.4}}

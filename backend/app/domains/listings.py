@@ -1,8 +1,10 @@
-"""매물 등록(선점): 담당자 지정=등록, NULL=해제. specs S02 §4.1 · S0M §3.5 · schema-app §3."""
+"""매물 등록(선점): 담당자 지정=등록, NULL=해제. specs S02 §4.1 · S0M §3.5 · schema-app §3.
+열쇠는 매물 번호(listing_id). 새로 등록할 때만 지번(pnu)을 받는다(0255 · 매물-중심 §5-0)."""
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from ..core.db import pool, tx
 from ..core.deps import current_user, CurrentUser
+from .listing_core import create_office_listing, listing_of_pnu, need_listing
 from .mirror import listing_values_write, listing_values_fold
 
 router = APIRouter(prefix="/listings", tags=["listings"])
@@ -22,16 +24,18 @@ LISTING_FIELDS = {
     "exclusive",    # 전속(0182) — 참·거짓·null(모름)
     "sell_on", "sell_vague",   # 매도 시기(0099) — 의사 창. 정지의 깨움과 다르다(원함인 채의 정보)
     "rent_check",              # 임대내역 확인 상태(0100) — null=안 받음 · 확인중. 받았다=파생
-    # 임대 총계(0134) — 수익률의 분자. 층별 실측이 있으면 그 합계가 이깁니다(아래 특례).
+    # 임대 총계(0134) — 수익률의 분자. 사람이 적는다(10-06 · 임대내역 합계로 덮지 않는다).
     # 숫자 칸이라 빈 문자열은 null 로 눕힌다.
     "total_deposit", "total_rent", "total_mgmt",
-    # 가격(0173) — 매매가(중개인 판단)·매도희망가(건물주). overlays 에서 여기로 옮겼다.
-    # 값이 바뀌면 mirror.listing_values_write 가 이력을 남기고 수익률을 다시 접는다.
+    # 가격 — 매매가(중개인 판단)·매도희망가(건물주). 매매가는 매매가 표의 내매물 줄(0224), 매도희망가는 매물 줄.
+    # 둘 다 mirror.listing_values_write 로만 쓴다 — 이력(field_events)이 거기 있다.
     "sale_price", "ask_price",
+    # 광고 값의 정본(0209) — 융자금 · 융자 표시 · 입주가능일. 광고는 읽기만
+    "loan", "loan_open", "move_in", "move_in_on",
 }
 # 숫자로 눕힐 칸 — 화면은 「5억」처럼 치므로 프론트가 원 단위 숫자 문자열로 보낸다
-NUM_FIELDS = {"total_deposit", "total_rent", "total_mgmt", "sale_price", "ask_price"}
-VALUE_FOLD = NUM_FIELDS     # 이 칸이 바뀌면 층별 합계·수익률을 매물 줄로 다시 접는다
+NUM_FIELDS = {"total_deposit", "total_rent", "total_mgmt", "sale_price", "ask_price", "loan"}
+VALUE_FOLD = NUM_FIELDS     # 이 칸이 바뀌면 층별 합계 · 만실 월임대를 매물 줄로 다시 접는다
 # 사람에게 가는 값 — 같은 소유자의 다른 매물에서도 같다(0058, app.owners)
 OWNER_FIELDS = {
     "owner_name": "name", "owner_phone": "phone", "owner_type": "owner_type",
@@ -47,12 +51,12 @@ BIZ_FIELDS = LISTING_FIELDS | set(OWNER_FIELDS)
 
 
 class ClaimIn(BaseModel):
-    building_pk: str
+    pnu: str                                # 이 땅을 매물로(지번). 이미 있으면 그 매물
     assignee_account_id: int | None = None  # None=해제
 
 
 class BizPatch(BaseModel):
-    building_pk: str
+    listing_id: int
     # 소분류(building_use)만 여럿이라 목록으로 온다(0182). 전속은 참·거짓
     fields: dict[str, bool | str | list[str] | None]
 
@@ -81,20 +85,28 @@ async def team_members(user: CurrentUser = Depends(current_user)):
     return [{"account_id": r["account_id"], "name": r["name"], "role": r["role"]} for r in rows]
 
 
-@router.get("/{building_pk}", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
-async def get_listing(building_pk: str, user: CurrentUser = Depends(current_user)):
+@router.get("/of-parcel/{pnu}")
+async def listing_of_parcel(pnu: str, user: CurrentUser = Depends(current_user)):
+    """이 지번의 우리 사무소 매물 번호(없으면 null) — 지번 페이지 · 탐색에서 「매물관리에서 열기」를 고를 때"""
+    lid = await listing_of_pnu(user.team_id, pnu)
+    reg = await pool().fetchval("SELECT assignee_account_id IS NOT NULL FROM app.listing_office WHERE listing_id=$1", lid) if lid else False
+    return {"listing_id": lid, "registered": bool(reg)}
+
+
+@router.get("/{listing_id}", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
+async def get_listing(listing_id: int, user: CurrentUser = Depends(current_user)):
     # 소유자 값은 사람 표(0058)에서 온다. 화면·필터가 쓰던 이름(owner_name…)은 그대로 낸다 —
     # 저장 위치가 바뀌었다고 읽는 쪽 어휘까지 바꿀 이유는 없다.
     row = await pool().fetchrow(
         """SELECT l.*, o.name AS owner_name, o.phone AS owner_phone, o.owner_type,
                   o.relation, o.cooperation, o.kindness, o.note AS owner_note
-           FROM app.listings l
+           FROM app.office_listings l
            LEFT JOIN app.owners o ON o.id = l.owner_id AND o.deleted_at IS NULL
-           WHERE l.building_pk=$1 AND l.team_id=$2""",
-        building_pk, user.team_id,
+           WHERE l.id=$1 AND l.team_id=$2""",
+        listing_id, user.team_id,
     )
     if not row:
-        return {"building_pk": building_pk, "registered": False}
+        raise HTTPException(404, "우리 사무소 매물이 아닙니다")
     d = dict(row)
     d["registered"] = d["assignee_account_id"] is not None
     return _mask_phone(d, user, row["assignee_account_id"])
@@ -120,8 +132,11 @@ async def claim(body: ClaimIn, user: CurrentUser = Depends(current_user)):
             raise HTTPException(422, "팀 멤버가 아닙니다")
     async with tx() as conn:  # 선점 판정·갱신 원자화(경합 방지: 행 잠금)
         cur = await conn.fetchrow(
-            "SELECT assignee_account_id FROM app.listings WHERE building_pk=$1 AND team_id=$2 FOR UPDATE",
-            body.building_pk, user.team_id,
+            # 매물은 지번에 붙는다(0229) — 이 지번의 우리 매물
+            """SELECT o.assignee_account_id, l.id FROM app.listings l JOIN app.listing_office o ON o.listing_id = l.id
+                 JOIN app.listing_parcels lp ON lp.listing_id = l.id
+                WHERE lp.pnu = $1 AND l.team_id=$2 FOR UPDATE OF o""",
+            body.pnu, user.team_id,
         )
         cur_assignee = cur["assignee_account_id"] if cur else None
         # 해제는 담당자 본인 또는 대표만. "해제 = 명시적 행위"(§3.5)는 부수효과로 풀리지 말라는 뜻이지
@@ -133,39 +148,31 @@ async def claim(body: ClaimIn, user: CurrentUser = Depends(current_user)):
         if (target is not None and cur_assignee is not None
                 and cur_assignee != target and user.role != "owner"):
             raise HTTPException(409, "이미 팀 내 다른 담당자가 선점한 매물입니다")
-        await conn.execute(
-            """INSERT INTO app.listings(building_pk,team_id,assignee_account_id)
-               VALUES($1,$2,$3)
-               ON CONFLICT (building_pk,team_id)
-               DO UPDATE SET assignee_account_id=EXCLUDED.assignee_account_id, updated_at=now()""",
-            body.building_pk, user.team_id, target,
-        )
+        if cur is None and target is None:
+            return {"ok": True, "registered": False, "listing_id": None}       # 없는 매물을 풀 것은 없다
+        # 매물 등록 = 담당자 지정(0226 — 매물은 여기서만 생긴다). 다시 받으면 같은 매물을 다시 연다
+        lid = cur["id"] if cur else await create_office_listing(user.team_id, body.pnu, conn)
+        await conn.execute("UPDATE app.listing_office SET assignee_account_id=$2 WHERE listing_id=$1", lid, target)
     # 매물 등록 순간 원장 업체를 임대 내역 호실로 한 번 복사한다(0185). 이미 줄이 있으면 안 한다
     if target is not None:
         from .floor_rents import seed_from_ledger
-        await seed_from_ledger(user.team_id, body.building_pk)
-    return {"ok": True, "registered": target is not None}
+        await seed_from_ledger(user.team_id, lid)
+    return {"ok": True, "registered": target is not None, "listing_id": lid}
 
 
 @router.patch("/biz")
 async def patch_biz(body: BizPatch, user: CurrentUser = Depends(current_user)):
-    """업무 필드 자동저장. 등록 여부와 무관하게 조사 데이터 축적 가능(레코드 upsert)."""
+    """매물관리 칸 자동저장. **매물이 있어야 한다**(0226 — 등록 안 한 건물엔 못 적는다)."""
     bad = set(body.fields) - BIZ_FIELDS
     if bad:
         raise HTTPException(422, f"허용되지 않은 필드: {sorted(bad)}")
     # 전화번호는 읽기와 같은 경계로 쓰기도 막는다(S0M §3.4 예외 2곳).
     # 안 막으면 마스킹된 값(010-****-5678)을 보는 팀원이 그대로 저장해 진짜 번호를 덮는다.
+    lid = await need_listing(user.team_id, body.listing_id)
     if "owner_phone" in body.fields:
-        cur = await pool().fetchval(
-            "SELECT assignee_account_id FROM app.listings WHERE building_pk=$1 AND team_id=$2",
-            body.building_pk, user.team_id)
+        cur = await pool().fetchval("SELECT assignee_account_id FROM app.listing_office WHERE listing_id=$1", lid)
         if not (user.role == "owner" or user.account_id == cur):
             raise HTTPException(403, "전화번호는 담당자 본인 또는 대표만 수정할 수 있습니다")
-    await pool().execute(
-        """INSERT INTO app.listings(building_pk,team_id) VALUES($1,$2)
-           ON CONFLICT (building_pk,team_id) DO NOTHING""",
-        body.building_pk, user.team_id,
-    )
     import datetime as dt
     own = {OWNER_FIELDS[k]: v for k, v in body.fields.items() if k in OWNER_FIELDS}
     if any(v is not None and not isinstance(v, str) for v in own.values()):
@@ -175,9 +182,7 @@ async def patch_biz(body: BizPatch, user: CurrentUser = Depends(current_user)):
     if own:
         # 소유자 값이 오면 사람 행을 만들거나 갱신한다. 이 매물에 아직 사람이 안 붙어 있으면
         # 새로 만든다 — 매물 하나에 소유자 하나(0058)라 여기서 갈라질 일이 없다.
-        oid = await pool().fetchval(
-            "SELECT owner_id FROM app.listings WHERE building_pk=$1 AND team_id=$2",
-            body.building_pk, user.team_id)
+        oid = await pool().fetchval("SELECT owner_id FROM app.listing_office WHERE listing_id=$1", lid)
         if oid is None:
             # 같은 사람이 이미 있으면 거기 붙인다 — 없으면 한 사람이 매물마다 쪼개진다(0058의 요점).
             # 판정은 **전화번호(숫자만)**가 우선, 없으면 이름. 기존 사람에게 번호가 아직 없을 때도
@@ -198,16 +203,14 @@ async def patch_biz(body: BizPatch, user: CurrentUser = Depends(current_user)):
                     user.team_id, user.account_id)
             # 찾았든 만들었든 **여기서 한 번** 잇는다. 예전엔 만들 때만 이어서,
             # 기존 사람을 찾아낸 매물은 주인 없이 남았다.
-            await pool().execute(
-                "UPDATE app.listings SET owner_id=$3 WHERE building_pk=$1 AND team_id=$2",
-                body.building_pk, user.team_id, oid)
+            await pool().execute("UPDATE app.listing_office SET owner_id=$2 WHERE listing_id=$1", lid, oid)
 
 
         cols = ", ".join(f'"{c}"=${i}' for i, c in enumerate(own, start=2))
         await pool().execute(
             f"UPDATE app.owners SET {cols}, updated_at=now() WHERE id=$1", oid, *own.values())
 
-    # 가격은 거울 동사로(0173) — 이력(field_events)과 수익률 접기가 거기 있다
+    # 가격은 거울 동사로(0173 · 0224) — 이력(field_events)이 거기 있다
     prices = {k: lst.pop(k) for k in ("sale_price", "ask_price") if k in lst}
     if prices:
         parsed = {}
@@ -219,11 +222,11 @@ async def patch_biz(body: BizPatch, user: CurrentUser = Depends(current_user)):
                     parsed[k] = int(float(str(v).replace(",", "")))
                 except ValueError:
                     raise HTTPException(422, f"{k}는 숫자")
-        await listing_values_write(user.team_id, body.building_pk, parsed, user.account_id)
+        await listing_values_write(user.team_id, lid, parsed, user.account_id)
 
     if lst:
-        sets, args = [], [body.building_pk, user.team_id]
-        for i, (k, v) in enumerate(lst.items(), start=3):
+        sets, args = [], [lid]
+        for i, (k, v) in enumerate(lst.items(), start=2):
             sets.append(f'"{k}"=${i}')
             if k == "building_use":
                 # 소분류 — 사전(ref.enums building_use)에 있는 것만, 빈 목록은 null(0182)
@@ -236,13 +239,13 @@ async def patch_biz(body: BizPatch, user: CurrentUser = Depends(current_user)):
                     if set(vals) - ok:
                         raise HTTPException(422, f"모르는 소분류: {sorted(set(vals) - ok)}")
                 args.append(list(dict.fromkeys(vals)) if vals else None)
-            elif k == "exclusive":
+            elif k in ("exclusive", "loan_open"):
                 if v is not None and not isinstance(v, bool):
-                    raise HTTPException(422, "exclusive 는 참·거짓")
-                args.append(v)
+                    raise HTTPException(422, f"{k} 는 참·거짓")
+                args.append(True if (k == "loan_open" and v is None) else v)
             elif isinstance(v, (bool, list)):
                 raise HTTPException(422, f"{k}는 글자")
-            elif k in ("received_on", "sell_on") and v is not None:
+            elif k in ("received_on", "sell_on", "move_in_on") and v is not None:
                 try:
                     args.append(dt.date.fromisoformat(v))
                 except ValueError:
@@ -258,12 +261,9 @@ async def patch_biz(body: BizPatch, user: CurrentUser = Depends(current_user)):
                         raise HTTPException(422, f"{k}는 숫자")
             else:
                 args.append(v)
-        await pool().execute(
-            f"UPDATE app.listings SET {', '.join(sets)}, updated_at=now() "
-            f"WHERE building_pk=$1 AND team_id=$2", *args,
-        )
+        await pool().execute(f"UPDATE app.listing_office SET {', '.join(sets)} WHERE listing_id=$1", *args)
         if VALUE_FOLD & set(lst):
-            await listing_values_fold(user.team_id, body.building_pk)
+            await listing_values_fold(lid)
     return {"ok": True}
 
 
@@ -271,11 +271,8 @@ async def patch_biz(body: BizPatch, user: CurrentUser = Depends(current_user)):
 async def my_listings(user: CurrentUser = Depends(current_user)):
     """내 매물 목록 = 팀의 등록(담당자 있는) 매물."""
     rows = await pool().fetch(
-        """SELECT l.building_pk, l.assignee_account_id,
-                  COALESCE(b.addr, vp.addr) AS addr
-           FROM app.listings l
-           LEFT JOIN master.buildings b ON b.building_pk=l.building_pk
-           LEFT JOIN master.vacant_parcels vp ON l.building_pk = 'P' || vp.pnu
+        """SELECT l.id AS listing_id, l.pnu, l.assignee_account_id, app.parcel_addr(l.pnu) AS addr
+           FROM app.office_listings l
            WHERE l.team_id=$1 AND l.assignee_account_id IS NOT NULL
            ORDER BY l.updated_at DESC""",
         user.team_id,

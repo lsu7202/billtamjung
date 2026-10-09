@@ -1,9 +1,9 @@
-"""부가 도메인: 즐겨찾기·저장검색·위키·메모. specs S01·S02·S0M."""
+"""부가 도메인: enum 사전 · 저장검색. 위키 · 업종 목록 · 필드 사전 라우트는 2026-10-07 에 뺐다(부르는 곳 없음)."""
 import json
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from ..core.db import pool
-from ..core.deps import current_user, any_user, CurrentUser
+from ..core.deps import any_user, CurrentUser, viewer
 
 router = APIRouter(tags=["extras"])
 
@@ -15,37 +15,8 @@ _enum_cache: tuple[float, dict] | None = None
 _ENUM_TTL = 60.0
 
 
-# 업종 고르기 목록(2026-09-27) — 임대 내역 호실의 업종을 고를 때. 크롤링 업종 나무(ref.biz_cat)에서
-#   · 3단까지(4·5단은 대개 브랜드·지점이라 업종이 아니다)
-#   · 지금 있는 업체 10곳 이상인 마디만(오타·일회성 이름을 뺀다)
-#   · 임대 호실과 상관없는 가지는 뺀다: 부동산 > 주거시설(아파트·빌라) · 이슈 · 시설
-#   · 가나다순(대표)
-_CAT_SKIP = ("부동산 > 주거시설", "이슈", "시설")
-_cat_cache: tuple[float, list] | None = None
-
-
-@router.get("/biz-cats")
-async def biz_cats(_: CurrentUser = Depends(any_user)):
-    """[{path: [대, 중, 소], name, depth}] — 가나다순. 화면이 부모 경로로 묶어 칩 세 줄을 만든다."""
-    import time
-    global _cat_cache
-    now = time.monotonic()
-    if _cat_cache is None or now - _cat_cache[0] > _ENUM_TTL:
-        try:
-            rows = await pool().fetch(
-                """SELECT path, name, depth FROM ref.biz_cat
-                    WHERE depth <= 3 AND n >= 10
-                      AND NOT (path = ANY($1::text[]) OR split_part(path, ' > ', 1) = ANY($1::text[])
-                               OR path LIKE ANY(SELECT unnest($1::text[]) || ' > %'))
-                    ORDER BY path COLLATE "ko-x-icu" """, list(_CAT_SKIP))
-        except Exception:                                   # noqa: BLE001 — 적재 전 환경(표 없음)
-            rows = []
-        _cat_cache = (now, [{"path": r["path"].split(" > "), "name": r["name"], "depth": r["depth"]} for r in rows])
-    return _cat_cache[1]
-
-
 @router.get("/enums", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
-async def enums(_: CurrentUser = Depends(any_user)):
+async def enums(_: CurrentUser = Depends(viewer)):
     """전 enum 그룹 {enum_key: [{code,label,tier}]} — 드롭다운·코드↔라벨 매핑(레지스트리)."""
     import time
     global _enum_cache
@@ -63,42 +34,43 @@ async def enums(_: CurrentUser = Depends(any_user)):
     return _enum_cache[1]
 
 
-@router.get("/fields", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
-async def fields(_: CurrentUser = Depends(any_user)):
-    """필드 레지스트리 {field_key: {label,unit,data_type,enum_key,editable,display_group}}."""
-    rows = await pool().fetch(
-        """SELECT field_key, label, unit, data_type::text, layer::text, enum_key,
-                  editable, masked, display_group, display_order
-           FROM ref.fields WHERE active ORDER BY display_group, display_order"""
-    )
-    return {r["field_key"]: dict(r) for r in rows}
-
-
 # ── 저장한 검색조건(폴리곤 포함) ─────────────────────
 class SavedSearchIn(BaseModel):
     name: str
-    conditions: dict      # 화면 값 + request(= /search/pins 몸통, 조건 알림이 그대로 다시 부른다)
-    notify: bool = False  # 알림 받기(S05 §5-3) — 켠 때부터 맞는 새 광고를 알린다
+    conditions: dict      # 화면 값 + request(= /search/pins 몸통). 조건 알림은 09-30 폐지(0203)
+    buyer_id: int | None = None   # 붙일 고객(S09 · 0214). 비우면 내 조건
+
+
+# 저장한 조건 = 내 조건(고객 없음) + 우리 팀 고객에 붙은 조건(팀 전체가 본다, 0214)
+_MINE_OR_TEAM = "((s.account_id=$1 AND s.buyer_id IS NULL) OR (s.buyer_id IS NOT NULL AND s.team_id=$2))"
 
 
 @router.post("/saved-searches")
 async def save_search(body: SavedSearchIn, user: CurrentUser = Depends(any_user)):
     if not body.name.strip() or not body.conditions:
         raise HTTPException(422, "이름과 조건이 필요합니다")
+    if body.buyer_id is not None and (user.team_id is None or not await pool().fetchval(
+            "SELECT 1 FROM app.buyers WHERE id=$1 AND team_id=$2 AND deleted_at IS NULL", body.buyer_id, user.team_id)):
+        raise HTTPException(404, "고객을 찾을 수 없습니다")
     sid = await pool().fetchval(
-        """INSERT INTO app.saved_searches(account_id,name,conditions_json,notify,notify_since)
-           VALUES($1,$2,$3,$4,CASE WHEN $4 THEN now() END) RETURNING id""",
-        user.account_id, body.name.strip(), json.dumps(body.conditions), body.notify,
+        """INSERT INTO app.saved_searches(account_id,name,conditions_json,team_id,buyer_id)
+           VALUES($1,$2,$3,$4,$5) RETURNING id""",
+        user.account_id, body.name.strip(), json.dumps(body.conditions),
+        user.team_id if body.buyer_id is not None else None, body.buyer_id,
     )
     return {"id": sid}
 
 
 @router.get("/saved-searches")
 async def list_searches(user: CurrentUser = Depends(any_user)):
+    """내 조건 + 우리 팀 고객에 붙은 조건 — 고객 이름이 같이 선다(「김사장 · 강남 꼬마빌딩」)"""
     rows = await pool().fetch(
-        "SELECT id,name,conditions_json,created_at,COALESCE(notify,false) AS notify FROM app.saved_searches "
-        "WHERE account_id=$1 AND closed_at IS NULL ORDER BY created_at DESC",
-        user.account_id,
+        f"""SELECT s.id, s.name, s.conditions_json, s.created_at, s.buyer_id, b.name AS buyer_name
+              FROM app.saved_searches s LEFT JOIN app.buyers b ON b.id = s.buyer_id AND b.deleted_at IS NULL
+             WHERE {_MINE_OR_TEAM} AND s.closed_at IS NULL
+               AND (s.buyer_id IS NULL OR b.id IS NOT NULL)
+             ORDER BY (s.buyer_id IS NULL) DESC, s.created_at DESC""",
+        user.account_id, user.team_id,
     )
     return [
         {**dict(r), "conditions_json": json.loads(r["conditions_json"])} for r in rows
@@ -109,29 +81,23 @@ class SavedSearchPatch(BaseModel):
     """부분 수정 — 이름만 바꾸거나(rename) 조건만 덮어쓴다(현재 조건으로 갱신)."""
     name: str | None = None
     conditions: dict | None = None
-    notify: bool | None = None
 
 
 @router.patch("/saved-searches/{sid}")
 async def update_search(sid: int, body: SavedSearchPatch, user: CurrentUser = Depends(any_user)):
-    if body.name is None and body.conditions is None and body.notify is None:
+    if body.name is None and body.conditions is None:
         raise HTTPException(422, "바꿀 항목이 없습니다")
     if body.name is not None and not body.name.strip():
         raise HTTPException(422, "이름은 비울 수 없습니다")
     # COALESCE로 넘어온 것만 갱신 — 이름만 바꿀 때 조건이 날아가면 안 된다
     n = await pool().execute(
-        """UPDATE app.saved_searches
-              SET name = COALESCE($3, name),
-                  conditions_json = COALESCE($4, conditions_json),
-                  notify = COALESCE($5, notify),
-                  -- 알림을 새로 켤 때만 「켠 때」를 다시 잡는다
-                  notify_since = CASE WHEN $5 IS TRUE AND NOT COALESCE(notify, false) THEN now()
-                                      WHEN $5 IS FALSE THEN NULL ELSE notify_since END
-            WHERE id=$1 AND account_id=$2""",
-        sid, user.account_id,
+        f"""UPDATE app.saved_searches s
+              SET name = COALESCE($4, name),
+                  conditions_json = COALESCE($5, conditions_json)
+            WHERE s.id=$3 AND {_MINE_OR_TEAM}""",
+        user.account_id, user.team_id, sid,
         body.name.strip() if body.name is not None else None,
         json.dumps(body.conditions) if body.conditions is not None else None,
-        body.notify,
     )
     if n.endswith(" 0"):
         raise HTTPException(404, "저장된 조건을 찾을 수 없습니다")
@@ -141,120 +107,6 @@ async def update_search(sid: int, body: SavedSearchPatch, user: CurrentUser = De
 @router.delete("/saved-searches/{sid}")
 async def delete_search(sid: int, user: CurrentUser = Depends(any_user)):
     await pool().execute(
-        "DELETE FROM app.saved_searches WHERE id=$1 AND account_id=$2", sid, user.account_id
+        f"DELETE FROM app.saved_searches s WHERE s.id=$3 AND {_MINE_OR_TEAM}", user.account_id, user.team_id, sid
     )
     return {"ok": True}
-
-
-# ── 위키(전체 공유·MVP: 작성+동의) ───────────────────
-class WikiIn(BaseModel):
-    category: str | None = None
-    body: str
-
-
-@router.post("/buildings/{building_pk}/wiki")
-async def wiki_post(building_pk: str, body: WikiIn, user: CurrentUser = Depends(current_user)):
-    pid = await pool().fetchval(
-        """INSERT INTO app.wiki_posts(building_pk,author_account_id,category,body)
-           VALUES($1,$2,$3,$4) RETURNING id""",
-        building_pk, user.account_id, body.category, body.body,
-    )
-    return {"id": pid}
-
-
-@router.get("/buildings/{building_pk}/wiki", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다(10-AI §3-3)
-async def wiki_list(building_pk: str, user: CurrentUser = Depends(any_user)):
-    rows = await pool().fetch(
-        """SELECT w.id, w.category, w.body, w.created_at,
-                  COALESCE(a.name,'탈퇴한 사용자') AS author,
-                  (w.author_account_id = $2) AS mine,
-                  (SELECT count(*) FROM app.wiki_votes v WHERE v.post_id=w.id) AS votes,
-                  (SELECT count(*) FROM app.wiki_comments c WHERE c.post_id=w.id AND c.deleted_at IS NULL) AS comments
-           FROM app.wiki_posts w LEFT JOIN app.accounts a ON a.id=w.author_account_id
-           WHERE w.building_pk=$1 AND w.deleted_at IS NULL
-           ORDER BY votes DESC, w.created_at DESC""",
-        building_pk, user.account_id,
-    )
-    return [dict(r) for r in rows]
-
-
-@router.delete("/wiki/{post_id}")
-async def wiki_delete(post_id: int, user: CurrentUser = Depends(current_user)):
-    """내가 쓴 위키만 삭제(soft)."""
-    await pool().execute(
-        "UPDATE app.wiki_posts SET deleted_at=now() WHERE id=$1 AND author_account_id=$2",
-        post_id, user.account_id,
-    )
-    return {"ok": True}
-
-
-class WikiReportIn(BaseModel):
-    reason: str | None = None
-
-
-@router.post("/wiki/{post_id}/report")
-async def wiki_report(post_id: int, body: WikiReportIn, user: CurrentUser = Depends(current_user)):
-    """위키글 신고(기본 플래그). 같은 유저의 중복 대기건은 무시. 모더레이션 처리는 정식."""
-    dup = await pool().fetchval(
-        "SELECT 1 FROM app.wiki_reports WHERE post_id=$1 AND reporter_account_id=$2 AND status='pending'",
-        post_id, user.account_id,
-    )
-    if not dup:
-        await pool().execute(
-            "INSERT INTO app.wiki_reports(post_id,reporter_account_id,reason) VALUES($1,$2,$3)",
-            post_id, user.account_id, body.reason or None,
-        )
-    return {"ok": True}
-
-
-class CommentIn(BaseModel):
-    body: str
-
-
-@router.get("/wiki/{post_id}/comments")
-async def wiki_comments(post_id: int, user: CurrentUser = Depends(current_user)):
-    rows = await pool().fetch(
-        """SELECT c.id, c.body, c.created_at,
-                  COALESCE(a.name,'탈퇴한 사용자') AS author,
-                  (c.author_account_id = $2) AS mine
-           FROM app.wiki_comments c LEFT JOIN app.accounts a ON a.id=c.author_account_id
-           WHERE c.post_id=$1 AND c.deleted_at IS NULL
-           ORDER BY c.created_at""",
-        post_id, user.account_id,
-    )
-    return [dict(r) for r in rows]
-
-
-@router.post("/wiki/{post_id}/comments")
-async def wiki_comment_add(post_id: int, body: CommentIn, user: CurrentUser = Depends(current_user)):
-    if not body.body.strip():
-        raise HTTPException(422, "댓글 내용을 입력하세요")
-    cid = await pool().fetchval(
-        "INSERT INTO app.wiki_comments(post_id,author_account_id,body) VALUES($1,$2,$3) RETURNING id",
-        post_id, user.account_id, body.body.strip(),
-    )
-    return {"id": cid}
-
-
-@router.delete("/wiki/comments/{comment_id}")
-async def wiki_comment_del(comment_id: int, user: CurrentUser = Depends(current_user)):
-    """내가 쓴 댓글만 삭제(soft)."""
-    await pool().execute(
-        "UPDATE app.wiki_comments SET deleted_at=now() WHERE id=$1 AND author_account_id=$2",
-        comment_id, user.account_id,
-    )
-    return {"ok": True}
-
-
-@router.put("/wiki/{post_id}/vote")
-async def wiki_vote(post_id: int, user: CurrentUser = Depends(current_user)):
-    deleted = await pool().fetchval(
-        "DELETE FROM app.wiki_votes WHERE post_id=$1 AND account_id=$2 RETURNING 1",
-        post_id, user.account_id,
-    )
-    if deleted:
-        return {"voted": False}
-    await pool().execute(
-        "INSERT INTO app.wiki_votes(post_id,account_id) VALUES($1,$2)", post_id, user.account_id
-    )
-    return {"voted": True}

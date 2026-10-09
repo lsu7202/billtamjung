@@ -30,7 +30,8 @@ export function ArtifactPage() {
   }, [id]);
 
   // 인쇄는 **안쪽 창**이 한다. 바깥을 찍으면 머리줄·버튼이 같이 나온다.
-  const print = () => frame.current?.contentWindow?.print();
+  // 안쪽은 샌드박스(다른 출처)라 print() 를 직접 못 부른다 — 메시지를 보내면 안쪽이 스스로 인쇄한다(bake.py)
+  const print = () => frame.current?.contentWindow?.postMessage("bt-print", "*");
 
   if (err) return <div className="af-err">{err}</div>;
   if (html == null) return <Loading label="여는 중" minHeight="60vh" />;

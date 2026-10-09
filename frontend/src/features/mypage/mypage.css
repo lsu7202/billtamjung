@@ -8,11 +8,6 @@
   padding: 20px 20px 56px;
 }
 
-/* 리포트·사무소 탭 — 왼쪽이 주인공(리포트·사무소), 오른쪽이 곁(조건·팀) */
-.mp-two { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; align-items: start; }
-.mp-cols { display: grid; gap: 14px; }
-@media (max-width: 900px) { .mp-two { grid-template-columns: 1fr; } }
-
 .mp .sec-head .lead { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .mp .sec-head .lead .name { font-weight: 700; color: var(--ink); }
 .mp .sec-head .lead .sub { font-size: 11.5px; color: var(--muted); font-weight: 500; }
@@ -28,82 +23,9 @@
 .mp .orow .ev { font-size: 14px; }
 .mp .orow .ev.mono { font-family: var(--mono); font-size: 13px; font-weight: 700; }
 .mp .orow .tag { font-size: 10px; }
-.mp .orow.inv code { background: #fff; border: 1px solid var(--line-2); padding: 2px 8px;
-  border-radius: 5px; color: var(--ink); font-family: var(--mono); font-size: 12px; }
 .mp .orow.out { color: #F04452; }
 .mp .orow.out .who { color: #F04452; }
 .mp-unit { font-size: 12px; font-weight: 700; color: #6B7684; }
-.mp-logo { height: 26px; max-width: 110px; object-fit: contain;
-  border: 1px solid var(--line); border-radius: 5px; background: #fff; }
-
-/* ── 아이콘 컨트롤 — 고른 줄에만. 줄마다 상시로 세우면 열 줄에 버튼이 스무 개다 ── */
-.mp-ctls { display: flex; gap: 5px; flex: 0 0 auto; opacity: 0; transition: opacity .12s; }
-.mp-ctls.always, .mp .orow:hover .mp-ctls, .mp tr:hover .mp-ctls { opacity: 1; }
-.mp-ctl {
-  width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
-  border: 1px solid #E5E8EB; border-radius: 8px; background: #fff; color: #8B95A1;
-  cursor: pointer; padding: 0;
-}
-.mp-ctl:hover { border-color: #3182F6; color: #3182F6; background: #EBF4FF; }
-.mp-ctl.on { border-color: #3182F6; color: #3182F6; }
-.mp-ctl.on:hover { background: #3182F6; color: #fff; }
-.mp-ctl.bad:hover { border-color: #F04452; color: #F04452; background: #FEF0F1; }
-.mp-ctl:disabled { opacity: .4; cursor: default; }
-.mp-ctl:disabled:hover { border-color: #E5E8EB; color: #8B95A1; background: #fff; }
-
-/* ── 표 ── */
-.mp-tbl td.lnk { cursor: pointer; }
-.mp-tbl td.lnk:hover { color: #3182F6; }
-.mp-tbl td.act { text-align: right; white-space: nowrap; width: 1%; }
-.mp-tbl td.act .mp-ctls { justify-content: flex-end; }
-.mp-tbl td.sm { font-size: 12px; }
-.mp-tbl .dim { color: var(--muted); font-size: 12px; }
-.mp-tbl td.amt { font-weight: 700; color: #3182F6; }
-.mp-tbl td.amt.out { color: #F04452; }
-
-/* ── 한 줄 입력(pill) — 초대·합류 ── */
-.mp-line { display: flex; align-items: center; gap: 6px; padding: 8px 6px 4px; }
-.mp-pill {
-  flex: 1; height: 38px; border: 1px solid #E5E8EB; border-radius: 999px;
-  padding: 0 16px; font: inherit; font-size: 13.5px; background: #fff; color: var(--ink);
-}
-.mp-pill:focus { outline: none; border-color: #3182F6; box-shadow: 0 0 0 3px #EBF4FF; }
-.mp-pill::placeholder { color: #B0B8C1; }
-.mp-go {
-  width: 38px; height: 38px; flex: 0 0 auto; border: 0; border-radius: 50%;
-  background: #3182F6; color: #fff; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.mp-go:disabled { background: #E5E8EB; color: #B0B8C1; cursor: default; }
-
-/* ── 계정 ── */
-.mp-pw { display: flex; align-items: center; gap: 6px; padding: 6px 14px 8px; }
-.mp-pw .um-in { flex: 1; max-width: 220px; }
-.mp-msg { font-size: 12.5px; color: #3182F6; padding: 0 14px 10px; font-weight: 600; }
-
-.mp-bal { display: flex; align-items: baseline; gap: 8px; }
-.mp-bal b { font-family: var(--mono); font-size: 24px; font-weight: 800;
-  letter-spacing: -.03em; color: var(--ink); }
-.mp-bal i { font-style: normal; font-size: 12px; color: var(--muted); }
-
-/* ── 구독(표시 전용) ── */
-.mp-plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-@media (max-width: 760px) { .mp-plans { grid-template-columns: 1fr; } }
-.mp-plan { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; position: relative; }
-.mp-plan.on { border-color: #3182F6; background: #F7FAFF; }
-.mp-plan .tag.cur { position: absolute; top: -9px; left: 12px; width: auto; font-size: 10px;
-  display: inline-block; line-height: 1.5; }
-/* 이름은 pn·pp·ps 로 짧게 뒀다가 briefing.css 의 전역 `.ps{width:100%;height:100%}` 에
-   먹혔다 — 한 줄짜리 곁말이 152px 를 차지하고 아래 목록을 카드 밖으로 밀어냈다(2026-08-28). */
-.mp-plan .pl-n { font-weight: 800; font-size: 13.5px; }
-.mp-plan .pl-p { font-size: 19px; font-weight: 800; margin-top: 3px; letter-spacing: -.02em; }
-.mp-plan .pl-s { font-size: 11px; color: var(--muted); }
-.mp-plan ul { margin: 10px 0 0; padding: 9px 0 0; list-style: none;
-  border-top: 1px solid var(--line); display: grid; gap: 5px; }
-.mp-plan li { font-size: 12px; color: var(--ink-2); }
-
-.mp-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 26px 0; }
-.mp .tag.plain { background: #F2F4F6; color: #8B95A1; }
 
 /* 비밀번호 변경 창 — 폼은 모달 안에서만 */
 .pw-back { position: fixed; inset: 0; background: rgba(25,31,40,.32); z-index: 200;
@@ -122,17 +44,3 @@
   font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; margin-top: 4px; }
 .pw-go:disabled { background: #E5E8EB; color: #B0B8C1; cursor: default; }
 
-/* 고객 쪽(09-29) — 칩 줄 · 새 알림 점 · 메모 */
-.mp .mp-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; padding: 10px 0; max-width: 72%; }
-.mp .orow.mp-open { min-height: 54px; height: auto; }
-.mp .mp-new { width: 7px; height: 7px; border-radius: 999px; background: #F04452; flex: 0 0 auto; margin-right: -4px; }
-.mp .mp-memo { font-style: normal; color: #4E5968; }
-.mp .mp-st { font-size: 13px; }
-.mp .mp-ctl.on { color: #3182F6; background: #EBF4FF; }
-/* 상태 판(0199) */
-.mp .mp-dot { width: 14px; height: 14px; border-radius: 999px; border: 0; cursor: pointer; flex: 0 0 auto; }
-.mp .mp-pal { display: flex; gap: 8px; padding: 4px 14px 12px 40px; }
-.mp .mp-pal button { width: 22px; height: 22px; border-radius: 999px; border: 2px solid #FFFFFF; box-shadow: 0 0 0 1px #E5E8EB; cursor: pointer; }
-.mp .mp-pal button.on { box-shadow: 0 0 0 2px #191F28; }
-.mp .mp-del { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px 14px 12px 40px; font-size: 13px; }
-.mp .mp-ctl[title="위로"] svg { transform: rotate(90deg); }

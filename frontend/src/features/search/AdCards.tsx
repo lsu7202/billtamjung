@@ -1,89 +1,29 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { authApi, buildingsApi, inquiriesApi, type AdCard, type InquiryKind } from "../../shared/api/endpoints";
-import { won } from "../../shared/format";
+import { authApi, customerApi, inquiriesApi, type AdCard, type CustomerTiming, type InquiryKind } from "../../shared/api/endpoints";
+import { Face } from "../../shared/ui/Face";
 import "./adcards.css";
-import { AuthImg } from "../../shared/ui/AuthImg";
 import { formatPhone } from "../building/KV";
 
-/** 광고(S05) — 탐색 사이드 판과 건물 상세가 같은 부품을 쓴다. 누구나 본다.
- *
- *  **광고 내용 전체가 바로 선다**(대표 09-28). 밸류맵처럼 눌러야 모달로 뜨는 게 아니라
- *  사진(올린 비율 그대로 · 여러 장이면 넘김) · 매매가 · 주소 · 제목 · 설명 · 중개사 정보 · 상담요청이 한 판에.
- *  노출 중이고 우리 팀 광고가 아니면 「상담요청」. 거래완료는 회색으로 남는다(밸류맵). */
-export function AdCards({ pk, empty, photos = true, ask: withAsk = true }: {
-  pk: string; empty?: React.ReactNode;
-  /** 사이드 판은 사진을 맨 위 넘김(거리뷰 다음)에 모으고, 상담요청은 아래 고정 줄로 뺀다 */
-  photos?: boolean; ask?: boolean;
-}) {
-  const q = useQuery({ queryKey: ["bAds", pk], queryFn: () => buildingsApi.ads(pk), enabled: !pk.startsWith("P") });
-  const [ask, setAsk] = useState<AdCard | null>(null);
-  const list = q.data ?? [];
-  if (!list.length) return <>{empty ?? null}</>;
-  return (
-    <div className="sel-ads">
-      {list.map((a) => <AdFull key={a.id} a={a} showPhotos={photos} onAsk={withAsk ? () => setAsk(a) : undefined} />)}
-      {ask && <InquiryModal ad={ask} onClose={() => setAsk(null)} />}
-    </div>
-  );
+export function Avatar({ name, photo }: { name: string; photo?: string | null }) {
+  return <Face name={name} photo={photo} className="adf-av" />;
 }
 
-function AdFull({ a, onAsk, showPhotos }: { a: AdCard; onAsk?: () => void; showPhotos: boolean }) {
-  const photos = a.photo_ids ?? (a.photo_id ? [a.photo_id] : []);
-  const [i, setI] = useState(0);
-  const sold = a.state === "거래완료";
-  return (
-    <article className={`adf ${sold ? "sold" : ""}`}>
-      {showPhotos && photos.length > 0 && (
-        <div className="adf-ph">
-          {/* 올린 비율 그대로 — 자르지 않는다 */}
-          <AuthImg className="adf-img" src={`/api/ads/${a.id}/photos/${photos[i]}`} />
-          {photos.length > 1 && (
-            <>
-              <button className="adf-nav l" onClick={() => setI((i - 1 + photos.length) % photos.length)}>‹</button>
-              <button className="adf-nav r" onClick={() => setI((i + 1) % photos.length)}>›</button>
-              <span className="adf-cnt num">{i + 1} / {photos.length}</span>
-            </>
-          )}
-        </div>
-      )}
-      <div className="adf-b">
-        <div className="adf-price">
-          <b className="num">{sold ? "거래완료" : a.price != null ? `매매 ${won(a.price)}` : "가격 비공개"}</b>
-          {a.use_type && <span className="ad-tag gray">{a.use_type}</span>}
-          {a.brokerage === "전속" && <span className="ad-tag">전속</span>}
-        </div>
-        {a.addr && <div className="adf-addr">{a.addr.replace("서울특별시 ", "").replace("번지", "")}</div>}
-        <div className="adf-title">{a.title}</div>
-        {a.body && <div className="adf-body">{a.body}</div>}
-        <div className="adf-when">{sold ? `거래완료 ${a.closed_on ?? ""}` : `올린 날 ${a.posted_on}`}</div>
-        {/* 중개 등록정보(디스코식) — 사무소 · 담당 / 등록번호 · 소재지 · 대표 · 대표연락처. 모르는 줄은 안 선다 */}
-        <div className="adf-reg">
-          <div className="adf-reg-h"><Avatar name={a.agent_name ?? a.office_name ?? "중"} />
-            <div><b>{a.agent_name ?? "담당"}</b><span>{a.office_name ?? ""}</span></div></div>
-          <dl>
-            {a.reg_no && <><dt>등록번호</dt><dd className="num">{a.reg_no}</dd></>}
-            {a.office_addr && <><dt>소재지</dt><dd>{a.office_addr}</dd></>}
-            {a.rep_name && <><dt>대표</dt><dd>{a.rep_name}</dd></>}
-            {(a.office_phone || a.phone) && !sold && <><dt>연락처</dt><dd className="num">{a.phone ?? a.office_phone}</dd></>}
-          </dl>
-        </div>
-        {onAsk && a.state === "노출" && !a.mine && <button className="ad-ask" onClick={onAsk}>상담요청</button>}
-      </div>
-    </article>
-  );
-}
-
-/** 중개사 얼굴 자리 — 사진 칸이 아직 없어 이름 첫 글자(마이페이지 사진 올리기 때 바꾼다) */
-export function Avatar({ name }: { name: string }) {
-  return <span className="adf-av">{name.trim().slice(0, 1)}</span>;
-}
+/** 예산 칸(S09 §2) — 폼에서 한 번에 고르는 구간. 프로필엔 최소 · 최대로 남는다 */
+const BUDGETS: [string, number | null, number | null][] = [
+  ["10억 이하", null, 10e8], ["10~30억", 10e8, 30e8], ["30~50억", 30e8, 50e8], ["50~100억", 50e8, 100e8], ["100억 이상", 100e8, null]];
 
 /** 상담요청 폼(모달) — 유형 · 내용(200자) · 이름 · 전화 · 동의. 이름 · 전화는 계정 값으로 미리 채운다.
- *  매도 문의면 「팔려는 건물 주소」가 나온다(비워도 된다, 대표 09-28 가안). */
+ *  매도 문의면 「팔려는 건물 주소」가 나온다(비워도 된다, 대표 09-28 가안).
+ *  보내는 순간 고객 프로필 · 저장한 조건이 사본으로 같이 간다(S09). 프로필이 비어 있으면 목표 · 예산 · 시기만 여기서 고른다(안 골라도 된다) */
 export function InquiryModal({ ad, onClose }: { ad: AdCard; onClose: () => void }) {
   const me = useQuery({ queryKey: ["me"], queryFn: authApi.me });
+  const prof = useQuery({ queryKey: ["cprofile"], queryFn: customerApi.profile });
+  const empty = !!prof.data && !prof.data.goal?.length && prof.data.budget_min == null && prof.data.budget_max == null && !prof.data.timing;
+  const [goal, setGoal] = useState<string[]>([]);
+  const [budget, setBudget] = useState<number | null>(null);   // BUDGETS 칸 번호
+  const [timing, setTiming] = useState<CustomerTiming | null>(null);
   const [kind, setKind] = useState<InquiryKind>("매수 문의");
   const [body, setBody] = useState("");
   const [name, setName] = useState<string | null>(null);
@@ -100,8 +40,11 @@ export function InquiryModal({ ad, onClose }: { ad: AdCard; onClose: () => void 
     if (!nm.trim() || !ph.trim()) { setErr("이름과 전화를 적으세요"); return; }
     setBusy(true); setErr(null);
     try {
+      const b = budget != null ? BUDGETS[budget] : null;
       await inquiriesApi.send({ ad_id: ad.id, kind, body: body || null, name: nm, phone: ph, consent: ok,
-        sell_addr: kind === "매도 문의" ? addr || null : null });
+        sell_addr: kind === "매도 문의" ? addr || null : null,
+        ...(empty && kind !== "매도 문의" ? { goal: goal.length ? goal : null, budget_min: b?.[1] ?? null,
+          budget_max: b?.[2] ?? null, timing } : {}) });
       setSent(true);
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
@@ -124,12 +67,22 @@ export function InquiryModal({ ad, onClose }: { ad: AdCard; onClose: () => void 
             )))}
             {kind === "매도 문의" && row("팔 건물", <input className="gm-in" style={{ flex: 1 }} value={addr}
               placeholder="주소(비워도 됩니다)" onChange={(e) => setAddr(e.target.value)} />)}
+            {/* 프로필이 비었을 때만 — 무엇을 찾는지 세 칸. 고른 칸을 다시 누르면 풀린다 */}
+            {empty && kind !== "매도 문의" && <>
+              {row("목표", (["시세차익", "수익률", "실사용"] as const).map((k) => (
+                <button key={k} type="button" className={`um-chip ${goal.includes(k) ? "on" : ""}`}
+                  onClick={() => setGoal(goal.includes(k) ? goal.filter((x) => x !== k) : [...goal, k])}>{k}</button>)))}
+              {row("예산", BUDGETS.map(([l], i) => (
+                <button key={l} type="button" className={`um-chip ${budget === i ? "on" : ""}`} onClick={() => setBudget(budget === i ? null : i)}>{l}</button>)))}
+              {row("시기", (["3개월 안", "6개월 안", "1년 안", "미정"] as const).map((k) => (
+                <button key={k} type="button" className={`um-chip ${timing === k ? "on" : ""}`} onClick={() => setTiming(timing === k ? null : k)}>{k}</button>)))}
+            </>}
             {row("내용", <textarea className="gm-in ad-body" rows={3} maxLength={200} value={body}
               onChange={(e) => setBody(e.target.value)} />)}
             {row("이름", <input className="gm-in" value={nm} onChange={(e) => setName(e.target.value)} />)}
             {row("전화", <input className="gm-in num" value={ph} placeholder="010-0000-0000" onChange={(e) => setPhone(formatPhone(e.target.value))} />)}
             {row("동의", <button type="button" className={`um-chip ${ok ? "on" : ""}`} onClick={() => setOk(!ok)}>
-              이름 · 전화를 이 중개사에게 넘기는 데 동의</button>)}
+              이름 · 전화 · 내 프로필(목표 · 예산 · 시기 · 저장한 조건 등)을 이 중개사에게 넘기는 데 동의</button>)}
             {err && <div className="ad-err">{err}</div>}
             <div className="gm-foot">
               <span className="sp" />

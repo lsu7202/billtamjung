@@ -9,7 +9,6 @@
 
 .ob-count { color: #8C8A86; font-size: 12.5px; font-weight: 700; letter-spacing: .08em; margin-bottom: 14px; }
 .ob-q { color: #fff; font-size: clamp(24px, 3.2vw, 32px); font-weight: 800; letter-spacing: -.02em; line-height: 1.35; }
-.ob-hint { color: #A7A29B; font-size: 14px; margin-top: 10px; }
 
 .ob-chips { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 30px; }
 .ob-chip { border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.06); color: #fff;

@@ -25,15 +25,4 @@ export function SourceTag({ className }: { className?: string }) {
   );
 }
 
-export const ESTIMATE_NOTE =
-  "빌탐정 추정값입니다. 실거래가·감정평가가 아니며, 법적 효력이 없는 참고용 정보입니다.";
 
-/** 추정값 옆 주의 아이콘 — 호버 시 안내(상시 배너 대신). */
-export function Caution({ text = ESTIMATE_NOTE, size = 15 }: { text?: string; size?: number }) {
-  return (
-    <span className="bt-caution" tabIndex={0} aria-label="주의">
-      <Icon name="caution" size={size} className="bt-caution-ic" />
-      <span className="bt-caution-pop" role="tooltip">{text}</span>
-    </span>
-  );
-}

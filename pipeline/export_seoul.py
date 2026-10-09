@@ -100,7 +100,7 @@ def main() -> int:
     cols = [d[0] for d in cur.description]
     ci = {c: i for i, c in enumerate(cols)}
 
-    # 처리결과 문서 — 좌표 없는 건물을 **버리지 않고 살리는** 자리라 그 수가 남아야 한다.
+    # 처리결과 문서 — 지적도에 없어 뺀 건물 수가 남아야 한다.
     doc = Report("export_seoul", src="빌탐정.db buildings + 연속지적도 centroid")
     n_out = n_nocoord = 0
     with open(args.out, "w", newline="") as f:
@@ -111,18 +111,16 @@ def main() -> int:
             pnu = row[ci["pnu"]]
             xy = coords.get(pnu)
             if not xy:
-                # 지적도에 그 PNU 가 없는 건물 — 좌표만 비우고 **건물은 살린다**(2026-08-27).
+                # 지적도에 그 PNU 가 없는 건물은 싣지 않는다(2026-10-07 대표 · 08-27 결정을 되돌림).
                 #
-                # 예전엔 통째로 버렸다. 그래서 대장에 멀쩡히 있는 26,467동(4.5%)이 검색조차
-                # 안 됐다 — 스물다섯 자치구에 골고루다. 원천 연속지적도에 그 필지가 없어서인데
-                # (종로구 내수동 202-1 은 없고 202-2 도로만 있다), 지적도가 없다고 건물이
-                # 없는 것은 아니다. 대장·면적·용도·층수는 다 아는데 위치만 모르는 것이다.
-                #
-                # 이웃 필지 좌표로 근사하지 않는다 — 지도에 찍히면 정확한 자리로 읽힌다.
-                # 모르는 것은 비워 두고(geom NULL), 지도 쿼리에서 알아서 빠지게 한다.
+                # 08-27 에는 「지적도가 없다고 건물이 없는 것은 아니다」로 좌표만 비우고 살렸다(26,369동).
+                # 대조해 보니 대장이 지번 변경을 못 따라간 것이었다 — 용산구 용문동 53 은 지적도에서
+                # 사라지고 53-1 이 됐는데 대장은 아직 53 을 적는다. 디스코는 옛 지적도라 53 이 뜨고
+                # 부동산플래닛은 갱신해서 안 뜬다. 최신 지적도에 맞춘다.
+                # 이웃 · 후속 필지로 옮겨 붙이지 않는다 — 근거 없는 조정이다.
                 n_nocoord += 1
-                doc.null("지적도에 PNU 가 없음 — 좌표만 비우고 건물은 살림", row[ci["pk"]], pnu)
-                xy = ("", "")
+                doc.drop("지적도에 PNU 가 없음 — 대장이 지번 변경을 못 따라감", row[ci["pk"]])
+                continue
             pk = row[ci["pk"]]
             addr = row[ci["주소"]] or ""
             sale = last_sale.get(pk, ("", ""))
@@ -170,7 +168,7 @@ def main() -> int:
                 print(f"  {n_out:,}행…")
     doc.also_read("연속지적도 centroid(필지)", len(coords))
     doc.finish()
-    print(f"완료: {n_out:,}행 출력 · 좌표없음(geom NULL로 살림) {n_nocoord:,}")
+    print(f"완료: {n_out:,}행 출력 · 지적도에 없어 뺌 {n_nocoord:,}")
     return 0
 
 

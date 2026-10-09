@@ -139,37 +139,6 @@ export function Chips({ opts, cur, onSelect, onRevert, mode, enumKey = "" }: {
   );
 }
 
-/** 다중선택 칩 — 용도지역 걸침 등. 선택값 여러 개 유지(팝오버 안 닫힘), 검색+스크롤. */
-export function ChipsMulti({ opts, selected, onChange, summary, onRevert }: {
-  opts: Opt[]; selected: string[]; onChange: (v: string[]) => void; summary: string; onRevert?: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const big = opts.length > 12;
-  const shown = q ? opts.filter((o) => o.label.includes(q)) : opts;
-  const toggle = (code: string) => onChange(selected.includes(code) ? selected.filter((x) => x !== code) : [...selected, code]);
-  return (
-    <span style={{ position: "relative", display: "inline-flex" }}>
-      <button style={triggerStyle(selected.length > 0)} onClick={() => { setOpen((v) => !v); setQ(""); }}>
-        {summary || "미지정"}<span style={{ fontSize: 9, opacity: .65 }}>▾</span>
-      </button>
-      {open && (
-        <>
-          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
-          <div style={popStyle(big)} onClick={(e) => e.stopPropagation()}>
-            {big && <input autoFocus placeholder="검색" value={q} onChange={(e) => setQ(e.target.value)} style={searchStyle} />}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {shown.map((o) => (
-                <button key={o.code} style={chipStyle(selected.includes(o.code))} onClick={() => toggle(o.code)}>{o.label}</button>
-              ))}
-            </div>
-            {onRevert && <button style={revertLink} onClick={() => { onRevert(); setOpen(false); }}><Icon name="undo" size={12} style={{ verticalAlign: "-2px", marginRight: 3 }} />마스터 원본으로 되돌리기</button>}
-          </div>
-        </>
-      )}
-    </span>
-  );
-}
 
 /** enum 오버레이 필드 — 선택 즉시 자동저장. 전부 칩 드롭다운(대형은 검색). onRevert=마스터 원본. */
 export function EnumField({ label, enumKey, value, onSave, onRevert }: {

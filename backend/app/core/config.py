@@ -42,15 +42,13 @@ class Settings(BaseSettings):
     ai_vendor: str = "claude"        # claude | gemini
     ai_max_tokens: int = 16000
     ai_max_turns: int = 12           # 한 물음에 도구를 몇 바퀴까지 돌릴지
-    # `building` 도구를 모델에게 보일지. 끄면 스키마에서만 빠지고 핸들러·라우트는 산다
-    # (`/ai/buildings` 로 여전히 찔러 볼 수 있다). 검색 `조건` 안에 묶음을 넣은 뒤
-    # 바퀴가 줄었는지 보려고 둔 손잡이다 — 둘 다 보이면 모델이 옛 쪽만 쓴다.
-    ai_building_tool: bool = True
     # 첫 바퀴에 도구를 **강제**한다(제미나이 mode=ANY). 안 걸면 모델이 우리 DB 를 안 보고
     # 답하거나 조건을 되묻는다(2026-09-21 실측: 「강남구에 신축하기 좋은 곳」에 도구 0번).
     ai_force_first_tool: bool = True
     # 도구 응답을 로그에 몇 자까지 남길지. 0이면 안 남긴다. 모델에게 가는 것과 같은 글이다.
     ai_log_chars: int = 4000
+    # 모델 SQL 이 도는 접속(0238 bt_query). 비면 database_url 의 계정만 bt_query 로 바꿔 쓴다(로컬 비밀번호 bt_query_dev)
+    query_database_url: str = ""
 
     anthropic_api_key: str = ""
     ai_model: str = "claude-haiku-4-5"

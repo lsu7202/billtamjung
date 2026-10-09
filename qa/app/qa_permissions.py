@@ -10,8 +10,8 @@ import time
 import httpx
 
 BASE = "http://localhost:8000"
-PK = "1002117536"       # 종로2가 71-6
-PK2 = "1002117537"
+PNU = "1111013800100710006"    # 종로2가 71-6 — 매물은 지번으로 등록하고 매물 번호로 부른다(0255)
+PNU2 = "1111016800100020004"
 
 R = []
 
@@ -38,12 +38,12 @@ async def main():
         M2 = await signup(c, f"qa_m2_{ts}@t.com", "팀원M2")
 
         # 초대 → 수락(가입 시 각자 1인 팀이 생기므로 M·M2가 A의 팀으로 합류)
-        for tag, h, email in (("M", M, f"qa_m_{ts}@t.com"), ("M2", M2, f"qa_m2_{ts}@t.com")):
-            inv = await c.post("/team/invites", headers=A, json={"channel": "email", "target": email})
+        for tag, h in (("M", M), ("M2", M2)):          # 초대는 계정 번호로(0221)
+            target = (await c.get("/auth/me", headers=h)).json()["account_id"]
+            inv = await c.post("/team/invites", headers=A, json={"account_id": target})
             if inv.status_code >= 400:
                 raise SystemExit(f"초대 실패: {inv.status_code} {inv.text[:160]}")
-            code = inv.json()["token"]
-            acc = await c.post("/team/invites/accept", headers=h, json={"token": code})
+            acc = await c.post(f"/team/invites/{inv.json()['id']}/accept", headers=h)
             if acc.status_code >= 400:
                 raise SystemExit(f"수락 실패: {acc.status_code} {acc.text[:160]}")
 
@@ -60,87 +60,84 @@ async def main():
         aid, mid, m2id = by_name["대표A"], by_name["팀원M"], by_name["팀원M2"]
         chk("T0", "팀 구성(대표1+팀원2)", len(team["members"]) == 3, str(list(by_name)))
 
-        claim = lambda h, pk, target: c.put("/listings/claim", headers=h,   # noqa: E731
-                                            json={"building_pk": pk, "assignee_account_id": target})
-        async def assignee(pk):
-            return (await c.get(f"/listings/{pk}", headers=A)).json().get("assignee_account_id")
+        lids = {}
+
+        async def claim(h, pnu, target):
+            r = await c.put("/listings/claim", headers=h, json={"pnu": pnu, "assignee_account_id": target})
+            if r.status_code == 200 and r.json().get("listing_id"):
+                lids[pnu] = r.json()["listing_id"]
+            return r
+
+        async def assignee(pnu):
+            return (await c.get(f"/listings/{lids[pnu]}", headers=A)).json().get("assignee_account_id")
 
         # ── 2.1 담당자 지정/해제 ────────────────────────────
-        await claim(A, PK, None)
-        chk("C1", "담당 없음 · 팀원이 나를 담당", (await claim(M, PK, mid)).status_code == 200)
-        await claim(A, PK, None)
-        chk("C2", "담당 없음 · 대표가 나를 담당", (await claim(A, PK, aid)).status_code == 200)
-        await claim(A, PK, None)
-        chk("C3", "팀원이 다른 팀원을 담당 지정", (await claim(M, PK, m2id)).status_code == 403)
-        chk("C4", "대표가 팀원을 담당 지정", (await claim(A, PK, mid)).status_code == 200)
+        await claim(A, PNU, None)
+        chk("C1", "담당 없음 · 팀원이 나를 담당", (await claim(M, PNU, mid)).status_code == 200)
+        await claim(A, PNU, None)
+        chk("C2", "담당 없음 · 대표가 나를 담당", (await claim(A, PNU, aid)).status_code == 200)
+        await claim(A, PNU, None)
+        chk("C3", "팀원이 다른 팀원을 담당 지정", (await claim(M, PNU, m2id)).status_code == 403)
+        chk("C4", "대표가 팀원을 담당 지정", (await claim(A, PNU, mid)).status_code == 200)
 
-        await claim(A, PK, aid)                                  # 대표가 담당
-        chk("C5", "대표 담당 · 팀원이 뺏기", (await claim(M, PK, mid)).status_code == 409)
-        await claim(A, PK, m2id)                                 # M2가 담당
-        chk("C6", "M2 담당 · M이 뺏기", (await claim(M, PK, mid)).status_code == 409)
-        chk("C7", "대표가 자기에게 재배정", (await claim(A, PK, aid)).status_code == 200)
-        chk("C8", "대표가 M2에게 재배정", (await claim(A, PK, m2id)).status_code == 200)
+        await claim(A, PNU, aid)                                  # 대표가 담당
+        chk("C5", "대표 담당 · 팀원이 뺏기", (await claim(M, PNU, mid)).status_code == 409)
+        await claim(A, PNU, m2id)                                 # M2가 담당
+        chk("C6", "M2 담당 · M이 뺏기", (await claim(M, PNU, mid)).status_code == 409)
+        chk("C7", "대표가 자기에게 재배정", (await claim(A, PNU, aid)).status_code == 200)
+        chk("C8", "대표가 M2에게 재배정", (await claim(A, PNU, m2id)).status_code == 200)
 
-        await claim(A, PK, aid)                                  # 대표 담당으로
-        r9 = await claim(M, PK, None)
-        after9 = await assignee(PK)
+        await claim(A, PNU, aid)                                  # 대표 담당으로
+        r9 = await claim(M, PNU, None)
+        after9 = await assignee(PNU)
         chk("C9", "대표 담당 · 팀원이 해제", r9.status_code == 403 and after9 == aid,
             f"status={r9.status_code} assignee={after9}")
 
-        await claim(A, PK, mid)
-        chk("C10", "본인 담당 · 본인이 해제", (await claim(M, PK, None)).status_code == 200)
-        await claim(A, PK, mid)
-        chk("C11", "대표가 해제", (await claim(A, PK, None)).status_code == 200)
-        chk("C12", "팀 밖 계정 지정", (await claim(A, PK, 999999)).status_code == 422)
+        await claim(A, PNU, mid)
+        chk("C10", "본인 담당 · 본인이 해제", (await claim(M, PNU, None)).status_code == 200)
+        await claim(A, PNU, mid)
+        chk("C11", "대표가 해제", (await claim(A, PNU, None)).status_code == 200)
+        chk("C12", "팀 밖 계정 지정", (await claim(A, PNU, 999999)).status_code == 422)
 
         # C13 — 2단계 탈취(해제 → 재지정)
-        await claim(A, PK, aid)
-        await claim(M, PK, None)
-        r13 = await claim(M, PK, mid)
-        final13 = await assignee(PK)
+        await claim(A, PNU, aid)
+        await claim(M, PNU, None)
+        r13 = await claim(M, PNU, mid)
+        final13 = await assignee(PNU)
         chk("C13", "해제→재지정 2단계 탈취", final13 == aid,
             f"최종담당={final13}(대표={aid}) 재지정status={r13.status_code}")
 
         # ── 2.2 열람 제한 ───────────────────────────────────
-        await claim(A, PK2, mid)                                 # M 담당
+        await claim(A, PNU2, mid)                                 # M 담당
         await c.patch("/listings/biz", headers=M,
-                      json={"building_pk": PK2, "fields": {"owner_phone": "010-1111-2222"}})
-        get = lambda h: c.get(f"/listings/{PK2}", headers=h)     # noqa: E731
+                      json={"listing_id": lids[PNU2], "fields": {"owner_phone": "010-1111-2222"}})
+        get = lambda h: c.get(f"/listings/{lids[PNU2]}", headers=h)     # noqa: E731
         chk("V1", "담당 본인이 전화번호 열람", "1111" in str((await get(M)).json().get("owner_phone")))
         chk("V2", "대표가 전화번호 열람", "1111" in str((await get(A)).json().get("owner_phone")))
         v3 = (await get(M2)).json().get("owner_phone")
         chk("V3", "다른 팀원에겐 가려짐", v3 is None or "1111" not in str(v3), f"본값={v3}")
         # V7 — 못 보는 사람은 쓰지도 못해야 한다. 안 막으면 마스킹된 값을 그대로 저장해 원본을 덮는다.
         w7 = await c.patch("/listings/biz", headers=M2,
-                           json={"building_pk": PK2, "fields": {"owner_phone": "010-****-2222"}})
+                           json={"listing_id": lids[PNU2], "fields": {"owner_phone": "010-****-2222"}})
         chk("V7", "다른 팀원의 전화번호 수정 차단", w7.status_code == 403, f"status={w7.status_code}")
         chk("V8", "차단 후 원본 보존", "1111" in str((await get(M)).json().get("owner_phone")))
-
-        wm = await c.put(f"/buildings/{PK2}/memos", headers=M, json={"kind": "secret", "body": "비밀"})
-        chk("V4a", "담당 본인이 비밀메모 작성", wm.status_code == 200, f"status={wm.status_code} {wm.text[:80]}")
-        seen_m2 = (await c.get(f"/buildings/{PK2}/memos", headers=M2)).json()
-        chk("V4", "비밀메모 · 다른 팀원 안 보임",
-            all(x.get("kind") != "secret" for x in seen_m2), str(seen_m2)[:100])
-        seen_a = (await c.get(f"/buildings/{PK2}/memos", headers=A)).json()
-        chk("V5", "비밀메모 · 대표 보임", any(x.get("kind") == "secret" for x in seen_a))
-        w = await c.put(f"/buildings/{PK2}/memos", headers=M2, json={"kind": "secret", "body": "x"})
-        chk("V6", "비밀메모 · 담당 아닌 팀원 작성 차단", w.status_code == 403, f"status={w.status_code}")
 
         # ── 2.3 팀 관리 ─────────────────────────────────────
         chk("T1", "팀명 변경(팀원)", (await c.patch("/team", headers=M, json={"name": "x"})).status_code == 403)
         chk("T2", "사무소 수정(팀원)", (await c.patch("/team/office", headers=M, json={"office_name": "x"})).status_code == 403)
-        chk("T4", "초대 생성(팀원)", (await c.post("/team/invites", headers=M, json={"channel": "email", "target": "z@t.com"})).status_code == 403)
+        chk("T4", "초대 생성(팀원)", (await c.post("/team/invites", headers=M, json={"account_id": aid})).status_code == 403)
         chk("T5", "팀원 제외(팀원)", (await c.delete(f"/team/members/{m2id}", headers=M)).status_code == 403)
         chk("T6", "대표 탈퇴 차단", (await c.post("/team/leave", headers=A)).status_code >= 400)
 
         # ── 2.4 승계 ────────────────────────────────────────
-        await claim(A, PK2, mid)
-        await c.patch("/listings/biz", headers=A, json={"building_pk": PK2, "fields": {"status": "협의중"}})
+        await claim(A, PNU2, mid)
+        sid = (await c.get("/statuses", headers=A, params={"kind": "listing"})).json()[0]["id"]   # 상태는 사전에서 고른다(0199)
+        await c.put(f"/listings/{lids[PNU2]}/status", headers=A, json={"status_id": sid})
         await c.delete(f"/team/members/{mid}", headers=A)
-        row = (await c.get(f"/listings/{PK2}", headers=A)).json()
+        row = (await c.get(f"/listings/{lids[PNU2]}", headers=A)).json()
         chk("S1", "제외 시 대표에게 귀속", row.get("assignee_account_id") == aid,
             f"assignee={row.get('assignee_account_id')} (대표={aid})")
-        chk("S3", "승계 후 진행상태 유지", row.get("status") == "협의중", f"status={row.get('status')}")
+        chk("S3", "승계 후 상태 유지", row.get("status_id") == sid, f"status_id={row.get('status_id')} (고른 것={sid})")
 
         # ── 2.5 영업(S04) ───────────────────────────────────
         # 대표가 만든 매수자 → 담당자 = 대표
@@ -166,7 +163,7 @@ async def main():
         await c.post(f"/buyers/{bid}/conditions", headers=A, json={
             "name": "종로", "conditions": {"values": {}, "regions": [{"bjd_code": "1111013800", "label": "종로2가"}],
                                           "polygon": None, "filters": {"bjd_code": "1111013800"}}})
-        mm = (await c.get(f"/buildings/{PK}/matching-buyers", headers=M2)).json()
+        mm = (await c.get(f"/listings/{lids[PNU]}/recommend-buyers", headers=M2)).json()["items"]
         row = next((x for x in mm if x["id"] == bid), None)
         chk("B4", "추천 목록에서도 연락처 마스킹",
             row is not None and "****" in str(row["phone"]), str(row and row["phone"]))

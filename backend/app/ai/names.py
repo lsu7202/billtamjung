@@ -47,17 +47,12 @@ KO: dict[str, str] = {
     "far": "용적률", "legal_far": "법정용적률", "far_slack": "용적여유",
     # 공시지가
     "gongsi_latest": "공시지가", "gongsi_total": "공시총액",
-    # 공시총액 ÷ **추정가**. 팀 매매가로 나눈 gongsi_ratio_team 과 이름이 겹치면 안 된다
-    # (평단가가 pp_land「추정평단가대지」/ pp_land_team「평단가대지」로 갈리는 것과 같다)
-    "gongsi_ratio": "추정공시비율",
     "gongsi_up5": "공시5년상승", "gongsi_up10": "공시10년상승",
     # 실거래
     "last_sale_price": "최근실거래가", "last_sale_ym": "최근실거래월",
     "sale_cnt": "실거래횟수", "sale_pnl": "실거래등락",
-    # 빌탐정 추정 — 조건으로는 못 걸고 여기로만 본다
-    "sale_est": "추정가", "roi_est": "추정수익률", "rent_est_m": "추정월임대",
-    "deposit_est": "추정보증금", "est_annual_rent": "추정연임대",
-    "pp_land": "추정평단가대지", "pp_total": "추정평단가연면적",
+    # 빌탐정 추정. 추정가는 줄에서 묶음으로 낸다(tools._row) — 평단가 · 공시비율이 그 안에
+    "sale_est": "추정가",
     # 유동인구
     "float_pop": "유동인구",
     # 업종
@@ -71,22 +66,27 @@ KO: dict[str, str] = {
     "use_zone_mix": "용도지역 비중", "gongsi_series": "공시지가추이",
     "bus_json": "버스정류장", "subway_json": "지하철역", "sales_history": "실거래이력",
     # 팀 값 — listing 안으로 들어간다
-    "listing_no": "매물번호", "team_price": "매매가", "sale_price": "매매가", "ask_price": "매도희망가",
+    "listing_no": "매물번호", "sale_price": "매매가", "price": "매매가", "ask_price": "매도희망가",
+    # 매물(0226) — 매매가로 나눈 셋 · 수익률은 매물마다 하나
+    "pp_land_sale": "평단가대지", "pp_total_sale": "평단가연면적", "gongsi_ratio_sale": "공시비율",
+    "roi": "수익률", "roi_full": "만실수익률",
     "rent_total": "총월임대", "deposit_total": "총보증금",
     # 건물 대장의 층별 합계 — 검색의 rent_total 과 **같은 뜻인데 이름이 다르게 온다**
     "total_rent": "총월임대", "total_deposit": "총보증금", "total_mgmt": "총관리비",
     "mgmt_total": "총관리비", "vacant_area": "공실면적",   # 공실은 수가 아니라 넓이(0180)
-    # 만실(0181). full_est 가 참이면 _shape 가 이름 앞에 「추정」을 붙인다 — 칸 자체는 안 보낸다
-    "rent_full": "만실월임대", "roi_full": "만실수익률",
-    "roi": "수익률",
-    "pp_land_team": "평단가대지", "pp_total_team": "평단가연면적", "gongsi_ratio_team": "공시비율",
+    # 만실(0181)
+    "rent_full": "만실월임대",
     "urgency": "급함", "intent": "매도의사", "meongdo": "명도", "use_change": "용도변경",
     "myeolsil": "멸실", "nohudo": "노후도", "building_major": "대분류", "building_use": "소분류", "price_vs_market": "시세대비",
     "grade": "등급", "ipji": "입지", "sell_vague": "매도시점",
     "received_on": "접수일", "assignee_account_id": "담당자", "has_photo": "사진",
-    # 소유자
-    "owner_name": "소유자", "owner_phone": "전화", "owner_type": "소유자유형",
+    # 소유자 — 전화는 이름이 없다(바깥 모델로 안 보낸다, 11b). 있는지만 「전화있음」 조건으로
+    "owner_name": "소유자", "owner_type": "소유자유형",
     "relation": "관계", "cooperation": "협조", "kindness": "친절",
+    # 매물관리 칸(0199~0209 · 11b)
+    "status_name": "상태", "hold_reason": "보류사유", "exclusive_word": "전속", "checked_on": "확인일",
+    "sold_on": "매각일", "sold_price": "매각금액", "loan": "융자", "move_in": "입주", "move_in_on": "입주일",
+    "listing_kind": "매물유형", "bcr_over": "건폐초과", "far_over": "용적초과", "ad_n": "광고수",
 }
 
 # 줄마다 되풀이하지 않고 응답 맨 앞에 한 번 둔다.
@@ -96,22 +96,31 @@ UNITS = "면적 ㎡ · 금액 원 · 평단가 원/평 · 공시지가 원/㎡ �
 DROP = frozenset({
     "col",            # mine/normal 가름. 줄의 「내매물」로 대신한다
     "float_pop_night",  # 「유동인구」 칸이 주간과 함께 낸다(tools._shape). 따로 이름을 안 만든다
-    "full_est",       # 만실 값 이름에 「추정」을 붙이는 데만 쓴다(tools._shape). 칸으로는 안 보낸다
     "lat", "lng",     # 지도용. 주소가 있다
-    "price_is_est",   # 화면이 「추정」 꼬리표를 붙일지 정하는 값
-    "price",          # sale_price 없으면 sale_est 로 채운 혼합값. 섞인 값을 모델에게 주지 않는다
+    "n_bldg", "uses",       # 지번의 동 수 · 동들의 주용도 — tools._row 가 「동수」 「주용도」로 따로 낸다(0230)
+    "building_pk", "pnu",   # 내부 번호 — 건물은 주소로 가리킨다(11b · 10-04). 보기 이름으로도 안 연다
+    "owner_phone",    # 소유자 전화 — 바깥 모델로 안 보낸다(11b). 「전화있음」 조건만 있다
+    "kind",           # 핀 색(출처). 화면 지도만 쓴다 — 모델에겐 매매가 건마다 출처가 붙는다
+    # 매물(0226) — 뼈대(주인 · 매매가)와 주인마다 딸린 칸은 tools._row 가 따로 낸다. 매물 번호는 밖으로 안 낸다
+    "price", "price_on", "listing_id", "listing_rank", "owner", "office", "ad_id", "mk_on", "mk_n",
+    "trade_use",      # 실거래 보기 핀 머리 칸(0246). 지도만 쓴다
+    # 추정가 묶음의 재료(tools._row)
+    "pp_land", "pp_total", "gongsi_ratio",
 })
 
 # listing 묶음으로 내려갈 칸 — 팀이 적은 값이다. 우리 매물이 아니면 이 묶음 자체가 없다.
 LISTING = (
-    "listing_no", "team_price", "sale_price", "ask_price",
+    "listing_no", "ask_price",
     "rent_total", "deposit_total", "mgmt_total", "vacant_area",
-    "roi", "rent_full", "roi_full", "full_est", "pp_land_team", "pp_total_team", "gongsi_ratio_team",
+    "rent_full", "roi", "roi_full",
     "urgency", "intent", "meongdo", "use_change", "myeolsil", "nohudo",
     "building_major", "building_use", "price_vs_market", "grade", "ipji", "sell_vague", "received_on",
     "assignee_account_id", "has_photo",
-    "owner_name", "owner_phone", "owner_type", "relation", "cooperation", "kindness",
+    "owner_name", "owner_type", "relation", "cooperation", "kindness",
+    "status_name", "hold_reason", "exclusive_word", "checked_on", "sold_on", "sold_price",
+    "loan", "move_in", "move_in_on",
 )
+
 
 
 # 건물 한 채의 묶음 이름 — `include` 로 고르는 갈래다.
@@ -119,25 +128,25 @@ SECTIONS = {
     "층별": "floors", "필지": "parcels", "주변실거래": "sales",
     # 「유동인구」는 칸(주간·야간 두 수)의 이름이다. 묶음이 같은 이름을 쓰다 사전에서 칸을
     # 덮어써 모델이 그 수를 못 봤다(2026-09-22). 묶음은 든 것을 이름으로 말한다 —
-    # 시간대별유동인구(24개 수·정점시각·집계일수) · 상권구성(반경 600m 업체 수 7갈래, 소상공인 원장).
-    "시간대별유동인구": "pop_hourly", "상권구성": "market_mix", "주변동향": "events",
-    "임대추이": "rent_series",      # 부동산원 임대동향으로 역산한 해마다의 임대료
+    # 시간대별유동인구(24개 수·정점시각·집계일수). 상권구성 · 임대추이는 2026-10-07 에 뺐다.
+    "시간대별유동인구": "pop_hourly", "주변동향": "events",
     # 입주 이력(2026-09-25) — 누가 언제 들어왔다 나갔나(LOCALDATA). 임대료는 없다
     "입주이력": "tenancy_history",
-    # 임대 내역(2026-09-26) — **우리 매물일 때만** 있다. 호실(업체 단위)·임대료·공실면적은 팀이 확인한
-    # 기록이라 층별(대장·원장)과 나눴다. 우리 매물이 아니면 이 묶음은 오지 않는다 — 추정 임대만 쓴다
-    "임대내역": "rent_ledger",
     "주변매각": "comps",            # 반경 내 매물당 최근 1건 — 연면적 평단가 축(04 슬라이드)
     # 아래 넷은 **대장에 실려 있던 목록**이다. 「한 줄은 대장, 여러 줄은 함께」가 규칙인데
     # 이 넷만 눌러앉아 안 달라고 해도 왔다 — 건물 대장 2,548자의 65%, 나대지의 43%였다
     # (2026-09-21 실측). 한 줄짜리 대응값은 대장에 그대로 있다(역거리·공시지가·최근실거래가).
     "버스정류장": "bus", "지하철역": "subway",
     "공시지가추이": "gongsi_series", "실거래이력": "sales_history",
+    # 짝(이 매물에 담긴 고객, 중개사만). 광고 · 네이버 매매는 「매매가」 건에, 임대 내역 · 임대시세는 「임대료」에 들어갔다(0224)
+    "짝": "pairs",
 }
+# 중개사만 보는 묶음 · 목록. 고객 모드 스키마엔 이름이 없다
+BROKER_SECTIONS = frozenset({"짝", "임대료", "수익률", "만실수익률"})
 
 # 대장에서 모델에게 안 보내는 칸(위 DROP 에 더해).
 LEDGER_DROP = frozenset({
-    "_edited", "parcel_geom", "main_use",
+    "_edited", "_master", "parcel_geom", "main_use",   # _master = 팀 정정 비교용 원본(10-02)
     "sgg_code",     # 「법정동코드」 앞 다섯 자리다
     "buildable",    # 나대지 대장의 빈 칸. 화면이 계산해 채우는 자리
     "elevator_ext", # 아래 _ref 로 옮겨 낸다(이름을 갈라야 대장값과 안 섞인다)
@@ -172,11 +181,11 @@ KO_NESTED: dict[str, str] = {
     "is_outlier": "이상치",
     # 유동인구
     "day": "주간", "night": "야간", "peak_hour": "정점시각", "hourly": "시간대",
-    "days": "집계일수", "mix": "구성",     # days 는 요일이 아니라 평균 낸 날 수다(14)
+    "days": "집계일수",     # days 는 요일이 아니라 평균 낸 날 수다(14)
     # 주변 동향 — 뉴스 제목에 「상호명」이 붙던 것을 고친다(2026-09-20). 층별의 name 은
     # 상호명이 맞지만 소식의 name 은 제목이라, 이 묶음만 따로 옮긴다(_clean 의 sec 인자).
     "kind": "갈래", "title": "제목", "on_date": "날짜", "dist": "거리",
-    # 임대추이 · 주변매각
+    # 주변매각
     "series": "추이", "up5": "5년상승", "up10": "10년상승", "rate": "요율",
     "sales": "목록", "contract_ym": "계약월", "total_area": "연면적",
     "on_year": "연도",      # 날짜가 없는 소식(정비구역 545건)은 연도만 있다
@@ -207,6 +216,8 @@ NESTED_DROP = frozenset({
     "distance_m",   # 「거리」와 겹친다
     "body",         # 고시 본문 전문. 제목·날짜·출처로 충분하다
     "gosi_no",      # 고시번호. 모델이 다시 찾을 수 없다
+    # 내부 번호 — 사용자가 알 필요가 없고 모델도 주소로 가리킨다(11b, 10-04)
+    "building_pk", "pnu", "account_id", "assignee_account_id", "buyer_id", "ad_id",
 })
 
 
@@ -219,78 +230,5 @@ def ko(key: str) -> str:
     """영어 칸 이름 → 한국어. 모르는 이름은 그대로 둔다(지어내지 않는다)."""
     return KO.get(key, key)
 
-
-# ── 조건 이름 ───────────────────────────────────────────────────────────────
-# 답도 물음도 한국어인데 조건만 영어였다. `biz_all` 은 「크롤링한 입주 업체가
-# 전부 든 건물」인데 이름이 그렇게 안 읽혀, 「근생 중 병원 없는 건물」 물음에 모델이
-# `use=병원 · biz_all=[근린생활시설]` 을 걸어 0건을 냈다(2026-09-19 실측). 설명은
-# 98개 중 하나라 안 읽히고 이름은 고를 때 읽힌다. 스키마는 22 토큰(0.3%) 늘어난다.
-#
-# 응답 칸 이름(KO)과 같은 개념은 **같은 낱말**을 쓴다 — 조건에 「급함」으로 걸고
-# 결과에서 「급함」으로 돌아와야 같은 것인 줄 안다.
-
-# 범위 칸 — `_min`·`_max` 가 `_이상`·`_이하` 로 붙는다.
-_FILTER_RANGE: dict[str, str] = {
-    "land_area": "대지면적", "parcel_area": "필지면적", "total_area": "연면적",
-    "build_area": "건축면적", "far_area": "용적산정연면적",
-    "road_front": "전면도로폭",
-    "floors_above": "지상층수", "floors_below": "지하층수",
-    "bcr": "건폐율", "far": "용적률",
-    "legal_bcr": "법정건폐율", "legal_far": "법정용적률",
-    "bcr_slack": "건폐여유", "far_slack": "용적여유",
-    "elevator": "승강기", "parking": "주차대수",
-    "age": "연식", "remodel_years": "리모델링경과",
-    "gongsi": "공시지가", "gongsi_total": "공시총액",
-    "gongsi_up5": "공시5년상승", "gongsi_up10": "공시10년상승",
-    "last_sale_years": "실거래경과", "sale_pnl": "실거래등락", "sale_count": "실거래횟수",
-    "value": "가격",
-    "pp_land_team": "평단가대지", "pp_total_team": "평단가연면적",
-    "gongsi_ratio_team": "공시비율",
-    "roi": "수익률",
-    "rent_total": "총월임대",
-    "deposit_total": "총보증금", "mgmt_total": "총관리비",
-    "vacant_area": "공실면적",
-    "roi_full": "만실수익률",
-}
-
-# 접미사가 없는 칸.
-_FILTER_PLAIN: dict[str, str] = {
-    # 어디
-    "region": "지역", "bjd_code": "법정동코드", "building_pk": "건물번호",
-    # 나대지를 하나 집는 길. 건물의 `건물번호` 에 해당한다 — 이게 없으면 검색이
-    # 조회를 대신할 수 없다(2026-09-21).
-    "pnu": "필지번호",
-    "addr": "주소",                                     # 지번으로 한 채(2026-09-22)
-    "station_dist_max": "역거리_이하",
-    # 땅
-    "use_zones": "용도지역", "jimoks": "지목", "road_frontages": "도로접면",
-    "shapes": "지형형상", "slopes": "지세",
-    "regulations": "규제",                             # 토지이용계획 규제. 정비구역도 여기
-    # 용도 둘 — 허가 때 용도와 지금 든 업체는 다른 것이다. 이름이 그걸 말해야 한다.
-    # 「용도」하나로 묶어 뒀더니(2026-09-19) 둘의 구분 자체가 화면에서 사라졌다.
-    "use": "주용도",                                   # 대장. 부분일치
-    "biz_dnf": "입주업체",                             # 크롤링한 실제 업체(master.biz)
-    # 「없음」은 조건마다 따로 파지 않는다 — 값 옆에 {"있음":…, "없음":…} 으로 온다
-    # 팀이 적은 값
-    "vacant": "공실", "sell_vagues": "매도시점", "urgencies": "급함",
-    "owner_types": "소유자유형", "relations": "관계",
-    "cooperations": "협조", "kindnesses": "친절",
-    "meongdos": "명도", "use_changes": "용도변경", "myeolsils": "멸실",
-    "assignees": "담당자", "owner_name": "소유자", "listing_no": "매물번호",
-    "intent": "매도의사", "has_phone": "전화있음", "has_photo": "사진있음",
-    "received_from": "접수일_이후", "received_to": "접수일_이전",
-}
-
-FILTER_KO: dict[str, str] = dict(_FILTER_PLAIN)
-for _en, _k in _FILTER_RANGE.items():
-    FILTER_KO[f"{_en}_min"] = f"{_k}_이상"
-    FILTER_KO[f"{_en}_max"] = f"{_k}_이하"
-
-# 되돌리기. 모델이 보낸 조건을 `Filters` 가 아는 이름으로 옮긴다.
-FILTER_EN: dict[str, str] = {v: k for k, v in FILTER_KO.items()}
-
-
-def filters_to_en(f: dict) -> dict:
-    """모델이 보낸 한국어 조건 → 영어. 모르는 이름은 그대로 둔다 —
-    `Filters` 가 `extra="forbid"` 라 거기서 걸리고 모델이 그 사실을 듣는다."""
-    return {FILTER_EN.get(k, k): v for k, v in f.items()}
+# 조건 이름(걸 손잡이 · 갈래 · 값 · 열림)은 **catalog.py 선언 표 한 장**에 있다(11b ①, 10-04).
+# 여기는 칸 → 이름(KO) · 출처 · 묶음 · 걷는 칸만 둔다.

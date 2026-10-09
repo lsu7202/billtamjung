@@ -1,0 +1,10 @@
+{
+  "key": "promo",
+  "name": "홍보물",
+  "desc": "좋은 매물을 가지고 있다는 걸 알리는 세로 한 장. 문자 · 카톡으로 보내기 좋다",
+  "kind": "promo",
+  "size": "1080 × 1350",
+  "version": 1,
+  "ready": true,
+  "parts": ["office", "promo", "photo"]
+}

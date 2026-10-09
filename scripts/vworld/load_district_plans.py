@@ -100,15 +100,7 @@ async def main():
     print(f"지구단위계획구역: 폴리곤 {len(rows)} · 이름 {sum(1 for x in rows if x[1])} "
           f"· 고시일자 {sum(1 for x in rows if x[4])}")
 
-    # 건물 태깅 — 한 건물이 여러 계획에 걸릴 수 있다(재정비촉진+지구단위 중첩). 전부 보존.
-    await c.execute("""DROP TABLE IF EXISTS master.building_district_plan;
-        CREATE TABLE master.building_district_plan AS
-        SELECT DISTINCT b.building_pk, z.id AS plan_id, z.name, z.ntf_date, z.sgg
-        FROM master.buildings b JOIN master.district_plan z ON ST_Contains(z.geom, b.geom);
-        CREATE INDEX ON master.building_district_plan(building_pk)""")
-    n = await c.fetchval("SELECT count(DISTINCT building_pk) FROM master.building_district_plan")
-    m = await c.fetchval("SELECT count(*) FROM master.building_district_plan")
-    print(f"태깅 건물 {n:,}동 · 건물×계획 {m:,}행")
+    # 건물 태깅(master.building_district_plan)은 2026-10-07 에 뺐다 — 읽는 곳이 없었다.
     await c.close()
 
 

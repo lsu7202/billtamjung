@@ -22,7 +22,7 @@ import re
 from fastapi import APIRouter, Depends
 
 from ..core.db import pool
-from ..core.deps import CurrentUser, current_user, any_user
+from ..core.deps import CurrentUser, current_user, any_user, viewer
 from .tenants import biz_for, history_rows, norm_name, past_floors, tenancy_history, tenant_ledger
 
 router = APIRouter(prefix="/buildings/{building_pk}/floors", tags=["floors"])
@@ -79,7 +79,7 @@ def _same(a: str, b: str) -> bool:
 
 
 @router.get("", openapi_extra={"x-ai": "read"})   # AI 가 부를 수 있다 — 화면과 같은 답
-async def building_floors(building_pk: str, _: CurrentUser = Depends(any_user)):
+async def building_floors(building_pk: str, _: CurrentUser = Depends(viewer)):
     # 용도를 같이 뽑는다. 버리고 있던 값이라 업체가 없는 층이 통째로 침묵했다(2026-09-25).
     outline = await pool().fetch(
         "SELECT floor, sum(floor_area)::float AS floor_area,"
@@ -140,6 +140,6 @@ async def building_floors(building_pk: str, _: CurrentUser = Depends(any_user)):
 
 
 @router.get("/history", openapi_extra={"x-ai": "read"})
-async def building_history(building_pk: str, user: CurrentUser = Depends(any_user)):
+async def building_history(building_pk: str, user: CurrentUser = Depends(viewer)):
     """입주 이력 — 이 건물에 누가 언제 들어왔다 나갔나(LOCALDATA). 임대료는 없다."""
     return await tenancy_history(building_pk)
